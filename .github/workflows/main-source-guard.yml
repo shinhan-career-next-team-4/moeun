@@ -1,0 +1,16 @@
+name: main-source-guard
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  check-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: main에는 develop 브랜치에서 온 PR만 허용
+        run: |
+          if [ "${{ github.head_ref }}" != "develop" ]; then
+            echo "::error::main으로는 develop 브랜치의 PR만 머지할 수 있습니다. (현재: ${{ github.head_ref }})"
+            exit 1
+          fi
