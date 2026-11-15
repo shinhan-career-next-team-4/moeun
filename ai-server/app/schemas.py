@@ -1,0 +1,93 @@
+from enum import StrEnum
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
+
+
+class ApiModel(BaseModel):
+    """Spring(Jackson)과 주고받는 모델. JSON은 camelCase, 파이썬은 snake_case."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, serialize_by_alias=True)
+
+
+class Scenario(StrEnum):
+    GOOD = "GOOD"
+    AVG = "AVG"
+    BAD = "BAD"
+
+
+class ChatMode(StrEnum):
+    QUESTION = "QUESTION"   # 사용자 질문 (FR-AI-06/07/09)
+    EXPLAIN = "EXPLAIN"     # 계산 결과 설명 / 설명 다시 요청 (FR-AI-01/02/05)
+
+
+class DocType(StrEnum):
+    EDU = "EDU"
+    DISCLOSURE = "DISCLOSURE"
+
+
+class ConditionChanges(ApiModel):
+    """대화로 바꿀 수 있는 조건. 이름은 plan_version 컬럼과 같다. None = 바꾸지 않음."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    goal_amount: int | None = Field(default=None, gt=0)
+    target_period_months: int | None = Field(default=None, gt=0)
+    held_assets: int | None = Field(default=None, ge=0)
+    monthly_saving_amount: int | None = Field(default=None, ge=0)
+    savings_rate_input_pct: float | None = Field(default=None, ge=0)
+    existing_monthly_contribution: int | None = Field(default=None, ge=0)
+    savings_ratio_pct: int | None = Field(default=None, ge=0, le=100)
+
+    def changed(self) -> dict[str, Any]:
+        # chat_message.condition_changes에 저장되는 값. 키는 plan_version 컬럼명(snake_case)
+        return self.model_dump(exclude_none=True, by_alias=False)
+
+
+class HistoryItem(ApiModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class ChatRequest(ApiModel):
+    """Spring → ai-server. 사용자 JWT는 넘기지 않고 Spring이 member_id를 담는다."""
+
+    member_id: int
+    message_id: int                              # Spring이 만든 PENDING chat_message.id (로그 추적용)
+    mode: ChatMode
+    text: str | None = Field(default=None, max_length=2000)   # QUESTION일 때 사용자 발화
+    baseline_scenario: Scenario
+    calc_run_id: int | None = None               # EXPLAIN일 때 설명할 계산
+    plan_context: dict[str, Any] | None = None   # 현재 조건과 계산 결과 요약(Spring이 만든 값 그대로)
+    history: list[HistoryItem] = Field(default_factory=list, max_length=20)
+
+
+MessageType = Literal["ANSWER", "EXPLANATION", "RECALC_RESULT", "CLARIFY", "OUT_OF_SCOPE"]
+
+
+class ChatResponse(ApiModel):
+    """ai-server → Spring. Spring이 chat_message를 COMPLETED로 갱신하고 citation을 저장한다."""
+
+    message_type: MessageType
+    content: str
+    baseline_scenario: Scenario
+    calc_run_id: int | None = None
+    condition_changes: dict[str, Any] | None = None
+    citation_chunk_ids: list[int] = Field(default_factory=list)
+
+
+class SearchRequest(ApiModel):
+    query: str = Field(min_length=1, max_length=500)
+    doc_type: DocType | None = None
+    top_k: int | None = Field(default=None, ge=1, le=20)
+
+
+class RetrievedChunk(ApiModel):
+    chunk_id: int
+    content: str
+    title: str
+    source_url: str
+    doc_type: DocType
+    org_name: str
+    distance: float
