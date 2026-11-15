@@ -1,0 +1,45 @@
+### 환경 변수 / 비밀 정보 ###
+.env
+.env.*
+!.env.example
+*.env
+*.pem
+*.key
+
+### Python ###
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+### 가상환경 (uv) ###
+.venv/
+venv/
+env/
+
+### 테스트 / 도구 캐시 ###
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+### 적재용 원본 문서(저작권·용량) ###
+docs/raw/
+
+### IDE ###
+.idea/
+.vscode/
+*.iml
+
+### OS / 로그 ###
+.DS_Store
+Thumbs.db
+*.log
+logs/
+
+### Claude Code 개인 설정 ###
+.claude/settings.local.json
+CLAUDE.local.md

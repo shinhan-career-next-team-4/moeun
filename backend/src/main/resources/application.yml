@@ -1,0 +1,73 @@
+spring:
+  application:
+    name: moeun-backend
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/moeun}
+    username: ${DB_USERNAME:moeun}
+    password: ${DB_PASSWORD:moeun}
+    hikari:
+      maximum-pool-size: 10
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate               # 스키마는 db/schema.sql이 만든다. 엔티티와 불일치만 검사
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        default_batch_fetch_size: 100
+
+  # Flyway 도입 전까지: 기동 시 schema.sql 실행(IF NOT EXISTS라 재실행 안전)
+  sql:
+    init:
+      mode: ${SQL_INIT_MODE:always}
+      schema-locations: classpath:db/schema.sql
+      encoding: UTF-8
+
+  modulith:
+    events:
+      jdbc:
+        schema-initialization:
+          enabled: true                # event_publication 테이블 자동 생성
+      republish-outstanding-events-on-restart: true   # 재기동 시 미완료 이벤트 재처리(PENDING 대화 복구)
+
+  threads:
+    virtual:
+      enabled: true                    # ai-server 호출 대기를 가상 스레드로
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+  error:
+    include-stacktrace: never
+
+# 앱 설정 (@ConfigurationProperties로 바인딩)
+moeun:
+  jwt:
+    secret: ${JWT_SECRET:local-dev-secret-change-me-at-least-32-bytes!!}   # HS256, 32바이트 이상
+    access-token-ttl: 30m              # NFR-SEC-02: 30분 비활동 만료(슬라이딩)
+    issuer: moeun
+  ai-server:
+    base-url: ${AI_SERVER_URL:http://localhost:8000}
+    internal-api-key: ${INTERNAL_API_KEY:local-internal-key}   # Spring ↔ ai-server 내부 호출
+    connect-timeout: 3s
+    read-timeout: 60s
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,modulith
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    com.moeun: DEBUG
+    org.springframework.modulith: INFO
