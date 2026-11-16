@@ -1,0 +1,47 @@
+name: 작업
+description: 개발 작업 하나 (Issue → 브랜치 → PR)
+labels: ["status:ready"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 무엇을 왜
+      description: 2~4문장. 관련 요구사항·결정 ID(FR-xxx, D-xxx)를 적는다.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 수용 기준
+      description: Given / When / Then. 예외 상황 1개 이상.
+      value: |
+        - [ ] Given ... When ... Then ...
+        - [ ] (예외) Given ... When ... Then ...
+    validations:
+      required: true
+  - type: textarea
+    id: paths
+    attributes:
+      label: 변경 범위 (paths)
+      description: 이 작업이 고칠 폴더·파일. 동시 작업 충돌을 막는 데 쓴다.
+      placeholder: backend/src/main/java/com/moeun/backend/chat/**
+    validations:
+      required: true
+  - type: input
+    id: depends
+    attributes:
+      label: 선행
+      description: 먼저 끝나야 하는 Issue. 없으면 "없음".
+      placeholder: "#3, #5"
+  - type: textarea
+    id: done
+    attributes:
+      label: 완료 조건
+      value: |
+        - [ ] 해당 폴더 테스트·린트 통과
+        - [ ] 수용 기준마다 테스트 있음
+  - type: textarea
+    id: refs
+    attributes:
+      label: 참고
+      description: project-workspace 문서 링크 등
