@@ -1,0 +1,8 @@
+{
+  "type": "about:blank",
+  "title": "요청 형식이 올바르지 않아요",
+  "status": 400,
+  "instance": "/internal/calc",
+  "code": "MALFORMED_REQUEST",
+  "errors": []
+}

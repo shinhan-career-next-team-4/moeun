@@ -1,0 +1,8 @@
+{
+  "type": "about:blank",
+  "title": "이미 목표를 넘었어요",
+  "status": 409,
+  "instance": "/internal/calc",
+  "code": "ALREADY_EXCEEDED",
+  "errors": []
+}
