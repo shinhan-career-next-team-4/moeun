@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
@@ -120,35 +121,47 @@ FINAL_FORMAT: BetaJSONOutputFormatParam = {
     },
 }
 
+EXCLUDED_NOTE = "excludedConditions는 이번 발화에 없어 계산에서 뺐습니다. 답변에서 이 조건의 값을 말하지 마세요."
+
 # 도구 실패로 보고 모델에게 is_error 결과로 돌려줄 예외. 그 밖의 예외는 요청 실패로 올린다
 _TOOL_ERRORS = (CalcError, ValidationError, KeyError, ValueError, RuntimeError)
 
 
-# 이번 발화가 그 조건을 가리키는지 보는 느슨한 표현 목록. 자연어를 해석하거나 계산하지 않고,
-# 하나도 없을 때만 값을 뺀다(모호하면 남긴다). 단위 없는 값("40으로")은 빠질 수 있고 그때는 되묻는다(M-3)
-_CONDITION_HINTS: dict[str, tuple[str, ...]] = {
-    "monthly_saving_amount": ("월", "저축", "납입", "만원", "원"),
-    "savings_ratio_pct": ("비중", "적금", "etf", "%", "퍼센트"),
-    "savings_rate_input_pct": ("금리", "이율", "%"),
-    "target_period_months": ("기간", "기한", "개월", "달", "년"),
-}
+# 이번 발화가 그 조건을 가리키는지 보는 느슨한 표현. 자연어를 해석하거나 계산하지 않고, 표현이 없을 때만 값을 뺀다.
+# "개월"의 월, "원래"의 원, "한 달"의 달처럼 다른 조건의 글자가 겹치지 않게 정규식으로 가린다(M-3)
+_MONTHLY = re.compile(r"(?<!개)월|매달|한\s?달|저축|납입|\d\s*만|만\s?원|\d\s*원")
+_PERIOD = re.compile(r"기간|기한|개월|년|\d\s*달")
+_RATIO_WORDS = re.compile(r"비중|etf|주식|배분")
+_RATE_WORDS = re.compile(r"금리|이율")
+_PERCENT = re.compile(r"%|퍼센트|프로")
+_NUMBER = re.compile(r"\d")
+
+
+def _stated_conditions(text: str) -> set[str]:
+    """발화가 가리키는 조건. %는 금리·비중 단어가 있으면 그쪽에만 붙이고, 둘 다 없으면 둘 모두로 본다."""
+    ratio_words = bool(_RATIO_WORDS.search(text))
+    rate_words = bool(_RATE_WORDS.search(text))
+    percent = bool(_PERCENT.search(text))
+    stated = {
+        "monthly_saving_amount": bool(_MONTHLY.search(text)),
+        "savings_ratio_pct": ratio_words or (not rate_words and (percent or "적금" in text)),
+        "savings_rate_input_pct": rate_words or (not ratio_words and percent),
+        "target_period_months": bool(_PERIOD.search(text)),
+    }
+    return {name for name, hit in stated.items() if hit}
 
 
 def drop_carried_conditions(text: str, changes: ConditionChanges) -> ConditionChanges:
     """history에서 이어받은 조건을 도구 인자에서 뺀다. 비교 기준은 항상 내 계획이다(FR-AI-06, D-041).
 
-    발화에 어떤 조건 표현도 없으면 무엇을 말했는지 알 수 없으므로 그대로 둔다("이 값으로 바꿔줘"처럼
-    값만 가리키는 발화도 Spring 검증으로 보낸다, D-033).
+    조건 표현은 없고 숫자만 있는 발화("이번엔 60으로")는 어느 조건 값인지 알 수 없어 그대로 둔다.
+    표현도 숫자도 없으면 말한 값이 없으므로 전부 뺀다.
     """
     lowered = text.lower()
-    if not any(hint in lowered for hints in _CONDITION_HINTS.values() for hint in hints):
+    stated = _stated_conditions(lowered)
+    if not stated and _NUMBER.search(lowered):
         return changes
-    kept = {
-        name: value
-        for name, value in changes.changed().items()
-        if any(hint in lowered for hint in _CONDITION_HINTS[name])
-    }
-    return ConditionChanges.model_validate(kept)
+    return ConditionChanges.model_validate({k: v for k, v in changes.changed().items() if k in stated})
 
 
 class AgentError(Exception):
@@ -252,21 +265,23 @@ class ChatAgent:
 
     async def _recalculate(self, turn: _Turn, args: dict[str, Any]) -> str:
         changes = ConditionChanges.model_validate(args)
-        # 계산 전에 거른다. assemble에서만 거르면 calc_run_id는 누적 값으로 계산된 채 condition_changes만 달라진다
-        if turn.req.text:
+        # history가 있을 때만 이어받은 값이 생길 수 있다. 계산 전에 거른다(assemble에서만 거르면
+        # calc_run_id는 누적 값으로 계산된 채 condition_changes만 달라진다)
+        dropped: list[str] = []
+        if turn.req.text and turn.req.history:
             filtered = drop_carried_conditions(turn.req.text, changes)
-            if filtered != changes:
-                log.info(
-                    "dropped carried conditions for message %s: %s",
-                    turn.req.message_id,
-                    sorted(changes.changed().keys() - filtered.changed().keys()),
-                )
+            dropped = sorted(changes.changed().keys() - filtered.changed().keys())
+            if dropped:
+                log.info("dropped carried conditions for message %s: %s", turn.req.message_id, dropped)
             changes = filtered
         if not changes.changed():
             raise CalcError("바꿀 조건이 없습니다. 무엇을 바꿀지 사용자에게 되물으세요.")
         result = await self._calc.recalculate(turn.req.member_id, turn.req.baseline_scenario, changes)
         turn.calc_run_id = result["calcRunId"]
         turn.condition_changes = changes.changed()
+        if dropped:
+            # 모델이 뺀 조건을 계산에 쓴 것처럼 답하지 않게 알린다(서버 사실 원칙)
+            result = {**result, "excludedConditions": dropped, "note": EXCLUDED_NOTE}
         return json.dumps(result, ensure_ascii=False)
 
     async def _search_documents(self, turn: _Turn, args: dict[str, Any]) -> str:

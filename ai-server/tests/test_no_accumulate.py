@@ -180,10 +180,24 @@ ALL_FOUR = {
     "target_period_months": 60,
 }
 
-# 발화에 어떤 조건 표현이 있으면 그 조건을 가리키는 표현이 없는 값은 null, 있는 값은 유지.
-# 어떤 조건 표현도 없으면 무엇을 말했는지 알 수 없으므로 전부 유지(#21 테스트가 고정한 D-033 동작)
+# 발화가 가리키는 조건은 유지하고 나머지는 null. 표현도 숫자도 없으면 전부 null, 숫자만 있으면 전부 유지
 DROP_CASES = [
-    pytest.param("그냥 다시 해줘", ALL_FOUR, ALL_FOUR, id="no_condition_wording_keeps_all"),
+    pytest.param("그냥 다시 해줘", ALL_FOUR, {}, id="no_wording_no_number_drops_all"),
+    pytest.param("이번엔 60으로", ALL_FOUR, ALL_FOUR, id="number_only_keeps_all"),
+    pytest.param("기간을 60개월로", ALL_FOUR, {"target_period_months": 60}, id="months_is_not_monthly_saving"),
+    pytest.param("금리 4%면?", ALL_FOUR, {"savings_rate_input_pct": 3.5}, id="percent_with_rate_word_is_rate_only"),
+    pytest.param("적금 금리 4%로", ALL_FOUR, {"savings_rate_input_pct": 3.5}, id="savings_word_with_rate_word"),
+    pytest.param("ETF 비중 30%로", ALL_FOUR, {"savings_ratio_pct": 30}, id="percent_with_ratio_word_is_ratio_only"),
+    pytest.param("원래대로 하고 3년으로", ALL_FOUR, {"target_period_months": 60}, id="wonrae_is_not_won"),
+    pytest.param("매달 40만으로 하면?", ALL_FOUR, {"monthly_saving_amount": 500_000}, id="maedal_40man"),
+    pytest.param("한 달에 40만", ALL_FOUR, {"monthly_saving_amount": 500_000}, id="han_dal"),
+    pytest.param(
+        "3.5프로로 하고 3년이면?", ALL_FOUR,
+        {"savings_ratio_pct": 30, "savings_rate_input_pct": 3.5, "target_period_months": 60}, id="peuro_with_period",
+    ),
+    pytest.param(
+        "주식 쪽을 70으로 하고 2년", ALL_FOUR, {"savings_ratio_pct": 30, "target_period_months": 60}, id="stock_ratio"
+    ),
     pytest.param("기간도 5년으로", ALL_FOUR, {"target_period_months": 60}, id="only_period_keyword"),
     pytest.param("월 40만원으로", ALL_FOUR, {"monthly_saving_amount": 500_000}, id="only_monthly_keyword"),
     pytest.param("금리를 3.5로", ALL_FOUR, {"savings_rate_input_pct": 3.5}, id="only_rate_keyword"),
@@ -213,10 +227,13 @@ def test_drop_carried_conditions_table(text, given, expected):
 
 # 조건별 허용 키워드. 하나라도 들어 있으면 그 조건은 유지한다(모호하면 유지)
 KEEP_KEYWORDS = [
-    *[pytest.param("monthly_saving_amount", 400_000, kw, id=f"monthly-{kw}") for kw in ("월", "저축", "납입", "만원", "원")],
+    *[
+        pytest.param("monthly_saving_amount", 400_000, kw, id=f"monthly-{kw}")
+        for kw in ("월", "저축", "납입", "만원", "40원", "매달")
+    ],
     *[pytest.param("savings_ratio_pct", 30, kw, id=f"ratio-{kw}") for kw in ("비중", "적금", "ETF", "%", "퍼센트")],
     *[pytest.param("savings_rate_input_pct", 3.5, kw, id=f"rate-{kw}") for kw in ("금리", "이율", "%")],
-    *[pytest.param("target_period_months", 24, kw, id=f"period-{kw}") for kw in ("기간", "기한", "개월", "달", "년")],
+    *[pytest.param("target_period_months", 24, kw, id=f"period-{kw}") for kw in ("기간", "기한", "개월", "6달", "년")],
 ]
 
 
@@ -242,10 +259,47 @@ def test_drop_carried_conditions_drops_each_field_when_other_condition_is_stated
     assert out.changed() == {}
 
 
-def test_drop_carried_conditions_keeps_values_when_no_condition_wording():
-    """조건 표현이 전혀 없는 발화("이 값으로 바꿔줘")는 그대로 둔다 (D-033, #21 테스트와 같은 동작)"""
+def test_drop_carried_conditions_drops_all_when_no_wording_and_no_number():
+    """말한 값이 없는 발화("그럼 어떻게 돼?")에서는 모델이 넣은 값이 전부 이어받은 값이다 (AC2)"""
     out = drop_carried_conditions("그럼 어떻게 돼?", changes_of(**ALL_FOUR))
-    assert out.changed() == ALL_FOUR
+    assert out.changed() == {}
+
+
+async def test_no_history_skips_filter_so_first_question_is_forwarded():
+    """history가 없으면 이어받을 값이 없으므로 필터를 거치지 않고 Spring으로 보낸다 (D-033, #21과 같은 동작)"""
+    claude = FakeClaude([
+        tool_resp("recalculate", {**NULLS, "monthly_saving_amount": 400_000}),
+        text_resp("RECALC_RESULT", "결과"),
+    ])
+    calc = FakeCalc()
+    resp = await make_agent(claude, calc).run(question("매달 40만으로 하면?", plan_context=PLAN_CONTEXT))
+    assert calc.calls == [{"monthly_saving_amount": 400_000}]
+    assert resp.condition_changes == {"monthly_saving_amount": 400_000}
+
+
+async def test_dropped_conditions_are_reported_to_model_in_tool_result():
+    """뺀 조건은 도구 결과로 모델에 알린다. 모델이 뺀 조건을 계산에 쓴 것처럼 답하지 않게 한다 (서버 사실)"""
+    claude = FakeClaude([
+        tool_resp("recalculate", {**NULLS, "monthly_saving_amount": 500_000, "target_period_months": 60}),
+        text_resp("RECALC_RESULT", "기간만 바꾼 결과입니다"),
+    ])
+    calc = FakeCalc()
+    await make_agent(claude, calc).run(question("기간도 5년으로", plan_context=PLAN_CONTEXT, history=PREVIOUS_HISTORY))
+    result = json.loads(last_tool_result(claude)["content"])
+    assert result["excludedConditions"] == ["monthly_saving_amount"]
+    assert "note" in result
+
+
+async def test_nothing_dropped_leaves_tool_result_without_note():
+    """뺀 조건이 없으면 도구 결과는 Spring 응답 그대로다"""
+    claude = FakeClaude([
+        tool_resp("recalculate", {**NULLS, "target_period_months": 60}),
+        text_resp("RECALC_RESULT", "결과"),
+    ])
+    await make_agent(claude, FakeCalc()).run(
+        question("기간도 5년으로", plan_context=PLAN_CONTEXT, history=PREVIOUS_HISTORY)
+    )
+    assert "excludedConditions" not in json.loads(last_tool_result(claude)["content"])
 
 
 def test_drop_carried_conditions_does_not_mutate_input():
@@ -269,7 +323,7 @@ def test_system_prompt_has_no_accumulate_rule_phrases(phrase):
 def test_drop_carried_conditions_accepts_empty_text():
     """(예외) 발화가 비어 있어도 필터는 예외 없이 ConditionChanges를 돌려준다 (EXPLAIN 모드 대비)"""
     out = drop_carried_conditions("", changes_of(monthly_saving_amount=500_000))
-    assert isinstance(out, ConditionChanges)
+    assert out.changed() == {}
 
 
 async def test_explain_mode_without_text_runs_without_error():
@@ -283,7 +337,8 @@ async def test_explain_mode_without_text_runs_without_error():
         memberId=1, messageId=9, mode="EXPLAIN", calcRunId=5, baselineScenario="AVG", planContext=PLAN_CONTEXT
     )
     resp = await make_agent(claude, calc).run(req)
-    assert resp.message_type in ("EXPLANATION", "RECALC_RESULT")
+    assert calc.calls == [{"monthly_saving_amount": 500_000}]  # text가 없으면 필터를 건너뛴다
+    assert resp.condition_changes == {"monthly_saving_amount": 500_000}
     assert resp.content == "설명입니다"
 
 
