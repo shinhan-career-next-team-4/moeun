@@ -56,6 +56,10 @@ moeun:
     read-timeout: 60s
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  refdata:
+    # 서버가 뜰 때 적재할 기준 데이터 CSV. 항목: kind(SP500/SAVINGS_RATE/CALC_PARAM), version-label, base-date, source, file
+    # 실제 데이터와 출처가 정해지면 채운다(TBD-08). 비어 있으면 적재하지 않고, 그동안 계산에 쓸 활성 버전이 없다
+    seeds: []
 
 management:
   endpoints:
