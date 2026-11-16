@@ -2,6 +2,10 @@ spring:
   application:
     name: moeun-backend
 
+  # backend/.env가 있으면 환경변수로 읽는다(없으면 아래 기본값 사용). 실행 위치가 backend/여야 한다
+  config:
+    import: optional:file:.env[.properties]
+
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/moeun}
     username: ${DB_USERNAME:moeun}

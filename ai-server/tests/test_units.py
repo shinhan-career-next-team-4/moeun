@@ -3,6 +3,7 @@ import pytest
 import respx
 from fastapi.testclient import TestClient
 
+from app.config import get_settings
 from app.ingest.chunker import split_chunks
 from app.main import app, get_agent
 from app.rag.search import diversify_orgs
@@ -63,7 +64,7 @@ def test_chat_uses_injected_agent_and_camel_case():
         with TestClient(app) as client:
             r = client.post(
                 "/chat",
-                headers={"X-Internal-Api-Key": "local-internal-key"},
+                headers={"X-Internal-Api-Key": get_settings().internal_api_key.get_secret_value()},
                 json={"memberId": 1, "messageId": 2, "mode": "QUESTION", "text": "안녕", "baselineScenario": "AVG"},
             )
     finally:
