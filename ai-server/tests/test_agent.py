@@ -49,8 +49,7 @@ class FakeRetriever:
 
 
 NULL_CHANGES = dict.fromkeys(
-    ["goal_amount", "target_period_months", "held_assets", "monthly_saving_amount",
-     "savings_rate_input_pct", "existing_monthly_contribution", "savings_ratio_pct"]
+    ["monthly_saving_amount", "savings_ratio_pct", "savings_rate_input_pct", "target_period_months"]
 )
 
 

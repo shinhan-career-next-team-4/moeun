@@ -45,7 +45,7 @@ async def test_calc_validation_error_becomes_calc_error():
     respx.post("http://spring/internal/calc").mock(return_value=httpx.Response(422, text="bad"))
     async with httpx.AsyncClient(base_url="http://spring") as http:
         with pytest.raises(CalcError):
-            await CalcClient(http, "k").recalculate(1, Scenario.AVG, ConditionChanges(goal_amount=5))
+            await CalcClient(http, "k").recalculate(1, Scenario.AVG, ConditionChanges(monthly_saving_amount=5))
 
 
 def test_chat_requires_internal_key():
