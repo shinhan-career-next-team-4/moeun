@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 import yaml
+
 from app.core.copy import Copy, CopyKeyError, load_copy
 
 COPY_PATH = Path(__file__).resolve().parents[2] / "copy" / "copy.ko.yml"
