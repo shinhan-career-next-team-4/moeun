@@ -1,0 +1,149 @@
+# 문구표(CP-05). Spring·ai-server·프론트가 같은 파일을 읽는다. 고정 문구는 여기에만 둔다.
+#
+# 규칙
+# - 문체는 해요체. 면책(disclaimer)만 격식체 문장을 섞는다. 금지 표현은 CF-07을 따른다(테스트가 검사한다).
+# - 키는 중첩 YAML이고 로더가 '.'으로 이어 붙여 읽는다(excluded.EXCHANGE_RATE).
+#   같은 이름이 문장이면서 묶음일 수 없는 outOfScope와 outOfScope.tax만 따옴표 친 평탄 키로 쓴다.
+# - 값은 따옴표 친 문자열로 쓴다(따옴표 없는 true 같은 값은 두 로더가 다르게 읽는다).
+# - 자리 표시자는 {이름}이다. 이름은 영문자·숫자·밑줄만 쓴다. 값이 빠지면 로더가 실패한다. 없는 키·빈 값·중복 키도 로드 실패다.
+# - '임시'는 전문가·팀 확인 전 문장이다. 확정되면 이 표시를 지운다.
+# - 키 이름을 바꾸면 계약 표(C12a-7-1, H-15)와 #47~#54 본문을 함께 고친다.
+
+# 범위 밖 안내(일반)와 범위 밖 세금 질문 안내(D-073, 임시)
+"outOfScope": "이 질문은 모은에서 다루지 않아요. 목표 달성 시뮬레이션과 관련된 질문을 해 주세요."
+"outOfScope.tax": "상품별 세제 혜택, 개인 세금 계산, 절세 방법은 모은에서 다루지 않아요. 정확한 내용은 금융기관이나 세무 전문가에게 확인해 주세요."
+
+# 면책·고지(D-066). 결과 화면 면책(FR-RES-07)과 대화창 고지가 같은 키 하나다(임시)
+disclaimer: "이 서비스의 결과는 과거 데이터를 바탕으로 한 시뮬레이션이며 미래의 수익을 보장하지 않습니다. AI 설명은 참고용이며 계산 결과가 기준이에요."
+
+# 세금 단서(D-067, 임시)
+tax:
+  note: "세금은 일반 과세를 기준으로 가정했어요. 비과세·세금우대 상품, 금융소득, 세법이 바뀌면 달라질 수 있어요. 정확한 세금은 금융기관이나 세무 전문가에게 확인해 주세요."
+
+# 대화창 안내(/internal/calc C3-2, planContext 경로, 프론트 대화창 첫 줄)
+chat:
+  # 대화로 못 바꾸는 조건 안내(D-056). 범위 밖 안내(outOfScope)와 다른 키다
+  unchangeableCondition: "목표 금액은 입력 수정에서 바꿀 수 있어요. 대화로는 월 저축액·비중·적금 금리·기한을 바꿔 볼 수 있어요"
+  noPlan: "먼저 목표와 조건을 입력해 계획을 만들어 주세요"
+  # 대화창용 초과 안내(D-072). 결과 화면용 result.alreadyExceeded와 합치지 않는다
+  alreadyExceeded: "이미 가진 자산이 목표 금액을 초과했어요. 목표 금액은 입력 수정에서 바꿀 수 있어요"
+  # AI 답변 실패 안내(FR-AI-04). FAILED 메시지의 content
+  failed: "답변을 만들지 못했어요. 잠시 후 다시 질문해 주세요"
+  pollingFailed: "답변을 불러오지 못하고 있어요. 잠시 후 다시 시도해 주세요"
+  sendFailed: "메시지를 보내지 못했어요. 다시 시도해 주세요"
+  # 질문 예시 버튼(D-064). 값·변화량 없이 조건만 고른다
+  exampleQuestion:
+    monthlySavingAmount: "월 저축액을 바꿔 보고 싶어요"
+    savingsRatioPct: "저축 비중을 바꿔 보고 싶어요"
+    savingsRateInputPct: "적금 금리를 바꿔 보고 싶어요"
+    targetPeriodMonths: "목표 기간을 바꿔 보고 싶어요"
+
+# 표시 템플릿(Formatter #28이 읽는다, 임시). 금액·비중은 Formatter가 붙인다
+template:
+  achieved: "목표를 달성해요"
+  missed: "목표에 닿지 못해요"
+  increase: "늘어요"
+  decrease: "줄어요"
+  unchanged: "변화가 없어요"
+  ratio: "적금 {a} : ETF {b}"
+
+# 오류 title(/internal/calc 오류 코드 7개, 임시)
+error:
+  title:
+    VALIDATION_FAILED: "입력값을 확인해 주세요"
+    FIELD_NOT_CHANGEABLE: "대화로 바꿀 수 없는 항목이에요"
+    NO_PLAN: "아직 계획이 없어요"
+    ALREADY_EXCEEDED: "이미 목표 금액을 넘었어요"
+    MALFORMED_REQUEST: "요청 형식이 올바르지 않아요"
+    INVALID_INTERNAL_KEY: "내부 호출 인증에 실패했어요"
+    CALC_FAILED: "계산하지 못했어요"
+
+# 반영하지 않은 항목(planContext G-14). ExcludedItem enum의 모든 코드에 문장이 있어야 한다
+excluded:
+  ETF_TOTAL_EXPENSE: "ETF 총보수는 반영하지 않았어요"
+  EXCHANGE_RATE: "환율 변동은 반영하지 않았어요"
+  ETF_DISTRIBUTION: "ETF 분배금은 반영하지 않았어요"
+  HELD_ASSET_RETURN: "보유 자산의 수익은 반영하지 않았어요"
+  SAVINGS_REDEPOSIT: "적금 만기 후 재예치는 반영하지 않았어요"
+
+# 3구간 산정 방식(G-14). ScenarioMethod enum의 모든 코드에 문장이 있어야 한다. TBD-01 전 임시
+scenarioMethod:
+  CAGR: "과거 데이터의 연평균 수익률을 기준으로 세 구간을 나눠 계산했어요"
+  ROLLING_DISTRIBUTION: "과거 데이터를 기간별로 굴려 본 수익률 분포를 기준으로 세 구간을 나눠 계산했어요"
+
+# 비교 카드(H-15, C12b-6). 키는 conditions의 camelCase 키와 같다
+condition:
+  monthlySavingAmount: "월 저축액"
+  savingsRatioPct: "저축 비중"
+  savingsRateInputPct: "적금 금리"
+  targetPeriodMonths: "목표 기간"
+
+# diff.byScenario[].achievementChange 4값(internal-calc C2-5)
+achievementChange:
+  STAYS_ACHIEVED: "계속 달성해요"
+  STAYS_MISSED: "계속 미달이에요"
+  MISS_TO_ACHIEVE: "미달에서 달성으로 바뀌어요"
+  ACHIEVE_TO_MISS: "달성에서 미달로 바뀌어요"
+
+# 적용 토스트(F-5)와 비교 카드 실패(F-4)
+toast:
+  applyStaleComparison: "가장 최근 비교 결과만 적용할 수 있어요"
+  applyPlanChanged: "계획이 다른 곳에서 바뀌었어요"
+  applyNotApplicable: "지금 기준으로는 적용할 수 없는 값이에요"
+  applyFailed: "적용하지 못했어요"
+comparison:
+  loadFailed: "비교 결과를 불러오지 못했어요"
+
+# 로그인·입력·계획·되돌리기·결과 화면(C12a-7-1, J-13)
+common:
+  networkError: "네트워크 연결을 확인하고 다시 시도해 주세요"
+auth:
+  invalidCredentials: "아이디 또는 비밀번호가 맞지 않아요"
+  loginFailed: "로그인하지 못했어요. 잠시 후 다시 시도해 주세요"
+  logoutFailed: "로그아웃하지 못했어요. 다시 시도해 주세요"
+input:
+  saveFailed: "입력을 저장하지 못했어요. 다시 시도해 주세요"
+  invalidAmountFormat: "금액은 숫자로 입력해 주세요"
+  currentRatioLabel: "현재 비중"
+  # D-035
+  heldAssetsRecheck: "보유 자산이 {calcStartMonth} 기준이 맞는지 다시 확인해 주세요"
+plan:
+  changedElsewhere: "계획이 다른 곳에서 바뀌었어요. 다시 저장하면 입력한 값으로 바뀌어요"
+undo:
+  nothingToUndo: "이미 되돌렸어요"
+  failed: "되돌리지 못했어요. 다시 시도해 주세요"
+result:
+  loadFailed: "결과를 불러오지 못했어요. 다시 시도해 주세요"
+  # 결과 화면용 초과 안내(FR-RES-01). 대화창용 chat.alreadyExceeded와 합치지 않는다
+  alreadyExceeded: "가진 자산 {heldAssets}이 목표 금액 {goalAmount}을 이미 넘었어요. 목표 금액은 입력 수정에서 바꿀 수 있어요"
+  notReachedInPeriod: "목표 기간 안에는 목표 금액에 닿지 못해요"
+  # D-029
+  scenarioNotice: "세 가지 경우는 과거 데이터의 범위를 나눈 시나리오이고 미래를 예측한 값이 아니에요"
+  defaultSavingsRate: "적금 금리는 평균 금리를 기본값으로 사용했어요"
+scenario:
+  GOOD: "좋은 경우"
+  AVG: "보통 경우"
+  BAD: "나쁜 경우"
+
+# 422 안내 틀(자리에 단위 틀 결과가 들어간다)과 단위 틀(D-061)
+validation:
+  REQUIRED: "값을 입력해 주세요"
+  OUT_OF_RANGE: "{min}~{max} 사이로 입력해 주세요"
+  NOT_INTEGER: "정수로 입력해 주세요"
+  TOO_MANY_DECIMALS: "소수 {scale}자리까지 입력할 수 있어요"
+unit:
+  manwon: "{v}만원"
+  won: "{v}원"
+  month: "{y}년 {m}개월"
+  pct: "연 {v}%"
+  char: "{n}자"
+
+# 목표 종류 표시명(D-075, 임시). plan GoalType enum(#19)과 같은 코드 목록이다
+goal:
+  HOUSE: "내 집 마련"
+  CAR: "자동차"
+  WEDDING: "결혼"
+  EDUCATION: "교육"
+  TRAVEL: "여행"
+  EMERGENCY_FUND: "비상금"
+  CUSTOM: "직접 입력"

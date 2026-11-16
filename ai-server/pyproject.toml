@@ -14,6 +14,7 @@ dependencies = [
     "psycopg[binary,pool]>=3.2",
     "pgvector>=0.3",
     "pymupdf>=1.24",                  # 공시 PDF 텍스트 추출(적재 CLI)
+    "pyyaml>=6.0",                    # 문구표 copy/copy.ko.yml 로더
 ]
 
 [dependency-groups]
@@ -23,6 +24,7 @@ dev = [
     "respx>=0.21",
     "ruff>=0.7",
     "mypy>=1.13",
+    "types-pyyaml>=6.0.12.20261113",
 ]
 
 [project.scripts]
