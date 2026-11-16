@@ -37,6 +37,7 @@ FIXED_KEYS = [
     "chat.unchangeableCondition",
     "chat.noPlan",
     "chat.alreadyExceeded",
+    "chat.failed",
     "chat.pollingFailed",
     "chat.sendFailed",
     "template.achieved",

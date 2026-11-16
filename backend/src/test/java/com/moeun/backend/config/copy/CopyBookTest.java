@@ -54,7 +54,7 @@ class CopyBookTest {
     private static final List<String> FIXED_KEYS = List.of(
             "outOfScope", "outOfScope.tax", "disclaimer", TAX_NOTE_KEY,
             "chat.unchangeableCondition", "chat.noPlan", "chat.alreadyExceeded",
-            "chat.pollingFailed", "chat.sendFailed",
+            "chat.failed", "chat.pollingFailed", "chat.sendFailed",
             "template.achieved", "template.missed", "template.increase", "template.decrease",
             "template.unchanged", "template.ratio",
             "toast.applyStaleComparison", "toast.applyPlanChanged", "toast.applyNotApplicable",

@@ -28,7 +28,7 @@ public final class CopyBook {
     /** 필수 키 중 enum으로 만들 수 없는 것. 문구표를 바꾸면 ai-server의 REQUIRED_KEYS도 함께 고친다. */
     private static final List<String> FIXED_KEYS = List.of(
             "outOfScope", "outOfScope.tax", "disclaimer", "tax.note",
-            "chat.unchangeableCondition", "chat.noPlan", "chat.alreadyExceeded",
+            "chat.unchangeableCondition", "chat.noPlan", "chat.alreadyExceeded", "chat.failed",
             "chat.pollingFailed", "chat.sendFailed",
             "template.achieved", "template.missed", "template.increase", "template.decrease",
             "template.unchanged", "template.ratio",
@@ -54,7 +54,8 @@ public final class CopyBook {
 
     /**
      * calc의 ExcludedItem·ScenarioMethod와 같은 코드 목록(G-14). calc가 이 로더를 쓰게 되므로(Formatter #28)
-     * enum을 import하면 모듈 순환이 된다. 목록이 enum과 어긋나지 않는지는 CopyBookTest가 enum 전수로 확인한다.
+     * enum을 import하면 모듈 순환이 된다. enum에 코드가 늘면 CopyBookTest가 문구표에 그 코드의 문장이 없다고 실패하니,
+     * 그때 이 목록에도 같은 코드를 더한다.
      */
     private static final List<String> EXCLUDED_CODES = List.of(
             "ETF_TOTAL_EXPENSE", "EXCHANGE_RATE", "ETF_DISTRIBUTION", "HELD_ASSET_RETURN", "SAVINGS_REDEPOSIT");

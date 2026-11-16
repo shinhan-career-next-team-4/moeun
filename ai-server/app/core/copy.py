@@ -9,7 +9,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-import yaml  # type: ignore[import-untyped]
+import yaml
 
 ENV_PATH = "MOEUN_COPY_PATH"
 DEFAULT_PATH = Path(__file__).resolve().parents[3] / "copy" / "copy.ko.yml"
@@ -40,6 +40,7 @@ _FIXED_KEYS = (
     "chat.unchangeableCondition",
     "chat.noPlan",
     "chat.alreadyExceeded",
+    "chat.failed",
     "chat.pollingFailed",
     "chat.sendFailed",
     "template.achieved",
@@ -101,7 +102,7 @@ class CopyKeyError(Exception):
     """문구표에 키가 없거나 값이 비었거나 파일 형식이 잘못됐다."""
 
 
-class _UniqueKeyLoader(yaml.SafeLoader):  # type: ignore[misc]
+class _UniqueKeyLoader(yaml.SafeLoader):
     """같은 매핑 안의 중복 키를 거부하는 로더(PyYAML 기본은 뒤의 값이 조용히 이긴다)."""
 
     def construct_mapping(self, node: Any, deep: bool = False) -> dict[Any, Any]:
