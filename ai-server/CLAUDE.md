@@ -40,4 +40,5 @@ uv run uvicorn app.main:app --reload --port 8000
 ## 팀 설정
 - 파일을 고치면 훅이 `ruff check --fix`를 돌린다. 작업을 끝낼 때 파이썬이 바뀌었으면 훅(`.claude/hooks/check-python.sh`)이 ruff, mypy, pytest를 돌린다. 실패하면 고친 뒤 끝낸다.
 - 기능 구현 후나 PR 전에는 `ai-server-reviewer` 에이전트로 규칙 위반을 점검한다.
+- 구현·진단 에이전트: `fastapi-pro`(라우터·의존성), `ai-engineer`(LLM·RAG 파이프라인), `vector-database-engineer`(청킹·검색 품질), `postgres-pro`(SQL 진단, 읽기 전용). 검색 평가 계획은 `docs/rag-eval.md`.
 - 개인 설정은 `.claude/settings.local.json`, `CLAUDE.local.md`에 둔다(git 제외).
