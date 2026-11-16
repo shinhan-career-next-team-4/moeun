@@ -1,6 +1,6 @@
 # `planContext` 계약 (Spring → ai-server `POST /chat`)
 
-> 최종본 (2026-11-16, moeun #11, 요구사항 FR-AI-01·02·04·06·09·10, FR-RES-01·06, NFR-INT-01·03, CP-04·05, 결정 D-027·D-030·D-040·D-041·D-045·D-055·D-058~D-062·D-067·D-073).
+> 최종본 (2026-11-16, moeun #11, 요구사항 FR-AI-01·02·04·06·09·10, FR-RES-01·06, NFR-INT-01·03, CP-04·05, 결정 D-027·D-030·D-040·D-041·D-045·D-055·D-058~D-062·D-065·D-067·D-071·D-073).
 > 협상 기록과 원문은 기획 repo project-workspace `docs/design/contracts/plan-context.md`(합의 55항목, 쟁점 X-1~X-4 → D-059~D-062)다. 이 문서가 구현 기준이며 `ai-server/README.md` "planContext" 절은 이 문서의 요약이다.
 > 예시 JSON은 [`docs/api/examples/plan-context/`](examples/plan-context/)에 파일로 둔다. Spring 테스트와 ai-server 테스트가 같은 파일을 읽는다(C1a-13).
 > **[D-059]~[D-062]**는 협상 쟁점이었다가 사람이 결정한 항목이다. 항목 ID(C1a-x)는 기획 repo 문서와 같다. `/internal/calc` 계약은 [`internal-calc.md`](internal-calc.md)다.
@@ -107,7 +107,7 @@
 **반영하지 않은 항목·3구간 산정 방식 문장**
 - **Spring은 `excludedItems`·`scenarioMethod` 코드만 보낸다.** 왜: planContext에 문구표 의존이 생기지 않고 display와 성격이 다른 맵이 늘지 않는다.
 - ai-server가 코드 → 문구표 문장(`excludedNotes`, `scenarioMethodNote`)으로 바꿔 모델에 넣고, **모델은 그 문장을 글자 그대로 인용한다.** 왜: D-027 "환율 변동은 반영하지 않았어요"가 AI 문장에서도 화면과 같아야 하고, 코드의 뜻을 모델이 지어내면 안 된다. CP-05(프론트와 AI 서버가 문구표를 함께 읽음)를 그대로 이행하는 것이다.
-- 문구표 출처: #18이 `ai-server/app/core/copy.py` 로더를 먼저 만들고 #35가 그 뒤에 온다. ai-server 상수 dict는 **#18이 늦어질 때만 쓰는 대체 경로**다. 테스트: "`ExcludedItem`·`ScenarioMethod` enum의 모든 코드에 문장이 있다".
+- 문구표 출처: #18이 만든 `ai-server/app/core/copy.py` 로더가 `copy/copy.ko.yml`을 읽고, #35가 그 뒤에 온다. 테스트: "`ExcludedItem`·`ScenarioMethod` enum의 모든 코드에 문장이 있다".
 - 모르는 코드(문장 없음)는 **버리고 경고 로그**를 남긴다(모델에 코드를 넘기지 않음).
 - `scenarioMethod.<CODE>` 문장 내용은 TBD-01(3구간 산정 방식, 미결)을 따른다. #18의 "없는 키를 읽으면 실패" 규칙 때문에 TBD-01이 끝나기 전에도 **임시 문장을 넣는다**(빈 값 금지).
 - `ExcludedItem`·`ScenarioMethod` enum 값을 늘리면 #18 문구표도 같이 고친다.
@@ -342,7 +342,6 @@ public record PlanContextView(long calcRunId, ConditionsView conditions, CalcRes
 | `excluded.<CODE>` | `ExcludedItem` 5개(`ETF_TOTAL_EXPENSE`, `EXCHANGE_RATE`, `ETF_DISTRIBUTION`, `HELD_ASSET_RETURN`, `SAVINGS_REDEPOSIT`). `excluded.EXCHANGE_RATE` = "환율 변동은 반영하지 않았어요"(D-027) | 나머지 4개는 #18 |
 | `scenarioMethod.<CODE>` | `CAGR`, `ROLLING_DISTRIBUTION` 2개 | TBD-01 결과에 따름. **결정 전에도 임시 문장을 넣는다**(빈 값 금지) |
 | `tax.note` | [D-067] 모델 입력 `taxNote`, 가정 보기 | 일반 과세 기준 가정, 비과세·세금우대 상품·금융소득·세법 변경 시 달라질 수 있음, 정확한 세금은 금융기관·세무 전문가 확인(#18) |
-
 | `outOfScope.tax` | [D-073] 범위 밖 세금 질문의 `OUT_OF_SCOPE` 응답 | #18 문구표에 이미 있음 |
 
   왜 C3-2와 같은 키인가: 같은 상황(계획 없음·초과)에 경로마다 다른 문장이 나오지 않게 한다.
@@ -361,7 +360,7 @@ public record PlanContextView(long calcRunId, ConditionsView conditions, CalcRes
 - **파일 두 종류의 쓰임**
   - `plan-context-*.json`: **`planContext` 객체만** 담는다. ai-server 테스트는 헬퍼 `make_request(plan_context, mode, calc_run_id)`(테스트 코드, #35)로 `ChatRequest`에 감싸 쓴다.
   - `chat-request-*.json`: **`ChatRequest` 전체**를 담는다(줄임 없음). 그대로 `/chat` 요청 본문으로 쓴다.
-  - `model-input-basic.json`: `plan-context-basic.json`의 모델 입력 기대값. **`excludedNotes`·`scenarioMethodNote` 두 키는 파일에 넣지 않는다.** 테스트가 문구표(`COPY`)에서 `[COPY[f"excluded.{c}"] for c in excludedItems]`, `COPY[f"scenarioMethod.{m}"]`로 두 키를 만들어 기대값 dict의 `result.assumptions`에 덧붙인 뒤 비교한다. 왜: 자리표시자 문자열을 파일에 두면 `json.loads` 비교가 항상 실패하고 사람이 "진짜 값인가" 헷갈린다. `excluded.EXCHANGE_RATE`는 D-027 문장으로 고정이고 별도 단언 1건으로 확인한다. [D-067] 문구표 `tax.note`를 넣는 `taxNote`도 테스트가 같은 방식으로 덧붙인다.
+  - `model-input-basic.json`: `plan-context-basic.json`의 모델 입력 기대값. **`excludedNotes`·`scenarioMethodNote` 두 키는 파일에 넣지 않는다.** 테스트가 문구표(`COPY`)에서 `[COPY[f"excluded.{c}"] for c in excludedItems]`, `COPY[f"scenarioMethod.{m}"]`로 두 키를 만들어 기대값 dict의 `result.assumptions`에 덧붙인 뒤 비교한다. 왜: 자리표시자 문자열을 파일에 두면 `json.loads` 비교가 항상 실패하고 사람이 "진짜 값인가" 헷갈린다. `excluded.EXCHANGE_RATE`는 D-027 문장으로 고정이고 별도 단언 1건으로 확인한다. [D-067] 문구표 `tax.note`를 넣는 `taxNote`도 파일에 넣지 않고 테스트가 `COPY["tax.note"]`로 채운다. **`taxNote`가 모델 입력의 어느 위치(`result.assumptions` 안인지 최상위인지)에 들어가는지는 이 계약이 정하지 않았다. #35가 정하고 이 문서를 고친다.**
 - **G-5는 둘로 나뉜다**(엔진을 돌리지 않는 단위 테스트):
   - **G-5a(빌더, #28)**: 손으로 만든 `CalcInput`/`CalcResult` → `ResultDisplayBuilder`(접두어 `""`, `"conditions."`) 결과 = fixture의 `display` 객체. 요구 키 불변식, `goalReachMonth` 방출 규칙(미달 BAD 1건), 라벨-`isAchieved` 일치.
   - **G-5b(`PlanContextProvider` Issue, G-7)**: 같은 입력 → `PlanContextView` 직렬화 결과 = fixture 전체. `memberId` 키 없음, `isAchieved`·`isDefaultSavingsRate` 키 이름.
@@ -403,20 +402,21 @@ public record PlanContextView(long calcRunId, ConditionsView conditions, CalcRes
 
 ## C1a-15. Issue #11 수용 기준 대응
 
-| # | 수용 기준 | 이 문서 |
+| # | 수용 기준(Issue 본문 순서) | 이 문서 |
 |---|---|---|
 | 1 | 예시에 `memberId`·계정 식별 정보가 없다(D-030) | C1a-7, fixture의 `planContext` 안·모델 입력, G-5b |
-| 2 | `AVG.afterTaxAsset` 등 display는 Spring 문자열, LLM이 반올림하지 않음 | C1a-4, C1a-6, C1a-8(raw 금액 미전달, 프롬프트 규칙 1·2) |
-| 3 | 규칙 밖 필드는 ai-server가 무시 | 원칙 4, C1a-8, `plan-context-polluted.json` |
-| 4 | display가 C2-6 규칙을 따름, 추가 키 4개와 세율 | C1a-6 |
-| 5 | `<S>.goalReachMonth` 방출 규칙 | C1a-6 |
+| 2 | display는 Spring이 만든 문자열이고 LLM이 반올림하지 않음, raw 금액은 모델 입력에 없음 | C1a-4, C1a-6, C1a-8(모델에 넣는 것, 프롬프트 규칙 1·2) |
+| 3 | 규칙 밖 필드는 오류 없이 무시하고 모델에도 넘기지 않음 | 원칙 4, C1a-8, `plan-context-polluted.json` |
+| 4 | display가 C2-6 규칙을 따름, 추가 키 4개와 세율 `assumptions.taxRatePct` | C1a-6 표 |
+| 5 | `<S>.goalReachMonth` 방출 규칙 | C1a-6 표와 설명 |
 | 6 | 일반 금액 경계(`0원`, `1만원 미만`, 음수) | C1a-6 경계 형식(D-061) |
-| 7 | snake_case 키 없음 | C1a-9, fixture 전체 |
-| 8 | `result` 구조 | C1a-2, C1a-4, C1a-5 |
-| 9 | 필수/선택 표, 검사 순서 1~6 | C1a-8 |
-| 10 | 가정 문장은 ai-server가 문구표로 | C1a-5 |
-| 11 | fixture 14개와 사용처 열 | C1a-13 |
-| 12 | 422 본문 예외 | C1a-8, `ai-server/README.md` |
-| 13 | EXPLAIN·QUESTION의 `calcRunId` | C1a-10 표 |
-| 14 | 문구표 키 | C1a-11 |
-| 15 | 프롬프트 규칙 1~9와 담당 Issue | C1a-8 프롬프트 규칙 |
+| 7 | (예외) snake_case 키 없음 | C1a-9, fixture 전체 |
+| 8 | `result` 구조(`result.assumptions`, 시나리오 순서, `monthlyPoints` 없음, `status`) | C1a-2, C1a-4, C1a-5 |
+| 9 | ai-server 필수/선택 표, 검사 순서 1~6 | C1a-8 |
+| 10 | 가정 문장은 Spring이 코드만, ai-server가 문구표 문장으로 | C1a-5 |
+| 11 | fixture 14개 | C1a-13 표, `docs/api/examples/plan-context/` |
+| 12 | fixture 표의 Spring/ai-server 사용 열 | C1a-13 표 |
+| 13 | (예외) 422 본문은 FastAPI 기본, `{error: CODE}` 예외 | C1a-8, `ai-server/README.md` |
+| 14 | EXPLAIN·QUESTION의 `calcRunId`, 계획 없음 `planContext: null` | C1a-10 표, C1a-11 |
+| 15 | 문구표 키 이름 | C1a-11 |
+| 16 | 프롬프트 규칙 1~9와 담당 Issue | C1a-8 프롬프트 규칙 |
