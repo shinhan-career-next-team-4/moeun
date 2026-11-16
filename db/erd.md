@@ -313,7 +313,7 @@ CREATE TABLE rag_document (
 CREATE TABLE rag_chunk (
     id           BIGSERIAL PRIMARY KEY,
     document_id  BIGINT    NOT NULL REFERENCES rag_document(id) ON DELETE CASCADE,
-    chunk_no     INT       NOT NULL,
+    chunk_no     INT       NOT NULL,                     -- 적재 1회 안에서는 본문 순서. 재청킹은 번호를 이어 붙인다
     content      TEXT      NOT NULL,
     CONSTRAINT uq_rag_chunk_doc_no UNIQUE (document_id, chunk_no)
 );
@@ -322,7 +322,7 @@ CREATE TABLE chunk_embedding (
     chunk_id    BIGINT       NOT NULL REFERENCES rag_chunk(id) ON DELETE CASCADE,
     model_code  VARCHAR(50)  NOT NULL,                   -- 임베딩 모델 식별 문자열
     embedding   vector(1536) NOT NULL,
-    is_active   BOOLEAN      NOT NULL DEFAULT TRUE,      -- 부분 HNSW 조건. rag_document.is_active와 같은 트랜잭션에서 앱이 함께 갱신
+    is_active   BOOLEAN      NOT NULL DEFAULT TRUE,      -- 부분 HNSW 조건. 문서 비활성화와 같은 트랜잭션에서 앱이 함께 끈다. 재청킹으로 교체된 청크도 FALSE
     PRIMARY KEY (chunk_id, model_code)
 );
 CREATE INDEX ix_chunk_embedding_hnsw ON chunk_embedding
@@ -585,6 +585,15 @@ WHERE member_id = $user AND revision = $toast_revision AND previous_version_id I
 ### E. RAG 반정규화는 `chunk_embedding.is_active` 하나만 둔다
 - **이유:** HNSW는 부분 인덱스의 WHERE 조건을 같은 테이블의 컬럼으로만 걸 수 있다. 비활성 문서가 인덱스에 남으면 ANN 상위 결과를 비활성 행이 차지해 결과가 비게 된다. 이용 허락 철회가 이 경우다. 그래서 `is_active`만은 임베딩 행에 둔다.
 - **동기화:** 문서를 비활성화할 때 앱이 같은 트랜잭션에서 `rag_document`와 `chunk_embedding`을 함께 UPDATE한다. FK가 맞춰 주지 않으므로 적재 스크립트에 정합성 점검 쿼리를 둔다.
+- **재청킹:** 청킹 규칙을 바꾸면 같은 문서(`source_url`, `content_sha256` 동일)를 새 행으로 넣을 수 없다(`uq_rag_document_rev`). 적재 스크립트(`moeun-ingest --rechunk`)는 한 트랜잭션에서 문서 행을 잠그고, 그 문서에서 지금 쓰는 `model_code`의 기존 임베딩을 `is_active = FALSE`로 바꾼 뒤, 새 청크를 `chunk_no`를 이어 붙여 넣는다. 과거 인용이 가리키는 이전 청크 행은 남는다. 스키마 변경은 없다.
+- **정합성 규칙:** 그래서 `is_active`는 문서와 임베딩이 항상 같은 값이 아니다. 지켜야 할 것은 한 방향이다. 비활성 문서 아래에 활성 임베딩이 있으면 안 된다. 활성 문서 아래의 비활성 임베딩은 재청킹으로 교체된 청크이며 정상이다. 점검 쿼리는 다음 결과가 0행인지 본다.
+  ```sql
+  SELECT e.chunk_id, e.model_code
+  FROM chunk_embedding e
+  JOIN rag_chunk c    ON c.id = e.chunk_id
+  JOIN rag_document d ON d.id = c.document_id
+  WHERE e.is_active AND NOT d.is_active;
+  ```
 - **포기한 것:** `doc_type`·`source_org_id` 필터가 ANN 이후로 밀린다. 공시만 찾는 검색(Q3-a)은 `iterative_scan`과 재검색에 의존한다. 자료 규모(데모, 수천 청크)에서는 영향이 작다고 판단했다. 공시 비중이 매우 작아 결과가 모자라면 `doc_type` 반정규화를 다시 검토한다.
 
 ### F. 무결성 범위
