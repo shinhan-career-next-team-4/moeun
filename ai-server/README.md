@@ -39,7 +39,7 @@ uv run moeun-ingest --file docs/a.pdf --doc-type DISCLOSURE --org "OO자산운�
 | ai → Spring | `POST /internal/calc` `{memberId, conditionChanges}` → `{calcRunId, conditions, current, changed, diff, display}` | `X-Internal-Api-Key` |
 
 `/chat` 응답의 `messageType`, `calcRunId`, `conditionChanges`, `citationChunkIds`는 `chat_message` CHECK 제약을 만족하게 보정되어 나온다.
-실패 시 4xx/5xx `{"error": CODE}`를 돌려주며 Spring이 `FAILED`로 기록한다(FR-AI-04).
+`/chat` 실패 시 4xx/5xx `{"error": CODE}`를 돌려주며 Spring이 `FAILED`로 기록한다(FR-AI-04).
 
 ### `/internal/calc` 요청
 
@@ -51,8 +51,10 @@ uv run moeun-ingest --file docs/a.pdf --doc-type DISCLOSURE --org "OO자산운�
 ### `/internal/calc` 응답
 
 - 금액·기간·비율은 `display` 문자열만 그대로 인용한다. raw 숫자(`afterTaxAsset`, `diff.*Delta` 등)는 달성 여부·시나리오 수 같은 판단용이며 모델이 "만원" 문자열을 만들거나 빼기·나누기를 하지 않는다(NFR-INT-01).
-- `display` 키 규칙: 응답에 있는 시나리오만 키가 있다(ETF 0%면 `AVG`만). `goalReachMonth`가 `null`이면 그 키가 없다. 차이(`diff.*`)는 `약 N만원 증가`/`약 N만원 감소`, 목표 대비(`gapToGoal`)는 부호 + 라벨(`-약 288만원 미달`, `+약 501만원 달성`)이다. 경계 형식은 `변화 없음`, `1만원 미만 증가/감소`, `0원 달성`, 1억 이상 `약 12,345만원`이다(D-055). 일반 금액 경계는 `0원`, `1만원 미만`, 음수 `-약 N만원`(0만원으로 반올림되면 `-1만원 미만`)이다(D-061).
-- `status`가 항상 `CALCULATED`인 것은 `/internal/calc` 응답 한정이다. planContext의 `result`에는 `ALREADY_EXCEEDED`와 `assumptions.excludedItems`가 올 수 있으므로 두 계약에 같은 pydantic 모델을 쓰면 `status`를 `Literal['CALCULATED']`로 만들지 않는다.
+- `display` 키 규칙: 응답에 있는 시나리오만 키가 있다(ETF 0%면 `AVG`만). `goalReachMonth`가 `null`이면 그 키가 없다. 차이(`diff.*`)는 `약 N만원 증가`/`약 N만원 감소`, 목표 대비(`gapToGoal`)는 부호 + 라벨(`-약 288만원 미달`, `+약 501만원 달성`, 반올림해 0만원이면 `-1만원 미만 미달`/`+1만원 미만 달성`)이다. 경계 형식은 `변화 없음`, `1만원 미만 증가/감소`, `0원 달성`, 1억 이상 `약 12,345만원`이다(D-055). 일반 금액 경계는 `0원`, `1만원 미만`, 음수 `-약 N만원`(0만원으로 반올림되면 `-1만원 미만`)이다(D-061).
+- `status`가 항상 `CALCULATED`인 것은 `/internal/calc` 응답 한정이다. planContext의 `result`에는 `ALREADY_EXCEEDED`가 올 수 있고 `assumptions.excludedItems`는 planContext 경로에서 쓴다. 두 계약에 같은 pydantic 모델을 쓰면 `status`를 `Literal['CALCULATED']`로 만들지 않고 `excludedItems`를 지우지 않는다.
+- 200이면 `calcRunId`가 정수인지 검사한다. 모델에 넘기는 도구 결과는 추린 것만이다: `display`, `diff`, `conditions`, `current`·`changed`의 `scenarios[].{scenario,isAchieved}`·`baselineScenario`, `assumptions.isDefaultSavingsRate`.
+- 두 `display` 값을 빼서 차이를 만들지 않고 차이는 `diff.*` 키만 인용한다. 달성 시점 두 달 사이의 개월 수는 말하지 않는다.
 - **[전환기]** `display`가 비어 있거나 응답에 있는 시나리오의 `*.afterTaxAsset` 키가 하나라도 없으면 비교를 내지 않고 `AgentError("CALC_DISPLAY_MISSING")`으로 실패시킨다(Spring `FAILED`).
 - 성공 1건당 Spring이 `calc_run(CHAT)` 1행을 만들고 그 id가 `calcRunId`다. 실패하면 기록이 없고, `chat_message`가 참조하지 않는 행이 남아도 정리하지 않는다(D-057).
 
@@ -69,6 +71,8 @@ uv run moeun-ingest --file docs/a.pdf --doc-type DISCLOSURE --org "OO자산운�
 | 400 | `MALFORMED_REQUEST` | `AgentError("CALC_BAD_REQUEST")` → Spring `FAILED` |
 | 401 | `INVALID_INTERNAL_KEY` | `AgentError("CALC_UNAUTHORIZED")` → `FAILED` |
 | 500 | `CALC_FAILED` | `AgentError("CALC_FAILED")` → `FAILED` |
+
+목표 금액 변경은 두 겹으로 막는다(도구 스키마·프롬프트, Spring `FIELD_NOT_CHANGEABLE`). 두 경로의 사용자 결과(같은 문장, 같은 `messageType`, 비교 없음)는 같아야 한다. `VALIDATION_FAILED`인데 `minDisplay`·`maxDisplay`가 없으면(계약 위반) 숫자 없이 "허용 범위를 벗어났어요"라고만 말하고 다시 묻는다.
 
 타임아웃·연결 실패는 `AgentError("CALC_UNAVAILABLE")` → `FAILED`. 422·409 본문은 문자열로 자르지 않고 `CalcRejected(code, errors)`로 파싱한다. 목·테스트의 응답 예시는 `docs/api/examples/internal-calc/`의 파일을 그대로 쓴다.
 

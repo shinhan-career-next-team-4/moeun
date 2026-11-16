@@ -1,7 +1,7 @@
 # `/internal/calc` 계약 (ai-server ↔ Spring)
 
 > 최종본 (2026-11-16, moeun #10, 요구사항 NFR-INT-03·FR-AI-06·FR-AI-07·CP-02·CP-04, 결정 D-033·D-040·D-041·D-055·D-056·D-057·D-061).
-> 협상 기록과 원문은 기획 repo project-workspace `docs/design/contracts/internal-calc.md`. 이 문서가 구현 기준이며 `ai-server/README.md` "Spring과의 계약"은 이 문서의 요약이다.
+> 협상 기록과 원문은 기획 repo project-workspace `docs/design/contracts/internal-calc.md`이며, 원문 이후 planContext 계약 최종본의 정정(G-11: C2-4 루트 타입·`/internal/calc` 한정 문구, 일반 금액 경계 표, 공유 `ResultDisplayBuilder`, 문구표 키 연결)을 반영했다. 이 문서가 구현 기준이며 `ai-server/README.md` "Spring과의 계약"은 이 문서의 요약이다.
 > 응답·오류 예시 JSON은 [`docs/api/examples/internal-calc/`](examples/internal-calc/)에 파일로 둔다. B팀 목(ai-server)과 A팀 REST Docs 테스트가 같은 파일을 기준으로 삼는다(부록 A).
 > **[전환기]** 표시는 담당 Issue가 머지되기 전까지만 허용하는 동작이다. **[D-055]·[D-056]·[D-057]**은 협상 쟁점이었다가 사람이 결정한 항목이다. 항목 ID(C2-x, C3-x)는 기획 repo 문서와 같다.
 
@@ -165,7 +165,7 @@ CP-04 형식(`Formatter`)으로 Spring이 만든 문자열의 **평평한 맵**(
 | `conditions.<side>.savingsRatioPct` | `적금 a : ETF b` | 비중 표시는 이 형식 하나만 쓴다(CP-04). `errors[].minDisplay`·`maxDisplay`도 같다(C3-1) |
 | `conditions.<side>.savingsRateInputPct` | `연 N.NN%` (소수 둘째 자리까지, 끝의 0은 지우지 않음) | CP-04에 없는 형식(금리) |
 
-경계 형식 두 표. 첫 표는 차이·목표 대비 경계로 **[D-055]**에서 확정했고, 둘째 표는 일반 금액 경계로 **[D-061]**에서 확정했다. 두 표를 합치지 않는다. 같은 값(예: 0원)이라도 차이와 금액의 형식이 다르다.
+경계 형식 두 표. 첫 표는 차이·목표 대비 경계로 **[D-055]**에서 확정했고, 둘째 표는 일반 금액 경계로 **[D-061]**(음수 줄은 planContext 협상 합의)에서 확정했다. 두 표를 합치지 않는다. 같은 값(예: 0원)이라도 차이와 금액의 형식이 다르다.
 
 차이·목표 대비 경계 [D-055]:
 
@@ -174,9 +174,9 @@ CP-04 형식(`Formatter`)으로 Spring이 만든 문자열의 **평평한 맵**(
 | 정확히 0원(차이) | `변화 없음` |
 | 0원이 아니지만 `약 N만원`으로 바꾸면 0만원이 되는 값 | `1만원 미만 증가` / `1만원 미만 감소` (목표 대비는 `-1만원 미만 미달` / `+1만원 미만 달성`) |
 | 목표 대비 정확히 0원 | `0원 달성` (CP-01: 0원은 달성) |
-| 1억 이상 | 단위를 바꾸지 않고 `약 12,345만원` (CP-04 글자 그대로. 모든 금액에 적용) |
+| 1억 이상 | 단위를 바꾸지 않고 `약 12,345만원` (CP-04 글자 그대로. 모든 금액에 적용, D-065) |
 
-일반 금액 경계 [D-061] (`afterTaxAsset`, `principal`, `afterTaxGain`, `conditions.*.monthlySavingAmount` 등 차이·목표 대비가 아닌 금액):
+일반 금액 경계 [D-061, 음수는 합의] (`afterTaxAsset`, `principal`, `afterTaxGain`, `conditions.*.monthlySavingAmount` 등 차이·목표 대비가 아닌 금액):
 
 | 경우 | 형식 |
 |---|---|
