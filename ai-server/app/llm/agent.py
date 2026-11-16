@@ -38,7 +38,7 @@ log = logging.getLogger(__name__)
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 MAX_CITATIONS = 5
 OUT_OF_SCOPE_COPY = (
-    "이 질문은 모은에서 다루지 않아요. 목표 금액, 기간, 월 저축액 같은 조건을 바꿔 보고 싶다면 말씀해 주세요."
+    "이 질문은 모은에서 다루지 않아요. 월 저축액·비중·적금 금리·기한 같은 조건을 바꿔 보고 싶다면 말씀해 주세요."
 )
 
 
@@ -57,13 +57,10 @@ def _nullable(type_: str, **extra: Any) -> dict[str, Any]:
 
 
 _CONDITION_FIELDS = {
-    "goal_amount": _nullable("integer", description="목표 금액(원)"),
-    "target_period_months": _nullable("integer", description="목표 기간(개월)"),
-    "held_assets": _nullable("integer", description="이미 모은 돈(원)"),
     "monthly_saving_amount": _nullable("integer", description="월 저축액(원)"),
-    "savings_rate_input_pct": _nullable("number", description="적금 연 금리(%)"),
-    "existing_monthly_contribution": _nullable("integer", description="기존 적금 월 납입액(원)"),
     "savings_ratio_pct": _nullable("integer", description="적금 비중(%), 나머지는 ETF"),
+    "savings_rate_input_pct": _nullable("number", description="적금 연 금리(%)"),
+    "target_period_months": _nullable("integer", description="목표 기한(개월)"),
 }
 
 TOOLS: list[BetaToolParam] = [
@@ -71,7 +68,8 @@ TOOLS: list[BetaToolParam] = [
         "name": "recalculate",
         "description": (
             "사용자의 현재 계획에서 일부 조건만 바꿔 Spring 계산 엔진으로 다시 계산한다. "
-            "바꾸지 않는 조건은 null로 둔다. 금액은 원 단위 정수, 기간은 개월 수."
+            "바꿀 수 있는 조건은 월 저축액·적금 비중·적금 금리·기한 네 가지이고, 바꾸지 않는 조건은 null로 둔다. "
+            "금액은 원 단위 정수, 기한은 개월 수."
         ),
         "strict": True,
         "input_schema": {

@@ -1,7 +1,7 @@
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt
 from pydantic.alias_generators import to_camel
 
 
@@ -28,20 +28,20 @@ class DocType(StrEnum):
 
 
 class ConditionChanges(ApiModel):
-    """대화로 바꿀 수 있는 조건. 이름은 plan_version 컬럼과 같다. None = 바꾸지 않음."""
+    """대화로 바꿀 수 있는 조건 4개(M-2, D-040). None = 바꾸지 않음.
+
+    타입만 검사한다. 범위 검증은 Spring 한 곳에서 한다(계약 원칙 2, D-033).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    goal_amount: int | None = Field(default=None, gt=0)
-    target_period_months: int | None = Field(default=None, gt=0)
-    held_assets: int | None = Field(default=None, ge=0)
-    monthly_saving_amount: int | None = Field(default=None, ge=0)
-    savings_rate_input_pct: float | None = Field(default=None, ge=0)
-    existing_monthly_contribution: int | None = Field(default=None, ge=0)
-    savings_ratio_pct: int | None = Field(default=None, ge=0, le=100)
+    monthly_saving_amount: StrictInt | None = None
+    savings_ratio_pct: StrictInt | None = None
+    savings_rate_input_pct: StrictFloat | StrictInt | None = None
+    target_period_months: StrictInt | None = None
 
     def changed(self) -> dict[str, Any]:
-        # chat_message.condition_changes에 저장되는 값. 키는 plan_version 컬럼명(snake_case)
+        # chat_message.condition_changes에 저장되는 값. snake_case 그대로 둔다(camelCase 변환은 Spring, C12b-14)
         return self.model_dump(exclude_none=True, by_alias=False)
 
 
