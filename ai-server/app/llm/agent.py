@@ -129,12 +129,13 @@ _TOOL_ERRORS = (CalcError, ValidationError, KeyError, ValueError, RuntimeError)
 
 # 이번 발화가 그 조건을 가리키는지 보는 느슨한 표현. 자연어를 해석하거나 계산하지 않고, 표현이 없을 때만 값을 뺀다.
 # "개월"의 월, "원래"의 원, "한 달"의 달처럼 다른 조건의 글자가 겹치지 않게 정규식으로 가린다(M-3)
-_MONTHLY = re.compile(r"(?<!개)월|매달|한\s?달|저축|납입|\d\s*만|만\s?원|\d\s*원")
+_NUMERAL = r"[일이삼사오육칠팔구십백천]+만"
+_MONTHLY = re.compile(rf"(?<!개)월|매달|한\s?달|저축(?!\s*기간)|납입|\d\s*만|{_NUMERAL}|만원|\d\s*원")
 _PERIOD = re.compile(r"기간|기한|개월|년|\d\s*달")
-_RATIO_WORDS = re.compile(r"비중|etf|주식|배분")
+_RATIO_WORDS = re.compile(r"비중|비율|etf|주식|배분|예금|적금(?!\s*(?:금리|이율))")
 _RATE_WORDS = re.compile(r"금리|이율")
-_PERCENT = re.compile(r"%|퍼센트|프로")
-_NUMBER = re.compile(r"\d")
+_PERCENT = re.compile(r"%|퍼센트|프로|퍼")
+_NUMBER = re.compile(rf"\d+(?:\.\d+)?|{_NUMERAL}")
 
 
 def _stated_conditions(text: str) -> set[str]:
@@ -144,7 +145,7 @@ def _stated_conditions(text: str) -> set[str]:
     percent = bool(_PERCENT.search(text))
     stated = {
         "monthly_saving_amount": bool(_MONTHLY.search(text)),
-        "savings_ratio_pct": ratio_words or (not rate_words and (percent or "적금" in text)),
+        "savings_ratio_pct": ratio_words or (not rate_words and percent),
         "savings_rate_input_pct": rate_words or (not ratio_words and percent),
         "target_period_months": bool(_PERIOD.search(text)),
     }
@@ -154,12 +155,13 @@ def _stated_conditions(text: str) -> set[str]:
 def drop_carried_conditions(text: str, changes: ConditionChanges) -> ConditionChanges:
     """history에서 이어받은 조건을 도구 인자에서 뺀다. 비교 기준은 항상 내 계획이다(FR-AI-06, D-041).
 
-    조건 표현은 없고 숫자만 있는 발화("이번엔 60으로")는 어느 조건 값인지 알 수 없어 그대로 둔다.
+    사용자가 말한 값을 지우는 쪽이 이어받은 값이 남는 쪽보다 나쁘므로, 모호하면 남긴다. 발화의 숫자가
+    인식한 조건보다 많으면("50으로 하고 기간은 3년") 단위를 못 알아본 값이 있다고 보고 그대로 둔다.
     표현도 숫자도 없으면 말한 값이 없으므로 전부 뺀다.
     """
     lowered = text.lower()
     stated = _stated_conditions(lowered)
-    if not stated and _NUMBER.search(lowered):
+    if len(_NUMBER.findall(lowered)) > len(stated):
         return changes
     return ConditionChanges.model_validate({k: v for k, v in changes.changed().items() if k in stated})
 

@@ -198,6 +198,22 @@ DROP_CASES = [
     pytest.param(
         "주식 쪽을 70으로 하고 2년", ALL_FOUR, {"savings_ratio_pct": 30, "target_period_months": 60}, id="stock_ratio"
     ),
+    pytest.param(
+        "적금 40%에 금리 4%", ALL_FOUR, {"savings_ratio_pct": 30, "savings_rate_input_pct": 3.5}, id="ratio_and_rate"
+    ),
+    pytest.param(
+        "적금 비율 40%, 이율 4%", ALL_FOUR, {"savings_ratio_pct": 30, "savings_rate_input_pct": 3.5}, id="ratio_word_2"
+    ),
+    pytest.param(
+        "4퍼, 3년", ALL_FOUR,
+        {"savings_ratio_pct": 30, "savings_rate_input_pct": 3.5, "target_period_months": 60}, id="peo_unit",
+    ),
+    pytest.param("50으로 하고 기간은 3년", ALL_FOUR, ALL_FOUR, id="unitless_number_with_period_keeps_all"),
+    pytest.param(
+        "오십만, 3년", ALL_FOUR, {"monthly_saving_amount": 500_000, "target_period_months": 60}, id="korean_numeral"
+    ),
+    pytest.param("저축 기간을 5년으로", ALL_FOUR, {"target_period_months": 60}, id="savings_period_is_period"),
+    pytest.param("기간만 원래대로 돌리고 3년", ALL_FOUR, {"target_period_months": 60}, id="man_won_across_words"),
     pytest.param("기간도 5년으로", ALL_FOUR, {"target_period_months": 60}, id="only_period_keyword"),
     pytest.param("월 40만원으로", ALL_FOUR, {"monthly_saving_amount": 500_000}, id="only_monthly_keyword"),
     pytest.param("금리를 3.5로", ALL_FOUR, {"savings_rate_input_pct": 3.5}, id="only_rate_keyword"),
