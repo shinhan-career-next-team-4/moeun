@@ -21,7 +21,7 @@
             "role": "ASSISTANT",
             "messageType": "OUT_OF_SCOPE",
             "status": "COMPLETED",
-            "content": "목표 달성 시뮬레이션과 관련된 질문에만 답할 수 있어요.",
+            "content": "이 질문은 모은에서 다루지 않아요. 목표 달성 시뮬레이션과 관련된 질문을 해 주세요.",
             "citations": [],
             "createdAt": "2026-11-16T10:15:31+09:00"
           }

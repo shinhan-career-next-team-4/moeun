@@ -710,6 +710,21 @@ test("F-4 etf0: 시나리오 AVG 1개, savingsRatioPct 100", () => {
   assert.equal(b.display["conditions.current.savingsRatioPct"], "적금 100 : ETF 0");
 });
 
+test("실패·범위 밖 문구는 문구표(copy/copy.ko.yml)와 같다", () => {
+  const copy = fs.readFileSync(path.resolve(here, "../../../copy/copy.ko.yml"), "utf8");
+  const failed = copy.match(/^ {2}failed: "(.+)"$/m)[1];
+  const outOfScope = copy.match(/^"outOfScope": "(.+)"$/m)[1];
+  assert.equal(body("chat", "get-messages.200-failed.json").messages.at(-1).content, failed);
+  assert.equal(body("chat", "get-messages.200-explanation-failed.json").messages.at(-1).content, failed);
+  assert.equal(body("chat", "get-messages.200-out-of-scope.json").messages.at(-1).content, outOfScope);
+});
+
+test("1027 메시지 문장은 /1027 비교 카드(1031과 같은 본문)와 같은 숫자다", () => {
+  const { messages } = body("chat", "get-messages.200-restore-history.json");
+  const card = body("chat", "get-comparison.200-not-applicable.json");
+  assert.equal(messages.find((m) => m.id === 1027).content.includes(card.display["changed.AVG.afterTaxAsset"]), true);
+});
+
 test("대화 목의 문장에 추천 표현이 없다", () => {
   const banned = /추천|권해|하세요|해야 해요|사세요|가입하/;
   for (const name of POLL_FILES) {

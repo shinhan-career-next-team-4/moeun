@@ -60,7 +60,8 @@
 
 - 기준 계획(A-1): 목표 2,000만원(`HOUSE`), 보유 500만원, 월 30만원, 36개월, 금리 미입력(기본 3.12%), 비중 미입력(5:5), 시작월 2026-11. `result`·`display`는 plan-context 부록 A-1과 같고 `calcRunId`는 540이다. ETF 0%(541)는 A-2, 목표 초과(542)는 A-3이다. `get-plan.200-exceeded`는 `rev 12`다(시퀀스 안에서만 `rev 13`).
 - `monthlyPoints`(목 전용 규칙): 시나리오마다 `targetPeriodMonths + 1`점이고 `month`는 시작월 + k(k = 0 … N)다. `afterTaxAsset = heldAssets + monthlySavingAmount × k + round(afterTaxGain × k / N)`라 첫 점은 보유 자산, 마지막 점은 시나리오 값이다. `principal` 키는 없다.
-- 대화 적용 뒤(`rev 13 / 553`)의 숫자는 `docs/api/examples/internal-calc/`의 `changed` 쪽이다. 입력 수정(`rev 15 / 555`)의 수치와 대화 목의 과거 메시지 일부(1025~1029)는 화면 시험용으로 이 목에서만 정한 값이다.
+- 대화 적용 뒤(`rev 13 / 553`)의 숫자는 `docs/api/examples/internal-calc/`의 `changed` 쪽이다. 입력 수정(`rev 15 / 555`)의 수치와 대화 목의 과거 메시지 일부(1025~1029)는 화면 시험용으로 이 목에서만 정한 값이다. 실패·범위 밖 문구는 문구표(`copy/copy.ko.yml`)와 같다.
+- F-4 ETF 0%(`1033`)의 `current`는 plan-context A-2다. `changed`·`diff`·`display`(월 50만원, 적금 100%)는 원문에 없어 A-2의 이득을 월 납입 비율로 늘려 이 목에서 정했다(화면 시험용).
 - F-4 정상은 `internal-calc` 성공 예시에서 `calcRunId`를 지우고 `messageId`·`applicable`·`changedKeys`를 더한 것이다.
 - 설명 메시지의 `citations`는 `docs/rag-sources.md`의 선정 목록(서로 다른 운용사 2곳)을 쓴다.
 

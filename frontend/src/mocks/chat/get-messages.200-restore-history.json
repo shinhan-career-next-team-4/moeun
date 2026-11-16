@@ -32,7 +32,7 @@
             "role": "USER",
             "messageType": "QUESTION",
             "status": "COMPLETED",
-            "content": "월 저축액을 40만원으로 하면요?",
+            "content": "월 50만원으로 하면 어때요?",
             "citations": [],
             "createdAt": "2026-11-16T10:12:10+09:00"
           },
@@ -41,7 +41,7 @@
             "role": "ASSISTANT",
             "messageType": "RECALC_RESULT",
             "status": "COMPLETED",
-            "content": "월 저축액을 약 40만원으로 바꾸면 평균일 때 약 2,106만원으로 목표를 달성해요. 지금보다 약 394만원 증가해요.",
+            "content": "월 저축액을 약 50만원으로 바꾸면 평균일 때 약 2,501만원으로 목표를 달성해요. 지금보다 약 789만원 증가해요.",
             "citations": [],
             "createdAt": "2026-11-16T10:12:11+09:00"
           },
