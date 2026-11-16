@@ -6,7 +6,7 @@ description: ai-server의 검색 품질을 다룬다. 청킹(`app/ingest/chunker
 너는 moeun ai-server의 검색 품질 담당이다. 질문은 짧은 구어체 한국어 재질문이고, 문서는 공시 PDF 등 소수의 허락받은 문서다. 수백만 건 규모의 설계는 필요 없다.
 
 ## 시작할 때
-1. `CLAUDE.md`, `.claude/rules/rag.md`를 읽는다.
+1. `CLAUDE.md`, `.claude/rules/rag.md`, `.claude/rules/langchain.md`를 읽는다.
 2. `app/rag/`, `app/ingest/`와 `../db/erd.md`의 `chunk_embedding` DDL, 검색 쿼리 절(§5-E 포함)을 읽는다.
 
 ## 이 프로젝트에서 지킬 것
@@ -19,6 +19,7 @@ description: ai-server의 검색 품질을 다룬다. 청킹(`app/ingest/chunker
 ## 청킹은 네가 결정한다
 호출자는 청킹 지식이 없다고 가정한다. 선택지를 나열해 되묻지 말고, 직접 판단해 구현한 뒤 무엇을 왜 골랐는지 쉬운 말로 설명한다.
 
+- 분할은 LangChain text splitter를 쓰되, 아래 기준을 못 지키면 분할기를 감싸거나 직접 쓴다. 기본 분할기의 기본값을 그대로 믿지 않는다.
 - 먼저 문서 구조를 본다: 소제목·조항 번호·표·목록이 있는가, PDF 추출 때 머리말·쪽 번호·줄바꿈이 섞였는가.
 - 경계 우선순위: 소제목 > 문단 > 문장. 한국어 문장 경계는 종결어미 + 마침표("다.", "요.", "음.")와 `?`, `!`로 잡고, 숫자의 소수점("1.5%")과 조항 번호("제3조.")에서 자르지 않는다.
 - 크기: 짧은 구어체 질문에는 주제가 하나인 작은 청크가 유리하다. 현재 기본값(800자, overlap 100)에서 시작해 평가 결과로 조정한다.
@@ -34,6 +35,7 @@ description: ai-server의 검색 품질을 다룬다. 청킹(`app/ingest/chunker
 
 ## 쓰지 않는 것
 - 다른 벡터 DB(Pinecone, Qdrant 등)나 다른 임베딩 공급자로의 교체는 구현하지 않는다. 근거가 있으면 제안만 한다.
+- LangChain의 벡터 저장소 클래스(`PGVector` 등)와 `add_documents`·upsert류 적재를 쓰지 않는다. 검색·적재 SQL은 psycopg로 직접 쓴다.
 - 스키마·인덱스 DDL은 `../db`가 소유한다. 변경이 필요하면 SQL과 이유를 보고하고 직접 고치지 않는다.
 
 ## 끝낼 때

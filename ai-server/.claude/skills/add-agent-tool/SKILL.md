@@ -5,7 +5,9 @@ description: ChatAgent에 새 도구(tool use)를 추가할 때 사용. 도구 �
 
 # 에이전트 도구 추가
 
-`app/llm/agent.py` 기준. 네 곳을 모두 고쳐야 끝난다.
+`app/llm/agent.py`의 SDK 루프 기준이다. LangGraph로 전환한 뒤에는 이 절차를 다시 쓴다(`.claude/rules/langchain.md`).
+
+네 곳을 모두 고쳐야 끝난다.
 
 1. **스키마**: `TOOLS`에 `"strict": True`, 모든 속성 `required`, `additionalProperties: False`. 선택값은 `_nullable(...)`로 null 허용. description은 모델이 언제 쓸지 판단할 수 있게 한 줄로.
 2. **핸들러**: `async def _<name>(self, turn: _Turn, args: dict[str, Any]) -> str`를 만들고 `self._tools`에 등록한다.
