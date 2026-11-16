@@ -114,14 +114,14 @@ async def test_model_reinjecting_previous_condition_is_filtered_before_calc():
 
 
 async def test_only_carried_condition_left_is_tool_error_then_clarify():
-    """(예외) 이번 발화에 조건 표현이 없고 모델이 이전 값만 넣으면 계산 없이 되묻는다 (AC2 경계, FR-AI-06)"""
+    """(예외) 이번 발화가 다른 조건만 말했는데 모델이 이전 값만 넣으면 계산 없이 되묻는다 (AC2 경계, FR-AI-06)"""
     claude = FakeClaude([
         tool_resp("recalculate", {**NULLS, "monthly_saving_amount": 500_000}),
         text_resp("CLARIFY", "무엇을 바꿔 볼까요?"),
     ])
     calc = FakeCalc()
     resp = await make_agent(claude, calc).run(
-        question("그냥 다시 해줘", plan_context=PLAN_CONTEXT, history=PREVIOUS_HISTORY)
+        question("기간은 그대로 두고 다시 해줘", plan_context=PLAN_CONTEXT, history=PREVIOUS_HISTORY)
     )
     assert last_tool_result(claude)["is_error"] is True
     assert calc.calls == []
@@ -180,9 +180,10 @@ ALL_FOUR = {
     "target_period_months": 60,
 }
 
-# 이번 발화에 그 조건을 가리키는 표현이 전혀 없으면 null, 하나라도 있으면 유지
+# 발화에 어떤 조건 표현이 있으면 그 조건을 가리키는 표현이 없는 값은 null, 있는 값은 유지.
+# 어떤 조건 표현도 없으면 무엇을 말했는지 알 수 없으므로 전부 유지(#21 테스트가 고정한 D-033 동작)
 DROP_CASES = [
-    pytest.param("그냥 다시 해줘", ALL_FOUR, {}, id="no_keyword_drops_all"),
+    pytest.param("그냥 다시 해줘", ALL_FOUR, ALL_FOUR, id="no_condition_wording_keeps_all"),
     pytest.param("기간도 5년으로", ALL_FOUR, {"target_period_months": 60}, id="only_period_keyword"),
     pytest.param("월 40만원으로", ALL_FOUR, {"monthly_saving_amount": 500_000}, id="only_monthly_keyword"),
     pytest.param("금리를 3.5로", ALL_FOUR, {"savings_rate_input_pct": 3.5}, id="only_rate_keyword"),
@@ -227,18 +228,24 @@ def test_drop_carried_conditions_keeps_value_when_keyword_present(field, value, 
 
 
 @pytest.mark.parametrize(
-    ("field", "value"),
+    ("field", "value", "text"),
     [
-        ("monthly_saving_amount", 500_000),
-        ("savings_ratio_pct", 30),
-        ("savings_rate_input_pct", 3.5),
-        ("target_period_months", 60),
+        ("monthly_saving_amount", 500_000, "기간도 5년으로"),
+        ("savings_ratio_pct", 30, "기간도 5년으로"),
+        ("savings_rate_input_pct", 3.5, "기간도 5년으로"),
+        ("target_period_months", 60, "월 40만원으로"),
     ],
 )
-def test_drop_carried_conditions_drops_each_field_when_no_keyword(field, value):
-    """키워드가 없는 발화에서는 네 조건 모두 null이 된다 (AC2)"""
-    out = drop_carried_conditions("그럼 어떻게 돼?", changes_of(**{field: value}))
+def test_drop_carried_conditions_drops_each_field_when_other_condition_is_stated(field, value, text):
+    """다른 조건만 말한 발화에서는 네 조건 각각이 null이 된다 (AC2)"""
+    out = drop_carried_conditions(text, changes_of(**{field: value}))
     assert out.changed() == {}
+
+
+def test_drop_carried_conditions_keeps_values_when_no_condition_wording():
+    """조건 표현이 전혀 없는 발화("이 값으로 바꿔줘")는 그대로 둔다 (D-033, #21 테스트와 같은 동작)"""
+    out = drop_carried_conditions("그럼 어떻게 돼?", changes_of(**ALL_FOUR))
+    assert out.changed() == ALL_FOUR
 
 
 def test_drop_carried_conditions_does_not_mutate_input():

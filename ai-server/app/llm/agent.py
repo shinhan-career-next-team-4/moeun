@@ -124,6 +124,33 @@ FINAL_FORMAT: BetaJSONOutputFormatParam = {
 _TOOL_ERRORS = (CalcError, ValidationError, KeyError, ValueError, RuntimeError)
 
 
+# 이번 발화가 그 조건을 가리키는지 보는 느슨한 표현 목록. 자연어를 해석하거나 계산하지 않고,
+# 하나도 없을 때만 값을 뺀다(모호하면 남긴다). 단위 없는 값("40으로")은 빠질 수 있고 그때는 되묻는다(M-3)
+_CONDITION_HINTS: dict[str, tuple[str, ...]] = {
+    "monthly_saving_amount": ("월", "저축", "납입", "만원", "원"),
+    "savings_ratio_pct": ("비중", "적금", "etf", "%", "퍼센트"),
+    "savings_rate_input_pct": ("금리", "이율", "%"),
+    "target_period_months": ("기간", "기한", "개월", "달", "년"),
+}
+
+
+def drop_carried_conditions(text: str, changes: ConditionChanges) -> ConditionChanges:
+    """history에서 이어받은 조건을 도구 인자에서 뺀다. 비교 기준은 항상 내 계획이다(FR-AI-06, D-041).
+
+    발화에 어떤 조건 표현도 없으면 무엇을 말했는지 알 수 없으므로 그대로 둔다("이 값으로 바꿔줘"처럼
+    값만 가리키는 발화도 Spring 검증으로 보낸다, D-033).
+    """
+    lowered = text.lower()
+    if not any(hint in lowered for hints in _CONDITION_HINTS.values() for hint in hints):
+        return changes
+    kept = {
+        name: value
+        for name, value in changes.changed().items()
+        if any(hint in lowered for hint in _CONDITION_HINTS[name])
+    }
+    return ConditionChanges.model_validate(kept)
+
+
 class AgentError(Exception):
     """설명 생성 실패. Spring은 chat_message를 FAILED로 바꾸고 실패 안내를 보여준다(FR-AI-04)."""
 
@@ -225,6 +252,16 @@ class ChatAgent:
 
     async def _recalculate(self, turn: _Turn, args: dict[str, Any]) -> str:
         changes = ConditionChanges.model_validate(args)
+        # 계산 전에 거른다. assemble에서만 거르면 calc_run_id는 누적 값으로 계산된 채 condition_changes만 달라진다
+        if turn.req.text:
+            filtered = drop_carried_conditions(turn.req.text, changes)
+            if filtered != changes:
+                log.info(
+                    "dropped carried conditions for message %s: %s",
+                    turn.req.message_id,
+                    sorted(changes.changed().keys() - filtered.changed().keys()),
+                )
+            changes = filtered
         if not changes.changed():
             raise CalcError("바꿀 조건이 없습니다. 무엇을 바꿀지 사용자에게 되물으세요.")
         result = await self._calc.recalculate(turn.req.member_id, turn.req.baseline_scenario, changes)
