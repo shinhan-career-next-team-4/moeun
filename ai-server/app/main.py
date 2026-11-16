@@ -1,21 +1,19 @@
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Annotated
 
 import anthropic
 import httpx
-from fastapi import Depends, FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from openai import AsyncOpenAI
 
-from app.config import get_settings
-from app.db import create_pool
+from app.api import chat, health, rag
+from app.core.config import get_settings
+from app.core.db import create_pool
 from app.llm.agent import AgentError, ChatAgent
 from app.rag.embedder import Embedder
 from app.rag.search import Retriever
-from app.schemas import ChatRequest, ChatResponse, RetrievedChunk, SearchRequest
-from app.security import InternalOnly
 from app.tools.calc import CalcClient
 
 logging.basicConfig(level=logging.INFO)
@@ -51,20 +49,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await pool.close()
 
 
-def get_agent(request: Request) -> ChatAgent:
-    agent: ChatAgent = request.app.state.agent
-    return agent
-
-
-def get_retriever(request: Request) -> Retriever:
-    retriever: Retriever = request.app.state.retriever
-    return retriever
-
-
-# 테스트에서는 app.dependency_overrides[get_agent] = ... 로 바꿔 끼운다
-AgentDep = Annotated[ChatAgent, Depends(get_agent)]
-RetrieverDep = Annotated[Retriever, Depends(get_retriever)]
-
 app = FastAPI(title="moeun-ai-server", lifespan=lifespan)
 
 
@@ -81,17 +65,6 @@ async def _llm_error(_: Request, e: anthropic.APIError) -> JSONResponse:
     return JSONResponse(status_code=502, content={"error": code})
 
 
-@app.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "UP"}
-
-
-@app.post("/chat")
-async def chat(req: ChatRequest, agent: AgentDep, _: InternalOnly) -> ChatResponse:
-    """Spring이 PENDING 메시지를 만든 뒤 호출한다. 실패 응답이면 Spring이 FAILED로 기록한다."""
-    return await agent.run(req)
-
-
-@app.post("/rag/search")
-async def rag_search(req: SearchRequest, retriever: RetrieverDep, _: InternalOnly) -> list[RetrievedChunk]:
-    return await retriever.search(req.query, req.doc_type, req.top_k)
+app.include_router(health.router)
+app.include_router(chat.router)
+app.include_router(rag.router)

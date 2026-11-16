@@ -20,14 +20,16 @@ uv run uvicorn app.main:app --reload --port 8000
 ## 구조
 | 위치 | 역할 |
 |---|---|
-| `app/main.py` | 앱 생성, lifespan, 라우트(분리 전) |
+| `app/main.py` | 앱 생성, lifespan, 라우터 등록, 예외 핸들러 |
+| `app/api/` | 라우터(`health.py`, `chat.py`, `rag.py`), 의존성(`deps.py`) |
+| `app/core/` | 설정(`config.py`), DB 풀(`db.py`), 내부 키 검사(`security.py`) |
 | `app/llm/` | Claude 에이전트 루프, 도구 정의, 프롬프트 |
 | `app/rag/` | 임베딩, 검색, 입력(재질문) → 검색어 |
 | `app/tools/` | 외부 호출 클라이언트(Spring 계산) |
 | `app/ingest/` | 문서 적재 CLI, 청킹 |
 | `app/schemas.py` | Spring과 주고받는 모델(`ApiModel`, JSON camelCase) |
 
-목표 구조(아직 이동 안 함): 라우터는 `app/api/`(`deps.py`, 기능별 라우터), 설정·DB·보안은 `app/core/`. **새로 만드는 라우터·공통 코드는 목표 위치에 둔다.** 기존 파일 이동은 별도 작업으로 한다.
+라우터는 `app/api/`(`deps.py`, 기능별 라우터), 설정·DB·보안은 `app/core/`에 둔다. **새로 만드는 라우터·공통 코드도 여기에 둔다.** `app/llm`, `app/rag`, `app/ingest`는 FastAPI나 `app/api`를 import하지 않는다(적재 CLI가 서버 없이 돈다).
 
 ## 참조 문서
 - DB: `../db/tables.md` §9~14(RAG·대화 테이블), `../db/erd.md`의 `chat_message` CHECK 제약, `../db/moved-to-code.md`
@@ -38,4 +40,5 @@ uv run uvicorn app.main:app --reload --port 8000
 ## 팀 설정
 - 파일을 고치면 훅이 `ruff check --fix`를 돌린다. 작업을 끝낼 때 파이썬이 바뀌었으면 훅(`.claude/hooks/check-python.sh`)이 ruff, mypy, pytest를 돌린다. 실패하면 고친 뒤 끝낸다.
 - 기능 구현 후나 PR 전에는 `ai-server-reviewer` 에이전트로 규칙 위반을 점검한다.
+- 구현·진단 에이전트: `fastapi-pro`(라우터·의존성), `ai-engineer`(LLM·RAG 파이프라인), `vector-database-engineer`(청킹·검색 품질), `postgres-pro`(SQL 진단, 읽기 전용). 검색 평가 계획은 `docs/rag-eval.md`.
 - 개인 설정은 `.claude/settings.local.json`, `CLAUDE.local.md`에 둔다(git 제외).

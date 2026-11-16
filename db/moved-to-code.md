@@ -71,7 +71,7 @@
 | `trg_plan_application` | 적용·되돌리기 서비스가 한 트랜잭션에서 `plan_version` INSERT와 `plan` UPDATE(revision 조건)를 함께 처리 | FR-PLAN-03, FR-PLAN-04 |
 | `trg_override_rule` (바꾼 값의 범위, 경로별 개수) | `ConditionValidator.validate(path, values)`. 입력·대안·비교·대화 모든 경로가 같은 함수를 거친다 | CP-02, CP-07, FR-INP-09 |
 | `trg_calc_run_complete` (시나리오 행 수 검사) | 결과를 저장하지 않으므로 불필요. 결과는 `CalcEngine`이 한 번에 만든다 | FR-RES-03 |
-| `trg_rag_chunk_immutable`, `trg_chunk_embedding_immutable` | `RagIngestor`는 기존 행을 UPDATE하지 않는다. 개정본은 새 `rag_document` 행으로 넣는다(`content_sha256`). DB 계정 권한으로 청크 UPDATE를 막는 방안도 가능 | FR-AI-03, FR-AI-10 |
+| `trg_rag_chunk_immutable`, `trg_chunk_embedding_immutable` | `RagIngestor`는 기존 행의 본문·임베딩을 UPDATE하지 않는다. 바꾸는 것은 `chunk_embedding.is_active`(검색 제외)뿐이다. 개정본은 새 `rag_document` 행으로 넣는다(`content_sha256`). 청킹 규칙만 바뀐 경우는 재청킹으로 같은 문서에 새 청크를 이어 넣고 이전 임베딩을 끈다(`erd.md` §5-E). DB 계정 권한으로 막는다면 `rag_chunk`는 UPDATE 전체, `chunk_embedding`은 `is_active` 외 컬럼의 UPDATE를 막는다 | FR-AI-03, FR-AI-10 |
 | `ck_pv_custom_name`, `ck_pv_deadline`, `ck_pv_existing_le`, `ck_pv_ratio_source`, `ck_pv_ratio_derived`, `ck_pv_applied_from` | `PlanInputValidator`: 직접 입력이면 목표명 필수, 기존 납입액 ≤ 월 저축액 | FR-INP-02, FR-INP-04, FR-INP-08 |
 | `ck_rag_disclosure_org`, `ck_rag_active_licensed` | `RagIngestor`: 공시 문서는 `org_type=ASSET_MANAGER` 기관만, 허락된 문서만 적재 | FR-AI-03, FR-AI-10 |
 | `ck_cm_input_source`, `ck_cm_failed`, `ck_cm_attempt_versions` | 해당 컬럼이 로그로 이동 | FR-AI-04, FR-AI-08 |

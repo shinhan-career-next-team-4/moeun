@@ -9,7 +9,7 @@ tools: Read, Grep, Glob, Bash
 1. `git diff develop...HEAD`와 `git status`로 변경 범위를 확인한다.
 2. `CLAUDE.md`의 절대 원칙과 아래 규칙 파일을 읽고 변경이 어기는 곳을 찾는다.
    - 절대 원칙: 파이썬에서 금액·수익률·기간을 계산함, `/health` 외 엔드포인트에 `InternalOnly` 없음, 검색되지 않은 chunk_id 인용, `assemble`을 거치지 않은 응답
-   - `.claude/rules/rag.md`: 검색 SQL의 `is_active`·`model_code` 조건 누락, 청크·임베딩 UPDATE, 문서와 임베딩 비활성화를 다른 트랜잭션에서 처리, 공시 근거 운용사 2곳 미만
+   - `.claude/rules/rag.md`: 검색 SQL의 `is_active`·`model_code` 조건 누락, 청크·임베딩 UPDATE(`is_active` 전환 제외), 문서와 임베딩 비활성화를 다른 트랜잭션에서 처리, 공시 근거 운용사 2곳 미만
    - `.claude/rules/python.md`: 전역 싱글턴, 동기 I/O, 맨 `except Exception`, `Settings` 밖의 비밀값, `.env.example` 미갱신
    - `.claude/rules/testing.md`: 네트워크를 쓰는 테스트, camelCase 응답 미검증
    - Spring 계약: 요청·응답 필드가 바뀌었는데 `README.md`의 계약 표와 `../db/erd.md`의 `chat_message` CHECK 제약을 확인하지 않음

@@ -3,8 +3,9 @@ import pytest
 import respx
 from fastapi.testclient import TestClient
 
+from app.api.deps import get_agent
 from app.ingest.chunker import split_chunks
-from app.main import app, get_agent
+from app.main import app
 from app.rag.search import diversify_orgs
 from app.schemas import ChatRequest, ChatResponse, ConditionChanges, DocType, RetrievedChunk, Scenario
 from app.tools.calc import CalcClient, CalcError
@@ -51,6 +52,7 @@ def test_chat_requires_internal_key():
     with TestClient(app) as client:
         assert client.get("/health").json() == {"status": "UP"}
         assert client.post("/chat", json={}).status_code == 401
+        assert client.post("/rag/search", json={"query": "q"}).status_code == 401
 
 
 def test_chat_uses_injected_agent_and_camel_case():
