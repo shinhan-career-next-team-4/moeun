@@ -20,14 +20,16 @@ uv run uvicorn app.main:app --reload --port 8000
 ## 구조
 | 위치 | 역할 |
 |---|---|
-| `app/main.py` | 앱 생성, lifespan, 라우트(분리 전) |
+| `app/main.py` | 앱 생성, lifespan, 라우터 등록, 예외 핸들러 |
+| `app/api/` | 라우터(`health.py`, `chat.py`, `rag.py`), 의존성(`deps.py`) |
+| `app/core/` | 설정(`config.py`), DB 풀(`db.py`), 내부 키 검사(`security.py`) |
 | `app/llm/` | Claude 에이전트 루프, 도구 정의, 프롬프트 |
 | `app/rag/` | 임베딩, 검색, 입력(재질문) → 검색어 |
 | `app/tools/` | 외부 호출 클라이언트(Spring 계산) |
 | `app/ingest/` | 문서 적재 CLI, 청킹 |
 | `app/schemas.py` | Spring과 주고받는 모델(`ApiModel`, JSON camelCase) |
 
-목표 구조(아직 이동 안 함): 라우터는 `app/api/`(`deps.py`, 기능별 라우터), 설정·DB·보안은 `app/core/`. **새로 만드는 라우터·공통 코드는 목표 위치에 둔다.** 기존 파일 이동은 별도 작업으로 한다.
+라우터는 `app/api/`(`deps.py`, 기능별 라우터), 설정·DB·보안은 `app/core/`에 둔다. **새로 만드는 라우터·공통 코드도 여기에 둔다.** `app/llm`, `app/rag`, `app/ingest`는 FastAPI나 `app/api`를 import하지 않는다(적재 CLI가 서버 없이 돈다).
 
 ## 참조 문서
 - DB: `../db/tables.md` §9~14(RAG·대화 테이블), `../db/erd.md`의 `chat_message` CHECK 제약, `../db/moved-to-code.md`

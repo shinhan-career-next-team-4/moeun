@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
 
-from app.config import Settings, get_settings
+from app.core.config import Settings, get_settings
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 

@@ -15,7 +15,7 @@ from openai import AsyncOpenAI
 from pgvector.psycopg import register_vector_async
 from psycopg import AsyncConnection
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.ingest.chunker import split_chunks
 from app.rag.embedder import Embedder
 

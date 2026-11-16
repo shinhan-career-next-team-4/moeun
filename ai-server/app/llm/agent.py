@@ -19,7 +19,7 @@ from anthropic.types.beta import (
 )
 from pydantic import BaseModel, ValidationError
 
-from app.config import Effort
+from app.core.config import Effort
 from app.llm.prompts import EXPLAIN_INSTRUCTION, SYSTEM_PROMPT
 from app.schemas import (
     ChatMode,
