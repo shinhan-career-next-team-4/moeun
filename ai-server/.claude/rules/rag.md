@@ -13,12 +13,14 @@ paths:
 - 자연어 재질문의 검색어는 발화만 쓰지 않는다. 직전 대화와 `plan_context`로 생략된 주어·대상을 채운 독립 질의로 만든다("그럼 기간 늘리면?" → 무엇의 기간인지 포함).
 
 ## 청킹 (`app/ingest/chunker.py`)
+- 로딩·분할은 LangChain 로더와 text splitter를 쓴다(`langchain.md`). 아래 규칙을 못 지키는 기본 분할기는 그대로 쓰지 않는다.
 - 재질문은 짧은 구어체 한국어다. 청크 하나가 질문 하나에 답할 수 있는 의미 단위(문단·소제목)가 되게 자른다.
 - 문장 중간에서 자르지 않는다. 긴 문단은 문장 경계 + overlap으로 나눈다.
 - 청크 앞에 문서 제목·소제목 같은 맥락을 붙여 임베딩한다(청크만 떼어 읽어도 무엇에 대한 내용인지 알 수 있게).
 - 청킹 규칙을 바꾸면 기존 문서를 `moeun-ingest --rechunk`로 재적재해야 한다. 바꾼 이유와 검색 결과 비교를 PR에 남긴다.
 
 ## 검색·적재 불변 조건
+- 검색은 LangChain `BaseRetriever`를 상속한 우리 클래스가 아래 SQL을 실행한다. LangChain의 벡터 저장소 클래스와 upsert류 적재는 쓰지 않는다.
 - 검색 SQL은 `e.is_active AND e.model_code = %(model)s AND d.is_active`를 반드시 둔다(부분 HNSW 인덱스).
 - 임베딩은 1536차원(`EMBEDDING_DIM`). 모델을 바꾸면 `model_code`가 다른 새 행으로 넣는다.
 - 청크·임베딩은 UPDATE하지 않는다(`is_active` 전환만 예외). 개정본은 새 `rag_document`로 넣고 이전 것은 `is_active=FALSE`(문서·임베딩을 같은 트랜잭션에서).

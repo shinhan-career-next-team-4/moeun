@@ -5,7 +5,7 @@ paths:
 
 # 테스트
 
-- 테스트는 네트워크를 쓰지 않는다. Claude는 `FakeClaude`(tests/test_agent.py), Spring은 `respx`, 검색은 fake `DocumentSearch`.
+- 테스트는 네트워크를 쓰지 않는다. 모델은 fake(기존 SDK 루프는 `FakeClaude`, LangChain 코드는 fake 채팅 모델), Spring은 `respx`, 검색은 fake `DocumentSearch`·fake retriever. 그래프 테스트는 `langchain.md`를 따른다.
 - mock보다 fake 객체. `Protocol`을 만족하는 작은 클래스를 쓴다.
 - 라우터 테스트는 `app.dependency_overrides`로 의존성을 바꾸고 `finally`에서 `clear()`.
 - async 테스트는 그냥 `async def`(asyncio_mode=auto).

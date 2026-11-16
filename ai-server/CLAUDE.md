@@ -8,6 +8,12 @@ FastAPI 서버. 문서 RAG와 사용자 입력(자연어 재질문) RAG로 AI �
 3. 인용(`citation_chunk_ids`)은 이번 요청에서 실제로 검색된 chunk_id만 넣는다.
 4. 모델 출력보다 서버 사실(`_Turn`)을 믿는다. 응답은 `assemble`이 보정한다.
 
+## 기술 선택
+- LangChain: 모델 호출, 임베딩, 문서 로딩·분할, retriever 인터페이스.
+- LangGraph: 요청 한 건의 흐름과 상태(입력 확인 → 되묻기 → 계산 API → 근거 검색 → 답변 생성 → 보정). 노드 6개 이내로 시작한다.
+- DB는 psycopg와 직접 쓴 SQL이다. LangChain의 벡터 저장소 클래스는 쓰지 않는다(팀 스키마와 맞지 않음).
+- 경계와 금지 사항은 `.claude/rules/langchain.md`. 기존 `app/llm/agent.py`는 아직 SDK 루프이며 전환은 별도 작업이다.
+
 ## 명령
 ```bash
 uv sync
@@ -23,7 +29,7 @@ uv run uvicorn app.main:app --reload --port 8000
 | `app/main.py` | 앱 생성, lifespan, 라우터 등록, 예외 핸들러 |
 | `app/api/` | 라우터(`health.py`, `chat.py`, `rag.py`), 의존성(`deps.py`) |
 | `app/core/` | 설정(`config.py`), DB 풀(`db.py`), 내부 키 검사(`security.py`) |
-| `app/llm/` | Claude 에이전트 루프, 도구 정의, 프롬프트 |
+| `app/llm/` | 대화 흐름(LangGraph로 전환 예정, 현재는 SDK 에이전트 루프), 도구 정의, 프롬프트 |
 | `app/rag/` | 임베딩, 검색, 입력(재질문) → 검색어 |
 | `app/tools/` | 외부 호출 클라이언트(Spring 계산) |
 | `app/ingest/` | 문서 적재 CLI, 청킹 |
@@ -40,5 +46,5 @@ uv run uvicorn app.main:app --reload --port 8000
 ## 팀 설정
 - 파일을 고치면 훅이 `ruff check --fix`를 돌린다. 작업을 끝낼 때 파이썬이 바뀌었으면 훅(`.claude/hooks/check-python.sh`)이 ruff, mypy, pytest를 돌린다. 실패하면 고친 뒤 끝낸다.
 - 기능 구현 후나 PR 전에는 `ai-server-reviewer` 에이전트로 규칙 위반을 점검한다.
-- 구현·진단 에이전트: `fastapi-pro`(라우터·의존성), `ai-engineer`(LLM·RAG 파이프라인), `vector-database-engineer`(청킹·검색 품질), `postgres-pro`(SQL 진단, 읽기 전용). 검색 평가 계획은 `docs/rag-eval.md`.
+- 구현·진단 에이전트: `fastapi-pro`(라우터·의존성), `ai-engineer`(LLM·RAG 파이프라인), `prompt-engineer`(프롬프트 문장·도구 설명), `vector-database-engineer`(청킹·검색 품질), `postgres-pro`(SQL 진단, 읽기 전용). 검색 평가 계획은 `docs/rag-eval.md`.
 - 개인 설정은 `.claude/settings.local.json`, `CLAUDE.local.md`에 둔다(git 제외).
