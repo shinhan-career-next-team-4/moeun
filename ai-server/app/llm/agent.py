@@ -3,21 +3,12 @@ import json
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, TypedDict
 
-from anthropic import AsyncAnthropic
-from anthropic.types.beta import (
-    BetaAssistantMessageParam,
-    BetaJSONOutputFormatParam,
-    BetaMessageParam,
-    BetaOutputConfigParam,
-    BetaTextBlock,
-    BetaToolParam,
-    BetaToolResultBlockParam,
-    BetaToolUseBlock,
-    BetaUserMessageParam,
-)
-from pydantic import BaseModel, ValidationError
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolCall, ToolMessage
+from langgraph.graph import END, START, StateGraph
+from pydantic import BaseModel, SecretStr, ValidationError
 
 from app.core.config import Effort
 from app.llm.prompts import EXPLAIN_INSTRUCTION, SYSTEM_PROMPT
@@ -36,6 +27,7 @@ from app.tools.calc import CalcError
 log = logging.getLogger(__name__)
 
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
+REQUEST_TIMEOUT_SECONDS = 600.0   # anthropic SDK 기본값. ChatAnthropic은 기본이 무제한이라 직접 준다
 MAX_CITATIONS = 5
 OUT_OF_SCOPE_COPY = (
     "이 질문은 모은에서 다루지 않아요. 목표 금액, 기간, 월 저축액 같은 조건을 바꿔 보고 싶다면 말씀해 주세요."
@@ -44,6 +36,12 @@ OUT_OF_SCOPE_COPY = (
 
 class Calculator(Protocol):
     async def recalculate(self, member_id: int, baseline: Scenario, changes: ConditionChanges) -> dict[str, Any]: ...
+
+
+class ChatModel(Protocol):
+    """도구와 출력 형식이 이미 묶인 채팅 모델. 실제 구현은 `build_chat_model`이 만든다."""
+
+    async def ainvoke(self, input: list[BaseMessage], /) -> AIMessage: ...
 
 
 class DocumentSearch(Protocol):
@@ -66,7 +64,7 @@ _CONDITION_FIELDS = {
     "savings_ratio_pct": _nullable("integer", description="적금 비중(%), 나머지는 ETF"),
 }
 
-TOOLS: list[BetaToolParam] = [
+TOOLS: list[dict[str, Any]] = [
     {
         "name": "recalculate",
         "description": (
@@ -104,7 +102,7 @@ class FinalAnswer(BaseModel):
     citation_chunk_ids: list[int]
 
 
-FINAL_FORMAT: BetaJSONOutputFormatParam = {
+FINAL_FORMAT: dict[str, Any] = {
     "type": "json_schema",
     "schema": {
         "type": "object",
@@ -146,27 +144,57 @@ class _Turn:
 ToolHandler = Callable[[_Turn, dict[str, Any]], Awaitable[str]]
 
 
+class _State(TypedDict, total=False):
+    """요청 한 건의 그래프 상태. 서버 사실(calc_run_id, condition_changes, retrieved_ids)은 도구 노드만 쓴다."""
+
+    req: ChatRequest
+    messages: list[BaseMessage]
+    rounds: int
+    calc_run_id: int | None
+    condition_changes: dict[str, Any] | None
+    retrieved_ids: list[int]
+    final: FinalAnswer | None
+    refused: bool
+    response: ChatResponse
+
+
+def build_chat_model(*, model: str, effort: Effort, api_key: SecretStr | None) -> ChatModel:
+    """SDK 루프가 보내던 요청과 같은 설정(도구, 출력 형식, 캐시, 서버 측 fallback)으로 모델을 만든다."""
+    llm = ChatAnthropic(
+        model=model,
+        max_tokens=16000,
+        timeout=REQUEST_TIMEOUT_SECONDS,
+        betas=[FALLBACK_BETA],
+        # effort는 output_config로만 넘긴다. effort 인자로 넘기면 langchain-anthropic이 thinking을 덧붙인다
+        output_config={"effort": effort, "format": FINAL_FORMAT},
+        model_kwargs={"fallbacks": "default"},
+        **({"api_key": api_key} if api_key else {}),
+    )
+    return llm.bind_tools(TOOLS, cache_control={"type": "ephemeral"})
+
+
 class ChatAgent:
-    def __init__(
-        self,
-        client: AsyncAnthropic,
-        calc: Calculator,
-        retriever: DocumentSearch,
-        *,
-        model: str,
-        effort: Effort,
-        max_rounds: int,
-    ):
-        self._client = client
+    """모델 호출 → 도구 실행 → (반복) → 응답 보정. 흐름은 LangGraph, 도구 선택은 지금처럼 모델이 한다."""
+
+    def __init__(self, model: ChatModel, calc: Calculator, retriever: DocumentSearch, *, max_rounds: int):
+        self._model = model
         self._calc = calc
         self._retriever = retriever
-        self._model = model
-        self._output_config: BetaOutputConfigParam = {"effort": effort, "format": FINAL_FORMAT}
         self._max_rounds = max_rounds
         self._tools: dict[str, ToolHandler] = {
             "recalculate": self._recalculate,
             "search_documents": self._search_documents,
         }
+
+        graph = StateGraph(_State)
+        graph.add_node("model", self._model_node)
+        graph.add_node("tools", self._tools_node)
+        graph.add_node("assemble", self._assemble_node)
+        graph.add_edge(START, "model")
+        graph.add_conditional_edges("model", _after_model, ["tools", "assemble"])
+        graph.add_edge("tools", "model")
+        graph.add_edge("assemble", END)
+        self._graph = graph.compile()   # checkpointer 없음: 대화 간 상태는 Spring이 history로 준다
 
     async def run(self, req: ChatRequest) -> ChatResponse:
         match req:
@@ -175,54 +203,68 @@ class ChatAgent:
             case ChatRequest(mode=ChatMode.EXPLAIN, calc_run_id=None):
                 raise AgentError("BAD_REQUEST", "calc_run_id is required for EXPLAIN")
 
-        turn = _Turn(req)
-        messages = build_messages(req)
+        state: _State = {"req": req, "messages": build_messages(req), "rounds": 0, "retrieved_ids": []}
+        # 한 라운드는 model, tools 두 단계다. 라운드 초과는 _model_node가 TOO_MANY_ROUNDS로 먼저 끊는다
+        out = await self._graph.ainvoke(state, {"recursion_limit": 2 * self._max_rounds + 2})
+        response: ChatResponse = out["response"]
+        return response
 
-        for _ in range(self._max_rounds):
-            resp = await self._client.beta.messages.create(
-                model=self._model,
-                max_tokens=16000,
-                system=SYSTEM_PROMPT,
-                tools=TOOLS,
-                messages=messages,
-                output_config=self._output_config,
-                cache_control={"type": "ephemeral"},
-                betas=[FALLBACK_BETA],
-                fallbacks="default",
-            )
+    async def _model_node(self, state: _State) -> _State:
+        if state["rounds"] >= self._max_rounds:
+            raise AgentError("TOO_MANY_ROUNDS")
+        resp = await self._model.ainvoke(state["messages"])
+        rounds = state["rounds"] + 1
 
-            match resp.stop_reason:
-                case "refusal":
-                    return ChatResponse(
-                        message_type="OUT_OF_SCOPE", content=OUT_OF_SCOPE_COPY, baseline_scenario=req.baseline_scenario
-                    )
-                case "max_tokens":
-                    raise AgentError("MAX_TOKENS")
-                case "tool_use":
-                    tool_uses = [b for b in resp.content if isinstance(b, BetaToolUseBlock)]
-                    messages.append(BetaAssistantMessageParam(role="assistant", content=resp.content))
-                    results = await asyncio.gather(*(self._call_tool(turn, b) for b in tool_uses))
-                    messages.append(BetaUserMessageParam(role="user", content=results))   # 결과는 한 메시지에 모두
-                case _:
-                    text = "".join(b.text for b in resp.content if isinstance(b, BetaTextBlock))
-                    try:
-                        final = FinalAnswer.model_validate_json(text)
-                    except ValidationError as e:
-                        raise AgentError("BAD_OUTPUT", str(e)[:300]) from e
-                    return assemble(turn, final)
+        match resp.response_metadata.get("stop_reason"):
+            case "refusal":
+                return {"rounds": rounds, "refused": True}
+            case "max_tokens":
+                raise AgentError("MAX_TOKENS")
+            case "tool_use":
+                return {"rounds": rounds, "messages": [*state["messages"], resp]}
+            case _:
+                try:
+                    final = FinalAnswer.model_validate_json(resp.text)
+                except ValidationError as e:
+                    raise AgentError("BAD_OUTPUT", str(e)[:300]) from e
+                return {"rounds": rounds, "final": final}
 
-        raise AgentError("TOO_MANY_ROUNDS")
+    async def _tools_node(self, state: _State) -> _State:
+        turn = _turn_of(state)
+        last = state["messages"][-1]
+        calls = last.tool_calls if isinstance(last, AIMessage) else []
+        results = await asyncio.gather(*(self._call_tool(turn, c) for c in calls))
+        return {
+            "messages": [*state["messages"], *results],
+            "calc_run_id": turn.calc_run_id,
+            "condition_changes": turn.condition_changes,
+            "retrieved_ids": turn.retrieved_ids,
+        }
 
-    async def _call_tool(self, turn: _Turn, block: BetaToolUseBlock) -> BetaToolResultBlockParam:
-        handler = self._tools.get(block.name)
+    async def _assemble_node(self, state: _State) -> _State:
+        req = state["req"]
+        final = state.get("final")
+        if state.get("refused"):
+            return {
+                "response": ChatResponse(
+                    message_type="OUT_OF_SCOPE", content=OUT_OF_SCOPE_COPY, baseline_scenario=req.baseline_scenario
+                )
+            }
+        if final is None:
+            raise AgentError("BAD_OUTPUT", "no final answer in state")
+        return {"response": assemble(_turn_of(state), final)}
+
+    async def _call_tool(self, turn: _Turn, call: ToolCall) -> ToolMessage:
+        handler = self._tools.get(call["name"])
+        tool_call_id = call["id"] or ""
         try:
             if handler is None:
-                raise KeyError(f"unknown tool {block.name}")
-            content = await handler(turn, dict(block.input))
+                raise KeyError(f"unknown tool {call['name']}")
+            content = await handler(turn, dict(call["args"]))
         except _TOOL_ERRORS as e:
-            log.info("tool %s failed for message %s: %s", block.name, turn.req.message_id, e)
-            return {"type": "tool_result", "tool_use_id": block.id, "content": f"Error: {e}", "is_error": True}
-        return {"type": "tool_result", "tool_use_id": block.id, "content": content}
+            log.info("tool %s failed for message %s: %s", call["name"], turn.req.message_id, e)
+            return ToolMessage(content=f"Error: {e}", tool_call_id=tool_call_id, status="error")
+        return ToolMessage(content=content, tool_call_id=tool_call_id)
 
     async def _recalculate(self, turn: _Turn, args: dict[str, Any]) -> str:
         changes = ConditionChanges.model_validate(args)
@@ -241,8 +283,21 @@ class ChatAgent:
         return json.dumps(payload, ensure_ascii=False)
 
 
-def build_messages(req: ChatRequest) -> list[BetaMessageParam]:
-    """기록은 user로 시작하고 역할이 번갈아야 한다. 같은 역할이 이어지면 합친다."""
+def _after_model(state: _State) -> Literal["tools", "assemble"]:
+    return "assemble" if state.get("refused") or state.get("final") is not None else "tools"
+
+
+def _turn_of(state: _State) -> _Turn:
+    return _Turn(
+        state["req"],
+        calc_run_id=state.get("calc_run_id"),
+        condition_changes=state.get("condition_changes"),
+        retrieved_ids=list(state.get("retrieved_ids", [])),
+    )
+
+
+def build_messages(req: ChatRequest) -> list[BaseMessage]:
+    """시스템 프롬프트 뒤의 기록은 user로 시작하고 역할이 번갈아야 한다. 같은 역할이 이어지면 합친다."""
     context = json.dumps(req.plan_context or {}, ensure_ascii=False)
     body = req.text if req.mode is ChatMode.QUESTION else EXPLAIN_INSTRUCTION
     current = (
@@ -260,10 +315,8 @@ def build_messages(req: ChatRequest) -> list[BetaMessageParam]:
         else:
             turns.append((role, content))
     return [
-        BetaUserMessageParam(role="user", content=content)
-        if role == "user"
-        else BetaAssistantMessageParam(role="assistant", content=content)
-        for role, content in turns
+        SystemMessage(SYSTEM_PROMPT),
+        *(HumanMessage(content) if role == "user" else AIMessage(content) for role, content in turns),
     ]
 
 

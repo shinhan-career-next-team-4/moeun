@@ -9,9 +9,9 @@ from fastapi.responses import JSONResponse
 from openai import AsyncOpenAI
 
 from app.api import chat, health, rag
-from app.core.config import get_settings
+from app.core.config import force_tracing_off, get_settings
 from app.core.db import create_pool
-from app.llm.agent import AgentError, ChatAgent
+from app.llm.agent import AgentError, ChatAgent, build_chat_model
 from app.rag.embedder import Embedder
 from app.rag.search import Retriever
 from app.tools.calc import CalcClient
@@ -22,28 +22,25 @@ log = logging.getLogger("moeun.ai")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    force_tracing_off()
     s = get_settings()
     pool = create_pool(s.database_url)
     await pool.open(wait=False)
     spring = httpx.AsyncClient(base_url=s.spring_base_url, timeout=s.spring_timeout_seconds)
-    claude = anthropic.AsyncAnthropic(api_key=s.anthropic_api_key.get_secret_value() if s.anthropic_api_key else None)
     openai = AsyncOpenAI(api_key=s.openai_api_key.get_secret_value()) if s.openai_api_key else None
 
     retriever = Retriever(pool, Embedder(openai, s.embedding_model), s.rag_top_k)
     app.state.retriever = retriever
     app.state.agent = ChatAgent(
-        claude,
+        build_chat_model(model=s.anthropic_model, effort=s.anthropic_effort, api_key=s.anthropic_api_key),
         CalcClient(spring, s.internal_api_key.get_secret_value()),
         retriever,
-        model=s.anthropic_model,
-        effort=s.anthropic_effort,
         max_rounds=s.max_tool_rounds,
     )
     try:
         yield
     finally:
         await spring.aclose()
-        await claude.close()
         if openai:
             await openai.close()
         await pool.close()

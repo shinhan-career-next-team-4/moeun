@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from typing import Literal
 
@@ -28,3 +29,11 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def force_tracing_off() -> None:
+    """외부 추적(LangSmith)을 끈다. LangChain은 .env가 아니라 프로세스 환경 변수를 읽는다(.claude/rules/langchain.md)."""
+    # langsmith는 LANGSMITH_·LANGCHAIN_ 접두사와 TRACING_V2·TRACING 이름을 모두 읽는다
+    for prefix in ("LANGSMITH", "LANGCHAIN"):
+        for name in ("TRACING_V2", "TRACING"):
+            os.environ[f"{prefix}_{name}"] = "false"

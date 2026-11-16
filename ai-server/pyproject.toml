@@ -8,7 +8,9 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "pydantic>=2.11",                 # serialize_by_alias
     "pydantic-settings>=2.6",
-    "anthropic>=1.0",                 # 대화 생성 + 도구 호출
+    "anthropic>=1.0",                 # 예외 타입(app/main.py). 호출은 langchain-anthropic이 한다
+    "langchain-anthropic>=1.7.10",    # 대화 생성 + 도구 호출
+    "langgraph>=1.2.22",              # 요청 한 건의 흐름과 상태
     "openai>=1.50",                   # 임베딩 전용(text-embedding-3-small, 1536차원 = 스키마 vector(1536))
     "httpx>=0.27",                    # Spring /internal/calc 호출
     "psycopg[binary,pool]>=3.2",
