@@ -37,7 +37,7 @@ class ConditionChanges(ApiModel):
 
     monthly_saving_amount: StrictInt | None = None
     savings_ratio_pct: StrictInt | None = None
-    savings_rate_input_pct: StrictFloat | StrictInt | None = None
+    savings_rate_input_pct: StrictFloat | StrictInt | None = Field(default=None, allow_inf_nan=False)
     target_period_months: StrictInt | None = None
 
     def changed(self) -> dict[str, Any]:

@@ -37,6 +37,7 @@ log = logging.getLogger(__name__)
 
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 MAX_CITATIONS = 5
+# 문구표(#18) 로더가 들어오면 거기서 읽는다
 OUT_OF_SCOPE_COPY = (
     "이 질문은 모은에서 다루지 않아요. 월 저축액·비중·적금 금리·기한 같은 조건을 바꿔 보고 싶다면 말씀해 주세요."
 )
