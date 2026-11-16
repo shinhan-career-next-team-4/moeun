@@ -21,6 +21,15 @@ from app.rag.embedder import Embedder
 
 BATCH = 64
 
+# 비활성 문서 아래에 활성 임베딩이 있으면 안 된다(../db/erd.md §5-E). 반대 방향은 재청킹으로 생기는 정상 상태다
+_ORPHAN_ACTIVE_SQL = """
+SELECT count(*)
+FROM chunk_embedding e
+JOIN rag_chunk c    ON c.id = e.chunk_id
+JOIN rag_document d ON d.id = c.document_id
+WHERE e.is_active AND NOT d.is_active
+"""
+
 
 def read_text(path: Path) -> str:
     if path.suffix.lower() == ".pdf":
@@ -106,6 +115,11 @@ async def store(
                 "INSERT INTO chunk_embedding (chunk_id, model_code, embedding) VALUES (%s, %s, %s)",
                 (chunk_id, model, vec),
             )
+
+        bad = await (await conn.execute(_ORPHAN_ACTIVE_SQL)).fetchone()
+        if bad is not None and bad[0]:
+            # 트랜잭션 안에서 올려 이번 적재를 되돌린다
+            raise SystemExit(f"정합성 오류: 비활성 문서에 활성 임베딩 {bad[0]}건. 적재를 취소합니다(../db/erd.md §5-E)")
     return f"document {doc_id}: {len(chunks)} chunks" + (f" (rechunk, chunk_no {first_no}~)" if first_no else "")
 
 
