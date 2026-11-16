@@ -1,0 +1,57 @@
+{
+  "responses": [
+    {
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "messages": [
+          {
+            "id": 1032,
+            "role": "ASSISTANT",
+            "messageType": null,
+            "status": "PENDING",
+            "content": null,
+            "citations": [],
+            "createdAt": "2026-11-16T10:16:10+09:00"
+          }
+        ],
+        "hasPending": true,
+        "answerPending": false
+      }
+    },
+    {
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "messages": [
+          {
+            "id": 1032,
+            "role": "ASSISTANT",
+            "messageType": "EXPLANATION",
+            "status": "COMPLETED",
+            "content": "지금 계획대로 이어 가면 평균일 때 3년 뒤 약 1,712만원이 돼요. 목표인 약 2,000만원보다 약 288만원 부족해요. S&P500 추종 ETF의 과거 흐름을 바탕으로 한 가정이며, 미래 수익을 보장하지 않아요.",
+            "citations": [
+              {
+                "title": "KODEX 미국S&P500 투자설명서",
+                "sourceUrl": "https://www.samsungfund.com/upload/invest/2ETFE4-A.pdf",
+                "orgName": "삼성자산운용"
+              },
+              {
+                "title": "TIGER 미국S&P500 투자설명서",
+                "sourceUrl": "https://investments.miraeasset.com/tigeretf/upload/etf/20261008090949000003.pdf",
+                "orgName": "미래에셋자산운용"
+              }
+            ],
+            "createdAt": "2026-11-16T10:16:10+09:00"
+          }
+        ],
+        "hasPending": false,
+        "answerPending": false
+      }
+    }
+  ]
+}

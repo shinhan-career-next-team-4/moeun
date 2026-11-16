@@ -1,0 +1,34 @@
+{
+  "responses": [
+    {
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "messages": [
+          {
+            "id": 1030,
+            "role": "USER",
+            "messageType": "QUESTION",
+            "status": "COMPLETED",
+            "content": "월 50만원으로 하면 어때요?",
+            "citations": [],
+            "createdAt": "2026-11-16T10:15:30+09:00"
+          },
+          {
+            "id": 1031,
+            "role": "ASSISTANT",
+            "messageType": "FAILURE",
+            "status": "FAILED",
+            "content": "답변을 가져오지 못했어요. 잠시 후 다시 질문해 주세요.",
+            "citations": [],
+            "createdAt": "2026-11-16T10:15:30+09:00"
+          }
+        ],
+        "hasPending": false,
+        "answerPending": false
+      }
+    }
+  ]
+}

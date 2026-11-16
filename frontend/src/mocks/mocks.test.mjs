@@ -762,7 +762,7 @@ test("계약 문서: 대화 절 모양(F-1~F-5)과 초과·고지 규칙", () =>
 test("계약 문서: F-3 오류 규칙과 호출 조건", () => {
   const doc = fs.readFileSync(docPath, "utf8");
   assert.match(doc, /없는 `calcRunId`, 남의 기록, CHAT 기록은 모두 같은 `404 NOT_FOUND`/);
-  assert.match(doc, /초과 계획\(`status=ALREADY_EXCEEDED`\)에서는 부르지 않는다\(D-062\)/);
+  assert.match(doc, /초과 계획\(`status=ALREADY_EXCEEDED`\)에서는 부르지 않는다(\*\*)?\(D-062\)/);
 });
 
 test("계약 문서: 모듈 경계 — plan -> chat 의존 없음, 의존 표, 대화 삭제 이벤트", () => {

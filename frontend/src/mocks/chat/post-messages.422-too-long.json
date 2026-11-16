@@ -1,0 +1,27 @@
+{
+  "responses": [
+    {
+      "status": 422,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "입력 범위를 벗어났어요",
+        "status": 422,
+        "detail": "text: OUT_OF_RANGE",
+        "instance": "/api/chat/messages",
+        "code": "VALIDATION_FAILED",
+        "errors": [
+          {
+            "field": "text",
+            "reason": "OUT_OF_RANGE",
+            "min": 1,
+            "max": 2000,
+            "unit": "CHAR"
+          }
+        ]
+      }
+    }
+  ]
+}

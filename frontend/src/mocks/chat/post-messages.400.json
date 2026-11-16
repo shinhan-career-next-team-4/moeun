@@ -1,0 +1,18 @@
+{
+  "responses": [
+    {
+      "status": 400,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "요청 형식이 올바르지 않아요",
+        "status": 400,
+        "instance": "/api/chat/messages",
+        "code": "MALFORMED_REQUEST",
+        "errors": []
+      }
+    }
+  ]
+}
