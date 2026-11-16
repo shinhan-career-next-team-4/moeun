@@ -1,0 +1,49 @@
+{
+  "calcRunId": 542,
+  "conditions": {
+    "goalAmount": 20000000,
+    "heldAssets": 25000000,
+    "monthlySavingAmount": 300000,
+    "targetPeriodMonths": 36,
+    "savingsRatioPct": 50,
+    "savingsRateInputPct": 3.12
+  },
+  "result": {
+    "status": "ALREADY_EXCEEDED",
+    "goalAmount": 20000000,
+    "calcStartMonth": "2026-11",
+    "targetMonth": "2029-11",
+    "baselineScenario": "AVG",
+    "scenarios": [],
+    "requiredMonthlySaving": null,
+    "assumptions": {
+      "savingsRatePct": 3.12,
+      "isDefaultSavingsRate": true,
+      "savingsRateBaseMonth": "2026-10",
+      "savingsRatioPct": 50,
+      "taxRatePct": 15.4,
+      "scenarioMethod": "ROLLING_DISTRIBUTION",
+      "sp500BaseDate": "2026-10-31",
+      "excludedItems": ["ETF_TOTAL_EXPENSE", "EXCHANGE_RATE", "ETF_DISTRIBUTION", "HELD_ASSET_RETURN", "SAVINGS_REDEPOSIT"]
+    },
+    "dataVersions": {
+      "savingsRateVersionId": 3,
+      "sp500VersionId": 5,
+      "calcParamVersionId": 2,
+      "engineVersion": "1.0.0"
+    }
+  },
+  "display": {
+    "goalAmount": "약 2,000만원",
+    "calcStartMonth": "2026년 11월",
+    "targetMonth": "2029년 11월",
+    "conditions.heldAssets": "약 2,500만원",
+    "conditions.monthlySavingAmount": "약 30만원",
+    "conditions.targetPeriodMonths": "3년 0개월",
+    "conditions.savingsRatioPct": "적금 50 : ETF 50",
+    "conditions.savingsRateInputPct": "연 3.12%",
+    "assumptions.savingsRateBaseMonth": "2026년 10월",
+    "assumptions.sp500BaseDate": "2026년 10월",
+    "assumptions.taxRatePct": "15.4%"
+  }
+}
