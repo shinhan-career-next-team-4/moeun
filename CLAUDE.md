@@ -26,7 +26,7 @@
 
 막히면 멈춘다: 수용 기준이 모호하거나, 다른 팀(A↔B) 코드를 고쳐야 하거나, 선행 Issue가 안 끝났으면 Issue에 댓글로 이유를 남기고 `status:blocked` 라벨을 붙인 뒤 사람에게 보고한다. 추측으로 채우지 않는다.
 
-Issue 하나를 끝까지 처리하는 상세 절차는 `.claude/workflows/work-issue.md`, 여러 Issue를 herdr로 동시에 돌리는 절차는 `/run-backlog` 스킬(`.claude/skills/run-backlog/SKILL.md`).
+Issue 하나를 끝까지 처리하는 상세 절차는 `.claude/workflows/work-issue.md`. 사람이 직접 하든 에이전트에게 맡기든 같은 절차를 따른다. 여러 Issue를 동시에 처리할 때는 Issue마다 별도 git worktree를 쓰고, 본문의 `paths`가 겹치는 Issue는 동시에 하지 않는다.
 
 ## 라벨
 

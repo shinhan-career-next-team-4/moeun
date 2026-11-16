@@ -1,6 +1,6 @@
 # Issue 하나 처리하기 (기획검토 → 테스트 → 구현 → 검증 → PR)
 
-입력: Issue 번호 `N`. 작업 디렉터리는 이 Issue 전용 git worktree다(`/run-backlog`가 만들어 줌). 혼자 시작했다면 `git worktree add ../moeun-N -b <type>/N-<slug> origin/develop`으로 직접 만든다.
+입력: Issue 번호 `N`. 다른 Issue와 동시에 작업한다면 Issue 전용 git worktree에서 한다: `git worktree add ../moeun-N -b <type>/N-<slug> origin/develop`. 하나만 한다면 현재 폴더에서 같은 이름의 브랜치를 만든다.
 
 각 단계가 끝날 때마다 Issue에 짧은 댓글로 진행 상황을 남긴다(`gh issue comment N --body "..."`). 나중에 사람이 Issue만 보고 무슨 일이 있었는지 알 수 있어야 한다.
 
@@ -40,5 +40,5 @@
 - `gh issue edit N --add-label status:review --remove-label status:in-progress`
 - 끝. **머지하지 않는다.**
 
-## 끝날 때 보고 (지휘자나 사람에게)
+## 끝날 때 보고
 한 줄 형식: `#N <결과: PR #M 생성 | blocked: 이유> — 테스트 <통과/실패>, 바꾼 파일 <개수>`
