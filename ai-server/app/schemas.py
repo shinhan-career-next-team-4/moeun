@@ -1,7 +1,8 @@
+import re
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt
+from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, field_validator
 from pydantic.alias_generators import to_camel
 
 
@@ -50,6 +51,45 @@ class HistoryItem(ApiModel):
     content: str
 
 
+# 계약 C1a-8 display 허용 키. 여기에 맞고 값이 문자열인 항목만 받는다
+DISPLAY_KEY = re.compile(
+    r"goalAmount|calcStartMonth|targetMonth"
+    r"|(?:GOOD|AVG|BAD)\.(?:afterTaxAsset|principal|afterTaxGain|gapToGoal|goalReachMonth)"
+    r"|conditions\.(?:heldAssets|monthlySavingAmount|targetPeriodMonths|savingsRatioPct|savingsRateInputPct)"
+    r"|assumptions\.(?:savingsRateBaseMonth|sp500BaseDate|taxRatePct)"
+)
+
+
+class PlanScenario(ApiModel):
+    scenario: Scenario
+    is_achieved: bool
+
+
+class PlanAssumptions(ApiModel):
+    is_default_savings_rate: bool
+    scenario_method: str | None      # 키는 필수, ETF 0%면 null
+    excluded_items: list[str] | None   # 키는 필수, 값은 null 가능
+
+
+class PlanResult(ApiModel):
+    status: Literal["CALCULATED", "ALREADY_EXCEEDED"]
+    scenarios: list[PlanScenario]
+    assumptions: PlanAssumptions
+
+
+class PlanContext(ApiModel):
+    """Spring이 만든 현재 계획 요약(계약 C1a-8). 모델이 쓰는 필드만 선언하고 나머지(raw 금액·계정 필드)는 무시한다."""
+
+    calc_run_id: int | None = None
+    result: PlanResult
+    display: dict[str, Any]
+
+    @field_validator("display")
+    @classmethod
+    def _keep_allowed_display(cls, display: dict[str, Any]) -> dict[str, Any]:
+        return {k: v for k, v in display.items() if isinstance(v, str) and DISPLAY_KEY.fullmatch(k)}
+
+
 class ChatRequest(ApiModel):
     """Spring → ai-server. 사용자 JWT는 넘기지 않고 Spring이 member_id를 담는다."""
 
@@ -59,7 +99,7 @@ class ChatRequest(ApiModel):
     text: str | None = Field(default=None, max_length=2000)   # QUESTION일 때 사용자 발화
     baseline_scenario: Scenario
     calc_run_id: int | None = None               # EXPLAIN일 때 설명할 계산
-    plan_context: dict[str, Any] | None = None   # 현재 조건과 계산 결과 요약(Spring이 만든 값 그대로)
+    plan_context: PlanContext | None = None      # 현재 조건과 계산 결과 요약. 모델에는 display 문자열만 넘긴다
     history: list[HistoryItem] = Field(default_factory=list, max_length=20)
 
 

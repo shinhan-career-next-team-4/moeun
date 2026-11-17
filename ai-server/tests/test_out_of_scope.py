@@ -20,7 +20,10 @@ from app.schemas import ChatRequest, DocType, RetrievedChunk
 
 APP_DIR = Path(__file__).resolve().parents[1] / "app"
 NULLS = dict.fromkeys(["monthly_saving_amount", "savings_ratio_pct", "savings_rate_input_pct", "target_period_months"])
-PLAN_CONTEXT = {"monthlySavingAmount": {"value": 300_000, "display": "약 30만원"}}
+PLAN_CONTEXT = json.loads(   # 계약 C1a 예시 planContext
+    (APP_DIR.parents[1] / "docs" / "api" / "examples" / "plan-context" / "plan-context-basic.json")
+    .read_text(encoding="utf-8")
+)
 CONDITION_KEYS = ("monthlySavingAmount", "savingsRatioPct", "savingsRateInputPct", "targetPeriodMonths")
 OUT_OF_SCOPE_KEY = "outOfScope"
 UNCHANGEABLE_KEY = "chat.unchangeableCondition"

@@ -30,6 +30,7 @@ from app.schemas import (
     ConditionChanges,
     DocType,
     MessageType,
+    PlanContext,
     RetrievedChunk,
     Scenario,
 )
@@ -139,6 +140,21 @@ _FIXED_COPY_KEYS = {
     "NO_PLAN": "chat.noPlan",
     "ALREADY_EXCEEDED": "chat.alreadyExceeded",
 }
+
+_CALCULATED_DISPLAY_KEYS = (
+    "goalAmount",
+    "calcStartMonth",
+    "targetMonth",
+    "conditions.heldAssets",
+    "conditions.monthlySavingAmount",
+    "conditions.targetPeriodMonths",
+    "conditions.savingsRatioPct",
+    "conditions.savingsRateInputPct",
+    "assumptions.taxRatePct",   # D-060
+)
+_SCENARIO_DISPLAY_KEYS = ("afterTaxAsset", "principal", "afterTaxGain", "gapToGoal")
+_EXCEEDED_DISPLAY_KEYS = ("goalAmount", "conditions.heldAssets")
+TAX_RATE_KEY = "assumptions.taxRatePct"
 
 # 도구 실패로 보고 모델에게 is_error 결과로 돌려줄 예외. 그 밖의 예외는 요청 실패로 올린다
 _TOOL_ERRORS = (CalcError, ValidationError, KeyError, ValueError, RuntimeError)
@@ -264,6 +280,10 @@ class ChatAgent:
             case ChatRequest(mode=ChatMode.EXPLAIN, calc_run_id=None):
                 raise AgentError("BAD_REQUEST", "calc_run_id is required for EXPLAIN")
 
+        fixed = check_plan_context(req)
+        if fixed is not None:
+            return fixed
+
         turn = _Turn(req)
         messages = build_messages(req)
 
@@ -381,9 +401,74 @@ def _errors_for_model(errors: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+def _reject(req: ChatRequest, code: str) -> AgentError:
+    # planContext 본문은 로그에 남기지 않는다. 오류 코드와 calcRunId만(C1a-8)
+    log.warning("plan_context rejected: code=%s calcRunId=%s", code, req.calc_run_id)
+    return AgentError(code)
+
+
+def _missing_display(plan: PlanContext) -> bool:
+    display = plan.display
+    if plan.result.status == "ALREADY_EXCEEDED":
+        return any(k not in display for k in _EXCEEDED_DISPLAY_KEYS)
+    required = list(_CALCULATED_DISPLAY_KEYS)
+    for item in plan.result.scenarios:
+        name = item.scenario.value
+        required.extend(f"{name}.{k}" for k in _SCENARIO_DISPLAY_KEYS)
+        if item.is_achieved:
+            required.append(f"{name}.goalReachMonth")
+    return any(k not in display for k in required)
+
+
+def check_plan_context(req: ChatRequest) -> ChatResponse | None:
+    """모델을 부르기 전 planContext 검사(계약 C1a-8 검사 2~5). 고정 문장으로 끝나면 그 응답을 돌려준다."""
+    plan = req.plan_context
+    if req.mode is ChatMode.EXPLAIN:
+        if plan is None or plan.calc_run_id != req.calc_run_id:
+            raise _reject(req, "BAD_REQUEST")
+        if plan.result.status == "ALREADY_EXCEEDED":
+            return ChatResponse(
+                message_type="EXPLANATION",
+                content=load_copy().get("chat.alreadyExceeded"),
+                baseline_scenario=req.baseline_scenario,
+                calc_run_id=req.calc_run_id,
+            )
+    if plan is not None and _missing_display(plan):
+        raise _reject(req, "CONTEXT_DISPLAY_MISSING")
+    return None
+
+
+def plan_model_input(plan: PlanContext) -> dict[str, Any]:
+    """모델에 넘기는 planContext. raw 금액·식별 정보는 빼고 display 문자열과 문구표 문장만 담는다(C1a-8)."""
+    copy = load_copy()
+    known = copy.keys()
+    assumptions = plan.result.assumptions
+    notes: list[str] = []
+    dropped = 0
+    for code in assumptions.excluded_items or []:
+        if f"excluded.{code}" in known:
+            notes.append(copy.get(f"excluded.{code}"))
+        else:
+            dropped += 1
+    if dropped:
+        log.warning("excludedItems code without copy dropped: count=%s", dropped)
+    shown: dict[str, Any] = {"isDefaultSavingsRate": assumptions.is_default_savings_rate, "excludedNotes": notes}
+    if assumptions.scenario_method is not None:
+        shown["scenarioMethodNote"] = copy.get(f"scenarioMethod.{assumptions.scenario_method}")
+    return {
+        "result": {
+            "status": plan.result.status,
+            "scenarios": [{"scenario": s.scenario.value, "isAchieved": s.is_achieved} for s in plan.result.scenarios],
+            "assumptions": shown,
+        },
+        "display": plan.display,
+    }
+
+
 def build_messages(req: ChatRequest) -> list[BetaMessageParam]:
     """기록은 user로 시작하고 역할이 번갈아야 한다. 같은 역할이 이어지면 합친다."""
-    context = json.dumps(req.plan_context or {}, ensure_ascii=False)
+    plan_input = plan_model_input(req.plan_context) if req.plan_context else None
+    context = json.dumps(plan_input, ensure_ascii=False)
     body = req.text if req.mode is ChatMode.QUESTION else EXPLAIN_INSTRUCTION
     current = (
         f"<plan_context>{context}</plan_context>\n"
@@ -391,10 +476,14 @@ def build_messages(req: ChatRequest) -> list[BetaMessageParam]:
         f"<request>{body}</request>"
     )
 
+    note = load_copy().get("tax.note")
     turns: list[tuple[Literal["user", "assistant"], str]] = []
     for role, content in [*((h.role, h.content) for h in req.history), ("user", current)]:
-        if not turns and role == "assistant":
-            continue
+        if role == "assistant":
+            # 코드가 붙인 세금 단서는 모델 입력에 다시 넣지 않는다(D-067, D-073)
+            content = content.replace(note, "").strip()
+            if not turns or not content:
+                continue
         if turns and turns[-1][0] == role:
             turns[-1] = (role, f"{turns[-1][1]}\n\n{content}")
         else:
@@ -407,11 +496,22 @@ def build_messages(req: ChatRequest) -> list[BetaMessageParam]:
     ]
 
 
+def with_tax_note(req: ChatRequest, content: str) -> str:
+    """답이 계획의 세율 표시값을 말했으면 세금 단서를 끝에 붙인다(D-067, D-073). 코드가 붙이므로 모델 입력에는 없다."""
+    rate = req.plan_context.display.get(TAX_RATE_KEY) if req.plan_context else None
+    note = load_copy().get("tax.note")
+    if rate is None or rate not in content or note in content:
+        return content
+    return f"{content}\n\n{note}"
+
+
 def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
     """DB CHECK(ck_cm_recalc/explain/out_of_scope)를 만족하도록 모델 출력을 서버 사실로 보정한다."""
     req = turn.req
     allowed = set(turn.retrieved_ids)
     citations = list(dict.fromkeys(i for i in final.citation_chunk_ids if i in allowed))[:MAX_CITATIONS]
+    if final.message_type == "OUT_OF_SCOPE":
+        citations = []   # 범위 밖 답은 근거 자료를 인용하지 않는다(AC-15)
 
     message_type: MessageType = final.message_type
     calc_run_id: int | None = None
@@ -427,7 +527,12 @@ def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
         message_type = "ANSWER"
 
     # 범위 밖 안내는 모델 문장이 아니라 문구표 문장이다. ANSWER(목표 금액 안내 등)에는 번지지 않는다
-    content = out_of_scope_content() if message_type == "OUT_OF_SCOPE" else final.content
+    # 상품별 세제·절세 질문은 전용 문구(outOfScope.tax)를 그대로 둔다(D-073). 그 밖의 범위 밖 답은 기본 안내로 바꾼다
+    if message_type == "OUT_OF_SCOPE":
+        tax_copy = load_copy().get("outOfScope.tax")
+        content = tax_copy if tax_copy in final.content else out_of_scope_content()
+    else:
+        content = with_tax_note(req, final.content)
     return ChatResponse(
         message_type=message_type,
         content=content,
