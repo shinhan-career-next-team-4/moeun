@@ -135,7 +135,7 @@ async def test_disclosure_search_returns_single_org_when_candidates_have_only_on
 
 async def test_search_sql_params_and_invariants():
     """rag.md 불변 조건: limit = k*4, model = 임베더 모델, 활성 조건 3개(부분 HNSW 인덱스)가 SQL에 있다."""
-    retriever, pool, embedder = make_retriever([row(1, "A운용")])
+    retriever, pool, embedder = make_retriever([row(1, "A운용"), row(2, "B운용")])   # 한 운용사뿐이면 재검색한다(#40)
 
     await retriever.search("ETF 위험", DocType.DISCLOSURE, top_k=5)
 

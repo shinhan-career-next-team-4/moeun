@@ -1,3 +1,4 @@
+import numpy as np
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
@@ -14,6 +15,7 @@ JOIN rag_document d ON d.id = c.document_id
 JOIN source_org o   ON o.id = d.source_org_id
 WHERE e.is_active AND e.model_code = %(model)s AND d.is_active
   AND (%(doc_type)s::text IS NULL OR d.doc_type = %(doc_type)s)
+  AND (%(exclude_orgs)s::text[] IS NULL OR o.name <> ALL(%(exclude_orgs)s::text[]))
 ORDER BY e.embedding <=> %(q)s
 LIMIT %(limit)s
 """
@@ -41,12 +43,29 @@ class Retriever:
     async def search(self, query: str, doc_type: DocType | None = None, top_k: int | None = None) -> list[RetrievedChunk]:
         k = top_k or self._top_k
         [vec] = await self._embedder.embed([query])
+        rows = await self._fetch(vec, doc_type, k * 4)
+        if doc_type != DocType.DISCLOSURE or k < 2:
+            # 운용사 2곳은 결과가 2개 이상일 때만 가능하다. top_k=1은 최인접 chunk를 그대로 돌려준다
+            return rows[:k]
+        orgs = {r.org_name for r in rows}
+        if len(orgs) == 1:
+            # 후보가 한 운용사로 쏠렸다. 그 운용사를 뺀 같은 조건 검색을 한 번만 더 한다(FR-AI-03)
+            seen = {r.chunk_id for r in rows}
+            rows += [r for r in await self._fetch(vec, doc_type, k * 4, sorted(orgs)) if r.chunk_id not in seen]
+        return diversify_orgs(rows, k)
+
+    async def _fetch(
+        self, vec: np.ndarray, doc_type: DocType | None, limit: int, exclude_orgs: list[str] | None = None
+    ) -> list[RetrievedChunk]:
         async with self._pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
             await cur.execute(
                 _SQL,
-                {"q": vec, "model": self._embedder.model, "doc_type": doc_type, "limit": k * 4},
+                {
+                    "q": vec,
+                    "model": self._embedder.model,
+                    "doc_type": doc_type,
+                    "limit": limit,
+                    "exclude_orgs": exclude_orgs,
+                },
             )
-            rows = [RetrievedChunk(**r) for r in await cur.fetchall()]
-        if doc_type == DocType.DISCLOSURE:
-            return diversify_orgs(rows, k)
-        return rows[:k]
+            return [RetrievedChunk(**r) for r in await cur.fetchall()]
