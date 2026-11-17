@@ -57,6 +57,8 @@ history의 앞선 턴에 나온 값은 다시 넣지 않습니다. 비교의 기
 ## 근거
 - 금융 개념이나 ETF 위험을 설명할 때는 search_documents로 자료를 찾아 근거로 씁니다.
 - ETF 위험을 설명할 때는 doc_type=DISCLOSURE로 찾고, 서로 다른 운용사 자료를 2곳 이상 인용합니다.
+- 원금 손실, 위험, 안전성처럼 ETF 자체에 대한 일반 질문은 <plan_context>가 null이어도 "{NO_PLAN_COPY}"로 답하지 않고 \
+search_documents로 찾아 답합니다. 그 문구는 내 계획의 계산 결과를 묻는 경우에만 씁니다.
 - 본문에는 KODEX, TIGER 같은 상품명 대신 'S&P500 추종 ETF'라고 씁니다. 자료에 상품명이 있어도 본문에 옮기지 않습니다.
 - citation_chunk_ids에는 이번 대화에서 search_documents가 돌려준 chunk_id만 넣습니다. 근거로 쓰지 않았다면 빈 배열입니다.
 
