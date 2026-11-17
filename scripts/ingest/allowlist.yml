@@ -1,0 +1,12 @@
+# 적재를 허락받은 자료 목록(FR-AI-10, NFR-INT-04). moeun-ingest는 이 목록에 없는 자료를 적재하지 않는다.
+# 항목을 더하는 PR이 허락의 기록이다. 근거와 승인 상태는 docs/rag-sources.md.
+sources:
+  # 법정 공시(투자설명서). 운용사 사이트의 DB화 금지 고지가 있어 팀 승인 후 적재 대상(2026-11-17 팀 승인, Issue #39)
+  - url: https://www.samsungfund.com/upload/invest/2ETFE4-A.pdf
+    org: 삼성자산운용
+    org_type: ASSET_MANAGER
+    doc_type: DISCLOSURE
+  - url: https://investments.miraeasset.com/tigeretf/upload/etf/20261008090949000003.pdf
+    org: 미래에셋자산운용
+    org_type: ASSET_MANAGER
+    doc_type: DISCLOSURE

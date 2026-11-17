@@ -16,6 +16,7 @@ from pgvector.psycopg import register_vector_async
 from psycopg import AsyncConnection
 
 from app.core.config import get_settings
+from app.ingest.allowlist import DEFAULT_ALLOWLIST, NotLicensedError, check_allowed, load_allowlist
 from app.ingest.chunker import split_chunks
 from app.rag.embedder import Embedder
 
@@ -45,6 +46,18 @@ async def returning_id(conn: AsyncConnection[tuple[Any, ...]], sql: str, params:
 
 
 async def ingest(args: argparse.Namespace) -> None:
+    # 허락 확인이 문서 읽기·임베딩(외부 전송)·DB 쓰기보다 먼저다(FR-AI-10)
+    try:
+        check_allowed(
+            load_allowlist(Path(args.allowlist)),
+            url=args.url,
+            org=args.org,
+            org_type=args.org_type,
+            doc_type=args.doc_type,
+        )
+    except NotLicensedError as e:
+        raise SystemExit(str(e)) from e
+
     s = get_settings()
     text = read_text(Path(args.file))
     sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -160,6 +173,7 @@ def main() -> None:
     p.add_argument("--url", required=True)
     p.add_argument("--etf-code")
     p.add_argument("--published-at", help="YYYY-MM-DD")
+    p.add_argument("--allowlist", default=str(DEFAULT_ALLOWLIST), help="이용 허락 목록 YAML")
     p.add_argument("--rechunk", action="store_true", help="같은 내용의 문서를 새 청킹 규칙으로 다시 넣는다")
     asyncio.run(ingest(p.parse_args()))
 
