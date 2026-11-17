@@ -24,6 +24,17 @@ public class DataVersionService {
     }
 
     /**
+     * 세 종류의 활성 버전을 한 번에 꺼낸다.
+     * 하나라도 없으면 계산할 수 없는 상태라 일부만 채워 돌려주지 않고 비워 둔다.
+     */
+    public Optional<ActiveDataVersions> findActiveVersions() {
+        return findActive(DataKind.SAVINGS_RATE)
+                .flatMap(savingsRate -> findActive(DataKind.SP500)
+                        .flatMap(sp500 -> findActive(DataKind.CALC_PARAM)
+                                .map(calcParam -> new ActiveDataVersions(savingsRate, sp500, calcParam))));
+    }
+
+    /**
      * 버전이 기대한 종류인지 확인한다.
      * DB가 종류 일치를 막지 않으므로(ADR-002), 금리 자리에 지수 버전이 기록되지 않게 기록 전에 부른다.
      *
