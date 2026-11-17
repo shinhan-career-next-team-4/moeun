@@ -269,6 +269,28 @@ DROP_CASES = [
     pytest.param("천만에요", ALL_FOUR, {}, id="cheonmaneyo_is_not_numeral"),
     pytest.param("하십시오", ALL_FOUR, {}, id="hasipsio_is_not_numeral"),
     pytest.param("백화점 가자", ALL_FOUR, {}, id="baekhwajeom_is_not_numeral"),
+    # 한 글자 수사+만은 원이 없어도 금액으로 센다(월 저축액 표현이자 숫자 하나)
+    pytest.param(
+        "기간 3년에 오만씩 더", ALL_FOUR,
+        {"monthly_saving_amount": 500_000, "target_period_months": 60}, id="one_digit_man_ssik_with_period",
+    ),
+    pytest.param(
+        "오만 더 넣고 3년", ALL_FOUR,
+        {"monthly_saving_amount": 500_000, "target_period_months": 60}, id="one_digit_man_deo_with_period",
+    ),
+    pytest.param(
+        "삼만 늘리고 기간 2년", ALL_FOUR,
+        {"monthly_saving_amount": 500_000, "target_period_months": 60}, id="one_digit_man_neulligo_with_period",
+    ),
+    pytest.param("오만씩 더 넣으면", ALL_FOUR, {"monthly_saving_amount": 500_000}, id="one_digit_man_ssik_deo_neoheumyeon"),
+    pytest.param("오만씩 더", ALL_FOUR, {"monthly_saving_amount": 500_000}, id="one_digit_man_ssik_deo"),
+    pytest.param("삼만 더", ALL_FOUR, {"monthly_saving_amount": 500_000}, id="one_digit_man_deo"),
+    pytest.param("오만 올려줘", ALL_FOUR, {"monthly_saving_amount": 500_000}, id="one_digit_man_ollyeojwo"),
+    pytest.param("구만으로", ALL_FOUR, {"monthly_saving_amount": 500_000}, id="one_digit_man_euro"),
+    pytest.param("칠만 정도", ALL_FOUR, {"monthly_saving_amount": 500_000}, id="one_digit_man_jeongdo"),
+    pytest.param("이만으로 해줘", ALL_FOUR, {"monthly_saving_amount": 500_000}, id="one_digit_man_euro_haejwo"),
+    pytest.param("일만 해", ALL_FOUR, {}, id="ilman_hae_is_not_numeral"),
+    pytest.param("천만에 그건 아니고", ALL_FOUR, {}, id="cheonmane_geugeon_is_not_numeral"),
     # '-이자'(줄이자·높이자)는 이자(금리)가 아니다
     pytest.param(
         "기간을 3년으로 줄이자", {"savings_rate_input_pct": 3.5, "target_period_months": 36},
