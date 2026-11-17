@@ -256,6 +256,36 @@ DROP_CASES = [
     pytest.param("이번엔 그냥 다시 해줘", ALL_FOUR, {}, id="ibeon_is_not_numeral"),
     pytest.param("사람들은 보통 어때?", ALL_FOUR, {}, id="saram_is_not_numeral"),
     pytest.param("일단 다시 해줘", ALL_FOUR, {}, id="ildan_is_not_numeral"),
+    # 한글 수사 뒤에 조사(에·쯤·까지)가 와도 숫자 하나로 센다. 사용자가 말한 값을 지우면 안 된다
+    pytest.param("오십에 3년", ALL_FOUR, ALL_FOUR, id="numeral_e_with_period_keeps_all"),
+    pytest.param("오십쯤으로 하고 기간 3년", ALL_FOUR, ALL_FOUR, id="numeral_jjeum_with_period_keeps_all"),
+    pytest.param("오십까지 올리고 3년", ALL_FOUR, ALL_FOUR, id="numeral_kkaji_with_period_keeps_all"),
+    pytest.param("오십에 하면?", ALL_FOUR, ALL_FOUR, id="numeral_e_only_keeps_all"),
+    # 수사처럼 보이는 일반 어휘는 수사로 보지 않는다
+    pytest.param("일만 하자", ALL_FOUR, {}, id="ilman_is_not_numeral"),
+    pytest.param("오늘은 이만", ALL_FOUR, {}, id="iman_is_not_numeral"),
+    pytest.param("이삼일 뒤에 다시 해줘", ALL_FOUR, {}, id="isamil_is_not_numeral"),
+    pytest.param("오늘 십분만 쉬자", ALL_FOUR, {}, id="sipbun_is_not_numeral"),
+    pytest.param("천만에요", ALL_FOUR, {}, id="cheonmaneyo_is_not_numeral"),
+    pytest.param("하십시오", ALL_FOUR, {}, id="hasipsio_is_not_numeral"),
+    pytest.param("백화점 가자", ALL_FOUR, {}, id="baekhwajeom_is_not_numeral"),
+    # '-이자'(줄이자·높이자)는 이자(금리)가 아니다
+    pytest.param(
+        "기간을 3년으로 줄이자", {"savings_rate_input_pct": 3.5, "target_period_months": 36},
+        {"target_period_months": 36}, id="verb_ija_with_period",
+    ),
+    pytest.param(
+        "월 40만으로 줄이자", {"savings_rate_input_pct": 3.5, "monthly_saving_amount": 400_000},
+        {"monthly_saving_amount": 400_000}, id="verb_ija_with_monthly",
+    ),
+    pytest.param(
+        "적금 비중 60%로 높이자", {"savings_rate_input_pct": 3.5, "savings_ratio_pct": 60},
+        {"savings_ratio_pct": 60}, id="verb_ija_with_ratio",
+    ),
+    pytest.param(
+        "예금이자 4%로", {"savings_rate_input_pct": 4, "monthly_saving_amount": 500_000},
+        {"savings_rate_input_pct": 4}, id="noun_ija_attached",
+    ),
     pytest.param("저축 기간을 5년으로", ALL_FOUR, {"target_period_months": 60}, id="savings_period_is_period"),
     pytest.param("기간만 원래대로 돌리고 3년", ALL_FOUR, {"target_period_months": 60}, id="man_won_across_words"),
     pytest.param("기간도 5년으로", ALL_FOUR, {"target_period_months": 60}, id="only_period_keyword"),
