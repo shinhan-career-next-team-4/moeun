@@ -2,6 +2,7 @@
 # RAG 근거 자료(공시 투자설명서 2건)를 내려받아 적재한다. 몇 번 돌려도 중복 행이 생기지 않는다.
 # 허락 목록(scripts/ingest/allowlist.yml)에 없는 자료는 moeun-ingest가 거부한다. 근거: docs/rag-sources.md
 # URL이나 PDF 내용이 바뀌면(새 개정본) 다시 승인받고 scripts/ingest/allowlist.yml의 URL·content_sha256도 바꾼다(아니면 게이트가 거부한다)
+# DB 선택: DATABASE_URL 환경변수가 .env보다 우선한다. 점검은 공용 DB 대신 임시 DB로 한다(예: DATABASE_URL=postgresql://moeun:moeun@localhost:5432/moeun_ragcheck scripts/ingest/ingest.sh)
 # 필요: ai-server/.env의 OPENAI_API_KEY·DATABASE_URL, 실행 중인 pgvector DB
 set -euo pipefail
 

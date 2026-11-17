@@ -6,6 +6,7 @@
 적재 절차와 검색 결과를 기록한다. 골든 셋이 아니라 사람이 읽고 매긴 1차 점검이다.
 
 ### 적재
+- DB: 이 1차 점검은 공용 로컬 DB(`moeun`)에서 했다. 이후 재적재·검색 점검은 임시 DB로만 한다. `DATABASE_URL` 환경변수로 DB를 고른다(`.env`보다 우선). 임시 DB는 `docker exec moeun-postgres psql -U moeun -d postgres -c "CREATE DATABASE moeun_ragcheck"` 후 `backend/src/main/resources/db/schema.sql`을 적용해 만든다.
 - 명령: `scripts/ingest/ingest.sh` (PDF를 `docs/raw/`에 받고 `moeun-ingest`로 적재. `scripts/ingest/allowlist.yml`에 없는 자료는 거부)
 - 자료: 삼성자산운용 KODEX 미국S&P500 투자설명서(137청크), 미래에셋자산운용 TIGER 미국S&P500 투자설명서(141청크). `rag_document` 2행, 둘 다 `is_active`.
 - 재실행: 같은 명령을 다시 돌리면 두 건 모두 "같은 내용의 문서가 이미 있습니다. 건너뜁니다"가 나오고 문서·청크 수가 그대로다(수용 기준 2). 다만 임베딩은 DB 확인 전에 만들어져 재실행마다 소액의 임베딩 비용이 든다.
