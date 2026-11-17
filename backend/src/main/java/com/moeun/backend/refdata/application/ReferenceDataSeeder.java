@@ -34,6 +34,10 @@ public class ReferenceDataSeeder implements ApplicationRunner {
     }
 
     private void loadSeed(Seed seed) {
+        if (!seed.file().exists()) {
+            skipOrFailMissingFile(seed);
+            return;
+        }
         VersionSpec spec = new VersionSpec(seed.versionLabel(), seed.baseDate(), seed.source());
         try (InputStream csv = seed.file().getInputStream()) {
             referenceDataLoader.load(seed.kind(), spec, csv).ifPresentOrElse(
@@ -48,5 +52,14 @@ public class ReferenceDataSeeder implements ApplicationRunner {
             throw new ReferenceDataLoadException(
                     seed.kind() + " " + seed.versionLabel() + ": " + exception.getMessage(), exception);
         }
+    }
+
+    // S&P500은 이용 조건 때문에 레포에 올리지 않아(TBD-08) 파일이 없는 환경이 정상이다. 그 경우만 건너뛴다
+    private void skipOrFailMissingFile(Seed seed) {
+        if (!seed.optional()) {
+            throw new ReferenceDataLoadException(seed.kind() + " " + seed.versionLabel() + ": seed file not found");
+        }
+        log.warn("refdata.missing kind={} versionLabel={} (optional seed file not found, see seed/README.md)",
+                seed.kind(), seed.versionLabel());
     }
 }
