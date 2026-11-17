@@ -710,9 +710,28 @@ test("F-4 etf0: 시나리오 AVG 1개, savingsRatioPct 100", () => {
   assert.equal(b.display["conditions.current.savingsRatioPct"], "적금 100 : ETF 0");
 });
 
+// 최상위 `block:` 안(들여쓰기 2칸)의 `key: "값"`만 읽는다. 다른 블록의 같은 키는 보지 않는다.
+function blockValue(yaml, block, key) {
+  const lines = yaml.split("\n");
+  const start = lines.findIndex((l) => l === `${block}:`);
+  assert.notEqual(start, -1, `${block}: 블록이 없다`);
+  for (let i = start + 1; i < lines.length && (lines[i] === "" || /^[ #]/.test(lines[i])); i++) {
+    const m = lines[i].match(new RegExp(`^ {2}${key}: "(.+)"$`));
+    if (m) return m[1];
+  }
+  assert.fail(`${block}.${key}가 없다`);
+}
+
+test("blockValue는 앞선 블록의 같은 키(undo.failed)가 있어도 요청한 블록만 읽는다", () => {
+  const yaml = ['undo:', '  failed: "되돌리기 실패"', 'chat:', '  # 주석', '  failed: "답변 실패"', 'result:', '  failed: "결과 실패"', ''].join("\n");
+  assert.equal(blockValue(yaml, "chat", "failed"), "답변 실패");
+  assert.equal(blockValue(yaml, "undo", "failed"), "되돌리기 실패");
+  assert.throws(() => blockValue('chat:\n  sendFailed: "x"\nundo:\n  failed: "y"\n', "chat", "failed"));
+});
+
 test("실패·범위 밖 문구는 문구표(copy/copy.ko.yml)와 같다", () => {
   const copy = fs.readFileSync(path.resolve(here, "../../../copy/copy.ko.yml"), "utf8");
-  const failed = copy.match(/^ {2}failed: "(.+)"$/m)[1];
+  const failed = blockValue(copy, "chat", "failed");
   const outOfScope = copy.match(/^"outOfScope": "(.+)"$/m)[1];
   assert.equal(body("chat", "get-messages.200-failed.json").messages.at(-1).content, failed);
   assert.equal(body("chat", "get-messages.200-explanation-failed.json").messages.at(-1).content, failed);

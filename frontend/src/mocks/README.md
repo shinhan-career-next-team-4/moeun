@@ -62,7 +62,7 @@
 - `monthlyPoints`(목 전용 규칙): 시나리오마다 `targetPeriodMonths + 1`점이고 `month`는 시작월 + k(k = 0 … N)다. `afterTaxAsset = heldAssets + monthlySavingAmount × k + round(afterTaxGain × k / N)`라 첫 점은 보유 자산, 마지막 점은 시나리오 값이다. `principal` 키는 없다.
 - 대화 적용 뒤(`rev 13 / 553`)의 숫자는 `docs/api/examples/internal-calc/`의 `changed` 쪽이다. 입력 수정(`rev 15 / 555`)의 수치와 대화 목의 과거 메시지 일부(1025~1029)는 화면 시험용으로 이 목에서만 정한 값이다. 실패·범위 밖 문구는 문구표(`copy/copy.ko.yml`)와 같다.
 - F-4 ETF 0%(`1033`)의 `current`는 plan-context A-2다. `changed`·`diff`·`display`(월 50만원, 적금 100%)는 원문에 없어 A-2의 이득을 월 납입 비율로 늘려 이 목에서 정했다(화면 시험용).
-- `plan/get-plan.200-after-apply.json`의 BAD 시나리오는 `monthlyPoints`가 목표선을 넘는 달(2029-05)과 `goalReachMonth`(2029-04)가 1달 다르다. `goalReachMonth`는 internal-calc 값이고 점은 계약이 정한 목 전용 선형 공식으로 만들기 때문이다(그래프에 월 라벨이 없어 화면 영향은 작다).
+- `plan/get-plan.200-after-apply.json`(`get-plan.seq-full-flow`의 3번째 응답, `rev 13`과 같은 본문)의 BAD 시나리오는 `monthlyPoints`가 목표선을 넘는 달(2029-05)과 `goalReachMonth`(2029-04)가 1달 다르다. `goalReachMonth`는 internal-calc 값이고 점은 계약이 정한 목 전용 선형 공식으로 만들기 때문이다(그래프에 월 라벨이 없어 화면 영향은 작다).
 - F-4 정상은 `internal-calc` 성공 예시에서 `calcRunId`를 지우고 `messageId`·`applicable`·`changedKeys`를 더한 것이다.
 - 설명 메시지의 `citations`는 `docs/rag-sources.md`의 선정 목록(서로 다른 운용사 2곳)을 쓴다.
 
