@@ -10,7 +10,7 @@
 - 명령: `scripts/ingest/ingest.sh` (PDF를 `docs/raw/`에 받고 `moeun-ingest`로 적재. `scripts/ingest/allowlist.yml`에 없는 자료는 거부)
 - 자료: 삼성자산운용 KODEX 미국S&P500 투자설명서(137청크), 미래에셋자산운용 TIGER 미국S&P500 투자설명서(141청크). `rag_document` 2행, 둘 다 `is_active`.
 - 재실행: 같은 명령을 다시 돌리면 두 건 모두 "같은 내용의 문서가 이미 있습니다. 건너뜁니다"가 나오고 문서·청크 수가 그대로다(수용 기준 2). 다만 임베딩은 DB 확인 전에 만들어져 재실행마다 소액의 임베딩 비용이 든다.
-- 허락 없는 자료: 허락 목록에 없는 URL·운용사·유형이면 문서 읽기·임베딩·DB 연결 전에 거부한다(`tests/test_rag_search.py`, 수용 기준 3).
+- 허락 없는 자료: 허락 목록 항목(URL·운용사·유형)과 본문 `content_sha256`을 확인하려고 로컬 파일은 읽지만, 목록에 없거나 해시가 다르면 임베딩·DB 연결 전에 거부한다(`tests/test_rag_search.py`, 수용 기준 3).
 
 ### 검색 (`Retriever.search`, `doc_type=DISCLOSURE`, top 5, 운영 코드와 같은 경로)
 판정은 상위 청크의 앞 70자와 질문의 관련 여부로 매겼다. 본문 전체를 읽은 것이 아니므로 "관련"은 느슨한 기준이다.
