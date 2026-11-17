@@ -406,6 +406,7 @@ async def test_re_search_excludes_the_orgs_already_found():
 
     assert pool.executed[0][1]["exclude_orgs"] is None
     assert pool.executed[1][1]["exclude_orgs"] == ["A운용"]
+    assert "o.name <> ALL(%(exclude_orgs)s::text[])" in " ".join(pool.executed[1][0].split())
 
 
 async def test_cap_keeps_the_only_disclosure_citation_when_it_is_last():
@@ -423,7 +424,8 @@ async def test_cap_keeps_the_only_disclosure_citation_when_it_is_last():
 
 def test_system_prompt_limits_no_plan_copy_to_plan_questions_and_lets_etf_questions_search():
     """plan_context가 null이어도 ETF 일반 질문은 검색해 답한다. 안내 문구는 내 계획의 계산·설명 요청에만 쓴다"""
-    assert "내 계획의 계산 결과" in SYSTEM_PROMPT
+    assert "내 계획의 계산 결과나 그 설명을 요청하면" in SYSTEM_PROMPT
+    assert "내 계획의 계산 결과나 그 설명을 묻는 경우에만" in SYSTEM_PROMPT
     assert "<plan_context>가 null이어도" in SYSTEM_PROMPT
     assert "search_documents로 찾아 답합니다" in SYSTEM_PROMPT
 
