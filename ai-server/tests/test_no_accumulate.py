@@ -6,6 +6,7 @@
 """
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -17,7 +18,10 @@ from app.llm.prompts import SYSTEM_PROMPT
 from app.schemas import ChatRequest, ConditionChanges, DocType, RetrievedChunk
 
 NULLS = dict.fromkeys(["monthly_saving_amount", "savings_ratio_pct", "savings_rate_input_pct", "target_period_months"])
-PLAN_CONTEXT = {"monthlySavingAmount": {"value": 300_000, "display": "약 30만원"}}
+PLAN_CONTEXT = json.loads(
+    (Path(__file__).resolve().parents[2] / "docs" / "api" / "examples" / "plan-context" / "plan-context-basic.json")
+    .read_text(encoding="utf-8")
+)   # planContext 최종본(#35). 옛 모양은 422다
 PREVIOUS_HISTORY = [
     {"role": "user", "content": "월 50만원으로 바꾸면?"},
     {"role": "assistant", "content": "월 50만원으로 바꾸면 최종 금액이 늘어나요."},
@@ -446,7 +450,7 @@ async def test_explain_mode_without_text_runs_without_error():
     ])
     calc = FakeCalc()
     req = ChatRequest(
-        memberId=1, messageId=9, mode="EXPLAIN", calcRunId=5, baselineScenario="AVG", planContext=PLAN_CONTEXT
+        memberId=1, messageId=9, mode="EXPLAIN", calcRunId=540, baselineScenario="AVG", planContext=PLAN_CONTEXT
     )
     resp = await make_agent(claude, calc).run(req)
     assert calc.calls == [{"monthly_saving_amount": 500_000}]  # text가 없으면 필터를 건너뛴다
@@ -457,7 +461,9 @@ async def test_explain_mode_without_text_runs_without_error():
 async def test_explain_mode_without_recalculate_is_unchanged():
     """EXPLAIN 회귀: 도구 호출 없이 끝나면 EXPLANATION과 요청의 calc_run_id를 그대로 쓴다"""
     claude = FakeClaude([text_resp("EXPLANATION", "설명입니다")])
-    req = ChatRequest(memberId=1, messageId=9, mode="EXPLAIN", calcRunId=5, baselineScenario="AVG")
+    req = ChatRequest(
+        memberId=1, messageId=9, mode="EXPLAIN", calcRunId=540, baselineScenario="AVG", planContext=PLAN_CONTEXT
+    )
     resp = await make_agent(claude, FakeCalc()).run(req)
     assert resp.message_type == "EXPLANATION"
-    assert resp.calc_run_id == 5 and resp.condition_changes is None
+    assert resp.calc_run_id == 540 and resp.condition_changes is None

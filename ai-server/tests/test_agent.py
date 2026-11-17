@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -100,9 +101,13 @@ async def test_empty_recalc_returns_tool_error_to_model():
 
 async def test_explain_mode_uses_given_calc_run():
     claude = FakeClaude([text_resp({"message_type": "ANSWER", "content": "설명", "citation_chunk_ids": []})])
-    req = ChatRequest(memberId=1, messageId=9, mode="EXPLAIN", baselineScenario="GOOD", calcRunId=5)
+    plan = json.loads(
+        (Path(__file__).resolve().parents[2] / "docs" / "api" / "examples" / "plan-context" / "plan-context-basic.json")
+        .read_text(encoding="utf-8")
+    )
+    req = ChatRequest(memberId=1, messageId=9, mode="EXPLAIN", baselineScenario="GOOD", calcRunId=540, planContext=plan)
     resp = await make_agent(claude).run(req)
-    assert (resp.message_type, resp.calc_run_id) == ("EXPLANATION", 5)
+    assert (resp.message_type, resp.calc_run_id) == ("EXPLANATION", 540)
 
 
 async def test_refusal_maps_to_out_of_scope():

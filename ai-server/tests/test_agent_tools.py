@@ -6,6 +6,7 @@
 """
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -23,7 +24,10 @@ GOAL_AMOUNT_COPY = (
     "목표 금액은 입력 수정에서 바꿀 수 있어요. 대화로는 월 저축액·비중·적금 금리·기한을 바꿔 볼 수 있어요"
 )
 NULLS = dict.fromkeys(sorted(FOUR_KEYS))
-PLAN_CONTEXT = {"monthlySavingAmount": {"value": 300_000, "display": "약 30만원"}}
+PLAN_CONTEXT = json.loads(
+    (Path(__file__).resolve().parents[2] / "docs" / "api" / "examples" / "plan-context" / "plan-context-basic.json")
+    .read_text(encoding="utf-8")
+)   # planContext 최종본(#35). 옛 모양은 422다
 
 
 # ---- fake (tests/test_agent.py와 같은 모양. 파일끼리 묶이지 않도록 따로 둔다) ----
