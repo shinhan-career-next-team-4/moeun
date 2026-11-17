@@ -39,10 +39,19 @@ log = logging.getLogger(__name__)
 
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 MAX_CITATIONS = 5
-# 문구표(#18) 로더가 들어오면 거기서 읽는다
-OUT_OF_SCOPE_COPY = (
-    "이 질문은 모은에서 다루지 않아요. 월 저축액·비중·적금 금리·기한 같은 조건을 바꿔 보고 싶다면 말씀해 주세요."
+_CONDITION_COPY_KEYS = (
+    "condition.monthlySavingAmount",
+    "condition.savingsRatioPct",
+    "condition.savingsRateInputPct",
+    "condition.targetPeriodMonths",
 )
+
+
+def out_of_scope_content() -> str:
+    """범위 밖 안내. 모델 문장 대신 문구표 문장과 대화로 바꿀 수 있는 4개 조건 이름을 잇는다(M-5, D-045)."""
+    copy = load_copy()
+    names = "·".join(copy.get(key) for key in _CONDITION_COPY_KEYS)
+    return f"{copy.get('outOfScope')} 대화로는 {names}을 바꿔 볼 수 있어요."
 
 
 class Calculator(Protocol):
@@ -274,7 +283,7 @@ class ChatAgent:
             match resp.stop_reason:
                 case "refusal":
                     return ChatResponse(
-                        message_type="OUT_OF_SCOPE", content=OUT_OF_SCOPE_COPY, baseline_scenario=req.baseline_scenario
+                        message_type="OUT_OF_SCOPE", content=out_of_scope_content(), baseline_scenario=req.baseline_scenario
                     )
                 case "max_tokens":
                     raise AgentError("MAX_TOKENS")
@@ -412,14 +421,16 @@ def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
         message_type = "CLARIFY"   # 되묻기는 서버가 정한다. 계산 결과가 없으므로 calcRunId·conditionChanges도 없다
     elif turn.calc_run_id is not None and message_type != "OUT_OF_SCOPE":
         message_type, calc_run_id, changes = "RECALC_RESULT", turn.calc_run_id, turn.condition_changes
-    elif req.mode is ChatMode.EXPLAIN:
+    elif req.mode is ChatMode.EXPLAIN and message_type != "OUT_OF_SCOPE":
         message_type, calc_run_id = "EXPLANATION", req.calc_run_id
     elif message_type in ("RECALC_RESULT", "EXPLANATION"):
         message_type = "ANSWER"
 
+    # 범위 밖 안내는 모델 문장이 아니라 문구표 문장이다. ANSWER(목표 금액 안내 등)에는 번지지 않는다
+    content = out_of_scope_content() if message_type == "OUT_OF_SCOPE" else final.content
     return ChatResponse(
         message_type=message_type,
-        content=final.content,
+        content=content,
         baseline_scenario=req.baseline_scenario,
         calc_run_id=calc_run_id,
         condition_changes=changes,
