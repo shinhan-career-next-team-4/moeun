@@ -11,6 +11,7 @@ FakeClaude/FakeCalc/FakeRetriever를 쓴다. 모델이 프롬프트 규칙을 �
 import pytest
 
 from app.llm.agent import AgentError, ChatAgent
+from app.llm.assemble import ForbiddenExpression, check_recommendation, replace_product_names
 from app.llm.prompts import SYSTEM_PROMPT
 from app.schemas import ChatRequest, ChatResponse, DocType, RetrievedChunk
 from tests.test_out_of_scope import PLAN_CONTEXT, FakeCalc, FakeClaude, FakeRetriever, text_resp, tool_resp
@@ -197,3 +198,77 @@ def test_system_prompt_does_not_contain_concrete_product_names():
     upper = SYSTEM_PROMPT.upper()
     for name in PRODUCT_NAMES:
         assert name not in upper
+
+
+# ---- 리뷰 반영: 치환 범위·상품명 표기·추천 활용형 (M-4) ----
+
+@pytest.mark.parametrize("text, expected", [
+    ("KODEX 미국S&P500은 지수를 따라가요", f"{GENERIC}은 지수를 따라가요"),
+    ("TIGER 미국S&P500 ETF는 지수를 따라가요", f"{GENERIC}는 지수를 따라가요"),
+    ("RISE 미국S&P500은 지수를 따라가요", f"{GENERIC}은 지수를 따라가요"),
+    ("코덱스 미국S&P500은 지수를 따라가요", f"{GENERIC}은 지수를 따라가요"),
+])
+def test_s_and_p_product_name_is_replaced_as_a_whole(text, expected):
+    """S&P500 상품명은 브랜드만이 아니라 이름 전체가 일반 표기로 바뀐다(이름 뒤꼬리가 남지 않는다)"""
+    assert replace_product_names(text) == expected
+
+
+@pytest.mark.parametrize("text", [
+    "KODEX 200은 코스피를 따라가요",
+    "KODEX ETF는 지수를 따라가요",
+    "타이거 반도체는 변동이 커요",
+    "SOL 미국반도체는 변동이 커요",
+])
+def test_product_name_without_s_and_p_index_is_rejected(text):
+    """어떤 지수인지 알 수 없는 상품명을 'S&P500 추종 ETF'로 바꾸면 사실과 달라지므로 거부한다"""
+    with pytest.raises(ForbiddenExpression):
+        replace_product_names(text)
+
+
+@pytest.mark.parametrize("text", [
+    "Tigers는 야구팀이에요",
+    "Tigerlike한 표현은 아니에요",
+    "주가가 rise하면 좋아요",
+    "하나로 모아서 저축해요",
+    "ACE 카드가 아니라 plus 금액이에요",
+])
+def test_product_name_check_does_not_touch_ordinary_words(text):
+    """단어 경계와 대문자 조건 덕에 일반 단어는 그대로 통과한다"""
+    assert replace_product_names(text) == text
+
+
+async def test_korean_transliterated_product_name_is_blocked_through_agent():
+    """한글 표기 상품명도 ChatAgent.run 경로에서 막힌다"""
+    outcome = await run_answer("코덱스 미국S&P500은 지수를 따라가요")
+    assert isinstance(outcome, ChatResponse)
+    assert outcome.content == f"{GENERIC}은 지수를 따라가요"
+
+
+@pytest.mark.parametrize("phrase", [
+    "이 ETF를 추천해 드려요",
+    "이 ETF를 추천해 드립니다",
+    "이 ETF를 추천해드립니다",
+    "이 ETF를 추천할게요",
+    "이 ETF를 추천드릴게요",
+    "이 ETF를 추천드리겠습니다",
+    "이 ETF를 추천 해요",
+])
+def test_more_positive_recommendation_forms_are_rejected(phrase):
+    with pytest.raises(ForbiddenExpression):
+        check_recommendation(f"{GENERIC}는 지수를 따라가요. {phrase}.")
+
+
+@pytest.mark.parametrize("phrase", [
+    "이 ETF를 추천하지 않아요",
+    "이 ETF를 추천드리지 않아요",
+    "이 ETF를 추천해 드리기는 어려워요",
+    "추천해 달라고 하셨지만 특정 상품은 고르지 않아요",
+])
+def test_negated_or_non_recommending_forms_still_pass(phrase):
+    check_recommendation(f"{GENERIC}는 지수를 따라가요. {phrase}.")
+
+
+async def test_agent_rejects_with_agent_error_code_for_recommendation():
+    """추천 표현은 FORBIDDEN_EXPRESSION 코드의 AgentError로 거부된다(치환하지 않는다)"""
+    outcome = await run_answer("이 ETF를 추천해 드려요")
+    assert isinstance(outcome, AgentError)
