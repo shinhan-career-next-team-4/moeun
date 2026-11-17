@@ -21,6 +21,7 @@ from anthropic.types.beta import (
 from pydantic import BaseModel, ValidationError
 
 from app.core.config import Effort
+from app.core.copy import load_copy
 from app.llm.prompts import EXPLAIN_INSTRUCTION, SYSTEM_PROMPT
 from app.schemas import (
     ChatMode,
@@ -32,7 +33,7 @@ from app.schemas import (
     RetrievedChunk,
     Scenario,
 )
-from app.tools.calc import CalcError
+from app.tools.calc import CalcError, CalcFailed, CalcRejected
 
 log = logging.getLogger(__name__)
 
@@ -123,6 +124,13 @@ FINAL_FORMAT: BetaJSONOutputFormatParam = {
 
 EXCLUDED_NOTE = "excludedConditions는 이번 발화에 없어 계산에서 뺐습니다. 답변에서 이 조건의 값을 말하지 마세요."
 
+# Spring이 모델 없이 고정 문장으로 답하라고 거절한 코드 → 문구표 키(D-056)
+_FIXED_COPY_KEYS = {
+    "FIELD_NOT_CHANGEABLE": "chat.unchangeableCondition",
+    "NO_PLAN": "chat.noPlan",
+    "ALREADY_EXCEEDED": "chat.alreadyExceeded",
+}
+
 # 도구 실패로 보고 모델에게 is_error 결과로 돌려줄 예외. 그 밖의 예외는 요청 실패로 올린다
 _TOOL_ERRORS = (CalcError, ValidationError, KeyError, ValueError, RuntimeError)
 
@@ -211,6 +219,8 @@ class _Turn:
     calc_run_id: int | None = None
     condition_changes: dict[str, Any] | None = None
     retrieved_ids: list[int] = field(default_factory=list)
+    validation_failed: bool = False   # 이번 요청에서 VALIDATION_FAILED를 받았다. 다시 계산하지 않는다
+    fixed_copy_key: str | None = None   # 문구표 고정 문장으로 끝내는 거절을 받았다
 
 
 ToolHandler = Callable[[_Turn, dict[str, Any]], Awaitable[str]]
@@ -272,6 +282,12 @@ class ChatAgent:
                     tool_uses = [b for b in resp.content if isinstance(b, BetaToolUseBlock)]
                     messages.append(BetaAssistantMessageParam(role="assistant", content=resp.content))
                     results = await asyncio.gather(*(self._call_tool(turn, b) for b in tool_uses))
+                    if turn.fixed_copy_key is not None:   # 모델을 더 부르지 않는다
+                        return ChatResponse(
+                            message_type="ANSWER",
+                            content=load_copy().get(turn.fixed_copy_key),
+                            baseline_scenario=req.baseline_scenario,
+                        )
                     messages.append(BetaUserMessageParam(role="user", content=results))   # 결과는 한 메시지에 모두
                 case _:
                     text = "".join(b.text for b in resp.content if isinstance(b, BetaTextBlock))
@@ -289,12 +305,34 @@ class ChatAgent:
             if handler is None:
                 raise KeyError(f"unknown tool {block.name}")
             content = await handler(turn, dict(block.input))
+        except CalcRejected as e:
+            return self._on_rejected(turn, block, e)
+        except CalcFailed as e:
+            raise AgentError(e.code, e.detail) from e
         except _TOOL_ERRORS as e:
             log.info("tool %s failed for message %s: %s", block.name, turn.req.message_id, e)
             return {"type": "tool_result", "tool_use_id": block.id, "content": f"Error: {e}", "is_error": True}
         return {"type": "tool_result", "tool_use_id": block.id, "content": content}
 
+    def _on_rejected(self, turn: _Turn, block: BetaToolUseBlock, e: CalcRejected) -> BetaToolResultBlockParam:
+        if e.code == "VALIDATION_FAILED":
+            turn.validation_failed = True
+            body = {"code": e.code, "errors": _errors_for_model(e.errors)}
+            return {
+                "type": "tool_result",
+                "tool_use_id": block.id,
+                "content": json.dumps(body, ensure_ascii=False),
+                "is_error": True,
+            }
+        key = _FIXED_COPY_KEYS.get(e.code)
+        if key is None:
+            raise AgentError("CALC_FAILED", f"unexpected rejection {e.code}") from e
+        turn.fixed_copy_key = key
+        return {"type": "tool_result", "tool_use_id": block.id, "content": f"Error: {e.code}", "is_error": True}
+
     async def _recalculate(self, turn: _Turn, args: dict[str, Any]) -> str:
+        if turn.validation_failed:
+            raise CalcError("허용 범위 오류를 이미 받았습니다. 값을 고쳐 다시 계산하지 말고 사용자에게 되물으세요.")
         changes = ConditionChanges.model_validate(args)
         # history가 있을 때만 이어받은 값이 생길 수 있다. 계산 전에 거른다(assemble에서만 거르면
         # calc_run_id는 누적 값으로 계산된 채 condition_changes만 달라진다)
@@ -321,6 +359,17 @@ class ChatAgent:
         turn.retrieved_ids.extend(c.chunk_id for c in chunks)
         payload = [c.model_dump(by_alias=False, exclude={"distance"}) for c in chunks]
         return json.dumps(payload, ensure_ascii=False)
+
+
+def _errors_for_model(errors: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """오류 항목은 그대로 넘긴다. 단 표시 문자열이 빠진 OUT_OF_RANGE는 모델이 원 단위 값을 환산하지 못하게
+    min·max를 뺀다(계약 위반 방어, C3-3)."""
+    return [
+        {k: v for k, v in item.items() if k not in ("min", "max")}
+        if item.get("reason") == "OUT_OF_RANGE" and not (item.get("minDisplay") and item.get("maxDisplay"))
+        else item
+        for item in errors
+    ]
 
 
 def build_messages(req: ChatRequest) -> list[BetaMessageParam]:
@@ -359,7 +408,9 @@ def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
     calc_run_id: int | None = None
     changes: dict[str, Any] | None = None
 
-    if turn.calc_run_id is not None and message_type != "OUT_OF_SCOPE":
+    if turn.validation_failed and message_type != "OUT_OF_SCOPE":
+        message_type = "CLARIFY"   # 되묻기는 서버가 정한다. 계산 결과가 없으므로 calcRunId·conditionChanges도 없다
+    elif turn.calc_run_id is not None and message_type != "OUT_OF_SCOPE":
         message_type, calc_run_id, changes = "RECALC_RESULT", turn.calc_run_id, turn.condition_changes
     elif req.mode is ChatMode.EXPLAIN:
         message_type, calc_run_id = "EXPLANATION", req.calc_run_id
