@@ -394,3 +394,36 @@ async def test_out_of_scope_answer_has_no_citations_even_after_disclosure_search
 
     assert resp.message_type == "OUT_OF_SCOPE"
     assert resp.citation_chunk_ids == []
+
+
+# ---- 코드 리뷰 보강(#40) ----
+
+async def test_re_search_excludes_the_orgs_already_found():
+    """재검색 SQL에는 첫 검색에서 나온 운용사가 exclude_orgs로 넘어가고, 첫 검색에는 제외가 없다"""
+    retriever, pool = make_retriever([[row(i, "A운용") for i in range(1, 7)], [row(7, "B운용")]])
+
+    await retriever.search("S&P500 추종 ETF 위험", DocType.DISCLOSURE, top_k=5)
+
+    assert pool.executed[0][1]["exclude_orgs"] is None
+    assert pool.executed[1][1]["exclude_orgs"] == ["A운용"]
+
+
+async def test_cap_keeps_the_only_disclosure_citation_when_it_is_last():
+    """상한 5개에서 유일한 공시 인용이 마지막이면 그 앞의 인용을 빼고 다른 운용사 chunk를 넣는다"""
+    found = [chunk(i, "A운용", DocType.EDU) for i in range(301, 305)] + [chunk(101, "A운용"), chunk(201, "B운용")]
+    claude = FakeClaude([
+        tool_resp("search_documents", SEARCH_DISCLOSURE),
+        text_resp("ANSWER", [301, 302, 303, 304, 101]),
+    ])
+
+    resp = await make_agent(claude, FakeRetriever(found)).run(question())
+
+    assert resp.citation_chunk_ids == [301, 302, 303, 101, 201]
+
+
+def test_system_prompt_limits_no_plan_copy_to_plan_questions_and_lets_etf_questions_search():
+    """plan_context가 null이어도 ETF 일반 질문은 검색해 답한다. 안내 문구는 내 계획의 계산·설명 요청에만 쓴다"""
+    assert "내 계획의 계산 결과" in SYSTEM_PROMPT
+    assert "<plan_context>가 null이어도" in SYSTEM_PROMPT
+    assert "search_documents로 찾아 답합니다" in SYSTEM_PROMPT
+

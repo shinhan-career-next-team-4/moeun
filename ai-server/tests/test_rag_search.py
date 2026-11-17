@@ -123,7 +123,7 @@ async def test_non_disclosure_search_does_not_mix_orgs(doc_type):
 
 
 async def test_disclosure_search_returns_single_org_when_candidates_have_only_one():
-    """AC1 알려진 한계(docs/rag-eval.md): 후보에 운용사가 한 곳뿐이면 한 곳만 나온다. 재검색을 넣으면 이 테스트를 고친다."""
+    """재검색에서도 다른 운용사가 없으면(이 가짜 풀은 같은 행을 되풀이한다) 그 한 곳의 상위 top_k만 나온다(#40, FR-AI-03)."""
     rows = [row(i, "A운용") for i in range(1, 7)]
     retriever, _, _ = make_retriever(rows)
 
