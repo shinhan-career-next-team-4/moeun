@@ -1,0 +1,114 @@
+{
+  "id": "G1",
+  "kind": "plan",
+  "title": "적금만(ETF 0%): 월 10만원, 연 3%, 12개월",
+  "requirements": [
+    "CP-03",
+    "FR-RES-02",
+    "FR-RES-04"
+  ],
+  "spec": "docs/calc-spec.md",
+  "input": {
+    "goalAmount": 10000000,
+    "targetPeriodMonths": 12,
+    "calcStartMonth": "2026-11",
+    "heldAssets": 0,
+    "monthlySavingAmount": 100000,
+    "savingsRatePct": "3",
+    "savingsRatioPct": 100,
+    "baselineScenario": "AVG"
+  },
+  "params": {
+    "taxRatePct": "15.4"
+  },
+  "handCalc": [
+    "월 이자 단가 = 100,000 × 3% ÷ 12 = 250원 (한 회차가 한 달 동안 받는 이자)",
+    "k번째 점의 누적 이자 = 250 × k(k+1)/2. 회차 j는 k - j + 1개월 이자를 받는다",
+    "만기(k=12) 세전 이자 = 250 × (12+11+...+1) = 250 × 78 = 19,500원",
+    "이자 세금 = 19,500 × 15.4% = 3,003원 → 세후 이자 16,497원",
+    "세후 예상 자산 = 보유 0 + 원금 1,200,000 + 16,497 = 1,216,497원",
+    "목표 1,000만원 대비 -8,783,503원 → 미달, 기간 안에 닿지 않아 goalReachMonth = null"
+  ],
+  "expected": {
+    "status": "CALCULATED",
+    "targetMonth": "2027-11",
+    "scenarios": [
+      {
+        "scenario": "AVG",
+        "afterTaxAsset": 1216497,
+        "principal": 1200000,
+        "afterTaxGain": 16497,
+        "gapToGoal": -8783503,
+        "isAchieved": false,
+        "goalReachMonth": null,
+        "monthlyPoints": [
+          {
+            "month": "2026-11",
+            "principal": 0,
+            "afterTaxAsset": 0
+          },
+          {
+            "month": "2026-12",
+            "principal": 100000,
+            "afterTaxAsset": 100212
+          },
+          {
+            "month": "2027-01",
+            "principal": 200000,
+            "afterTaxAsset": 200635
+          },
+          {
+            "month": "2027-02",
+            "principal": 300000,
+            "afterTaxAsset": 301269
+          },
+          {
+            "month": "2027-03",
+            "principal": 400000,
+            "afterTaxAsset": 402115
+          },
+          {
+            "month": "2027-04",
+            "principal": 500000,
+            "afterTaxAsset": 503173
+          },
+          {
+            "month": "2027-05",
+            "principal": 600000,
+            "afterTaxAsset": 604442
+          },
+          {
+            "month": "2027-06",
+            "principal": 700000,
+            "afterTaxAsset": 705922
+          },
+          {
+            "month": "2027-07",
+            "principal": 800000,
+            "afterTaxAsset": 807614
+          },
+          {
+            "month": "2027-08",
+            "principal": 900000,
+            "afterTaxAsset": 909518
+          },
+          {
+            "month": "2027-09",
+            "principal": 1000000,
+            "afterTaxAsset": 1011633
+          },
+          {
+            "month": "2027-10",
+            "principal": 1100000,
+            "afterTaxAsset": 1113959
+          },
+          {
+            "month": "2027-11",
+            "principal": 1200000,
+            "afterTaxAsset": 1216497
+          }
+        ]
+      }
+    ]
+  }
+}

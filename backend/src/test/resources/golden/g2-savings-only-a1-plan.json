@@ -1,0 +1,236 @@
+{
+  "id": "G2",
+  "kind": "plan",
+  "title": "적금만: A-1 기준 계획(보유 500만원, 월 30만원, 연 3.12%, 36개월)을 비중 100으로",
+  "requirements": [
+    "CP-03",
+    "FR-RES-02",
+    "FR-RES-04",
+    "C12a-6-2"
+  ],
+  "spec": "docs/calc-spec.md",
+  "input": {
+    "goalAmount": 20000000,
+    "targetPeriodMonths": 36,
+    "calcStartMonth": "2026-11",
+    "heldAssets": 5000000,
+    "monthlySavingAmount": 300000,
+    "savingsRatePct": "3.12",
+    "savingsRatioPct": 100,
+    "baselineScenario": "AVG"
+  },
+  "params": {
+    "taxRatePct": "15.4"
+  },
+  "handCalc": [
+    "월 이자 단가 = 300,000 × 3.12% ÷ 12 = 780원",
+    "만기(k=36) 세전 이자 = 780 × 36×37/2 = 780 × 666 = 519,480원",
+    "이자 세금 = 519,480 × 15.4% = 79,999.92원 → 세후 이자 439,480.08원",
+    "세후 예상 자산 = 5,000,000 + 10,800,000 + 439,480.08 = 16,239,480.08 → 원 단위 반올림 16,239,480원",
+    "afterTaxGain = 16,239,480 - 15,800,000 = 439,480원 (반올림한 자산에서 원금을 빼서 afterTaxAsset = principal + afterTaxGain을 지킨다)",
+    "월별 점 37개: 첫 점 2026-11 = 보유 자산 5,000,000원(납입 전), 마지막 점 2029-11 = 16,239,480원",
+    "k번째 점 = 5,000,000 + 300,000×k + 780 × k(k+1)/2 × 84.6%"
+  ],
+  "expected": {
+    "status": "CALCULATED",
+    "targetMonth": "2029-11",
+    "scenarios": [
+      {
+        "scenario": "AVG",
+        "afterTaxAsset": 16239480,
+        "principal": 15800000,
+        "afterTaxGain": 439480,
+        "gapToGoal": -3760520,
+        "isAchieved": false,
+        "goalReachMonth": null,
+        "monthlyPoints": [
+          {
+            "month": "2026-11",
+            "principal": 5000000,
+            "afterTaxAsset": 5000000
+          },
+          {
+            "month": "2026-12",
+            "principal": 5300000,
+            "afterTaxAsset": 5300660
+          },
+          {
+            "month": "2027-01",
+            "principal": 5600000,
+            "afterTaxAsset": 5601980
+          },
+          {
+            "month": "2027-02",
+            "principal": 5900000,
+            "afterTaxAsset": 5903959
+          },
+          {
+            "month": "2027-03",
+            "principal": 6200000,
+            "afterTaxAsset": 6206599
+          },
+          {
+            "month": "2027-04",
+            "principal": 6500000,
+            "afterTaxAsset": 6509898
+          },
+          {
+            "month": "2027-05",
+            "principal": 6800000,
+            "afterTaxAsset": 6813857
+          },
+          {
+            "month": "2027-06",
+            "principal": 7100000,
+            "afterTaxAsset": 7118477
+          },
+          {
+            "month": "2027-07",
+            "principal": 7400000,
+            "afterTaxAsset": 7423756
+          },
+          {
+            "month": "2027-08",
+            "principal": 7700000,
+            "afterTaxAsset": 7729695
+          },
+          {
+            "month": "2027-09",
+            "principal": 8000000,
+            "afterTaxAsset": 8036293
+          },
+          {
+            "month": "2027-10",
+            "principal": 8300000,
+            "afterTaxAsset": 8343552
+          },
+          {
+            "month": "2027-11",
+            "principal": 8600000,
+            "afterTaxAsset": 8651471
+          },
+          {
+            "month": "2027-12",
+            "principal": 8900000,
+            "afterTaxAsset": 8960049
+          },
+          {
+            "month": "2028-01",
+            "principal": 9200000,
+            "afterTaxAsset": 9269287
+          },
+          {
+            "month": "2028-02",
+            "principal": 9500000,
+            "afterTaxAsset": 9579186
+          },
+          {
+            "month": "2028-03",
+            "principal": 9800000,
+            "afterTaxAsset": 9889744
+          },
+          {
+            "month": "2028-04",
+            "principal": 10100000,
+            "afterTaxAsset": 10200962
+          },
+          {
+            "month": "2028-05",
+            "principal": 10400000,
+            "afterTaxAsset": 10512839
+          },
+          {
+            "month": "2028-06",
+            "principal": 10700000,
+            "afterTaxAsset": 10825377
+          },
+          {
+            "month": "2028-07",
+            "principal": 11000000,
+            "afterTaxAsset": 11138575
+          },
+          {
+            "month": "2028-08",
+            "principal": 11300000,
+            "afterTaxAsset": 11452432
+          },
+          {
+            "month": "2028-09",
+            "principal": 11600000,
+            "afterTaxAsset": 11766950
+          },
+          {
+            "month": "2028-10",
+            "principal": 11900000,
+            "afterTaxAsset": 12082127
+          },
+          {
+            "month": "2028-11",
+            "principal": 12200000,
+            "afterTaxAsset": 12397964
+          },
+          {
+            "month": "2028-12",
+            "principal": 12500000,
+            "afterTaxAsset": 12714461
+          },
+          {
+            "month": "2029-01",
+            "principal": 12800000,
+            "afterTaxAsset": 13031618
+          },
+          {
+            "month": "2029-02",
+            "principal": 13100000,
+            "afterTaxAsset": 13349435
+          },
+          {
+            "month": "2029-03",
+            "principal": 13400000,
+            "afterTaxAsset": 13667911
+          },
+          {
+            "month": "2029-04",
+            "principal": 13700000,
+            "afterTaxAsset": 13987048
+          },
+          {
+            "month": "2029-05",
+            "principal": 14000000,
+            "afterTaxAsset": 14306844
+          },
+          {
+            "month": "2029-06",
+            "principal": 14300000,
+            "afterTaxAsset": 14627300
+          },
+          {
+            "month": "2029-07",
+            "principal": 14600000,
+            "afterTaxAsset": 14948417
+          },
+          {
+            "month": "2029-08",
+            "principal": 14900000,
+            "afterTaxAsset": 15270193
+          },
+          {
+            "month": "2029-09",
+            "principal": 15200000,
+            "afterTaxAsset": 15592629
+          },
+          {
+            "month": "2029-10",
+            "principal": 15500000,
+            "afterTaxAsset": 15915724
+          },
+          {
+            "month": "2029-11",
+            "principal": 15800000,
+            "afterTaxAsset": 16239480
+          }
+        ]
+      }
+    ]
+  }
+}

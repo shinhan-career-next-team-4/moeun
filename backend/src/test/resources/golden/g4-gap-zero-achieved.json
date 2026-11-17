@@ -1,0 +1,112 @@
+{
+  "id": "G4a",
+  "kind": "plan",
+  "title": "목표 대비 경계: 목표 1,216,497원",
+  "requirements": [
+    "CP-01",
+    "TBD-16",
+    "TBD-20"
+  ],
+  "spec": "docs/calc-spec.md",
+  "input": {
+    "goalAmount": 1216497,
+    "targetPeriodMonths": 12,
+    "calcStartMonth": "2026-11",
+    "heldAssets": 0,
+    "monthlySavingAmount": 100000,
+    "savingsRatePct": "3",
+    "savingsRatioPct": 100,
+    "baselineScenario": "AVG"
+  },
+  "params": {
+    "taxRatePct": "15.4"
+  },
+  "handCalc": [
+    "G1과 같은 계산 → 세후 예상 자산 1,216,497원",
+    "목표 대비 = 1,216,497 - 1,216,497 = 0원",
+    "판정은 원 단위로 반올림한 최종값으로 한다(TBD-16 제안). 0원 이상이면 달성",
+    "goalReachMonth = 반올림한 월별 점이 처음 목표 이상이 되는 달. 달성이면 목표월 이하"
+  ],
+  "expected": {
+    "status": "CALCULATED",
+    "targetMonth": "2027-11",
+    "scenarios": [
+      {
+        "scenario": "AVG",
+        "afterTaxAsset": 1216497,
+        "principal": 1200000,
+        "afterTaxGain": 16497,
+        "gapToGoal": 0,
+        "isAchieved": true,
+        "goalReachMonth": "2027-11",
+        "monthlyPoints": [
+          {
+            "month": "2026-11",
+            "principal": 0,
+            "afterTaxAsset": 0
+          },
+          {
+            "month": "2026-12",
+            "principal": 100000,
+            "afterTaxAsset": 100212
+          },
+          {
+            "month": "2027-01",
+            "principal": 200000,
+            "afterTaxAsset": 200635
+          },
+          {
+            "month": "2027-02",
+            "principal": 300000,
+            "afterTaxAsset": 301269
+          },
+          {
+            "month": "2027-03",
+            "principal": 400000,
+            "afterTaxAsset": 402115
+          },
+          {
+            "month": "2027-04",
+            "principal": 500000,
+            "afterTaxAsset": 503173
+          },
+          {
+            "month": "2027-05",
+            "principal": 600000,
+            "afterTaxAsset": 604442
+          },
+          {
+            "month": "2027-06",
+            "principal": 700000,
+            "afterTaxAsset": 705922
+          },
+          {
+            "month": "2027-07",
+            "principal": 800000,
+            "afterTaxAsset": 807614
+          },
+          {
+            "month": "2027-08",
+            "principal": 900000,
+            "afterTaxAsset": 909518
+          },
+          {
+            "month": "2027-09",
+            "principal": 1000000,
+            "afterTaxAsset": 1011633
+          },
+          {
+            "month": "2027-10",
+            "principal": 1100000,
+            "afterTaxAsset": 1113959
+          },
+          {
+            "month": "2027-11",
+            "principal": 1200000,
+            "afterTaxAsset": 1216497
+          }
+        ]
+      }
+    ]
+  }
+}
