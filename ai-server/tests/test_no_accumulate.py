@@ -231,6 +231,31 @@ DROP_CASES = [
         "적립금 사십으로 하고 기간 3년", ALL_FOUR,
         {"monthly_saving_amount": 500_000, "target_period_months": 60}, id="jeokrip_korean_numeral",
     ),
+    # 적금/예금과 이자(율)를 같이 말해도 %는 금리로 본다. 사용자가 말한 금리를 지우면 안 된다
+    pytest.param(
+        "적금 이자 4%로", {"savings_rate_input_pct": 4, "monthly_saving_amount": 500_000},
+        {"savings_rate_input_pct": 4}, id="savings_word_with_interest",
+    ),
+    pytest.param(
+        "예금 이자율 3%로", {"savings_rate_input_pct": 3}, {"savings_rate_input_pct": 3}, id="deposit_interest_rate"
+    ),
+    pytest.param("이자율 3%로", {"savings_rate_input_pct": 3}, {"savings_rate_input_pct": 3}, id="interest_rate_alone"),
+    pytest.param(
+        "적금 50, 기간 3년", ALL_FOUR,
+        {"savings_ratio_pct": 30, "target_period_months": 60}, id="savings_ratio_unitless_with_period",
+    ),
+    pytest.param("적금 70 ETF 30으로", ALL_FOUR, ALL_FOUR, id="ratio_pair_keeps_all"),
+    # 단위 없는 한글 수사도 숫자 하나로 센다. 일반 어휘(이만큼, 이번, 사람)는 수사로 보지 않는다
+    pytest.param("오십으로", ALL_FOUR, ALL_FOUR, id="korean_numeral_only_keeps_all"),
+    pytest.param("사십으로 해줘", ALL_FOUR, ALL_FOUR, id="korean_numeral_only_keeps_all_2"),
+    pytest.param(
+        "월 오십으로 하고 기간 3년", ALL_FOUR,
+        {"monthly_saving_amount": 500_000, "target_period_months": 60}, id="korean_numeral_with_wording",
+    ),
+    pytest.param("이만큼 바꿔줘", ALL_FOUR, {}, id="imankeum_is_not_numeral"),
+    pytest.param("이번엔 그냥 다시 해줘", ALL_FOUR, {}, id="ibeon_is_not_numeral"),
+    pytest.param("사람들은 보통 어때?", ALL_FOUR, {}, id="saram_is_not_numeral"),
+    pytest.param("일단 다시 해줘", ALL_FOUR, {}, id="ildan_is_not_numeral"),
     pytest.param("저축 기간을 5년으로", ALL_FOUR, {"target_period_months": 60}, id="savings_period_is_period"),
     pytest.param("기간만 원래대로 돌리고 3년", ALL_FOUR, {"target_period_months": 60}, id="man_won_across_words"),
     pytest.param("기간도 5년으로", ALL_FOUR, {"target_period_months": 60}, id="only_period_keyword"),

@@ -129,13 +129,19 @@ _TOOL_ERRORS = (CalcError, ValidationError, KeyError, ValueError, RuntimeError)
 
 # 이번 발화가 그 조건을 가리키는지 보는 느슨한 표현. 자연어를 해석하거나 계산하지 않고, 표현이 없을 때만 값을 뺀다.
 # "개월"의 월, "원래"의 원, "한 달"의 달처럼 다른 조건의 글자가 겹치지 않게 정규식으로 가린다(M-3)
-_NUMERAL = r"[일이삼사오육칠팔구십백천]+만"
-_MONTHLY = re.compile(rf"(?<!개)월|매달|한\s?달|저축(?!\s*기간)|납입|적립|\d\s*만|{_NUMERAL}|만원|\d\s*원")
+# 한글 수사. 이/일/사/오 한 글자는 이번·일단·사람·오늘 같은 어휘와 겹치므로 십·백·천이나 만이 붙은 것만 수사로 본다.
+# 앞에 한글이 붙은 것(하십시오)과 뒤에 한글이 이어지는 것(이만큼, 백화점)은 제외하되 조사·단위는 허용한다
+_KO_DIGIT = "[일이삼사오육칠팔구]"
+_KO_FOLLOW = r"(?=원|으로|로|이|은|는|를|을|씩|짜리|퍼|프로|개월|년|달|도|면|(?![가-힣]))"
+_KO_MAN = rf"(?<![가-힣])(?:(?:{_KO_DIGIT}?[십백천])+{_KO_DIGIT}?|{_KO_DIGIT})만{_KO_FOLLOW}"
+_KO_NUMERAL = rf"{_KO_MAN}|(?<![가-힣])(?:{_KO_DIGIT}?[십백천])+{_KO_DIGIT}?{_KO_FOLLOW}"
+_MONTHLY = re.compile(rf"(?<!개)월|매달|한\s?달|저축(?!\s*기간)|납입|적립|\d\s*만|{_KO_MAN}|만원|\d\s*원")
 _PERIOD = re.compile(r"기간|기한|개월|년|\d\s*달")
-_RATIO_WORDS = re.compile(r"비중|비율|반반|etf|주식|배분|예금|적금(?!\s*(?:금리|이율))")
-_RATE_WORDS = re.compile(r"금리|이율")
+# 적금·예금 바로 뒤에 금리 단어가 오면 상품 이름이 아니라 금리를 꾸미는 말이다
+_RATIO_WORDS = re.compile(r"비중|비율|반반|etf|주식|배분|(?:예금|적금)(?!\s*(?:금리|이율|이자))")
+_RATE_WORDS = re.compile(r"금리|이율|이자")
 _PERCENT = re.compile(r"%|퍼센트|프로|퍼")
-_NUMBER = re.compile(rf"\d+(?:\.\d+)?|{_NUMERAL}")
+_NUMBER = re.compile(rf"\d+(?:\.\d+)?|{_KO_NUMERAL}")
 _THOUSANDS_COMMA = re.compile(r"(?<=\d),(?=\d{3})")
 # "3년 6개월", "5년(60개월)", "60개월(5년)"은 기간 하나를 두 단위로 말한 것이다
 _PERIOD_COMPOUND = re.compile(r"\d+\s*년\s*\(?\s*\d+\s*개월\s*\)?|\d+\s*개월\s*\(?\s*\d+\s*년\s*\)?")
