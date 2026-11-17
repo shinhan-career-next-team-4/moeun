@@ -57,9 +57,26 @@ moeun:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   refdata:
-    # 서버가 뜰 때 적재할 기준 데이터 CSV. 항목: kind(SP500/SAVINGS_RATE/CALC_PARAM), version-label, base-date, source, file
-    # 실제 데이터와 출처가 정해지면 채운다(TBD-08). 비어 있으면 적재하지 않고, 그동안 계산에 쓸 활성 버전이 없다
-    seeds: []
+    # 서버가 뜰 때 적재할 기준 데이터 CSV(src/main/resources/seed/README.md). 같은 version-label은 다시 넣지 않는다
+    # 파일 내용을 바꾸면 version-label도 새로 정한다(과거 계산 재현, NFR-INT-02)
+    seeds:
+      - kind: SAVINGS_RATE
+        version-label: temp-2026-10
+        base-date: 2026-10-01
+        source: 임시값(은행연합회 12개월 정기적금 평균 확인 전)
+        file: classpath:seed/savings-avg-rate.csv
+      - kind: CALC_PARAM
+        version-label: v1
+        base-date: 2026-11-17
+        source: 팀 결정(calc-spec 9절, 임시값 포함)
+        file: classpath:seed/calc-param.csv
+      # S&P500은 레포에 없다(TBD-08). 각자 만든 로컬 파일을 읽고, 없으면 건너뛴다
+      - kind: SP500
+        version-label: stooq-2016-10-2026-10
+        base-date: 2026-10-31
+        source: Stooq ^SPX 월말 종가(달러 지수)
+        file: ${MOEUN_SP500_FILE:file:data/seed/sp500-monthly.csv}
+        optional: true
 
 management:
   endpoints:

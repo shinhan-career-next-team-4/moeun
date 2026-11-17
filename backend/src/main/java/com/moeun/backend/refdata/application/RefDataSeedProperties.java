@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.core.io.Resource;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
@@ -35,12 +36,14 @@ public record RefDataSeedProperties(@Valid List<Seed> seeds) {
      * @param baseDate 데이터 기준일
      * @param source 출처
      * @param file CSV 위치(classpath: 또는 file:)
+     * @param optional 파일이 없을 때 건너뛰어도 되는지. 레포에 올리지 않고 각자 받는 데이터(S&P500)에 쓴다
      */
     public record Seed(
             @NotNull DataKind kind,
             @NotBlank String versionLabel,
             @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate baseDate,
             @NotBlank String source,
-            @NotNull Resource file) {
+            @NotNull Resource file,
+            @DefaultValue("false") boolean optional) {
     }
 }

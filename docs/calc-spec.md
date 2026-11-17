@@ -107,9 +107,9 @@ ETF 비중이 0보다 크면 좋았던 때(GOOD)·평균(AVG)·나빴던 때(BAD
 |---|---|---|
 | `TAX_RATE_PCT` | 15.4 | 5·6절 |
 | `DEFAULT_SAVINGS_RATIO_PCT` | 50 | 3절 |
-| 관측 기간 | 120 | 7-1. 현재 키 이름 `SCENARIO_WINDOW_MONTHS`는 #15에서 관측 기간 뜻으로 이름을 바꾼다 |
+| `SCENARIO_OBSERVATION_MONTHS` | 120 | 7-1 |
 | `SCENARIO_LOW_PERCENTILE`, `SCENARIO_HIGH_PERCENTILE` | 10, 90 | 7-3 |
-| 경로 수, 시드 | 10,000, 고정값 | 7-2. #15에서 키를 추가한다 |
+| `BOOTSTRAP_PATH_COUNT`, `BOOTSTRAP_SEED` | 10,000, 20261117 | 7-2 |
 
 - 계산에 쓴 기준 데이터 버전 3개와 `engine_version`은 `calc_run`에 남긴다(NFR-INT-02, #29).
 - 같은 입력 + 같은 기준 데이터 버전 + 같은 `engine_version` → 같은 결과.

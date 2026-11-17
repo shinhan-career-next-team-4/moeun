@@ -73,9 +73,11 @@ class DataVersionServiceTest {
         DataVersionInfo v1 = loadFile(DataKind.CALC_PARAM, PARAM_V1, "refdata/test-calc-param.csv");
         String missingTaxRate = "param_key,param_value\n"
                 + "DEFAULT_SAVINGS_RATIO_PCT,50\n"
-                + "SCENARIO_WINDOW_MONTHS,120\n"
+                + "SCENARIO_OBSERVATION_MONTHS,120\n"
                 + "SCENARIO_LOW_PERCENTILE,10\n"
-                + "SCENARIO_HIGH_PERCENTILE,90\n";
+                + "SCENARIO_HIGH_PERCENTILE,90\n"
+                + "BOOTSTRAP_PATH_COUNT,10000\n"
+                + "BOOTSTRAP_SEED,20261117\n";
 
         assertThatThrownBy(() -> loader.load(DataKind.CALC_PARAM, PARAM_V2, toStream(missingTaxRate)))
                 .isInstanceOf(ReferenceDataLoadException.class)

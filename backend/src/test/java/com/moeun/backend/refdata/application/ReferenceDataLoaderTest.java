@@ -95,7 +95,7 @@ class ReferenceDataLoaderTest {
         CalcParams params = referenceDataService.findActiveCalcParams().orElseThrow();
         assertThat(params.values()).hasSize(CalcParamKey.values().length);
         assertThat(params.getValue(CalcParamKey.TAX_RATE_PCT)).isEqualByComparingTo("15.4");
-        assertThat(params.getValue(CalcParamKey.SCENARIO_WINDOW_MONTHS)).isEqualByComparingTo("120");
+        assertThat(params.getValue(CalcParamKey.SCENARIO_OBSERVATION_MONTHS)).isEqualByComparingTo("120");
     }
 
     @Test

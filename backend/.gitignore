@@ -59,3 +59,9 @@ logs/
 ### Claude Code 개인 설정 ###
 .claude/settings.local.json
 CLAUDE.local.md
+
+### 기준 데이터(이용 조건 때문에 레포에 올리지 않음, seed/README.md) ###
+data/
+
+### Python ###
+__pycache__/
