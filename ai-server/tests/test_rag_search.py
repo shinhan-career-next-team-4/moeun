@@ -4,6 +4,7 @@
 """
 
 import argparse
+import hashlib
 from pathlib import Path
 from types import SimpleNamespace, TracebackType
 from typing import Any, cast
@@ -393,8 +394,16 @@ async def test_new_revision_deactivates_previous_revisions_of_same_url_in_one_tr
 # 3. 이용 허락 게이트: app/ingest/allowlist.py (FR-AI-10)
 # ---------------------------------------------------------------------------
 
-ALLOWED = {"url": URL, "org": "삼성자산운용", "org_type": "ASSET_MANAGER", "doc_type": "DISCLOSURE"}
-EDU_ALLOWED = {"url": "https://edu.example/guide", "org": "금융교육원", "org_type": "EDU_PROVIDER", "doc_type": "EDU"}
+DOC_TEXT = "ETF 위험에 대한 설명 문단입니다. 원금 손실이 날 수 있습니다."
+DOC_SHA = hashlib.sha256(DOC_TEXT.encode("utf-8")).hexdigest()
+OTHER_SHA = hashlib.sha256("승인받지 않은 다른 문서".encode()).hexdigest()
+ALLOWED = {
+    "url": URL, "org": "삼성자산운용", "org_type": "ASSET_MANAGER", "doc_type": "DISCLOSURE", "content_sha256": DOC_SHA,
+}
+EDU_ALLOWED = {
+    "url": "https://edu.example/guide", "org": "금융교육원", "org_type": "EDU_PROVIDER", "doc_type": "EDU",
+    "content_sha256": OTHER_SHA,
+}
 
 
 def write_allowlist(tmp_path: Path, sources: list[dict[str, str]]) -> Path:
@@ -429,6 +438,7 @@ def test_load_allowlist_missing_file_raises(tmp_path):
         "other: []\n",                                                                # sources 키 없음
         "sources: not-a-list\n",                                                      # sources가 목록이 아님
         "sources:\n  - url: https://a\n    org: A\n    org_type: ASSET_MANAGER\n",   # doc_type 키 없음
+        "sources:\n  - url: https://a\n    org: A\n    org_type: ASSET_MANAGER\n    doc_type: DISCLOSURE\n",  # sha 키 없음
         "sources:\n  - just-a-string\n",                                              # 항목이 매핑이 아님
     ],
 )
@@ -444,7 +454,7 @@ def test_load_allowlist_malformed_raises(tmp_path, content):
 
 
 def test_check_allowed_passes_on_exact_match():
-    """AC3: (url, org, org_type, doc_type)가 모두 일치하는 항목이 있으면 통과한다."""
+    """AC3: (url, org, org_type, doc_type, content_sha256)가 모두 일치하는 항목이 있으면 통과한다."""
     from app.ingest.allowlist import AllowedSource, check_allowed
 
     allowlist = [AllowedSource(**EDU_ALLOWED), AllowedSource(**ALLOWED)]
@@ -460,10 +470,11 @@ def test_check_allowed_passes_on_exact_match():
         ("org", "다른자산운용"),
         ("org_type", "REGULATOR"),
         ("doc_type", "EDU"),
+        ("content_sha256", OTHER_SHA),
     ],
 )
 def test_check_allowed_rejects_any_field_mismatch(field, value):
-    """AC3: 네 값 중 하나라도 다르면 허락 없는 자료다."""
+    """AC3: 다섯 값(내용 해시 포함) 중 하나라도 다르면 허락 없는 자료다."""
     from app.ingest.allowlist import AllowedSource, NotLicensedError, check_allowed
 
     with pytest.raises(NotLicensedError):
@@ -552,13 +563,17 @@ class CliHarness:
         monkeypatch.setattr(cli, "store", store)
 
 
-def ingest_args(tmp_path: Path, allowlist: Path, **overrides: Any) -> argparse.Namespace:
+def use_allowlist(monkeypatch: pytest.MonkeyPatch, path: Path) -> None:
+    """게이트가 읽는 허락 목록을 바꾼다. 사용자 입력으로는 목록을 바꿀 수 없다."""
+    monkeypatch.setattr(cli, "DEFAULT_ALLOWLIST", path)
+
+
+def ingest_args(tmp_path: Path, **overrides: Any) -> argparse.Namespace:
     doc = tmp_path / "doc.txt"
-    doc.write_text("ETF 위험에 대한 설명 문단입니다. 원금 손실이 날 수 있습니다.", encoding="utf-8")
+    doc.write_text(DOC_TEXT, encoding="utf-8")
     values: dict[str, Any] = {
         "file": str(doc), "doc_type": "DISCLOSURE", "org": "삼성자산운용", "org_type": "ASSET_MANAGER",
         "title": "KODEX 투자설명서", "url": URL, "etf_code": None, "published_at": None, "rechunk": False,
-        "allowlist": str(allowlist),
     }
     return argparse.Namespace(**{**values, **overrides})
 
@@ -566,7 +581,8 @@ def ingest_args(tmp_path: Path, allowlist: Path, **overrides: Any) -> argparse.N
 async def test_ingest_with_permission_reaches_store_after_check(tmp_path, monkeypatch):
     """AC3: 허락된 자료는 읽기 → 임베딩 → DB 연결 → store까지 간다."""
     harness = CliHarness(monkeypatch)
-    args = ingest_args(tmp_path, write_allowlist(tmp_path, [ALLOWED]))
+    use_allowlist(monkeypatch, write_allowlist(tmp_path, [ALLOWED]))
+    args = ingest_args(tmp_path)
 
     await cli.ingest(args)
 
@@ -583,21 +599,23 @@ async def test_ingest_with_permission_reaches_store_after_check(tmp_path, monkey
         {"doc_type": "EDU"},                           # 문서 유형 불일치
     ],
 )
-async def test_ingest_without_permission_exits_before_read_embed_connect_store(tmp_path, monkeypatch, overrides):
-    """AC3: 허락 없는 자료는 SystemExit이고 읽기·임베딩·DB 연결·store가 한 번도 호출되지 않는다."""
+async def test_ingest_without_permission_exits_before_embed_connect_store(tmp_path, monkeypatch, overrides):
+    """AC3: 허락 없는 자료는 SystemExit이고 임베딩·DB 연결·store가 한 번도 호출되지 않는다."""
     harness = CliHarness(monkeypatch)
-    args = ingest_args(tmp_path, write_allowlist(tmp_path, [ALLOWED]), **overrides)
+    use_allowlist(monkeypatch, write_allowlist(tmp_path, [ALLOWED]))
+    args = ingest_args(tmp_path, **overrides)
 
     with pytest.raises(SystemExit):
         await cli.ingest(args)
 
-    assert harness.events == []
+    assert harness.events == ["read"]   # 내용 해시를 비교하려고 로컬 파일만 읽고, 임베딩·DB는 건드리지 않는다
 
 
 async def test_ingest_with_missing_allowlist_file_exits_before_anything(tmp_path, monkeypatch):
     """AC3 예외: 목록 파일이 없으면 적재하지 않는다."""
     harness = CliHarness(monkeypatch)
-    args = ingest_args(tmp_path, tmp_path / "없음.yml")
+    use_allowlist(monkeypatch, tmp_path / "없음.yml")
+    args = ingest_args(tmp_path)
 
     with pytest.raises(SystemExit):
         await cli.ingest(args)
@@ -610,7 +628,8 @@ async def test_ingest_with_malformed_allowlist_exits_before_anything(tmp_path, m
     harness = CliHarness(monkeypatch)
     bad = tmp_path / "allowlist.yml"
     bad.write_text("sources: not-a-list\n", encoding="utf-8")
-    args = ingest_args(tmp_path, bad)
+    use_allowlist(monkeypatch, bad)
+    args = ingest_args(tmp_path)
 
     with pytest.raises(SystemExit):
         await cli.ingest(args)
@@ -622,10 +641,35 @@ async def test_ingest_disclosure_from_non_asset_manager_exits_even_if_listed(tmp
     """AC3: 공시인데 운용사가 아니면 목록에 있어도 적재하지 않는다."""
     harness = CliHarness(monkeypatch)
     entry = {**ALLOWED, "org_type": "EDU_PROVIDER"}
-    args = ingest_args(tmp_path, write_allowlist(tmp_path, [entry]), org_type="EDU_PROVIDER")
+    use_allowlist(monkeypatch, write_allowlist(tmp_path, [entry]))
+    args = ingest_args(tmp_path, org_type="EDU_PROVIDER")
 
     with pytest.raises(SystemExit):
         await cli.ingest(args)
 
-    assert harness.events == []
+    assert harness.events == ["read"]
 
+
+async def test_ingest_with_different_file_content_exits_before_embed(tmp_path, monkeypatch):
+    """AC3: 허락된 URL을 적어도 --file 내용이 승인한 문서와 다르면 적재하지 않는다(승인 원문 비활성화 방지)."""
+    harness = CliHarness(monkeypatch)
+    use_allowlist(monkeypatch, write_allowlist(tmp_path, [{**ALLOWED, "content_sha256": OTHER_SHA}]))
+    args = ingest_args(tmp_path)
+
+    with pytest.raises(SystemExit):
+        await cli.ingest(args)
+
+    assert harness.events == ["read"]
+
+
+def test_cli_has_no_allowlist_option():
+    """AC3: 사용자 입력으로 허락 목록을 바꿀 수 없다. --allowlist 옵션이 없다."""
+    argv = [
+        "--file", "a.pdf", "--doc-type", "DISCLOSURE", "--org", "삼성자산운용", "--org-type", "ASSET_MANAGER",
+        "--title", "t", "--url", URL,
+    ]
+    parser = cli.build_parser()
+
+    assert not hasattr(parser.parse_args(argv), "allowlist")
+    with pytest.raises(SystemExit):
+        parser.parse_args([*argv, "--allowlist", "evil.yml"])
