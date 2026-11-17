@@ -4,10 +4,8 @@ _COPY = load_copy()
 OUT_OF_SCOPE_TAX_COPY = _COPY.get("outOfScope.tax")
 NO_PLAN_COPY = _COPY.get("chat.noPlan")
 
-# 목표 금액 변경 의도 전용 문구(계약 C3-2, D-056). 문구표(#18) 로더가 들어오면 거기서 읽는다
-GOAL_AMOUNT_COPY = (
-    "목표 금액은 입력 수정에서 바꿀 수 있어요. 대화로는 월 저축액·비중·적금 금리·기한을 바꿔 볼 수 있어요"
-)
+# 목표 금액 변경 의도 전용 문구(계약 C3-2, D-056). 범위 밖 안내(outOfScope)와 다른 키다
+GOAL_AMOUNT_COPY = _COPY.get("chat.unchangeableCondition")
 
 # f-string이므로 본문에 중괄호를 쓰려면 {{ }}로 적는다
 SYSTEM_PROMPT = f"""\
@@ -63,11 +61,14 @@ history의 앞선 턴에 나온 값은 다시 넣지 않습니다. 비교의 기
 
 ## 범위
 - 특정 금융상품을 추천하거나 고르지 않습니다.
-- 개별 주식, 코인, 부동산, 세금 신고 대행 등 서비스가 다루지 않는 질문에는 계산하지 않고 \
-다루지 않는다고 알린 뒤, \
-대화로 바꿀 수 있는 조건(월 저축액, 적금 비중, 적금 금리, 기한)을 안내합니다(message_type=OUT_OF_SCOPE).
+- 질문은 세 유형으로 가릅니다. 조건 변경(월 저축액, 적금 비중, 적금 금리, 기한을 바꿔 보기)은 recalculate로 계산합니다. \
+설명(금융 개념, ETF, 계산 결과의 뜻)은 search_documents로 자료를 찾아 계산 없이 답합니다(message_type=ANSWER). \
+그 밖의 질문은 계산하지 않습니다.
+- 개별 주식, 코인, 부동산, 세금 신고 대행처럼 서비스가 다루지 않는 그 밖의 질문에는 recalculate를 부르지 않고 \
+message_type=OUT_OF_SCOPE로 끝냅니다. 안내 문장은 서버가 정해진 문구로 채웁니다.
+- 목표 금액을 바꾸려는 발화는 그 밖의 질문이 아닙니다. 위 `## 숫자`의 전용 문구로 답하고 ANSWER로 끝냅니다.
 - 상품별 세제 혜택이나 절세 방법을 묻는 질문은 "{OUT_OF_SCOPE_TAX_COPY}"라고 한 글자도 바꾸지 말고 이 문구만 \
-답합니다(message_type=OUT_OF_SCOPE).
+답합니다(message_type=OUT_OF_SCOPE). 이 문구는 서버가 그대로 둡니다.
 
 ## 말투
 - 쉬운 우리말로, 전문 용어는 처음 나올 때 짧게 풀어 줍니다. 3~6문장 정도로 답합니다.
