@@ -82,6 +82,7 @@
 운영·공용 DB에서 비교하지 않는다. 임시 DB를 쓴다.
 
 1. `pgvector/pgvector:pg16` 컨테이너를 띄우고 `../db/erd.md`의 DDL을 실행한다.
+   - 표준은 위 "1차 점검 결과"의 DB 항목(9행)에 적은 방법(`moeun-postgres`에 `moeun_ragcheck`를 만들고 `schema.sql` 적용)이다. 이 항목의 별도 컨테이너 방식은 PR 2 계획이다.
 2. 기준 브랜치(develop) 코드로 평가용 문서를 적재 → `moeun-eval --out before.json`.
 3. DB를 비우고, 작업 브랜치 코드로 같은 문서를 적재 → `moeun-eval --out after.json`.
 4. `moeun-eval --compare before.json after.json` 결과를 PR에 붙인다.
