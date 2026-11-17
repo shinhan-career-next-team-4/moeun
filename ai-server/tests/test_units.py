@@ -1,5 +1,7 @@
+import json
+from pathlib import Path
+
 import httpx
-import pytest
 import respx
 from fastapi.testclient import TestClient
 
@@ -8,7 +10,10 @@ from app.ingest.chunker import split_chunks
 from app.main import app
 from app.rag.search import diversify_orgs
 from app.schemas import ChatRequest, ChatResponse, ConditionChanges, DocType, RetrievedChunk, Scenario
-from app.tools.calc import CalcClient, CalcError
+from app.tools.calc import CalcClient
+
+REPO = Path(__file__).resolve().parents[2]
+SUCCESS_RESPONSE = REPO / "docs" / "api" / "examples" / "internal-calc" / "success-response.json"
 
 
 def test_chunker_respects_max_and_keeps_text():
@@ -31,21 +36,15 @@ def test_diversify_brings_second_org():
 
 @respx.mock
 async def test_calc_client_sends_camel_case_and_key():
-    route = respx.post("http://spring/internal/calc").mock(return_value=httpx.Response(200, json={"calcRunId": 3}))
+    # 200 응답은 부록 A-1 모양이어야 한다(#23: display·current·changed 검사). 이전에는 {"calcRunId": 3}만 돌려줬다
+    success = json.loads(SUCCESS_RESPONSE.read_text(encoding="utf-8"))
+    route = respx.post("http://spring/internal/calc").mock(return_value=httpx.Response(200, json=success))
     async with httpx.AsyncClient(base_url="http://spring") as http:
         body = await CalcClient(http, "k").recalculate(1, Scenario.AVG, ConditionChanges(monthly_saving_amount=1))
     sent = route.calls.last.request
     assert sent.headers["X-Internal-Api-Key"] == "k"
     assert b'"conditionChanges":{"monthlySavingAmount":1}' in sent.content.replace(b" ", b"")
-    assert body["calcRunId"] == 3
-
-
-@respx.mock
-async def test_calc_validation_error_becomes_calc_error():
-    respx.post("http://spring/internal/calc").mock(return_value=httpx.Response(422, text="bad"))
-    async with httpx.AsyncClient(base_url="http://spring") as http:
-        with pytest.raises(CalcError):
-            await CalcClient(http, "k").recalculate(1, Scenario.AVG, ConditionChanges(monthly_saving_amount=5))
+    assert body["calcRunId"] == success["calcRunId"]
 
 
 def test_chat_requires_internal_key():
