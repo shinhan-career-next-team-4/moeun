@@ -22,6 +22,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.core.config import Effort
 from app.core.copy import load_copy
+from app.llm.assemble import ForbiddenExpression, check_recommendation, replace_product_names
 from app.llm.prompts import EXPLAIN_INSTRUCTION, SYSTEM_PROMPT
 from app.schemas import (
     ChatMode,
@@ -532,7 +533,12 @@ def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
         tax_copy = load_copy().get("outOfScope.tax")
         content = tax_copy if tax_copy in final.content else out_of_scope_content()
     else:
-        content = with_tax_note(req, final.content)
+        try:
+            body = replace_product_names(final.content)   # M-4, D-028
+            check_recommendation(body)
+        except ForbiddenExpression as e:
+            raise AgentError("FORBIDDEN_EXPRESSION", str(e)) from e
+        content = with_tax_note(req, body)
     return ChatResponse(
         message_type=message_type,
         content=content,
