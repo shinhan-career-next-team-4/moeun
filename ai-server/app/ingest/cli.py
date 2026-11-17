@@ -46,21 +46,23 @@ async def returning_id(conn: AsyncConnection[tuple[Any, ...]], sql: str, params:
 
 
 async def ingest(args: argparse.Namespace) -> None:
-    # 허락 확인이 문서 읽기·임베딩(외부 전송)·DB 쓰기보다 먼저다(FR-AI-10)
+    # 허락 확인이 임베딩(외부 전송)·DB 쓰기보다 먼저다(FR-AI-10). 목록은 코드 기본값만 쓴다(사용자 입력으로 바꿀 수 없다)
     try:
+        allowlist = load_allowlist(DEFAULT_ALLOWLIST)
+        text = read_text(Path(args.file))
+        sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
         check_allowed(
-            load_allowlist(Path(args.allowlist)),
+            allowlist,
             url=args.url,
             org=args.org,
             org_type=args.org_type,
             doc_type=args.doc_type,
+            content_sha256=sha,
         )
     except NotLicensedError as e:
         raise SystemExit(str(e)) from e
 
     s = get_settings()
-    text = read_text(Path(args.file))
-    sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
     chunks = split_chunks(text)
     if not chunks:
         raise SystemExit("본문을 추출하지 못했습니다")
@@ -163,7 +165,7 @@ async def retire_chunks(conn: AsyncConnection[tuple[Any, ...]], url: str, sha: s
     return doc_id, 0 if last is None or last[0] is None else int(last[0]) + 1
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="RAG 문서 적재")
     p.add_argument("--file", required=True)
     p.add_argument("--doc-type", required=True, choices=["EDU", "DISCLOSURE"])
@@ -173,9 +175,12 @@ def main() -> None:
     p.add_argument("--url", required=True)
     p.add_argument("--etf-code")
     p.add_argument("--published-at", help="YYYY-MM-DD")
-    p.add_argument("--allowlist", default=str(DEFAULT_ALLOWLIST), help="이용 허락 목록 YAML")
     p.add_argument("--rechunk", action="store_true", help="같은 내용의 문서를 새 청킹 규칙으로 다시 넣는다")
-    asyncio.run(ingest(p.parse_args()))
+    return p
+
+
+def main() -> None:
+    asyncio.run(ingest(build_parser().parse_args()))
 
 
 if __name__ == "__main__":
