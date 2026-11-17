@@ -123,7 +123,7 @@ async def test_non_disclosure_search_does_not_mix_orgs(doc_type):
 
 
 async def test_disclosure_search_returns_single_org_when_candidates_have_only_one():
-    """AC1 알려진 한계(docs/rag-eval.md): 후보에 운용사가 한 곳뿐이면 한 곳만 나온다. 재검색을 넣으면 이 테스트를 고친다."""
+    """재검색에서도 다른 운용사가 없으면(이 가짜 풀은 같은 행을 되풀이한다) 그 한 곳의 상위 top_k만 나온다(#40, FR-AI-03)."""
     rows = [row(i, "A운용") for i in range(1, 7)]
     retriever, _, _ = make_retriever(rows)
 
@@ -135,7 +135,7 @@ async def test_disclosure_search_returns_single_org_when_candidates_have_only_on
 
 async def test_search_sql_params_and_invariants():
     """rag.md 불변 조건: limit = k*4, model = 임베더 모델, 활성 조건 3개(부분 HNSW 인덱스)가 SQL에 있다."""
-    retriever, pool, embedder = make_retriever([row(1, "A운용")])
+    retriever, pool, embedder = make_retriever([row(1, "A운용"), row(2, "B운용")])   # 한 운용사뿐이면 재검색한다(#40)
 
     await retriever.search("ETF 위험", DocType.DISCLOSURE, top_k=5)
 

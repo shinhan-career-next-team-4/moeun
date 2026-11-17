@@ -245,6 +245,7 @@ class _Turn:
     calc_run_id: int | None = None
     condition_changes: dict[str, Any] | None = None
     retrieved_ids: list[int] = field(default_factory=list)
+    disclosure_orgs: dict[int, str] = field(default_factory=dict)   # 검색된 공시 chunk_id -> 운용사, 검색 순서
     validation_failed: bool = False   # 이번 요청에서 VALIDATION_FAILED를 받았다. 다시 계산하지 않는다
     fixed_copy_key: str | None = None   # 문구표 고정 문장으로 끝내는 거절을 받았다
 
@@ -387,6 +388,7 @@ class ChatAgent:
         doc_type = None if args["doc_type"] == "ANY" else DocType(args["doc_type"])
         chunks = await self._retriever.search(args["query"], doc_type)
         turn.retrieved_ids.extend(c.chunk_id for c in chunks)
+        turn.disclosure_orgs.update({c.chunk_id: c.org_name for c in chunks if c.doc_type == DocType.DISCLOSURE})
         payload = [c.model_dump(by_alias=False, exclude={"distance"}) for c in chunks]
         return json.dumps(payload, ensure_ascii=False)
 
@@ -506,13 +508,31 @@ def with_tax_note(req: ChatRequest, content: str) -> str:
     return f"{content}\n\n{note}"
 
 
+def _cover_orgs(turn: _Turn, citations: list[int], min_orgs: int = 2) -> list[int]:
+    """공시 인용이 한 운용사뿐이면 이번 검색 결과에서 가장 앞선 다른 운용사 chunk 하나를 더한다(FR-AI-03).
+    검색 결과에 다른 운용사가 없으면 그대로 둔다."""
+    orgs = turn.disclosure_orgs
+    cited = [i for i in citations if i in orgs]
+    cited_orgs = {orgs[i] for i in cited}
+    if not cited or len(cited_orgs) >= min_orgs:
+        return citations
+    extra = next((i for i, org in orgs.items() if org not in cited_orgs), None)
+    if extra is None:
+        return citations
+    if len(citations) >= MAX_CITATIONS:
+        # 상한이면 마지막 인용을 뺀다. 단 그게 유일한 공시 인용이면 그 앞의 것을 뺀다
+        drop = len(citations) - (2 if citations[-1] == cited[0] else 1)
+        citations = [c for n, c in enumerate(citations) if n != drop]
+    return [*citations, extra]
+
+
 def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
     """DB CHECK(ck_cm_recalc/explain/out_of_scope)를 만족하도록 모델 출력을 서버 사실로 보정한다."""
     req = turn.req
     allowed = set(turn.retrieved_ids)
     citations = list(dict.fromkeys(i for i in final.citation_chunk_ids if i in allowed))[:MAX_CITATIONS]
-    if final.message_type == "OUT_OF_SCOPE":
-        citations = []   # 범위 밖 답은 근거 자료를 인용하지 않는다(AC-15)
+    # 범위 밖 답은 근거 자료를 인용하지 않는다(AC-15)
+    citations = [] if final.message_type == "OUT_OF_SCOPE" else _cover_orgs(turn, citations)
 
     message_type: MessageType = final.message_type
     calc_run_id: int | None = None

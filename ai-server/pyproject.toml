@@ -49,6 +49,9 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 
+# 잠긴 수용 테스트의 docstring 한 줄이 한글 폭 기준으로 125를 넘는다(#40). 테스트 수정이 막혀 있어 이 파일만 연다
+per-file-ignores = { "tests/test_citations.py" = ["E501"] }
+
 [tool.mypy]
 strict = true
 plugins = ["pydantic.mypy"]
