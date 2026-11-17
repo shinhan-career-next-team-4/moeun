@@ -212,6 +212,25 @@ DROP_CASES = [
     pytest.param(
         "오십만, 3년", ALL_FOUR, {"monthly_saving_amount": 500_000, "target_period_months": 60}, id="korean_numeral"
     ),
+    # 쉼표 금액과 한 조건 안의 복수 숫자는 숫자 하나로 센다. 숫자가 조건보다 많다고 필터가 꺼지면 안 된다
+    pytest.param("월 500,000원", ALL_FOUR, {"monthly_saving_amount": 500_000}, id="comma_amount"),
+    pytest.param(
+        "월 1,000,000원, 기간 5년", ALL_FOUR,
+        {"monthly_saving_amount": 500_000, "target_period_months": 60}, id="comma_amount_and_period",
+    ),
+    pytest.param("3년 6개월", ALL_FOUR, {"target_period_months": 60}, id="years_and_months"),
+    pytest.param("5년(60개월)", ALL_FOUR, {"target_period_months": 60}, id="years_with_months_in_parens"),
+    pytest.param("60개월(5년)로", ALL_FOUR, {"target_period_months": 60}, id="months_with_years_in_parens"),
+    # 사용자가 말한 값은 지우지 않는다(모호하면 남긴다)
+    pytest.param(
+        "기간 5년, 반반으로", {**ALL_FOUR, "savings_ratio_pct": 50},
+        {"savings_ratio_pct": 50, "target_period_months": 60}, id="banban_with_period",
+    ),
+    pytest.param("반반으로", {**ALL_FOUR, "savings_ratio_pct": 50}, {"savings_ratio_pct": 50}, id="banban_only"),
+    pytest.param(
+        "적립금 사십으로 하고 기간 3년", ALL_FOUR,
+        {"monthly_saving_amount": 500_000, "target_period_months": 60}, id="jeokrip_korean_numeral",
+    ),
     pytest.param("저축 기간을 5년으로", ALL_FOUR, {"target_period_months": 60}, id="savings_period_is_period"),
     pytest.param("기간만 원래대로 돌리고 3년", ALL_FOUR, {"target_period_months": 60}, id="man_won_across_words"),
     pytest.param("기간도 5년으로", ALL_FOUR, {"target_period_months": 60}, id="only_period_keyword"),

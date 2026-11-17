@@ -130,12 +130,20 @@ _TOOL_ERRORS = (CalcError, ValidationError, KeyError, ValueError, RuntimeError)
 # 이번 발화가 그 조건을 가리키는지 보는 느슨한 표현. 자연어를 해석하거나 계산하지 않고, 표현이 없을 때만 값을 뺀다.
 # "개월"의 월, "원래"의 원, "한 달"의 달처럼 다른 조건의 글자가 겹치지 않게 정규식으로 가린다(M-3)
 _NUMERAL = r"[일이삼사오육칠팔구십백천]+만"
-_MONTHLY = re.compile(rf"(?<!개)월|매달|한\s?달|저축(?!\s*기간)|납입|\d\s*만|{_NUMERAL}|만원|\d\s*원")
+_MONTHLY = re.compile(rf"(?<!개)월|매달|한\s?달|저축(?!\s*기간)|납입|적립|\d\s*만|{_NUMERAL}|만원|\d\s*원")
 _PERIOD = re.compile(r"기간|기한|개월|년|\d\s*달")
-_RATIO_WORDS = re.compile(r"비중|비율|etf|주식|배분|예금|적금(?!\s*(?:금리|이율))")
+_RATIO_WORDS = re.compile(r"비중|비율|반반|etf|주식|배분|예금|적금(?!\s*(?:금리|이율))")
 _RATE_WORDS = re.compile(r"금리|이율")
 _PERCENT = re.compile(r"%|퍼센트|프로|퍼")
 _NUMBER = re.compile(rf"\d+(?:\.\d+)?|{_NUMERAL}")
+_THOUSANDS_COMMA = re.compile(r"(?<=\d),(?=\d{3})")
+# "3년 6개월", "5년(60개월)", "60개월(5년)"은 기간 하나를 두 단위로 말한 것이다
+_PERIOD_COMPOUND = re.compile(r"\d+\s*년\s*\(?\s*\d+\s*개월\s*\)?|\d+\s*개월\s*\(?\s*\d+\s*년\s*\)?")
+
+
+def _count_numbers(text: str) -> int:
+    """발화 속 숫자 덩어리 수. 쉼표 금액(500,000)과 한 기간의 복수 단위(3년 6개월)는 하나로 센다."""
+    return len(_NUMBER.findall(_PERIOD_COMPOUND.sub("0년", _THOUSANDS_COMMA.sub("", text))))
 
 
 def _stated_conditions(text: str) -> set[str]:
@@ -157,11 +165,12 @@ def drop_carried_conditions(text: str, changes: ConditionChanges) -> ConditionCh
 
     사용자가 말한 값을 지우는 쪽이 이어받은 값이 남는 쪽보다 나쁘므로, 모호하면 남긴다. 발화의 숫자가
     인식한 조건보다 많으면("50으로 하고 기간은 3년") 단위를 못 알아본 값이 있다고 보고 그대로 둔다.
+    쉼표 금액과 한 기간의 복수 단위는 숫자 하나로 센다.
     표현도 숫자도 없으면 말한 값이 없으므로 전부 뺀다.
     """
     lowered = text.lower()
     stated = _stated_conditions(lowered)
-    if len(_NUMBER.findall(lowered)) > len(stated):
+    if _count_numbers(lowered) > len(stated):
         return changes
     return ConditionChanges.model_validate({k: v for k, v in changes.changed().items() if k in stated})
 
