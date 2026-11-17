@@ -29,7 +29,7 @@ class AllowedSource:
 def load_allowlist(path: Path) -> list[AllowedSource]:
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except OSError as e:
+    except (OSError, UnicodeDecodeError) as e:
         raise NotLicensedError(f"허락 목록을 읽지 못했습니다: {path}") from e
     except yaml.YAMLError as e:
         raise NotLicensedError(f"허락 목록 형식이 올바르지 않습니다: {path}") from e
