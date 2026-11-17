@@ -21,7 +21,7 @@ Java 21, Node 24, [uv](https://docs.astral.sh/uv/), Docker Desktop
 # 1. DB (pgvector/pg16). 스키마는 backend가 기동할 때 만든다
 docker compose up -d
 
-# 2. backend
+# 2. backend (backend/.env에 DEMO_ACCOUNTS=demo01:비밀번호 를 넣으면 기동 시 데모 계정을 만든다)
 cd backend && ./gradlew bootRun
 
 # 3. ai-server (처음 한 번: cp .env.example .env 후 API 키 입력)
@@ -34,6 +34,8 @@ cd frontend && npm install && npm run dev
 `backend/.env`와 `ai-server/.env`는 커밋하지 않는다. 두 파일의 `INTERNAL_API_KEY`는 같아야 한다.
 
 DB 중지: `docker compose stop` · 데이터까지 삭제: `docker compose down -v`
+
+`schema.sql`의 컬럼이 바뀌면 `docker compose down -v`로 DB를 다시 만든다(`CREATE TABLE IF NOT EXISTS`라 기존 테이블은 바뀌지 않는다).
 
 ## 검사
 

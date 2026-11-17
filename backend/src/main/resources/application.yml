@@ -4,7 +4,9 @@ spring:
 
   # backend/.env가 있으면 환경변수로 읽는다(없으면 아래 기본값 사용). 실행 위치가 backend/여야 한다
   config:
-    import: optional:file:.env[.properties]
+    import:
+      - optional:file:.env[.properties]
+      - classpath:config/rules.yml         # 입력 규칙(CP-02). plan 모듈의 PlanRules가 읽는다
 
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/moeun}
@@ -53,6 +55,9 @@ moeun:
     secret: ${JWT_SECRET:local-dev-secret-change-me-at-least-32-bytes!!}   # HS256, 32바이트 이상
     access-token-ttl: 30m              # NFR-SEC-02: 30분 비활동 만료(슬라이딩)
     issuer: moeun
+    cookie-secure: ${JWT_COOKIE_SECURE:false}   # 배포(https)에서는 true
+  demo:
+    accounts: ${DEMO_ACCOUNTS:}         # "id:비밀번호,id:비밀번호". 비밀번호는 backend/.env에만 둔다(FR-AUTH-01)
   ai-server:
     base-url: ${AI_SERVER_URL:http://localhost:8000}
     internal-api-key: ${INTERNAL_API_KEY:local-internal-key}   # Spring ↔ ai-server 내부 호출

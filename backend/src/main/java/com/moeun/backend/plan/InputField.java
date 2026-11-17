@@ -1,0 +1,30 @@
+package com.moeun.backend.plan;
+
+/** 입력 항목. 범위·필수·단위는 config/rules.yml의 moeun.rules.fields에 있다(CP-02). */
+public enum InputField {
+    GOAL_TYPE,
+    GOAL_CUSTOM_NAME,
+    GOAL_AMOUNT,
+    TARGET_PERIOD_MONTHS,
+    HELD_ASSETS,
+    MONTHLY_SAVING,
+    SAVINGS_RATE_PCT,
+    EXISTING_SAVINGS_MONTHLY,
+    EXISTING_ETF_MONTHLY,
+    SAVINGS_RATIO_PCT;
+
+    /** API JSON의 필드명(camelCase). 오류 응답의 field 값으로 쓴다. */
+    public String apiName() {
+        StringBuilder name = new StringBuilder();
+        boolean upper = false;
+        for (char c : name().toLowerCase().toCharArray()) {
+            if (c == '_') {
+                upper = true;
+            } else {
+                name.append(upper ? Character.toUpperCase(c) : c);
+                upper = false;
+            }
+        }
+        return name.toString();
+    }
+}
