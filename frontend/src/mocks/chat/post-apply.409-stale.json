@@ -1,0 +1,18 @@
+{
+  "responses": [
+    {
+      "status": 409,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "가장 최근 비교 결과만 적용할 수 있어요",
+        "status": 409,
+        "instance": "/api/chat/messages/1029/apply",
+        "code": "STALE_COMPARISON",
+        "errors": []
+      }
+    }
+  ]
+}

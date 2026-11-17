@@ -1,0 +1,29 @@
+{
+  "responses": [
+    {
+      "status": 422,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "입력 범위를 벗어났어요",
+        "status": 422,
+        "detail": "monthlySavingAmount: NOT_INTEGER, savingsRateInputPct: TOO_MANY_DECIMALS",
+        "instance": "/api/plan",
+        "code": "VALIDATION_FAILED",
+        "errors": [
+          {
+            "field": "monthlySavingAmount",
+            "reason": "NOT_INTEGER"
+          },
+          {
+            "field": "savingsRateInputPct",
+            "reason": "TOO_MANY_DECIMALS",
+            "scale": 2
+          }
+        ]
+      }
+    }
+  ]
+}

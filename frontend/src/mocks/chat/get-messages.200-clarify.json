@@ -1,0 +1,34 @@
+{
+  "responses": [
+    {
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "messages": [
+          {
+            "id": 1030,
+            "role": "USER",
+            "messageType": "QUESTION",
+            "status": "COMPLETED",
+            "content": "월 저축액을 조금 늘려서 보면 어때요?",
+            "citations": [],
+            "createdAt": "2026-11-16T10:15:30+09:00"
+          },
+          {
+            "id": 1031,
+            "role": "ASSISTANT",
+            "messageType": "CLARIFY",
+            "status": "COMPLETED",
+            "content": "얼마로 바꿔 볼지 알려 주세요. 바꿀 수 있는 조건은 월 저축액, 저축 비중, 적금 금리, 목표 기간이에요.",
+            "citations": [],
+            "createdAt": "2026-11-16T10:15:31+09:00"
+          }
+        ],
+        "hasPending": false,
+        "answerPending": false
+      }
+    }
+  ]
+}

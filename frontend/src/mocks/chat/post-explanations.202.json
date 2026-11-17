@@ -1,0 +1,11 @@
+{
+  "responses": [
+    {
+      "status": 202,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {}
+    }
+  ]
+}

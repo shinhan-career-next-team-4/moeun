@@ -1,0 +1,18 @@
+{
+  "responses": [
+    {
+      "status": 500,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "잠시 후 다시 시도해 주세요",
+        "status": 500,
+        "instance": "/api/chat/messages/1031/apply",
+        "code": "INTERNAL_ERROR",
+        "errors": []
+      }
+    }
+  ]
+}
