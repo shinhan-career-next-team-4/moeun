@@ -52,7 +52,8 @@ def check_allowed(
     # DB의 ck_rag_disclosure_org와 같은 규칙. 목록에 있어도 어긋나면 적재 전에 막는다
     if doc_type == "DISCLOSURE" and org_type != "ASSET_MANAGER":
         raise NotLicensedError("공시(DISCLOSURE)는 운용사(ASSET_MANAGER) 자료만 적재할 수 있습니다")
-    # URL만 보면 허락된 URL에 다른 문서를 넣어 승인 원문을 비활성화할 수 있어 내용 해시까지 맞춘다. 새 개정본은 다시 승인받는다
+    # URL만 보면 허락된 URL에 다른 문서를 넣어 승인 원문을 비활성화할 수 있어 내용 해시까지 맞춘다.
+    # 새 개정본은 다시 승인받는다
     candidate = AllowedSource(url, org, org_type, doc_type, content_sha256)
     if candidate not in allowlist:
         raise NotLicensedError(f"이용 허락이 확인되지 않은 자료입니다: {url}")
