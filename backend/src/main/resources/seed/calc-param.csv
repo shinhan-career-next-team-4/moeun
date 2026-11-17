@@ -1,0 +1,11 @@
+# 계산 파라미터(docs/calc-spec.md 9절). 값을 바꾸면 application.yml의 version-label을 새로 정한다.
+# 임시값, 팀 확정 필요: 세율(TBD-02), 기본 비중(TBD-13), 관측 기간·분위(TBD-01, D-006), 경로 수·시드(calc-spec 7-2).
+# 총보수는 넣지 않는다(TBD-03 MVP 미반영).
+param_key,param_value
+TAX_RATE_PCT,15.4
+DEFAULT_SAVINGS_RATIO_PCT,50
+SCENARIO_OBSERVATION_MONTHS,120
+SCENARIO_LOW_PERCENTILE,10
+SCENARIO_HIGH_PERCENTILE,90
+BOOTSTRAP_PATH_COUNT,10000
+BOOTSTRAP_SEED,20261117
