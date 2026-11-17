@@ -52,7 +52,7 @@ server:
 # 앱 설정 (@ConfigurationProperties로 바인딩)
 moeun:
   jwt:
-    secret: ${JWT_SECRET:local-dev-secret-change-me-at-least-32-bytes!!}   # HS256, 32바이트 이상
+    secret: ${JWT_SECRET:}                 # HS256, 32바이트 이상. 기본값 없음: 없으면 기동 실패(JwtProperties)
     access-token-ttl: 30m              # NFR-SEC-02: 30분 비활동 만료(슬라이딩)
     issuer: moeun
     cookie-secure: ${JWT_COOKIE_SECURE:false}   # 배포(https)에서는 true

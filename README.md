@@ -31,6 +31,8 @@ cd ai-server && uv sync && uv run uvicorn app.main:app --reload --port 8000
 cd frontend && npm install && npm run dev
 ```
 
+`backend/.env`에는 `JWT_SECRET`(32바이트 이상 무작위 값, 예: `openssl rand -base64 48`)이 반드시 있어야 한다. 없으면 백엔드가 기동하지 않는다.
+
 `backend/.env`와 `ai-server/.env`는 커밋하지 않는다. 두 파일의 `INTERNAL_API_KEY`는 같아야 한다.
 
 DB 중지: `docker compose stop` · 데이터까지 삭제: `docker compose down -v`
