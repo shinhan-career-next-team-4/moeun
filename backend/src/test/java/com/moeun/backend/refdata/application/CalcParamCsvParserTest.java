@@ -19,9 +19,11 @@ class CalcParamCsvParserTest {
     private static final String ALL_KEYS = HEADER
             + "TAX_RATE_PCT,15.4\n"
             + "DEFAULT_SAVINGS_RATIO_PCT,50\n"
-            + "SCENARIO_WINDOW_MONTHS,120\n"
+            + "SCENARIO_OBSERVATION_MONTHS,120\n"
             + "SCENARIO_LOW_PERCENTILE,10\n"
-            + "SCENARIO_HIGH_PERCENTILE,90\n";
+            + "SCENARIO_HIGH_PERCENTILE,90\n"
+            + "BOOTSTRAP_PATH_COUNT,10000\n"
+            + "BOOTSTRAP_SEED,20261117\n";
 
     @Test
     @DisplayName("항목별 값을 읽고 필수 항목 검사를 통과한다")
@@ -47,10 +49,10 @@ class CalcParamCsvParserTest {
     @Test
     @DisplayName("개월 수는 1 이상의 정수만 받는다")
     void checksMonthsRange() {
-        assertThat(CalcParamCsvParser.parse(toStream(HEADER + "SCENARIO_WINDOW_MONTHS,1\n"))).hasSize(1);
-        assertThatThrownBy(() -> CalcParamCsvParser.parse(toStream(HEADER + "SCENARIO_WINDOW_MONTHS,0\n")))
+        assertThat(CalcParamCsvParser.parse(toStream(HEADER + "SCENARIO_OBSERVATION_MONTHS,1\n"))).hasSize(1);
+        assertThatThrownBy(() -> CalcParamCsvParser.parse(toStream(HEADER + "SCENARIO_OBSERVATION_MONTHS,0\n")))
                 .isInstanceOf(ReferenceDataLoadException.class);
-        assertThatThrownBy(() -> CalcParamCsvParser.parse(toStream(HEADER + "SCENARIO_WINDOW_MONTHS,12.5\n")))
+        assertThatThrownBy(() -> CalcParamCsvParser.parse(toStream(HEADER + "SCENARIO_OBSERVATION_MONTHS,12.5\n")))
                 .isInstanceOf(ReferenceDataLoadException.class);
     }
 
@@ -83,5 +85,26 @@ class CalcParamCsvParserTest {
         assertThatThrownBy(() -> CalcParamLoader.validateRequiredKeys(values))
                 .isInstanceOf(ReferenceDataLoadException.class)
                 .hasMessageContaining("must be below");
+    }
+
+    @Test
+    @DisplayName("부트스트랩 경로 수는 1 이상의 정수만 받는다")
+    void checksBootstrapPathCount() {
+        assertThat(CalcParamCsvParser.parse(toStream(HEADER + "BOOTSTRAP_PATH_COUNT,10000\n"))).hasSize(1);
+        assertThatThrownBy(() -> CalcParamCsvParser.parse(toStream(HEADER + "BOOTSTRAP_PATH_COUNT,0\n")))
+                .hasMessage("line 2: value is out of range for BOOTSTRAP_PATH_COUNT");
+        assertThatThrownBy(() -> CalcParamCsvParser.parse(toStream(HEADER + "BOOTSTRAP_PATH_COUNT,100.5\n")))
+                .isInstanceOf(ReferenceDataLoadException.class);
+    }
+
+    @Test
+    @DisplayName("부트스트랩 시드는 0 이상의 정수만 받는다")
+    void checksBootstrapSeed() {
+        assertThat(CalcParamCsvParser.parse(toStream(HEADER + "BOOTSTRAP_SEED,0\n"))).hasSize(1);
+        assertThat(CalcParamCsvParser.parse(toStream(HEADER + "BOOTSTRAP_SEED,20261117\n"))).hasSize(1);
+        assertThatThrownBy(() -> CalcParamCsvParser.parse(toStream(HEADER + "BOOTSTRAP_SEED,-1\n")))
+                .hasMessage("line 2: value is out of range for BOOTSTRAP_SEED");
+        assertThatThrownBy(() -> CalcParamCsvParser.parse(toStream(HEADER + "BOOTSTRAP_SEED,1.5\n")))
+                .isInstanceOf(ReferenceDataLoadException.class);
     }
 }

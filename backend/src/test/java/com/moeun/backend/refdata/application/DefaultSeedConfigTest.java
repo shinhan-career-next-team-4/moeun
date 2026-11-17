@@ -1,0 +1,71 @@
+package com.moeun.backend.refdata.application;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.time.LocalDate;
+import java.time.YearMonth;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Import;
+import org.springframework.modulith.test.ApplicationModuleTest;
+import org.springframework.test.context.TestPropertySource;
+
+import com.moeun.backend.config.TestcontainersConfig;
+import com.moeun.backend.refdata.CalcParamKey;
+import com.moeun.backend.refdata.CalcParams;
+import com.moeun.backend.refdata.DataVersionService;
+import com.moeun.backend.refdata.ReferenceDataService;
+import com.moeun.backend.refdata.SavingsAvgRateData;
+import com.moeun.backend.refdata.Sp500Series;
+
+/**
+ * application.yml의 기본 시드 설정을 그대로 쓰고, 레포에 없는 S&P500 파일 위치만 테스트용 가짜 파일로 바꾼다.
+ */
+// TestcontainersConfig가 config 패키지에 있어서, config 모듈을 함께 포함하지 않으면 DB 컨테이너 빈이 걸러진다
+@ApplicationModuleTest(extraIncludes = "config")
+@Import(TestcontainersConfig.class)
+@TestPropertySource(properties = "MOEUN_SP500_FILE=classpath:refdata/test-sp500-2016-10-to-2026-10.csv")
+class DefaultSeedConfigTest {
+
+    @Autowired
+    DataVersionService dataVersionService;
+
+    @Autowired
+    ReferenceDataService referenceDataService;
+
+    @Test
+    @DisplayName("앱을 처음 기동하면 활성 기준 데이터 1세트가 생기고 S&P500은 120개월 이상이다")
+    void loadsOneActiveSetOnStartup() {
+        assertThat(dataVersionService.findActiveVersions()).isPresent();
+
+        Sp500Series series = referenceDataService.findActiveSp500Series().orElseThrow();
+        assertThat(series.monthlyCloses()).hasSizeGreaterThanOrEqualTo(120);
+        assertThat(series.monthlyCloses().get(0).month()).isEqualTo(YearMonth.of(2016, 10));
+        assertThat(series.monthlyCloses().get(series.monthlyCloses().size() - 1).month())
+                .isEqualTo(YearMonth.of(2026, 10));
+    }
+
+    @Test
+    @DisplayName("가정 보기용으로 S&P500 활성 데이터를 읽으면 달러 지수 기준일이 함께 나온다")
+    void providesDollarIndexBaseDate() {
+        Sp500Series series = referenceDataService.findActiveSp500Series().orElseThrow();
+
+        assertThat(series.version().baseDate()).isEqualTo(LocalDate.of(2026, 10, 31));
+        assertThat(series.version().source()).contains("달러 지수");
+    }
+
+    @Test
+    @DisplayName("레포에 있는 평균금리·계산 파라미터 시드가 적재된다")
+    void loadsCommittedSeeds() {
+        SavingsAvgRateData rate = referenceDataService.findActiveSavingsAvgRate().orElseThrow();
+        assertThat(rate.baseMonth()).isEqualTo(YearMonth.of(2026, 10));
+
+        CalcParams params = referenceDataService.findActiveCalcParams().orElseThrow();
+        assertThat(params.values()).hasSize(CalcParamKey.values().length);
+        assertThat(params.getValue(CalcParamKey.TAX_RATE_PCT)).isEqualByComparingTo("15.4");
+        assertThat(params.getValue(CalcParamKey.SCENARIO_OBSERVATION_MONTHS)).isEqualByComparingTo("120");
+        assertThat(params.getValue(CalcParamKey.BOOTSTRAP_PATH_COUNT)).isEqualByComparingTo("10000");
+    }
+}
