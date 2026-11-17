@@ -64,6 +64,21 @@ chat ──▶ calc ──▶ plan
 
 ## 2. 계획·인증 절 (#12-a, 최종본 `frontend-api-plan.md`)
 
+> **이 절의 머리말 (원문)** 최종본(2026-11-16). 쟁점 결정 D-074·D-075·D-076을 반영했다. 본문의 "쟁점 X-n이 다르면 …" 문장은 기록용이고 결정이 우선한다.
+>
+> | 계획 절 쟁점 | 내용 | 결정 |
+> |---|---|---|
+> | X-1 (Q-061) | 직접 입력 목표명 길이 | D-074: 100자 |
+> | X-2 (Q-062) | 목표 종류(`GoalType`) 목록 | D-075: 7개 |
+> | X-3 (Q-063) | 데모를 로컬로 할지 원격으로 할지 | D-076: 로컬 데모. 임시이며 원격 배포로 바뀔 수 있어 쿠키 `Secure`·서명 키·허용 출처는 설정값 |
+>
+> **번호는 절마다 따로 센다.** 이 표의 쟁점 X-1~X-3은 3절(대화 절)의 쟁점 X-1(되돌리기 방식)·X-2(버튼 비활성 범위)와 다른 것이다. 같은 번호가 두 뜻이므로 "계획 절 쟁점 X-1"처럼 절을 붙여 읽는다. 본문 괄호의 코드 차이 `Y-n`, 후속 작업 `J-n`은 기획 repo 원문의 표를 가리킨다.
+>
+> **표기 범례 (원문)**
+> - **[v3]**: v2에서 바뀐 줄.
+> - **⟵ 쟁점 X-n**: 원래 사람이 정하는 항목이었고 본문에는 기획 추천안을 임시로 적었다. 위 표대로 결정됐으므로 이 문서의 해당 줄은 결정을 반영한 값이다.
+> - 항목 ID(C12a-x, P-x, R-x, Y-x, J-x)는 v1·v2와 같다.
+
 > **최종본 보충 (2026-11-16, D-077~082 임시, 본문보다 우선)**
 > - **D-077** P-3 응답 유실(네트워크·502·비JSON): 입력값 유지 + `common.networkError` + `loadPlan()`으로 `revision`만 맞춤(C12a-6-5 "부르는 때" 표에 추가). → #48, #13
 > - **D-078** 로그인·로그아웃 성공 시 `BroadcastChannel("moeun-auth")`로 알림 → 받은 탭은 store 비우고 `loadPlan()`부터. → #13, #47, #58(시연 절차)
@@ -83,7 +98,7 @@ chat ──▶ calc ──▶ plan
 2. **회원은 JWT subject로만 정한다.** 본문·쿼리에 `memberId`가 없다.
 3. **`revision`은 내 계획 상태의 유일한 버전 표시다.** 모든 쓰기는 `expectedRevision`을 받고 새 `revision`을 돌려준다. 프론트 공유 상태 규칙은 C12a-6-7.
 4. **오류 본문은 C3-1 형식 하나**(`ProblemDetail` + `code` + `errors[]`), 기계 판단은 `code`로만. 프론트 API에는 `minDisplay`·`maxDisplay`가 없다(C3-5).
-5. **새 라이브러리·새 테이블·새 컬럼 없음.** (쟁점 X-1이 B면 컬럼 **길이** 변경 1줄. 쟁점 X-3이 B면 배포 인프라가 생긴다.)
+5. **새 라이브러리·새 테이블·새 컬럼 없음.** (계획 절 쟁점 X-1이 B면 컬럼 **길이** 변경 1줄. 쟁점 X-3이 B면 배포 인프라가 생긴다. 결정됨: X-1은 D-074(100자), X-3은 D-076(로컬 데모, 임시)이라 배포 인프라는 만들지 않는다.)
 
 ---
 
@@ -114,7 +129,7 @@ chat ──▶ calc ──▶ plan
 | 이름 | `moeun_at` | 서비스 접두어 + access token |
 | 값 | JWT(`sub` = memberId, `exp` = 발급 + 30분) | ADR-002, D-052 |
 | `HttpOnly` | 항상 | JS가 토큰을 읽지 못하게 |
-| `Secure` | 기본 `true`. `auth.cookie.secure=false`는 `local` 프로필에서만 | 로컬 http 탈출구. **데모 접속 주소가 HTTPS가 아니면 `Secure` 쿠키가 저장되지 않아 로그인이 안 될 수 있다** → 데모 방식은 쟁점 X-3, 확인은 #58(J-16) [D-076] |
+| `Secure` | 기본 `true`. `auth.cookie.secure=false`는 `local` 프로필에서만 | 로컬 http 탈출구. **데모 접속 주소가 HTTPS가 아니면 `Secure` 쿠키가 저장되지 않아 로그인이 안 될 수 있다** → 데모 방식은 쟁점 X-3(결정됨, D-076: 로컬 데모, 임시), 확인은 #58(J-16) [D-076] |
 | `SameSite` | `Lax` | CSRF를 끈 상태의 교차 사이트 방어 |
 | `Path` | `/` | 로그아웃 만료 쿠키와 경로가 어긋나지 않게 |
 | `Max-Age` | `1800`. 로그아웃·401 때 `0` | FR-AUTH-02 |
@@ -316,7 +331,7 @@ Content-Type: application/problem+json
 | `targetPeriodMonths` | 1 | 360 | MONTH | 0 | internal-calc C3-3 |
 | `goalAmount` | 10000 | 10000000000 | KRW | 0 | 임시(R-4). `rules.yml` 주석 "임시" |
 | `heldAssets` | 0 | 10000000000 | KRW | 0 | 임시(R-4) |
-| `goalCustomName` | 1 | 100 | CHAR | — | TBD-09 [D-074] (A면 50) |
+| `goalCustomName` | 1 | 100 | CHAR | — | TBD-09 [D-074] (쟁점 X-1 A면 50이었으나 D-074로 100자 결정됨) |
 
 - 같은 키는 경로와 무관하게 같은 범위(CP-02). 경로마다 다른 것은 바꿀 수 있는 키 목록뿐.
 - `rules.yml`에 금액 `step`은 두지 않는다. 서버는 원 정수면 받는다.
@@ -539,7 +554,7 @@ FR-PLAN-05·06, FR-RES-01~07, FR-INP-11, NFR-INT-02, D-010, D-062, D-072.
 | | `result.notReachedInPeriod` | #50 | 기간 안에 도달하지 않음(planContext C1a-11 ai 문장과 같은 뜻) |
 | | `result.scenarioNotice` | #50 | 3구간 고지 한 줄(D-029) |
 | | `result.defaultSavingsRate` | #49 | 기본 금리 표시 |
-| 이름 | `goal.<CODE>` | #48·#49 | 7개(쟁점 X-2 목록) |
+| 이름 | `goal.<CODE>` | #48·#49 | 7개(쟁점 X-2 목록, 결정됨 D-075) |
 | | `scenario.GOOD`·`scenario.AVG`·`scenario.BAD` | #49·#50 | 시나리오 이름 |
 | planContext 공유 | `tax.note`, `excluded.<CODE>`, `scenarioMethod.<CODE>` | #49 | ai-server와 같은 키(CP-05, D-067) |
 | 면책 | **`disclaimer`** | #49, #52 | **키 하나로 확정.** 결과 화면과 대화창이 같은 키를 쓴다. #18 본문에 `chat.disclaimer`가 있으면 `disclaimer`로 바꾼다 |
@@ -785,6 +800,21 @@ record PlanUndoResult(long planVersionId, long revision) {}
 
 ## 3. 대화 절 (#12-b, 최종본 `frontend-api-chat.md`)
 
+> **이 절의 머리말 (원문)** 최종본(2026-11-16). 쟁점 결정 D-068, D-069를 반영했다. 두 결정은 Claude 판단(진혁 위임)으로 **임시**이며, 바뀌면 `[D-068]`·`[D-069]` 표시 줄만 고친다. 본문의 "쟁점 X-n이 A/B로 정해지면 …" 문장은 기록용이고 결정이 우선한다.
+>
+> | 대화 절 쟁점 | 내용 | 결정 |
+> |---|---|---|
+> | X-1 (Q-056) | 되돌리기 방식 | D-068: 안 B, 직전 버전을 복사해 새 `plan_version` INSERT |
+> | X-2 (Q-057) | 이전 비교 버튼 비활성 범위 | D-069: 안 A, 계획이 바뀐 모든 순간 |
+>
+> **번호는 절마다 따로 센다.** 이 표의 쟁점 X-1·X-2는 2절(계획·인증 절)의 쟁점 X-1(목표명 길이)·X-2(`GoalType`)·X-3(데모 방식)과 다른 것이다. 또 이 절의 "코드 차이 X-n"(C12b-15)은 쟁점 번호와 겹치므로 항상 "코드 차이 X-n"과 "쟁점 X-n"으로 구분해 읽는다. 질문 번호 Q-051~055는 C12b-16 원문에 있다.
+>
+> **표기 범례 (원문)**
+> - **[합의]**: 양쪽이 수용했거나, 한쪽 수정 제안에 다른 쪽 이견이 없어 반영한 것.
+> - **[쟁점 X-n]**·**⟵ 쟁점 X-n**: 원래 사람이 정하는 항목이었고 본문에는 기획 추천안(양쪽 재검토도 같은 안)을 임시로 적었다. 위 표대로 결정됐다.
+> - **[v3]**: v2에서 바뀐 줄.
+> - 항목 ID(C12b-x, R-x, H-x)는 v1·v2와 같다.
+
 > **최종본 보충 (같은 날 결정, 본문보다 우선)**
 > - **D-063** 초과 계획(D-062): 대화창은 열어 두고 첫 자리에 문구표 `chat.alreadyExceeded` 문장 한 줄을 프론트가 표시한다. F-3·LLM 호출 없음, `chat_message`·F-2 응답에 넣지 않는다. 설명 다시 요청 버튼(FR-AI-05)은 보이지 않는다. → #52·#54
 > - **D-066** 대화창에 고지 한 줄(문구표 `disclaimer`(옛 이름 `chat.disclaimer`, 결과 화면 면책과 같은 키 하나, C12a-7-1): D-029 과거 데이터 고지 + "AI 설명은 참고용이며 계산 결과가 기준이에요")을 상시 표시한다. 서버 응답과 무관. → #52, #18
@@ -903,7 +933,7 @@ record PlanUndoResult(long planVersionId, long revision) {}
 
 - 계획이 없어도 받는다(NFR-USA-01). 리스너는 `planContext: null`로 부르고 **`baselineScenario`는 `"AVG"`로 채운다**. 왜: `ChatRequest.baseline_scenario`가 필수라 비우면 ai-server 422 → `FAILED`. 계획이 있으면 `plan.baseline_scenario`.
 - `history`: 같은 회원의 `COMPLETED` 메시지 최근 20개. `role`은 ai-server 형식(소문자 `user`/`assistant`)으로 Spring이 바꾼다(프론트 영향 없음).
-- 초과 계획에서도 평소대로 받는다. 대화창 표시는 **Q-051(미결)**.
+- 초과 계획에서도 평소대로 받는다. 대화창 표시는 Q-051이었고 3절 머리말 보충 D-063으로 정해졌다(프론트가 문구표 `chat.alreadyExceeded` 한 줄, F-1은 평소대로 받는다).
 
 오류:
 
@@ -1020,7 +1050,7 @@ record PlanUndoResult(long planVersionId, long revision) {}
 - **F-4는 가장 최근 `RECALC_RESULT`에만 자동으로 부른다.** 복원 때 RECALC_RESULT가 여러 개여도 1회. 이전 결과는 본문(`content`)만 보이고 카드는 "이전 결과"로 접는다(버튼 비활성). 이전 카드를 펼칠 때 F-4를 부르는 것은 선택 구현.
 - 이미 받은 비교는 다시 부르지 않는다.
 - **새 `RECALC_RESULT`가 폴링으로 도착하면 이전 카드의 적용 버튼을 즉시 비활성**으로 바꾼다(F-4 재호출 없음).
-- **버튼 활성 한 줄**: 활성 = (이 메시지 id = 가진 메시지 중 최대 `RECALC_RESULT` id) AND (F-4 `applicable=true`) AND (이 메시지가 계획 `revision`이 마지막으로 바뀐 뒤에 도착함, C12b-7-4) ⟵ 셋째 조건의 범위는 **쟁점 X-2**.
+- **버튼 활성 한 줄**: 활성 = (이 메시지 id = 가진 메시지 중 최대 `RECALC_RESULT` id) AND (F-4 `applicable=true`) AND (이 메시지가 계획 `revision`이 마지막으로 바뀐 뒤에 도착함, C12b-7-4) ⟵ 셋째 조건의 범위는 쟁점 X-2였고 결정됨(D-069: 계획이 바뀐 모든 순간).
 - 카드 문구: `diff.byScenario[].achievementChange` 4값과 **[v3] 조건 4개의 행 라벨**(월 저축액·저축 비중·적금 금리·목표 기간)은 프론트가 문구표에서 키로 찾는다. 프론트가 라벨을 지어내지 않는다. 키 목록은 #18·#53 수용 기준에 적는다.
 - ETF 0%(`savingsRatioPct=100`)면 시나리오가 AVG 하나다. 카드는 1개·3개를 모두 그린다(목 `get-comparison.200-etf0.json`).
 
@@ -1095,7 +1125,7 @@ record PlanUndoResult(long planVersionId, long revision) {}
 
 #### C12b-7-4. 계획이 바뀐 뒤 이전 비교 버튼 비활성 (D-041) — [D-068, D-069]
 
-본문은 **기획 추천안(쟁점 X-1 = B, 쟁점 X-2 = A)** 을 임시로 적는다. 두 재검토도 같은 안을 지지했다(소비자는 v1의 반대를 철회). 결정 변경·새 정책이라 사람이 정한다(Q-056, Q-057).
+본문은 **결정됨: 쟁점 X-1 = B(D-068), 쟁점 X-2 = A(D-069)** 를 적는다. 원문에서 기획 추천안이었고 두 재검토도 같은 안을 지지했다(소비자는 v1의 반대를 철회). 결정 변경·새 정책이라 사람이 정할 항목(Q-056, Q-057)이었고 D-068·D-069로 정해졌다. 두 결정은 Claude 판단(진혁 위임)의 임시 결정이다.
 
 - **서버**([D-068]): 되돌리기는 **직전 버전 행을 복사해 새 `plan_version`을 INSERT**하고 포인터를 그 행으로 옮긴다(`previous_version_id = NULL`, `revision + 1`). 그래서 되돌리기 전에 만든 모든 비교는 기준 버전 ≠ 현재가 되어 F-4 `applicable=false`, F-5 검사 9 `STALE_COMPARISON`으로 **서버가 D-041을 보장**한다. 새로고침해도 틈이 없다.
   - 막는 경우: **비교(기준 V1) → 적용(V2) → 10초 안에 되돌리기.** 포인터 교체라면 현재가 다시 V1이 되어 방금 적용한 그 비교가 새로고침 뒤 다시 활성이다. B에서는 현재가 V3(V1의 복사본)이라 비활성이다.
@@ -1103,11 +1133,11 @@ record PlanUndoResult(long planVersionId, long revision) {}
   - **[v3] 구현 메모(#33)**: (a) 조건부 UPDATE 하나로 하면 0행일 때 `NOTHING_TO_UNDO`와 `PLAN_CHANGED`를 구분할 수 없다. 복사할 행 id를 알려면 어차피 `plan`을 먼저 읽으므로 **"`plan` 읽기 → `previous_version_id` 없음 `409 NOTHING_TO_UNDO` → revision 다름 `409 PLAN_CHANGED` → 복사 INSERT → `UPDATE plan ... WHERE member_id=? AND revision=?`(0행이면 런타임 예외로 롤백) → `PlanChanged(UNDO)`"** 로 적용(C12b-7-1)과 같은 틀을 쓴다. (b) `schema.sql`의 `source` 주석 "이 버전을 만든 경로"가 B에서는 "복사한 원본의 경로"가 된다. CHECK에 `UNDO`를 더하지 않고(스키마 변경 없음) 주석과 `db/tables.md` 한 줄만 고친다(코드 차이 X-14). 새 버전의 `calc_run(PLAN)`은 기존 `PlanChanged(UNDO)` → calc 리스너가 기록하므로 추가 코드가 없다.
 - **프론트**([D-069]): **내 계획이 바뀐 모든 순간**(대화 적용 성공, 되돌리기 성공, 입력 수정 저장, `PLAN_CHANGED`로 다시 불러옴)에 **그때 가진 모든 적용 버튼을 비활성**으로 바꾼다. 그 뒤 새로 온 비교만 F-4 `applicable`을 따른다.
   - **[v3] 구현 방식**: 네 곳에서 함수를 부르지 않는다. **대화창(#53) 한 곳이 계획 상태의 `revision`을 구독**해, 값이 바뀌면 그때 가진 메시지의 적용 버튼을 모두 끈다. **최초 로드(값 없음 → N)는 제외**한다. 왜: 네 경우 모두 `revision`이 바뀌고, 되돌리기(#51)·입력 저장은 A팀 `features/plan`·`features/input`에 있어 B팀 함수를 부르면 팀 경계를 넘는다. 구독 한 곳이면 A팀 코드를 건드리지 않는다.
-  - 끈 상태는 메모리에만 있다. 새로고침 뒤에는 서버(`applicable`, 검사 9)가 같은 결과를 낸다(쟁점 X-1 B 전제).
+  - 끈 상태는 메모리에만 있다. 새로고침 뒤에는 서버(`applicable`, 검사 9)가 같은 결과를 낸다(쟁점 X-1 = B 전제, D-068로 결정됨).
   - revision이 바뀌기 전에 보낸 F-4의 응답이 뒤늦게 `applicable=true`로 와도, 그 메시지가 revision 변경 전에 이미 있었다면 비활성을 유지한다.
   - 서버가 보장하므로 프론트는 id를 기억할 필요가 없다(`undoBarrierId`·`planChangeBarrierId` 없음). 이 규칙은 "누르면 409"보다 먼저 버튼을 끄는 화면 반응이다.
 - 다른 탭에서의 변경은 프론트가 알 수 없다. 누르면 `PLAN_CHANGED`(revision 다름)나 `STALE_COMPARISON`을 받고 위 규칙대로 비활성된다.
-- 쟁점 X-1이 A(포인터 교체 유지)로 정해지면: 같은 `revision` 구독 지점에서 그 순간의 최대 메시지 id를 `planChangeBarrierId`로 기억하고 `id ≤ barrier`인 버튼을 계속 비활성으로 둔다. 새로고침 뒤 틈은 수용(데이터는 안전). 쟁점 X-2가 B로 정해지면: 구독은 되돌리기·대화 적용 성공으로 바뀐 경우에만 반응한다.
+- (기록용. 결정은 X-1 = B(D-068), X-2 = A(D-069)라 아래는 지금 적용하지 않는다. 결정이 바뀔 때의 대안이다.) 쟁점 X-1이 A(포인터 교체 유지)로 정해지면: 같은 `revision` 구독 지점에서 그 순간의 최대 메시지 id를 `planChangeBarrierId`로 기억하고 `id ≤ barrier`인 버튼을 계속 비활성으로 둔다. 새로고침 뒤 틈은 수용(데이터는 안전). 쟁점 X-2가 B로 정해지면: 구독은 되돌리기·대화 적용 성공으로 바뀐 경우에만 반응한다.
 
 ### C12b-8. 대화 기록 삭제 (D-051) [합의]
 
