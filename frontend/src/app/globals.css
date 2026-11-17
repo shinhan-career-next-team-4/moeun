@@ -1,26 +1,23 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* 디자인 토큰(NFR-UI-01). 데스크톱 라이트 모드 기준. 모든 화면이 이 토큰만 쓴다. */
+@theme {
+  --color-primary: #1f5f8b;
+  --color-primary-strong: #164a6e;
+  --color-primary-soft: #e6f0f7;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f4f6f8;
+  --color-page: #f7f8fa;
+  --color-border: #d5dbe1;
+  --color-text: #1b232b;
+  --color-text-muted: #5f6b77;
+  --color-danger: #c62828;
+  --color-success: #2e7d32;
+  --font-sans: system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-page);
+  color: var(--color-text);
+  font-family: var(--font-sans);
 }
