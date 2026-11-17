@@ -39,7 +39,44 @@ uv run moeun-ingest --file docs/a.pdf --doc-type DISCLOSURE --org "OO자산운�
 | ai → Spring | `POST /internal/calc` `{memberId, conditionChanges}` → `{calcRunId, conditions, current, changed, diff, display}` | `X-Internal-Api-Key` |
 
 `/chat` 응답의 `messageType`, `calcRunId`, `conditionChanges`, `citationChunkIds`는 `chat_message` CHECK 제약을 만족하게 보정되어 나온다.
-`/chat` 실패 시 4xx/5xx `{"error": CODE}`를 돌려주며 Spring이 `FAILED`로 기록한다(FR-AI-04).
+`/chat` 실패 시 4xx/5xx `{"error": CODE}`를 돌려주며 Spring이 `FAILED`로 기록한다(FR-AI-04). **예외: 요청 스키마 위반(422)은 FastAPI 기본 본문 `{"detail": [...]}`이다**(`{error: CODE}` 규칙의 예외, 코드 변경 없음).
+
+### `/chat`의 `planContext`
+
+전체 계약과 예시 JSON은 `docs/api/plan-context.md`, `docs/api/examples/plan-context/`가 기준이다. 두 문서가 다르면 `docs/api/plan-context.md`를 따르고 이 절을 고친다.
+
+- `planContext`는 한 계산 기록(`calc_run(PLAN)`)의 최상위 4개 `calcRunId`·`conditions`·`result`·`display`다. `result`는 `/internal/calc`의 `current`와 같은 모양이고 **가정(`assumptions`)은 `result.assumptions`**에 있다. 키는 camelCase다. 계획이 없으면 `planContext: null`이다.
+- 숫자는 Spring만 만든다. 모델은 `display` 문자열만 그대로 인용하고 **raw 금액은 모델에 넘기지 않는다**(NFR-INT-01, FR-AI-02). `memberId` 같은 계정 식별 정보는 `planContext`에 없다(D-030).
+- **규칙 밖 필드는 오류로 처리하지 않고 무시하며 모델에도 넘기지 않는다**(pydantic `extra` 기본 `ignore`, 덮어쓰지 않는다). `display`는 `dict[str, Any]`로 받아 허용 키 패턴에 맞고 값이 문자열인 항목만 남긴다.
+
+| 위치 | 필수 여부 |
+|---|---|
+| `result`, `display` | 필수 |
+| `result.status` (`CALCULATED` \| `ALREADY_EXCEEDED`, 그 밖의 값은 422) | 필수 |
+| `result.scenarios[].{scenario, isAchieved}` | 필수 (`scenarios`는 배열, 초과면 빈 배열) |
+| `result.assumptions.isDefaultSavingsRate` | 필수 |
+| `result.assumptions.{scenarioMethod, excludedItems}` | 키 필수, 값 null 가능 |
+| `calcRunId` | 선택 (EXPLAIN에서는 일치 검사) |
+| `conditions`, 그 밖의 raw 필드 | 선택 (읽지 않음) |
+
+검사 순서(`ChatAgent.run()`):
+
+| 순서 | 조건 | 결과 |
+|---|---|---|
+| 1 | 스키마 위반 | 422 FastAPI 기본 `{"detail": [...]}` |
+| 2 | `EXPLAIN`인데 `planContext`가 `null` | `BAD_REQUEST` → 400 |
+| 3 | `EXPLAIN`인데 `planContext.calcRunId != ChatRequest.calcRunId` | `BAD_REQUEST` → 400 |
+| 4 | `EXPLAIN`이고 `result.status=ALREADY_EXCEEDED` | LLM을 부르지 않고 문구표 `chat.alreadyExceeded`로 `EXPLANATION` 응답 |
+| 5 | display 요구 키 누락 | `CONTEXT_DISPLAY_MISSING` → 502 (도구 쪽 `CALC_DISPLAY_MISSING`과 쌍으로 상수화) |
+| 6 | 그 밖 | 모델 호출 |
+
+- `EXPLAIN`은 `planContext.calcRunId == ChatRequest.calcRunId`이다. `QUESTION`은 `ChatRequest.calcRunId=null`이고 `planContext.calcRunId`는 **있는 것이 정상**이며 400이 아니다.
+- 요구 키: `CALCULATED`는 `goalAmount`, `calcStartMonth`, `targetMonth`, `conditions.{heldAssets, monthlySavingAmount, targetPeriodMonths, savingsRatioPct, savingsRateInputPct}`, 시나리오마다 `<S>.{afterTaxAsset, principal, afterTaxGain, gapToGoal}`, `isAchieved=true`인 `<S>.goalReachMonth`, `assumptions.taxRatePct`다. `ALREADY_EXCEEDED`는 `goalAmount`, `conditions.heldAssets`다. `<S>.goalReachMonth`는 `isAchieved=true`이고 raw 값이 있을 때만 Spring이 키를 만든다.
+- 가정 문장: Spring은 `excludedItems`·`scenarioMethod` **코드만** 보내고, ai-server가 문구표(`excluded.<CODE>` 5개, `scenarioMethod.<CODE>` 2개)에서 문장(`excludedNotes`, `scenarioMethodNote`)으로 바꿔 모델에 넘긴다. 모델은 그 문장을 그대로 인용한다. 문구표 `tax.note`는 `taxNote`로 모델 입력에 항상 넣고(D-067), 응답에 `assumptions.taxRatePct` 표시값이 있으면 `tax.note`를 글자 그대로 덧붙인다(모델이 이미 넣었으면 중복하지 않는다, D-073).
+- 문구표 키: `chat.noPlan`, `chat.alreadyExceeded`, `excluded.<CODE>` 5개, `scenarioMethod.<CODE>` 2개, `tax.note`, `outOfScope.tax`(문장은 `copy/copy.ko.yml`, #18).
+- 모델 입력(`<plan_context>`)에는 `result.status`, `scenarios[].{scenario,isAchieved}`, `assumptions.isDefaultSavingsRate`, `excludedNotes`, `scenarioMethodNote`, `taxNote`, 필터를 통과한 `display`만 들어간다. 로그에는 `planContext` 본문을 남기지 않고 `calcRunId`와 오류 코드만 남긴다.
+- 프롬프트 규칙 1~9와 담당 Issue: 1·2·3·5·6·8·9 → #35, 4 → #23, 7(D-059, "더/덜" 같은 상대 표현이면 계산하지 않고 `CLARIFY`로 절대값을 되묻는다. 예시 금액·금리를 지어내지 않는다) → #21. 규칙 8(D-060)은 세율을 `taxRatePct` display만 인용하고, 규칙 9는 초과 계획이면 초과 금액을 말하지 않는다. 순서는 #21 → #22 → #23 → #35다.
+- fixture 14개(`plan-context-{basic,etf0,exceeded,achieved,zero-held,polluted,display-missing}.json`, `chat-request-{explain,question-no-plan,question-with-plan,explain-mismatch,explain-null,explain-exceeded}.json`, `model-input-basic.json`)는 `docs/api/examples/plan-context/`에 있다. `plan-context-*`는 `planContext` 객체만, `chat-request-*`는 `ChatRequest` 전체다. `model-input-basic.json`에서는 문구표로 채우는 키(`excludedNotes`, `scenarioMethodNote`, `taxNote`)를 뺐고 테스트가 `COPY`로 채워 dict로 비교한다. Spring 테스트가 읽는 파일은 basic, etf0, exceeded, achieved, zero-held이고 나머지는 ai-server 전용이다.
 
 ### `/internal/calc` 요청
 

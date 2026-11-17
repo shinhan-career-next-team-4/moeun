@@ -1,0 +1,10 @@
+{
+  "memberId": 7,
+  "messageId": 1030,
+  "mode": "QUESTION",
+  "text": "ETF가 뭐예요?",
+  "baselineScenario": "AVG",
+  "calcRunId": null,
+  "planContext": null,
+  "history": []
+}
