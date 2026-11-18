@@ -1,5 +1,9 @@
 // copy/copy.ko.yml 값을 옮긴 상수. 테스트가 copy/copy.ko.yml과 비교해 어긋남을 잡는다.
 export const COPY = {
+  disclaimer:
+    "이 서비스의 결과는 과거 데이터를 바탕으로 한 시뮬레이션이며 미래의 수익을 보장하지 않습니다. AI 설명은 참고용이며 계산 결과가 기준이에요.",
+  "tax.note":
+    "세금은 일반 과세를 기준으로 가정했어요. 비과세·세금우대 상품, 금융소득, 세법이 바뀌면 달라질 수 있어요. 정확한 세금은 금융기관이나 세무 전문가에게 확인해 주세요.",
   "common.networkError": "네트워크 연결을 확인하고 다시 시도해 주세요",
   "auth.invalidCredentials": "아이디 또는 비밀번호가 맞지 않아요",
   "auth.loginFailed": "로그인하지 못했어요. 잠시 후 다시 시도해 주세요",
@@ -7,6 +11,22 @@ export const COPY = {
   "input.saveFailed": "입력을 저장하지 못했어요. 다시 시도해 주세요",
   "input.invalidAmountFormat": "금액은 숫자로 입력해 주세요",
   "plan.changedElsewhere": "계획이 다른 곳에서 바뀌었어요. 다시 저장하면 입력한 값으로 바뀌어요",
+  "result.loadFailed": "결과를 불러오지 못했어요. 다시 시도해 주세요",
+  "result.alreadyExceeded":
+    "가진 자산 {heldAssets}이 목표 금액 {goalAmount}을 이미 넘었어요. 목표 금액은 입력 수정에서 바꿀 수 있어요",
+  "result.notReachedInPeriod": "목표 기간 안에는 목표 금액에 닿지 못해요",
+  "result.scenarioNotice": "세 가지 경우는 과거 데이터의 범위를 나눈 시나리오이고 미래를 예측한 값이 아니에요",
+  "result.defaultSavingsRate": "적금 금리는 평균 금리를 기본값으로 사용했어요",
+  "scenario.GOOD": "좋은 경우",
+  "scenario.AVG": "보통 경우",
+  "scenario.BAD": "나쁜 경우",
+  "excluded.ETF_TOTAL_EXPENSE": "ETF 총보수는 반영하지 않았어요",
+  "excluded.EXCHANGE_RATE": "환율 변동은 반영하지 않았어요",
+  "excluded.ETF_DISTRIBUTION": "ETF 분배금은 반영하지 않았어요",
+  "excluded.HELD_ASSET_RETURN": "보유 자산의 수익은 반영하지 않았어요",
+  "excluded.SAVINGS_REDEPOSIT": "적금 만기 후 재예치는 반영하지 않았어요",
+  "scenarioMethod.CAGR": "과거 데이터의 연평균 수익률을 기준으로 세 구간을 나눠 계산했어요",
+  "scenarioMethod.ROLLING_DISTRIBUTION": "과거 데이터를 기간별로 굴려 본 수익률 분포를 기준으로 세 구간을 나눠 계산했어요",
   "validation.REQUIRED": "값을 입력해 주세요",
   "validation.OUT_OF_RANGE": "{min}~{max} 사이로 입력해 주세요",
   "validation.NOT_INTEGER": "정수로 입력해 주세요",
