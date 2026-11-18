@@ -53,6 +53,7 @@ class DefaultSeedConfigTest {
         Sp500Series series = referenceDataService.findActiveSp500Series().orElseThrow();
 
         assertThat(series.version().baseDate()).isEqualTo(LocalDate.of(2026, 10, 31));
+        assertThat(series.version().versionLabel()).isEqualTo("investing-2016-10-2026-10");
         assertThat(series.version().source()).contains("달러 지수");
     }
 
@@ -61,6 +62,9 @@ class DefaultSeedConfigTest {
     void loadsCommittedSeeds() {
         SavingsAvgRateData rate = referenceDataService.findActiveSavingsAvgRate().orElseThrow();
         assertThat(rate.baseMonth()).isEqualTo(YearMonth.of(2026, 10));
+        // 은행연합회 2026-10 전월취급 평균금리, 12개월 정액적립식 단리, 10개 은행 단순평균(seed/README.md)
+        assertThat(rate.avgRatePct()).isEqualByComparingTo("2.84");
+        assertThat(rate.version().source()).contains("은행연합회").doesNotContain("임시값");
 
         CalcParams params = referenceDataService.findActiveCalcParams().orElseThrow();
         assertThat(params.values()).hasSize(CalcParamKey.values().length);
