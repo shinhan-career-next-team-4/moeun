@@ -5,7 +5,7 @@
  * <p>다른 모듈과 주고받는 계약: CalcInput(계산 조건), CalcResult(시나리오별 결과·가정 보기·데이터 버전).
  * <p>수신 이벤트: plan.PlanChanged → calc_run(PLAN) 기록.
  */
-@ApplicationModule(displayName = "계산", allowedDependencies = {"plan", "refdata"})
+@ApplicationModule(displayName = "계산", allowedDependencies = {"plan", "refdata", "config :: copy"})
 package com.moeun.backend.calc;
 
 import org.springframework.modulith.ApplicationModule;
