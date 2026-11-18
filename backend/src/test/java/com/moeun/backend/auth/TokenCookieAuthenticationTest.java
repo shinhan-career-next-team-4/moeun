@@ -69,6 +69,14 @@ class TokenCookieAuthenticationTest {
     }
 
     @Test
+    void authorizationHeaderIsIgnored() throws Exception {
+        mockMvc.perform(get("/api/test/echo")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenService.issue(7L)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+    }
+
+    @Test
     void skipRenewalHandlerDoesNotSetCookie() throws Exception {
         mockMvc.perform(get("/api/test/poll").cookie(tokenCookie(tokenService.issue(7L))))
                 .andExpect(status().isOk())

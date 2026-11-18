@@ -41,7 +41,7 @@ class AuthDocsTest {
                         resource(ResourceSnippetParameters.builder()
                                 .tag("Auth")
                                 .summary("데모 계정 로그인")
-                                .description("성공하면 MOEUN_TOKEN(HttpOnly) 쿠키를 발급한다. 실패하면 401.")
+                                .description("성공하면 moeun_at(HttpOnly) 쿠키를 발급한다. 실패하면 401.")
                                 .requestFields(
                                         fieldWithPath("loginId").description("아이디"),
                                         fieldWithPath("password").description("비밀번호"))
@@ -59,7 +59,7 @@ class AuthDocsTest {
                         resource(ResourceSnippetParameters.builder()
                                 .tag("Auth")
                                 .summary("로그아웃")
-                                .description("MOEUN_TOKEN 쿠키를 지운다.")
+                                .description("moeun_at 쿠키를 지운다.")
                                 .build())));
     }
 

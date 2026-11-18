@@ -18,7 +18,7 @@ class JwtTokenServiceTest {
 
     private static final String SECRET = "test-secret-at-least-32-bytes-long!!";
     private static final JwtProperties PROPS =
-            new JwtProperties(SECRET, Duration.ofMinutes(30), "moeun", false);
+            new JwtProperties(SECRET, Duration.ofMinutes(30), "moeun", true);
 
     private final JwtTokenService service = new JwtTokenService(PROPS, Clock.system(ZoneId.of("Asia/Seoul")));
     private final JwtDecoder decoder = JwtTokenService.decoder(PROPS);
@@ -36,20 +36,20 @@ class JwtTokenServiceTest {
     void tokenCookieIsHttpOnlyLaxRootPath() {
         ResponseCookie cookie = service.tokenCookie("t");
 
-        assertThat(cookie.getName()).isEqualTo("MOEUN_TOKEN");
+        assertThat(cookie.getName()).isEqualTo("moeun_at");
         assertThat(cookie.getValue()).isEqualTo("t");
         assertThat(cookie.isHttpOnly()).isTrue();
         assertThat(cookie.getSameSite()).isEqualTo("Lax");
         assertThat(cookie.getPath()).isEqualTo("/");
         assertThat(cookie.getMaxAge()).isEqualTo(Duration.ofMinutes(30));
-        assertThat(cookie.isSecure()).isFalse();
+        assertThat(cookie.isSecure()).isTrue();
     }
 
     @Test
     void expiredCookieHasZeroMaxAge() {
         ResponseCookie cookie = service.expiredCookie();
 
-        assertThat(cookie.getName()).isEqualTo("MOEUN_TOKEN");
+        assertThat(cookie.getName()).isEqualTo("moeun_at");
         assertThat(cookie.getMaxAge()).isEqualTo(Duration.ZERO);
         assertThat(cookie.isHttpOnly()).isTrue();
     }

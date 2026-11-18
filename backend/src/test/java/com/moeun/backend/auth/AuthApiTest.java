@@ -67,7 +67,16 @@ class AuthApiTest {
 
         assertThat(result.getResponse().getHeader(HttpHeaders.SET_COOKIE))
                 .startsWith(JwtTokenService.COOKIE_NAME + "=")
-                .contains("HttpOnly", "SameSite=Lax");
+                .contains("HttpOnly", "Secure", "SameSite=Lax", "Path=/", "Max-Age=1800");
+    }
+
+    @Test
+    void loginSucceedsWithBrokenCookieLeftOver() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .cookie(new Cookie(JwtTokenService.COOKIE_NAME, "not-a-jwt"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"loginId\":\"demo01\",\"password\":\"pw-123456\"}"))
+                .andExpect(status().isOk());
     }
 
     @Test

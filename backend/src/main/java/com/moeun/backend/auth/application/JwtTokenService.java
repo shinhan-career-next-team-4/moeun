@@ -26,7 +26,7 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
 @Service
 public class JwtTokenService {
 
-    public static final String COOKIE_NAME = "MOEUN_TOKEN";
+    public static final String COOKIE_NAME = "moeun_at";
 
     private final JwtProperties properties;
     private final Clock clock;

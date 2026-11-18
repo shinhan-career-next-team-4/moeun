@@ -55,7 +55,7 @@ moeun:
     secret: ${JWT_SECRET:}                 # HS256, 32바이트 이상. 기본값 없음: 없으면 기동 실패(JwtProperties)
     access-token-ttl: 30m              # NFR-SEC-02: 30분 비활동 만료(슬라이딩)
     issuer: moeun
-    cookie-secure: ${JWT_COOKIE_SECURE:false}   # 배포(https)에서는 true
+    cookie-secure: ${JWT_COOKIE_SECURE:true}   # 기본 true. false는 local 프로필(문서 맨 아래)에서만
   demo:
     accounts: ${DEMO_ACCOUNTS:}         # "id:비밀번호,id:비밀번호". 비밀번호는 backend/.env에만 둔다(FR-AUTH-01)
   ai-server:
@@ -101,3 +101,13 @@ logging:
   level:
     com.moeun: DEBUG
     org.springframework.modulith: INFO
+
+---
+# local 프로필에서만 Secure 쿠키를 끈다(http 로컬 개발 탈출구, C12a-2-1)
+spring:
+  config:
+    activate:
+      on-profile: local
+moeun:
+  jwt:
+    cookie-secure: ${JWT_COOKIE_SECURE:false}
