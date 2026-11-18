@@ -45,7 +45,34 @@ public class CalcEngine {
     private static final List<Scenario> ETF_SCENARIO_ORDER = List.of(Scenario.GOOD, Scenario.AVG, Scenario.BAD);
 
     /**
-     * 계획 하나를 계산한다.
+     * 조건 해석({@link ConditionResolver}) 결과로 계산한다. 기본금리를 썼는지·기준월은 가정 보기에,
+     * 기본금리 데이터 버전은 데이터 버전(calc_run 기록)에 남긴다. 결과 화면·planContext는 이 진입점을 쓴다.
+     */
+    public CalcResult calculate(ConditionResolver.ResolvedConditions resolved, CalcParams params, Sp500Series sp500) {
+        return calculate(resolved.input(), params, sp500, DefaultRate.from(resolved));
+    }
+
+    /**
+     * 계산하지 않고 이번 계산이 쓸 기준 데이터 버전과 엔진 버전만 구한다. 부트스트랩을 돌리지 않으므로 빠르다.
+     * calc_run을 기록만 하면 되는 곳(PlanChanged 리스너)이 쓴다. {@link #calculate}의 데이터 버전과 항상 같다.
+     */
+    public AppliedDataVersions determineDataVersions(ConditionResolver.ResolvedConditions resolved,
+            CalcParams params, Sp500Series sp500) {
+        CalcInput input = resolved.input();
+        rejectOutOfScope(input);
+        Sp500Series usedSp500 = null;
+        if (!input.hasExceededGoal() && input.hasEtf()) {
+            // calculate가 거절하는 경우(S&P500 없음, 종가 부족)는 여기서도 같은 예외로 막는다.
+            // 그러지 않으면 S&P500 버전이 빈 기록이 남아 "ETF 0%"처럼 읽히고 다시 계산할 수도 없다(NFR-INT-02)
+            requireSp500(sp500);
+            MonthlyReturns.fromCloses(sp500.monthlyCloses(), observationMonths(params));
+            usedSp500 = sp500;
+        }
+        return createDataVersions(params, usedSp500, DefaultRate.from(resolved));
+    }
+
+    /**
+     * 계획 하나를 계산한다. 기본금리 정보 없이 넣어 준 금리를 그대로 쓴 것으로 기록한다.
      *
      * @param input 기본금리·기본 비중까지 채운 계산 조건
      * @param params 계산 파라미터(세율, 3구간 산정 기준)
@@ -54,6 +81,10 @@ public class CalcEngine {
      * @throws IllegalStateException ETF 계산에 필요한 S&P500 종가가 모자랄 때
      */
     public CalcResult calculate(CalcInput input, CalcParams params, Sp500Series sp500) {
+        return calculate(input, params, sp500, DefaultRate.NONE);
+    }
+
+    private CalcResult calculate(CalcInput input, CalcParams params, Sp500Series sp500, DefaultRate defaultRate) {
         rejectOutOfScope(input);
         int targetPeriodMonths = input.targetPeriodMonths();
         YearMonth targetMonth = input.calcStartMonth().plusMonths(targetPeriodMonths);
@@ -63,7 +94,8 @@ public class CalcEngine {
             // 이미 목표 이상이면 시나리오를 계산하지 않는다. 화면은 초과 안내만 보여 준다(같으면 초과, CF-03)
             return new CalcResult(CalcStatus.ALREADY_EXCEEDED, input.goalAmount(), input.calcStartMonth(),
                     targetMonth, input.baselineScenario(), List.of(), null,
-                    createAssumptions(input, taxRatePct, null), createDataVersions(params, null));
+                    createAssumptions(input, taxRatePct, null, defaultRate),
+                    createDataVersions(params, null, defaultRate));
         }
 
         BigDecimal monthlySaving = BigDecimal.valueOf(input.monthlySavingAmount());
@@ -78,7 +110,8 @@ public class CalcEngine {
         Sp500Series usedSp500 = input.hasEtf() ? sp500 : null;
         return new CalcResult(CalcStatus.CALCULATED, input.goalAmount(), input.calcStartMonth(), targetMonth,
                 input.baselineScenario(), scenarios, null,
-                createAssumptions(input, taxRatePct, usedSp500), createDataVersions(params, usedSp500));
+                createAssumptions(input, taxRatePct, usedSp500, defaultRate),
+                createDataVersions(params, usedSp500, defaultRate));
     }
 
     /** ETF 0%: 구간이 갈리지 않으므로 AVG 하나(FR-RES-03). */
@@ -93,11 +126,8 @@ public class CalcEngine {
 
     private static List<ScenarioResult> calculateEtfScenarios(CalcInput input, CalcParams params, Sp500Series sp500,
             SavingsCalculator savings, BigDecimal etfDeposit) {
-        if (sp500 == null) {
-            throw new IllegalArgumentException("S&P500 data is required for plans with ETF");
-        }
-        int observationMonths = params.getValue(CalcParamKey.SCENARIO_OBSERVATION_MONTHS).intValueExact();
-        List<BigDecimal> observedReturns = MonthlyReturns.fromCloses(sp500.monthlyCloses(), observationMonths);
+        requireSp500(sp500);
+        List<BigDecimal> observedReturns = MonthlyReturns.fromCloses(sp500.monthlyCloses(), observationMonths(params));
         BootstrapScenarios bootstrap = new BootstrapScenarios(observedReturns,
                 params.getValue(CalcParamKey.BOOTSTRAP_PATH_COUNT).intValueExact(),
                 params.getValue(CalcParamKey.BOOTSTRAP_SEED).longValueExact(),
@@ -132,7 +162,8 @@ public class CalcEngine {
         return points;
     }
 
-    private static Assumptions createAssumptions(CalcInput input, BigDecimal taxRatePct, Sp500Series usedSp500) {
+    private static Assumptions createAssumptions(CalcInput input, BigDecimal taxRatePct, Sp500Series usedSp500,
+            DefaultRate defaultRate) {
         List<ExcludedItem> excludedItems = new ArrayList<>();
         if (usedSp500 != null) {
             excludedItems.add(ExcludedItem.ETF_TOTAL_EXPENSE);
@@ -144,14 +175,33 @@ public class CalcEngine {
             excludedItems.add(ExcludedItem.SAVINGS_REDEPOSIT);
         }
         ScenarioMethod method = usedSp500 == null ? null : ScenarioMethod.ROLLING_DISTRIBUTION;
-        // 기본금리를 썼는지는 조건 해석(ConditionResolver, #25)이 알려 준다. 그 전까지는 넣어 준 금리를 그대로 쓴 것으로 둔다
-        return new Assumptions(input.savingsRatePct(), false, null, input.savingsRatioPct(), taxRatePct, method,
+        return new Assumptions(input.savingsRatePct(), defaultRate.isDefault(), defaultRate.baseMonth(),
+                input.savingsRatioPct(), taxRatePct, method,
                 usedSp500 == null ? null : usedSp500.version().baseDate(), excludedItems);
     }
 
-    private static AppliedDataVersions createDataVersions(CalcParams params, Sp500Series usedSp500) {
+    private static AppliedDataVersions createDataVersions(CalcParams params, Sp500Series usedSp500,
+            DefaultRate defaultRate) {
         Long sp500VersionId = usedSp500 == null ? null : usedSp500.version().id();
-        return new AppliedDataVersions(null, sp500VersionId, params.version().id(), ENGINE_VERSION);
+        return new AppliedDataVersions(defaultRate.versionId(), sp500VersionId, params.version().id(),
+                ENGINE_VERSION);
+    }
+
+    /**
+     * 기본금리(은행연합회 평균)를 썼는지와 그 기준월·데이터 버전. 사용자가 금리를 넣었으면 모두 비어 있다.
+     *
+     * @param isDefault 기본금리를 썼는지
+     * @param baseMonth 기본금리 기준월
+     * @param versionId 기본금리 데이터 버전
+     */
+    private record DefaultRate(boolean isDefault, YearMonth baseMonth, Long versionId) {
+
+        static final DefaultRate NONE = new DefaultRate(false, null, null);
+
+        static DefaultRate from(ConditionResolver.ResolvedConditions resolved) {
+            return new DefaultRate(resolved.isDefaultSavingsRate(), resolved.savingsRateBaseMonth(),
+                    resolved.savingsRateVersionId());
+        }
     }
 
     private static void rejectOutOfScope(CalcInput input) {
@@ -162,6 +212,16 @@ public class CalcEngine {
         if (input.monthlySavingAmount() == null) {
             throw new IllegalArgumentException("monthly saving amount is required");
         }
+    }
+
+    private static void requireSp500(Sp500Series sp500) {
+        if (sp500 == null) {
+            throw new IllegalArgumentException("S&P500 data is required for plans with ETF");
+        }
+    }
+
+    private static int observationMonths(CalcParams params) {
+        return params.getValue(CalcParamKey.SCENARIO_OBSERVATION_MONTHS).intValueExact();
     }
 
     private static BigDecimal toFraction(BigDecimal percent) {
