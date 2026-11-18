@@ -1,6 +1,15 @@
 import { COPY } from "../../shared/copy/copy";
-import { isBlank, manwonToWon, parseDecimalInput, parseNonNegativeInt, toMonths } from "../../shared/units/units";
-import type { FormErrors, FormField, PlanForm, PutPlanRequest } from "./types";
+import {
+  isBlank,
+  manwonToWon,
+  parseDecimalInput,
+  parseNonNegativeInt,
+  splitMonths,
+  toMonths,
+  wonToManwon,
+} from "../../shared/units/units";
+import type { ResultPlanBody } from "../result/types";
+import type { FormErrors, FormField, GoalType, PlanForm, PutPlanRequest } from "./types";
 
 export const FIELD_ORDER: FormField[] = [
   "goalType",
@@ -21,6 +30,20 @@ export function emptyForm(): PlanForm {
     heldAssets: "0",
     monthlySavingAmount: "",
     savingsRateInputPct: "",
+  };
+}
+
+/** 입력 수정 진입(#51, C12a-7): 저장된 값을 그대로 채운다. 금리가 null이면 비운다. */
+export function formFromPlan(plan: ResultPlanBody): PlanForm {
+  const { years, months } = splitMonths(plan.targetPeriodMonths);
+  return {
+    goalType: plan.goalType as GoalType,
+    goalAmount: wonToManwon(plan.goalAmount),
+    periodYears: String(years),
+    periodMonths: String(months),
+    heldAssets: wonToManwon(plan.heldAssets),
+    monthlySavingAmount: wonToManwon(plan.monthlySavingAmount),
+    savingsRateInputPct: plan.savingsRateInputPct === null ? "" : String(plan.savingsRateInputPct),
   };
 }
 

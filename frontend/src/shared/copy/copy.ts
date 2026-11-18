@@ -10,7 +10,11 @@ export const COPY = {
   "auth.logoutFailed": "로그아웃하지 못했어요. 다시 시도해 주세요",
   "input.saveFailed": "입력을 저장하지 못했어요. 다시 시도해 주세요",
   "input.invalidAmountFormat": "금액은 숫자로 입력해 주세요",
+  "input.currentRatioLabel": "현재 비중",
+  "input.heldAssetsRecheck": "보유 자산이 {calcStartMonth} 기준이 맞는지 다시 확인해 주세요",
   "plan.changedElsewhere": "계획이 다른 곳에서 바뀌었어요. 다시 저장하면 입력한 값으로 바뀌어요",
+  "undo.nothingToUndo": "이미 되돌렸어요",
+  "undo.failed": "되돌리지 못했어요. 다시 시도해 주세요",
   "result.loadFailed": "결과를 불러오지 못했어요. 다시 시도해 주세요",
   "result.alreadyExceeded":
     "가진 자산 {heldAssets}이 목표 금액 {goalAmount}을 이미 넘었어요. 목표 금액은 입력 수정에서 바꿀 수 있어요",

@@ -173,4 +173,43 @@ describe("PlanInputPage (#48, C12a-5)", () => {
     );
     expect((screen.getByLabelText(/목표 금액/) as HTMLInputElement).value).toBe("2000");
   });
+
+  it("기존 계획이 store에 있으면 입력 수정 모드로 값을 채우고 현재 비중과 기준월 안내를 표시한다(#51)", async () => {
+    const mockView = {
+      revision: 12,
+      calcRunId: 540,
+      baselineResultScenario: "AVG",
+      plan: {
+        goalType: "HOUSE",
+        goalCustomName: null,
+        goalAmount: 20_000_000,
+        targetPeriodMonths: 36,
+        heldAssets: 5_000_000,
+        monthlySavingAmount: 300_000,
+        savingsRateInputPct: null,
+        savingsRatioPct: null,
+      },
+      result: { status: "CALCULATED" as const },
+      display: {
+        calcStartMonth: "2026년 11월",
+        "conditions.savingsRatioPct": "적금 50 : ETF 50",
+      },
+    };
+    planStore.acceptPlanView(mockView);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    renderInput();
+
+    expect(await screen.findByText("입력 수정")).toBeTruthy();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect((screen.getByLabelText(/목표 금액/) as HTMLInputElement).value).toBe("2000");
+    expect((screen.getByLabelText("년") as HTMLInputElement).value).toBe("3");
+    expect((screen.getByLabelText("개월") as HTMLInputElement).value).toBe("0");
+    expect((screen.getByLabelText(/보유 자산/) as HTMLInputElement).value).toBe("500");
+    expect((screen.getByLabelText(/월 저축 가능 금액/) as HTMLInputElement).value).toBe("30");
+    expect((screen.getByLabelText(/적금 금리/) as HTMLInputElement).value).toBe("");
+    expect(screen.getByText(/보유 자산이 2026년 11월 기준이 맞는지 다시 확인해 주세요/)).toBeTruthy();
+    expect(screen.getByText(/적금 50 : ETF 50/)).toBeTruthy();
+  });
 });
