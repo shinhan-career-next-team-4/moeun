@@ -10,6 +10,7 @@ import { LoginForm } from "./LoginForm";
 
 const replace = vi.fn();
 const push = vi.fn();
+const locationReplace = vi.fn();
 let searchParams = new URLSearchParams();
 
 vi.mock("next/navigation", () => ({
@@ -26,10 +27,16 @@ vi.mock("@/lib/api/endpoints", () => ({
 beforeEach(() => {
   replace.mockReset();
   push.mockReset();
+  locationReplace.mockReset();
+  vi.stubGlobal("location", { ...window.location, replace: locationReplace });
   searchParams = new URLSearchParams();
   vi.mocked(api.login).mockReset();
   vi.mocked(api.logout).mockReset();
   vi.mocked(api.me).mockReset();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 async function fillAndSubmit(id: string, password: string) {
@@ -53,6 +60,15 @@ describe("LoginForm", () => {
     render(<LoginForm />);
     await fillAndSubmit("demo01", "pw");
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/input"));
+  });
+
+  it("로그인 성공 후 비밀번호 칸을 비운다", async () => {
+    // App Router가 떠난 화면을 숨긴 채 들고 있어서, 비우지 않으면 비밀번호가 세션 내내 DOM에 남는다
+    vi.mocked(api.login).mockResolvedValue({ loginId: "demo01", hasPlan: false });
+    render(<LoginForm />);
+    await fillAndSubmit("demo01", "pw");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/input"));
+    expect(screen.getByLabelText("비밀번호")).toHaveValue("");
   });
 
   it("로그인 실패면 안내를 보여 주고 비밀번호 칸을 비운다", async () => {
@@ -91,16 +107,17 @@ describe("AuthGate", () => {
     expect(await screen.findByText("보호된 화면")).toBeInTheDocument();
   });
 
-  it("401이면 /login으로 보낸다", async () => {
+  it("401이면 문서를 새로 열어 /login으로 보낸다", async () => {
     vi.mocked(api.me).mockRejectedValue(new ApiError(401));
     render(<AuthGate>보호된 화면</AuthGate>);
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
+    await waitFor(() => expect(locationReplace).toHaveBeenCalledWith("/login"));
+    expect(replace).not.toHaveBeenCalled();
     expect(screen.queryByText("보호된 화면")).not.toBeInTheDocument();
   });
 });
 
 describe("AppHeader", () => {
-  it("아이디를 보여 주고 로그아웃 후 /login으로 보낸다", async () => {
+  it("아이디를 보여 주고 로그아웃하면 문서를 새로 열어 /login으로 보낸다", async () => {
     vi.mocked(api.me).mockResolvedValue({ loginId: "demo01", hasPlan: false });
     vi.mocked(api.logout).mockResolvedValue(undefined);
     render(
@@ -110,7 +127,9 @@ describe("AppHeader", () => {
     );
     expect(await screen.findByText("demo01 님")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "로그아웃" }));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
+    // router.replace면 숨어 있던 지난 로그인 폼이 '제출 중' 상태로 되살아나 버튼이 눌리지 않는다
+    await waitFor(() => expect(locationReplace).toHaveBeenCalledWith("/login"));
+    expect(replace).not.toHaveBeenCalled();
     expect(api.logout).toHaveBeenCalled();
   });
 });

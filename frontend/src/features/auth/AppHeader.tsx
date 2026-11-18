@@ -1,22 +1,20 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-
 import { Button } from "@/components/ui";
 import { copy } from "@/copy/ko";
 import { logout } from "@/lib/api/endpoints";
 
+import { goToLogin } from "./goToLogin";
 import { useSession } from "./session";
 
 export function AppHeader() {
-  const router = useRouter();
   const { loginId } = useSession();
 
   async function handleLogout() {
     try {
       await logout();
     } finally {
-      router.replace("/login");
+      goToLogin();
     }
   }
 

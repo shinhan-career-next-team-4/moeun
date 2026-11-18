@@ -28,6 +28,8 @@ export function LoginForm() {
     setError(null);
     try {
       const session = await login(loginId.trim(), password);
+      // 떠난 화면이 숨은 채 남으므로, 비우지 않으면 비밀번호가 세션 내내 DOM에 남는다
+      setPassword("");
       router.replace(entryPath(session.hasPlan));
     } catch (caught) {
       setPassword("");
