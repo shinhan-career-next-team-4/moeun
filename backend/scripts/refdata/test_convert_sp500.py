@@ -61,6 +61,24 @@ class ConvertSp500Test(unittest.TestCase):
         self.assertEqual(data[1], "2016-10,201610.3")
         self.assertEqual(data[-1], "2026-10,202610.3")
 
+    def test_reads_investing_korean_monthly_file(self):
+        # Investing.com 한국어 월별: BOM, 따옴표, "2016- 10- 01" 날짜, 쉼표 숫자, 최근 달부터 내림차순
+        lines = ['﻿"날짜","종가","시가","고가","저가","거래량","변동 %"']
+        # 진행 중인 달(2026-11)도 파일에 들어 있지만 end_month까지만 남아야 한다
+        lines.append('"2026- 11- 01","7,340.89","7,610.83","7,715.57","7,288.67","","-3.16%"')
+        year, month = 2026, 10
+        for index in range(121):
+            lines.append(f'"{year:04d}- {month:02d}- 01","{index + 1},000.50","1","1","1","","0.00%"')
+            month -= 1
+            if month == 0:
+                year, month = year - 1, 12
+        data = self.convert("\n".join(lines) + "\n")
+        rows = [line for line in data if not line.startswith("#")]
+        self.assertEqual(len(rows) - 1, 121)
+        self.assertEqual(rows[1], "2016-10,121000.5")
+        self.assertEqual(rows[-1], "2026-10,1000.5")
+        self.assertTrue(any("Investing" in line for line in data if line.startswith("#")))
+
     def test_rejects_missing_month(self):
         with self.assertRaisesRegex(converter.ConversionError, "missing months: 2020-03"):
             self.convert(stooq_csv(2016, 10, 121, skip="2020-03"))

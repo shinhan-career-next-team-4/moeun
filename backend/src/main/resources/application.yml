@@ -74,7 +74,7 @@ moeun:
       - kind: SP500
         version-label: stooq-2016-10-2026-10
         base-date: 2026-10-31
-        source: Stooq ^SPX 월말 종가(달러 지수)
+        source: Investing.com S&P500 월말 종가(달러 지수)
         file: ${MOEUN_SP500_FILE:file:data/seed/sp500-monthly.csv}
         optional: true
 
