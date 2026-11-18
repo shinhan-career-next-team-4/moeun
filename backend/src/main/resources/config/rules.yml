@@ -1,16 +1,16 @@
-# 입력 규칙 원본(CP-02, TBD-09). 백엔드 검증과 GET /api/input-rules(프론트 즉시 검증)가 이 파일 하나를 쓴다.
-# 금액은 원 단위. 화면은 만원으로 입력·표시한다. 근거: docs/superpowers/specs/2026-11-16-a2-plan-auth-design.md §4.2
+# 입력 규칙 원본(CP-02, TBD-09). 입력 저장과 조건 변경 검증이 이 파일 하나를 쓴다. 수치는 계약 C12a-5-5.
+# 금액은 원 정수(scale 0)로 받는다. 만원 단위 강제(step)는 없다. 화면이 만원으로 입력·표시한다.
+# goalAmount·heldAssets 상한은 임시(R-4).
 moeun:
   rules:
-    period-presets: [3, 6, 12, 24, 36]  # 개월
     fields:
       GOAL_CUSTOM_NAME:         { required: false, min: 1, max: 100, unit: CHAR }
-      GOAL_AMOUNT:              { required: true,  min: 10000, max: 1000000000, unit: KRW, step: 10000 }
-      TARGET_PERIOD_MONTHS:     { required: true, min: 1, max: 600, unit: MONTH }
-      HELD_ASSETS:              { required: true,  min: 0, max: 1000000000, unit: KRW, step: 10000 }
-      MONTHLY_SAVING_AMOUNT:    { required: true, min: 10000, max: 10000000, unit: KRW, step: 10000 }
-      SAVINGS_RATE_INPUT_PCT:   { required: false, min: 0, max: 50, unit: PERCENT, scale: 2 }
-      SAVINGS_RATIO_PCT:        { required: false, min: 0, max: 100, unit: PERCENT, scale: 0 }
+      GOAL_AMOUNT:              { required: true, min: 10000, max: 10000000000, unit: KRW, scale: 0 }
+      TARGET_PERIOD_MONTHS:     { required: true, min: 1, max: 360, unit: MONTH, scale: 0 }
+      HELD_ASSETS:              { required: true, min: 0, max: 10000000000, unit: KRW, scale: 0 }
+      MONTHLY_SAVING_AMOUNT:    { required: true, min: 10000, max: 10000000, unit: KRW, scale: 0 }
+      SAVINGS_RATE_INPUT_PCT:   { required: false, min: 0, max: 20, unit: PCT, scale: 2 }
+      SAVINGS_RATIO_PCT:        { required: false, min: 0, max: 100, unit: PCT, scale: 0 }
     change-paths:                       # 경로별로 바꿀 수 있는 항목. max-fields 0 = 제한 없음
       INPUT_EDIT:  { all-fields: true, max-fields: 0 }
       ALTERNATIVE: { fields: [MONTHLY_SAVING_AMOUNT, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT], max-fields: 1 }

@@ -3,6 +3,7 @@ package com.moeun.backend.plan.application;
 import static com.moeun.backend.plan.application.PlanInputBuilder.valid;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -14,6 +15,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import com.moeun.backend.plan.FieldError;
 import com.moeun.backend.plan.GoalType;
+import com.moeun.backend.plan.InputField;
 import com.moeun.backend.plan.PlanRulesFixture;
 
 class PlanInputValidatorTest {
@@ -26,14 +28,18 @@ class PlanInputValidatorTest {
 
     static Stream<Arguments> amountBoundaries() {
         return Stream.of(
-                amount("goalAmount", 10_000L, 1_000_000_000L, PlanInputBuilder::goalAmount),
-                amount("heldAssets", 0L, 1_000_000_000L, PlanInputBuilder::heldAssets),
+                amount("goalAmount", 10_000L, 10_000_000_000L, PlanInputBuilder::goalAmount),
+                amount("heldAssets", 0L, 10_000_000_000L, PlanInputBuilder::heldAssets),
                 amount("monthlySavingAmount", 10_000L, 10_000_000L, PlanInputBuilder::monthlySavingAmount));
+    }
+
+    private static FieldError range(String field, long min, long max, String unit) {
+        return new FieldError(field, "OUT_OF_RANGE", min, max, unit, null);
     }
 
     private static Arguments amount(String field, long min, long max,
             java.util.function.BiFunction<PlanInputBuilder, Long, PlanInputBuilder> setter) {
-        Function<Long, PlanInputBuilder> withValue = v -> setter.apply(valid().goalAmount(1_000_000_000L), v);
+        Function<Long, PlanInputBuilder> withValue = v -> setter.apply(valid().goalAmount(10_000_000_000L), v);
         return Arguments.of(field, min, max, withValue);
     }
 
@@ -41,60 +47,75 @@ class PlanInputValidatorTest {
     @MethodSource
     void amountBoundaries(String field, long min, long max, Function<Long, PlanInputBuilder> withValue) {
         assertThat(validator.validate(withValue.apply(min - 10_000).build()))
-                .contains(new FieldError(field, "OUT_OF_RANGE"));
+                .contains(range(field, min, max, "KRW"));
         assertThat(validator.validate(withValue.apply(min).build())).noneMatch(e -> e.field().equals(field));
         assertThat(validator.validate(withValue.apply(max).build())).noneMatch(e -> e.field().equals(field));
         assertThat(validator.validate(withValue.apply(max + 10_000).build()))
-                .contains(new FieldError(field, "OUT_OF_RANGE"));
+                .contains(range(field, min, max, "KRW"));
     }
 
     @Test
-    void amountNotMultipleOfTenThousandIsNotUnit() {
-        assertThat(errors(valid().goalAmount(10_001L))).containsExactly(new FieldError("goalAmount", "NOT_UNIT"));
+    void amountNotMultipleOfTenThousandIsAccepted() {
+        assertThat(errors(valid().goalAmount(10_001L))).isEmpty();
     }
 
     @Test
-    void periodZeroAndSixHundredOneAreOutOfRange() {
+    void outOfRangeCarriesMinMaxUnit() {
+        assertThat(errors(valid().monthlySavingAmount(9_000L)))
+                .containsExactly(
+                        new FieldError("monthlySavingAmount", "OUT_OF_RANGE", 10_000L, 10_000_000L, "KRW", null));
+    }
+
+    @Test
+    void decimalAmountIsNotInteger() {
+        PlanRules rules = PlanRulesFixture.load();
+        assertThat(rules.check(InputField.GOAL_AMOUNT, new BigDecimal("300000.5")))
+                .contains(new FieldError("goalAmount", "NOT_INTEGER", null, null, null, null));
+        assertThat(rules.check(InputField.GOAL_AMOUNT, new BigDecimal("300000.0"))).isEmpty();
+    }
+
+    @Test
+    void periodZeroAndThreeHundredSixtyOneAreOutOfRange() {
         assertThat(errors(valid().targetPeriodMonths(0)))
-                .containsExactly(new FieldError("targetPeriodMonths", "OUT_OF_RANGE"));
-        assertThat(errors(valid().targetPeriodMonths(601)))
-                .containsExactly(new FieldError("targetPeriodMonths", "OUT_OF_RANGE"));
-        assertThat(errors(valid().targetPeriodMonths(600))).isEmpty();
+                .containsExactly(range("targetPeriodMonths", 1, 360, "MONTH"));
+        assertThat(errors(valid().targetPeriodMonths(361)))
+                .containsExactly(range("targetPeriodMonths", 1, 360, "MONTH"));
+        assertThat(errors(valid().targetPeriodMonths(360))).isEmpty();
     }
 
     @Test
-    void rateWithThreeDecimalsIsInvalidScale() {
-        assertThat(errors(valid().savingsRateInputPct("3.255")))
-                .containsExactly(new FieldError("savingsRateInputPct", "INVALID_SCALE"));
+    void rateWithThreeDecimalsIsTooManyDecimals() {
+        assertThat(errors(valid().savingsRateInputPct("3.123")))
+                .containsExactly(new FieldError("savingsRateInputPct", "TOO_MANY_DECIMALS", null, null, null, 2));
         assertThat(errors(valid().savingsRateInputPct("3.25"))).isEmpty();
         assertThat(errors(valid().savingsRateInputPct("3.250"))).isEmpty();
     }
 
     @Test
-    void rateFiftyPointZeroOneIsOutOfRange() {
-        assertThat(errors(valid().savingsRateInputPct("50.01")))
-                .containsExactly(new FieldError("savingsRateInputPct", "OUT_OF_RANGE"));
-        assertThat(errors(valid().savingsRateInputPct("50.00"))).isEmpty();
+    void rateTwentyPointZeroOneIsOutOfRange() {
+        assertThat(errors(valid().savingsRateInputPct("20.01")))
+                .containsExactly(range("savingsRateInputPct", 0, 20, "PCT"));
+        assertThat(errors(valid().savingsRateInputPct("20.00"))).isEmpty();
     }
 
     @Test
     void missingGoalTypeGoalAmountAndHeldAssetsAreRequired() {
         assertThat(errors(valid().goalType(null).goalAmount(null).heldAssets(null))).containsExactlyInAnyOrder(
-                new FieldError("goalType", "REQUIRED"),
-                new FieldError("goalAmount", "REQUIRED"),
-                new FieldError("heldAssets", "REQUIRED"));
+                FieldError.required("goalType"),
+                FieldError.required("goalAmount"),
+                FieldError.required("heldAssets"));
     }
 
     @Test
     void customGoalNeedsName() {
         assertThat(errors(valid().goalType(GoalType.CUSTOM)))
-                .containsExactly(new FieldError("goalCustomName", "REQUIRED"));
+                .containsExactly(FieldError.required("goalCustomName"));
     }
 
     @Test
-    void blankCustomNameIsBlank() {
+    void blankCustomNameIsOutOfRange() {
         assertThat(errors(valid().goalType(GoalType.CUSTOM).goalCustomName("   ")))
-                .containsExactly(new FieldError("goalCustomName", "BLANK"));
+                .containsExactly(range("goalCustomName", 1, 100, "CHAR"));
     }
 
     @Test
@@ -102,7 +123,7 @@ class PlanInputValidatorTest {
         String hundredEmoji = "😀".repeat(100);
         assertThat(errors(valid().goalType(GoalType.CUSTOM).goalCustomName(" " + hundredEmoji + " "))).isEmpty();
         assertThat(errors(valid().goalType(GoalType.CUSTOM).goalCustomName(hundredEmoji + "가")))
-                .containsExactly(new FieldError("goalCustomName", "TOO_LONG"));
+                .containsExactly(range("goalCustomName", 1, 100, "CHAR"));
     }
 
     @Test
@@ -113,9 +134,9 @@ class PlanInputValidatorTest {
     @Test
     void periodAndMonthlySavingAreBothRequired() {
         assertThat(validator.validate(valid().targetPeriodMonths(null).build()))
-                .containsExactly(new FieldError("targetPeriodMonths", "REQUIRED"));
+                .containsExactly(FieldError.required("targetPeriodMonths"));
         assertThat(validator.validate(valid().monthlySavingAmount(null).build()))
-                .containsExactly(new FieldError("monthlySavingAmount", "REQUIRED"));
+                .containsExactly(FieldError.required("monthlySavingAmount"));
     }
 
     @Test

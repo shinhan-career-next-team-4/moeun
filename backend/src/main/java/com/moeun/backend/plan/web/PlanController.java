@@ -45,8 +45,9 @@ class PlanController {
     @PostMapping("/apply")
     PlanView apply(@AuthenticationPrincipal Jwt jwt, @RequestBody ApplyRequest request) {
         if (request.source() == null || !APPLY_SOURCES.contains(request.source())) {
-            throw new PlanValidationException(List.of(new FieldError("source",
-                    request.source() == null ? "REQUIRED" : "OUT_OF_RANGE")));
+            throw new PlanValidationException(List.of(request.source() == null
+                    ? FieldError.required("source")
+                    : FieldError.of("source", "OUT_OF_RANGE")));
         }
         return planService.apply(memberId(jwt), request.source(), request.changes(), requireRevision(
                 request.expectedRevision()));
@@ -59,7 +60,7 @@ class PlanController {
 
     private static long requireRevision(Long revision) {
         if (revision == null) {
-            throw new PlanValidationException(List.of(new FieldError("expectedRevision", "REQUIRED")));
+            throw new PlanValidationException(List.of(FieldError.required("expectedRevision")));
         }
         return revision;
     }

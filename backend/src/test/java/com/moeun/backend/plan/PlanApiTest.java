@@ -76,7 +76,7 @@ class PlanApiTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[*].field",
                         containsInAnyOrder("goalAmount", "targetPeriodMonths", "monthlySavingAmount")))
-                .andExpect(jsonPath("$.errors[*].code",
+                .andExpect(jsonPath("$.errors[*].reason",
                         containsInAnyOrder("REQUIRED", "REQUIRED", "REQUIRED")));
     }
 

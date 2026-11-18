@@ -102,7 +102,7 @@ class PlanServiceTest {
                 .isInstanceOf(PlanValidationException.class)
                 .extracting(e -> ((PlanValidationException)e).errors())
                 .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
-                .containsExactly(new FieldError("goalAmount", "REQUIRED"));
+                .containsExactly(FieldError.required("goalAmount"));
         assertThat(jdbc.sql("SELECT count(*) FROM plan_version").query(Long.class).single()).isZero();
     }
 

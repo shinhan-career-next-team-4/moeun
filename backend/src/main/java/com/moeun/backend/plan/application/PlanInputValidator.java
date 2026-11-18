@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import com.moeun.backend.plan.FieldError;
 import com.moeun.backend.plan.GoalType;
 import com.moeun.backend.plan.InputField;
+import com.moeun.backend.plan.application.PlanRules.FieldRule;
 
 /** 입력 화면 전체 검증(FR-INP-09, CP-02). 항목별 범위는 PlanRules, 항목 간 규칙은 이 클래스가 맡는다. */
 @Component
@@ -23,7 +24,7 @@ public class PlanInputValidator {
     public List<FieldError> validate(PlanInput in) {
         List<FieldError> errors = new ArrayList<>();
         if (in.goalType() == null) {
-            errors.add(new FieldError(InputField.GOAL_TYPE.apiName(), "REQUIRED"));
+            errors.add(FieldError.required(InputField.GOAL_TYPE.apiName()));
         } else if (in.goalType() == GoalType.CUSTOM) {
             checkCustomName(in.goalCustomName(), errors);
         }
@@ -35,24 +36,23 @@ public class PlanInputValidator {
         return errors;
     }
 
+    /** 길이는 앞뒤 공백을 뗀 뒤 코드포인트로 센다. 비었거나 100자를 넘으면 OUT_OF_RANGE(D-074). */
     private void checkCustomName(String name, List<FieldError> errors) {
-        String field = InputField.GOAL_CUSTOM_NAME.apiName();
         if (name == null) {
-            errors.add(new FieldError(field, "REQUIRED"));
+            errors.add(FieldError.required(InputField.GOAL_CUSTOM_NAME.apiName()));
             return;
         }
         String trimmed = name.strip();
-        if (trimmed.isEmpty()) {
-            errors.add(new FieldError(field, "BLANK"));
-        } else if (trimmed.codePointCount(0, trimmed.length())
-                > rules.fields().get(InputField.GOAL_CUSTOM_NAME).max().intValue()) {
-            errors.add(new FieldError(field, "TOO_LONG"));
+        int length = trimmed.codePointCount(0, trimmed.length());
+        FieldRule rule = rules.fields().get(InputField.GOAL_CUSTOM_NAME);
+        if (length < rule.min().intValue() || length > rule.max().intValue()) {
+            errors.add(FieldError.outOfRange(InputField.GOAL_CUSTOM_NAME, rule));
         }
     }
 
     private void checkRequired(InputField field, Number value, List<FieldError> errors) {
         if (value == null) {
-            errors.add(new FieldError(field.apiName(), "REQUIRED"));
+            errors.add(FieldError.required(field.apiName()));
             return;
         }
         checkOptional(field, value, errors);
@@ -63,6 +63,6 @@ public class PlanInputValidator {
             return;
         }
         BigDecimal decimal = value instanceof BigDecimal d ? d : new BigDecimal(value.toString());
-        rules.check(field, decimal).ifPresent(code -> errors.add(new FieldError(field.apiName(), code)));
+        rules.check(field, decimal).ifPresent(errors::add);
     }
 }

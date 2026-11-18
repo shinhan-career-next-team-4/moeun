@@ -28,20 +28,20 @@ public class ConditionValidator {
     public List<FieldError> validate(ChangePath path, ConditionOverride changes) {
         Map<InputField, BigDecimal> changed = changedFields(changes);
         if (changed.isEmpty()) {
-            return List.of(new FieldError(CHANGES, "REQUIRED"));
+            return List.of(FieldError.required(CHANGES));
         }
         PlanRules.PathRule pathRule = rules.changePaths().get(path);
         List<FieldError> errors = new ArrayList<>();
         if (pathRule.maxFields() > 0 && changed.size() > pathRule.maxFields()) {
-            errors.add(new FieldError(CHANGES, "TOO_MANY_CHANGES"));
+            errors.add(FieldError.of(CHANGES, "TOO_MANY_CHANGES"));
             return errors;
         }
         changed.forEach((field, value) -> {
             if (!pathRule.allows(field)) {
-                errors.add(new FieldError(field.apiName(), "FIELD_NOT_CHANGEABLE"));
+                errors.add(FieldError.of(field.apiName(), "NOT_CHANGEABLE"));
                 return;
             }
-            rules.check(field, value).ifPresent(code -> errors.add(new FieldError(field.apiName(), code)));
+            rules.check(field, value).ifPresent(errors::add);
         });
         return errors;
     }
