@@ -4,10 +4,12 @@ S&P500 지수 데이터는 이용 조건(TBD-08) 때문에 레포에 올리지 �
 backend/data/seed/sp500-monthly.csv에 두면 서버가 뜰 때 적재한다. 받는 방법은 src/main/resources/seed/README.md.
 
 지원하는 원본
-- Stooq 월별: Date,Open,High,Low,Close,Volume (행 날짜가 그 달의 마지막 거래일)
-- FRED 일별: observation_date,SP500 (빈 값은 "." 또는 빈칸) → 달마다 마지막 값
+- Investing.com 한국어 월별·일별: "날짜","종가",... (날짜 "2016- 10- 01", 숫자 "2,126.20", 최근 날짜부터)
+- Stooq 일별·월별: Date,Open,High,Low,Close,Volume
+- FRED 일별: observation_date,SP500 (빈 값은 "." 또는 빈칸)
+어느 원본이든 달마다 가장 늦은 날짜의 종가를 그 달 값으로 쓴다(월별 파일은 한 달에 한 줄이라 그 줄이 쓰인다).
 
-사용: python3 backend/scripts/refdata/convert_sp500.py --input ~/Downloads/spx_m.csv
+사용: python3 backend/scripts/refdata/convert_sp500.py --input "$HOME/Downloads/S&P 500 과거 데이터.csv"
 """
 import argparse
 import csv
@@ -30,6 +32,8 @@ class ConversionError(Exception):
 def detect_columns(header):
     """원본 종류와 (날짜 열, 종가 열) 위치를 찾는다."""
     names = [name.strip() for name in header]
+    if "날짜" in names and "종가" in names:
+        return "Investing.com", names.index("날짜"), names.index("종가")
     if "Date" in names and "Close" in names:
         return "Stooq", names.index("Date"), names.index("Close")
     for date_name in ("observation_date", "DATE"):
@@ -53,8 +57,9 @@ def read_month_end_closes(path):
         if text in ("", "."):
             continue
         try:
-            day = datetime.date.fromisoformat(row[date_index].strip())
-            close = Decimal(text)
+            # Investing.com은 날짜를 "2016- 10- 01", 숫자를 "2,126.20"처럼 쓴다
+            day = datetime.date.fromisoformat(row[date_index].replace(" ", ""))
+            close = Decimal(text.replace(",", ""))
         except (ValueError, InvalidOperation):
             raise ConversionError("cannot read row: " + ",".join(row))
         month = day.strftime("%Y-%m")
@@ -91,7 +96,7 @@ def convert(input_path, output_path, end_month, months, today):
         raise ConversionError("missing months: " + ", ".join(missing))
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as file:
-        file.write("# S&P500 월말 종가(달러 지수, 분배금 제외). 이용 조건 때문에 레포에 올리지 않는다(TBD-08).\n")
+        file.write("# S&P500 지수 월말 종가(달러, 가격 지수). 이용 조건 때문에 레포에 올리지 않는다(TBD-08).\n")
         file.write(f"# 원본: {source}, 변환일: {today.isoformat()}, 기간: {wanted[0]} ~ {wanted[-1]}\n")
         file.write("ym,close_value\n")
         for month in wanted:
@@ -100,7 +105,7 @@ def convert(input_path, output_path, end_month, months, today):
 
 def main():
     parser = argparse.ArgumentParser(description="S&P500 원본 CSV → 시드 CSV(ym,close_value)")
-    parser.add_argument("--input", required=True, help="받은 원본 CSV 경로(Stooq 월별 또는 FRED 일별)")
+    parser.add_argument("--input", required=True, help="받은 원본 CSV 경로(Investing.com, Stooq, FRED)")
     parser.add_argument("--output", default=DEFAULT_OUTPUT, help="결과 경로(기본: backend/data/seed/sp500-monthly.csv)")
     parser.add_argument("--end-month", default=DEFAULT_END_MONTH, help="마지막 달(yyyy-MM). 팀 모두 같은 값을 써야 같은 데이터가 된다")
     parser.add_argument("--months", type=int, default=DEFAULT_MONTHS, help="남길 개월 수")
