@@ -19,7 +19,7 @@ class PlanExceptionHandler {
     @ExceptionHandler(PlanValidationException.class)
     ProblemDetail validation(PlanValidationException exception) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, "입력값을 확인해 주세요.");
-        problem.setProperty("code", "VALIDATION_FAILED");
+        problem.setProperty("code", exception.code());
         problem.setProperty("errors", exception.errors());
         return problem;
     }

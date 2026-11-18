@@ -17,7 +17,8 @@ import com.moeun.backend.plan.application.PlanRules;
 @Component
 public class ConditionValidator {
 
-    private static final String CHANGES = "changes";
+    /** 계약 C12a의 요청 키. 바꿀 값이 하나도 없을 때 errors의 field로 쓴다. */
+    private static final String CHANGES = "conditionChanges";
 
     private final PlanRules rules;
 
