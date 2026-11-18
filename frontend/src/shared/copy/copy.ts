@@ -30,7 +30,7 @@ export const COPY = {
   "excluded.HELD_ASSET_RETURN": "보유 자산의 수익은 반영하지 않았어요",
   "excluded.SAVINGS_REDEPOSIT": "적금 만기 후 재예치는 반영하지 않았어요",
   "scenarioMethod.CAGR": "과거 데이터의 연평균 수익률을 기준으로 세 구간을 나눠 계산했어요",
-  "scenarioMethod.ROLLING_DISTRIBUTION": "과거 데이터를 기간별로 굴려 본 수익률 분포를 기준으로 세 구간을 나눠 계산했어요",
+  "scenarioMethod.ROLLING_DISTRIBUTION": "과거 10년 동안의 한 달 수익률을 무작위로 이어 붙여 1만 가지 경우를 계산하고, 그중 하위 10%·평균·상위 90%를 세 구간으로 보여 드려요",
   "validation.REQUIRED": "값을 입력해 주세요",
   "validation.OUT_OF_RANGE": "{min}~{max} 사이로 입력해 주세요",
   "validation.NOT_INTEGER": "정수로 입력해 주세요",
