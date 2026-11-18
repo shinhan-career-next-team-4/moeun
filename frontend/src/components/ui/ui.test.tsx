@@ -96,6 +96,17 @@ describe("Toggle", () => {
     await userEvent.click(toggle);
     expect(onChange).toHaveBeenCalledWith(true);
   });
+
+  it.each([
+    [false, "translate-x-0"],
+    [true, "translate-x-5"],
+  ])("checked=%s면 손잡이가 트랙 왼쪽 기준으로 %s만큼 움직인다", (checked, translate) => {
+    render(<Toggle label="이미 저축 중이에요" checked={checked} onChange={vi.fn()} />);
+    const knob = screen.getByRole("switch", { name: "이미 저축 중이에요" }).querySelector("span > span");
+
+    // left를 빼면 button의 text-align: center를 물려받아 트랙 가운데에서 출발한다
+    expect(knob).toHaveClass("left-0.5", translate);
+  });
 });
 
 describe("Modal", () => {
