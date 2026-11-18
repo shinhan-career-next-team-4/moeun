@@ -8,11 +8,13 @@ import java.util.Map;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.moeun.backend.calc.CurrentPlanResultService;
 import com.moeun.backend.calc.application.SavePlanUseCase;
 import com.moeun.backend.plan.FieldError;
 import com.moeun.backend.plan.GoalType;
@@ -21,7 +23,8 @@ import com.moeun.backend.plan.PlanInput;
 import tools.jackson.databind.JsonNode;
 
 /**
- * 내 계획 입력 저장 REST(P-3, 계약 C12a-5). {@code /internal/calc} 컨트롤러와 다른 클래스다.
+ * 내 계획 조회·입력 저장 REST(P-4 {@code GET}, P-3 {@code PUT}, 계약 C12a-5·C12a-6). {@code /internal/calc} 컨트롤러와
+ * 다른 클래스다. 두 엔드포인트가 같은 화면 전용 PlanView를 돌려준다.
  * <p>본문을 {@link JsonNode}로 받는다. 키 없음과 null을 구분하고, {@code 300000.5}가 정수로 잘려 통과하지 않게 하려는 것이다.
  * 여기서는 형식(400)과 null 허용 키의 존재(422 REQUIRED)만 보고, 값 범위 검증은 plan 저장 서비스가 한다.
  */
@@ -40,9 +43,23 @@ class PlanResultController {
             "monthlySavingAmount", SAVINGS_RATE_INPUT_PCT);
 
     private final SavePlanUseCase savePlanUseCase;
+    private final CurrentPlanResultService resultService;
 
-    PlanResultController(SavePlanUseCase savePlanUseCase) {
+    PlanResultController(SavePlanUseCase savePlanUseCase, CurrentPlanResultService resultService) {
         this.savePlanUseCase = savePlanUseCase;
+        this.resultService = resultService;
+    }
+
+    /**
+     * 현재 계획과 결과(P-4). 결과 조회 서비스가 계획을 한 번만 읽고 그 버전의 calc_run(PLAN)을 쓰거나 없으면 계산·기록한다.
+     * 응답은 그 스냅샷 하나로 만들고 계획을 따로 다시 읽지 않는다(C12a-6-3). 서비스의 트랜잭션은 읽기 전용이 아니다.
+     * 재로그인해도 기준 데이터가 그대로면 같은 기록(같은 calcRunId)을 쓴다(D-010, C12a-6-6).
+     */
+    @GetMapping
+    PlanResultResponse findCurrentPlan(@AuthenticationPrincipal Jwt jwt) {
+        return resultService.findForCurrentPlan(memberId(jwt))
+                .map(PlanResultResponse::from)
+                .orElseThrow(NoPlanException::new);
     }
 
     @PutMapping
