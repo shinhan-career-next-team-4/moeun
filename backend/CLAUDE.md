@@ -20,7 +20,7 @@ Java 21 · Spring Boot 4.1 · Spring Modulith 2.1(이벤트 기반) · PostgreSQ
 | `refdata` | 기준 데이터와 버전 | data_version, savings_avg_rate, sp500_monthly, calc_param | — |
 | `calc` | 계산 엔진, 계산 기록, `/internal/calc` | calc_run | plan, refdata |
 | `rag` | 인용 출처 조회(읽기 전용) | source_org, rag_document, rag_chunk, chunk_embedding | — |
-| `chat` | 대화 저장, ai-server 비동기 호출 | chat_message, chat_message_citation | calc, rag |
+| `chat` | 대화 저장, ai-server 비동기 호출 | chat_message, chat_message_citation | calc, rag, plan, auth, config :: copy |
 
 `config`는 보안 같은 앱 전역 설정이다. 의존 방향의 기준은 각 모듈의 `package-info.java`이며, 바꿀 때는 이 표도 같이 고친다.
 

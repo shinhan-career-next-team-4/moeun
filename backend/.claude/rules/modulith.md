@@ -23,6 +23,7 @@ paths:
 - 발행은 트랜잭션 안에서 `ApplicationEventPublisher`로 한다.
 - 수신은 `@ApplicationModuleListener`로 한다(커밋 후, 비동기, 새 트랜잭션).
   - 이벤트는 `event_publication`에 기록되고 재기동 시 다시 처리된다. 그래서 리스너는 같은 이벤트를 두 번 받아도 결과가 같아야 한다.
+  - 예외: 외부 HTTP를 부르는 리스너는 트랜잭션 없이 돈다(`@ApplicationModuleListener(propagation = NOT_SUPPORTED)`). 호출이 끝날 때까지 DB 커넥션·트랜잭션을 붙들지 않도록 읽기와 저장을 각각 짧은 트랜잭션으로 나눈다.
 - 같은 트랜잭션이 꼭 필요하고 의존 방향이 허용되면 이벤트 대신 직접 호출한다.
 
 ### 이벤트 목록
