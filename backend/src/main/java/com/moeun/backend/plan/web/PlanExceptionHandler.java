@@ -34,7 +34,6 @@ class PlanExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, detail);
         problem.setProperty("code", exception.code());
         problem.setProperty("errors", List.of());
-        problem.setProperty("plan", exception.current().orElse(null));
         return problem;
     }
 }
