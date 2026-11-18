@@ -4,6 +4,7 @@ import static com.epages.restdocs.apispec.MockMvcRestDocumentationWrapper.docume
 import static com.epages.restdocs.apispec.ResourceDocumentation.resource;
 import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWithPath;
 import static org.springframework.restdocs.payload.PayloadDocumentation.subsectionWithPath;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -80,6 +81,38 @@ class PlanResultDocsTest {
                                 fieldWithPath("baselineResultScenario").description("결과 요약 시나리오. 초과면 null")
                                         .optional(),
                                 subsectionWithPath("plan").description("사용자가 입력한 원래 값(원 단위, nullable 그대로)"),
+                                fieldWithPath("result.status").description("CALCULATED / ALREADY_EXCEEDED"),
+                                fieldWithPath("result.goalAmount").description("목표 금액(그래프 목표선)"),
+                                fieldWithPath("result.calcStartMonth").description("계산 시작월(yyyy-MM)"),
+                                fieldWithPath("result.targetMonth").description("목표월(yyyy-MM)"),
+                                subsectionWithPath("result.scenarios")
+                                        .description("GOOD·AVG·BAD(ETF 0%면 AVG). monthlyPoints는 month·afterTaxAsset만"),
+                                subsectionWithPath("result.assumptions").description("가정 보기"),
+                                subsectionWithPath("display").description("표시 문자열 맵(C1a-6 키·형식)"))
+                        .build())));
+    }
+
+    @Test
+    void currentPlanDoc() throws Exception {
+        mockMvc.perform(put("/api/plan").cookie(cookie).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedRevision\":null,\"goalType\":\"HOUSE\",\"goalCustomName\":null,"
+                                + "\"goalAmount\":20000000,\"targetPeriodMonths\":36,\"heldAssets\":5000000,"
+                                + "\"monthlySavingAmount\":300000,\"savingsRateInputPct\":null}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/plan").cookie(cookie))
+                .andExpect(status().isOk())
+                .andDo(document("plan-current", resource(ResourceSnippetParameters.builder()
+                        .tag("calc").summary("현재 계획과 결과 조회")
+                        .description("로그인 후 진입·새로고침 때 부른다. 계획이 없으면 409 NO_PLAN. 계획을 한 번만 읽어 "
+                                + "그 버전의 calc_run(PLAN)을 쓰고, 없으면 계산·기록한다. 같은 revision 동안 calcRunId가 같다. "
+                                + "응답은 PUT /api/plan과 같은 PlanView다.")
+                        .responseFields(
+                                fieldWithPath("revision").description("현재 계획 revision"),
+                                fieldWithPath("calcRunId").description("이 결과의 calc_run(PLAN) id"),
+                                fieldWithPath("baselineResultScenario").description("결과 요약 시나리오. 초과면 null")
+                                        .optional(),
+                                subsectionWithPath("plan").description("저장된 입력값(원 단위, nullable 그대로)"),
                                 fieldWithPath("result.status").description("CALCULATED / ALREADY_EXCEEDED"),
                                 fieldWithPath("result.goalAmount").description("목표 금액(그래프 목표선)"),
                                 fieldWithPath("result.calcStartMonth").description("계산 시작월(yyyy-MM)"),

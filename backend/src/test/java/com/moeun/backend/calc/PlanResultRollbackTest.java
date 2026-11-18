@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -105,5 +106,19 @@ class PlanResultRollbackTest {
 
         assertThat(count("plan_version")).isEqualTo(1);
         assertThat(jdbc.sql("SELECT revision FROM plan").query(Long.class).single()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("현재 계획 조회(GET)에서 계산이 실패하면 500 INTERNAL_ERROR이고 errors는 []다(#31)")
+    void returnsInternalErrorWhenQueryCalculationFails() throws Exception {
+        saveService.save(memberId, valid().build(), null);
+        await().atMost(Duration.ofSeconds(20)).until(() -> jdbc.sql(
+                "SELECT count(*) FROM event_publication WHERE completion_date IS NULL")
+                .query(Long.class).single() == 0);
+
+        mockMvc.perform(get("/api/plan").cookie(cookie))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.errors").isEmpty());
     }
 }
