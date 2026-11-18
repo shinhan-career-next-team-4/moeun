@@ -38,13 +38,14 @@ chat:
     savingsRateInputPct: "적금 금리를 바꿔 보고 싶어요"
     targetPeriodMonths: "목표 기간을 바꿔 보고 싶어요"
 
-# 표시 템플릿(Formatter #28이 읽는다, 임시). 금액·비중은 Formatter가 붙인다
+# 표시 템플릿(Formatter #28이 읽는다). 금액·비중은 Formatter가 붙인다.
+# 금액 뒤에 붙는 짧은 라벨이다: "-약 288만원 미달", "약 789만원 증가"(계약 C2-6, D-055). 문장형으로 바꾸면 계약 fixture와 어긋난다
 template:
-  achieved: "목표를 달성해요"
-  missed: "목표에 닿지 못해요"
-  increase: "늘어요"
-  decrease: "줄어요"
-  unchanged: "변화가 없어요"
+  achieved: "달성"
+  missed: "미달"
+  increase: "증가"
+  decrease: "감소"
+  unchanged: "변화 없음"
   ratio: "적금 {a} : ETF {b}"
 
 # 오류 title(/internal/calc 오류 코드 7개, 임시)
