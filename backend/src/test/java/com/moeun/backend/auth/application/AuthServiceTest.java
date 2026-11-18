@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -37,7 +37,7 @@ class AuthServiceTest {
 
     private final MemberRepository repository = mock(MemberRepository.class);
     private final RecordingEncoder encoder = new RecordingEncoder();
-    private final AuthService service = new AuthService(repository, encoder, mock(JdbcClient.class));
+    private final AuthService service = new AuthService(repository, encoder, mock(ApplicationEventPublisher.class));
 
     @Test
     void unknownIdStillComparesAgainstDummyHash() {

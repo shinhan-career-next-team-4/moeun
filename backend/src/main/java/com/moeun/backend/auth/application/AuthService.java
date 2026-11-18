@@ -2,11 +2,13 @@ package com.moeun.backend.auth.application;
 
 import java.util.Optional;
 
-import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.moeun.backend.auth.MemberLoggedIn;
+import com.moeun.backend.auth.MemberLoggedOut;
 import com.moeun.backend.auth.domain.Member;
 import com.moeun.backend.auth.domain.MemberRepository;
 
@@ -16,13 +18,13 @@ public class AuthService {
 
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JdbcClient jdbcClient;
+    private final ApplicationEventPublisher events;
     private final String dummyHash;
 
-    AuthService(MemberRepository memberRepository, PasswordEncoder passwordEncoder, JdbcClient jdbcClient) {
+    AuthService(MemberRepository memberRepository, PasswordEncoder passwordEncoder, ApplicationEventPublisher events) {
         this.memberRepository = memberRepository;
         this.passwordEncoder = passwordEncoder;
-        this.jdbcClient = jdbcClient;
+        this.events = events;
         this.dummyHash = passwordEncoder.encode("dummy-password-for-timing");
     }
 
@@ -37,15 +39,14 @@ public class AuthService {
         return member.filter(found -> matches);
     }
 
-    public Member findMember(long memberId) {
-        return memberRepository.findById(memberId).orElseThrow();
+    /** 로그인 성공을 알린다. 동기 리스너가 실패하면 예외가 그대로 올라가 로그인도 실패한다. 리스너와 같은 트랜잭션이다. */
+    @Transactional
+    public void loggedIn(long memberId) {
+        events.publishEvent(new MemberLoggedIn(memberId));
     }
 
-    /** plan 모듈에 의존하지 않으려고 plan 테이블을 직접 조회한다. */
-    public boolean hasPlan(long memberId) {
-        return jdbcClient.sql("SELECT EXISTS (SELECT 1 FROM plan WHERE member_id = ?)")
-                .param(memberId)
-                .query(Boolean.class)
-                .single();
+    @Transactional
+    public void loggedOut(long memberId) {
+        events.publishEvent(new MemberLoggedOut(memberId));
     }
 }

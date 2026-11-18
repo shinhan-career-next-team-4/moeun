@@ -60,7 +60,7 @@ class PlanApiTest {
     }
 
     @Test
-    void postPlanReturnsViewAndThenMeHasPlanTrue() throws Exception {
+    void postPlanReturnsViewAndThenGetReturnsIt() throws Exception {
         postJson("/api/plan", VALID_PLAN)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.goalAmount").value(50_000_000))
@@ -68,7 +68,6 @@ class PlanApiTest {
                 .andExpect(jsonPath("$.canUndo").value(false))
                 .andExpect(jsonPath("$.baselineScenario").value("AVG"));
 
-        mockMvc.perform(get("/api/auth/me").cookie(cookie)).andExpect(jsonPath("$.hasPlan").value(true));
         mockMvc.perform(get("/api/plan").cookie(cookie)).andExpect(jsonPath("$.monthlySaving").value(1_200_000));
     }
 

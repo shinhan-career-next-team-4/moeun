@@ -3,6 +3,7 @@ package com.moeun.backend.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -19,6 +20,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -34,12 +37,16 @@ import jakarta.servlet.http.Cookie;
 @SpringBootTest(properties = "moeun.demo.accounts=demo01:pw-123456")
 @AutoConfigureMockMvc
 @Import(TestcontainersConfig.class)
+@RecordApplicationEvents
 class AuthApiTest {
 
     private static final String WRONG_LOGIN_MESSAGE = "아이디 또는 비밀번호를 확인해 주세요.";
 
     @Autowired
     MockMvc mockMvc;
+
+    @Autowired
+    ApplicationEvents events;
 
     @Autowired
     MemberRepository memberRepository;
@@ -58,11 +65,10 @@ class AuthApiTest {
     }
 
     @Test
-    void loginWithCorrectPasswordSetsCookieAndReturnsHasPlanFalse() throws Exception {
+    void loginWithCorrectPasswordSetsCookieAndReturnsEmptyBody() throws Exception {
         MvcResult result = login("demo01", "pw-123456")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.loginId").value("demo01"))
-                .andExpect(jsonPath("$.hasPlan").value(false))
+                .andExpect(content().json("{}"))
                 .andReturn();
 
         assertThat(result.getResponse().getHeader(HttpHeaders.SET_COOKIE))
@@ -120,19 +126,56 @@ class AuthApiTest {
     }
 
     @Test
-    void meWithCookieReturnsLoginId() throws Exception {
-        Cookie cookie = loginCookie();
+    void meEndpointIsGone() throws Exception {
+        mockMvc.perform(get("/api/auth/me").cookie(loginCookie())).andExpect(status().isNotFound());
+    }
 
-        mockMvc.perform(get("/api/auth/me").cookie(cookie))
+    @Test
+    void loginPublishesMemberLoggedIn() throws Exception {
+        login("demo01", "pw-123456").andExpect(status().isOk());
+
+        long memberId = memberRepository.findByLoginId("demo01").orElseThrow().getId();
+        assertThat(events.stream(MemberLoggedIn.class)).extracting(MemberLoggedIn::memberId).contains(memberId);
+    }
+
+    @Test
+    void failedLoginPublishesNothing() throws Exception {
+        login("demo01", "wrong").andExpect(status().isUnauthorized());
+
+        assertThat(events.stream(MemberLoggedIn.class)).isEmpty();
+    }
+
+    @Test
+    void loginWithValidCookieStillHasExactlyOneSetCookie() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/auth/login")
+                        .cookie(loginCookie())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"loginId\":\"demo01\",\"password\":\"pw-123456\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.loginId").value("demo01"))
-                .andExpect(jsonPath("$.hasPlan").value(false));
+                .andReturn();
+
+        assertThat(result.getResponse().getHeaders(HttpHeaders.SET_COOKIE)).hasSize(1);
+    }
+
+    @Test
+    void logoutWithoutCookieIs401Unauthenticated() throws Exception {
+        mockMvc.perform(post("/api/auth/logout"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+    }
+
+    @Test
+    void logoutPublishesMemberLoggedOut() throws Exception {
+        mockMvc.perform(post("/api/auth/logout").cookie(loginCookie())).andExpect(status().isOk());
+
+        assertThat(events.stream(MemberLoggedOut.class)).hasSize(1);
     }
 
     @Test
     void logoutExpiresCookie() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/logout").cookie(loginCookie()))
-                .andExpect(status().isNoContent())
+                .andExpect(status().isOk())
+                .andExpect(content().json("{}"))
                 .andReturn();
 
         assertThat(result.getResponse().getHeaders(HttpHeaders.SET_COOKIE))

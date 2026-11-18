@@ -3,7 +3,6 @@ package com.moeun.backend.docs;
 import static com.epages.restdocs.apispec.MockMvcRestDocumentationWrapper.document;
 import static com.epages.restdocs.apispec.ResourceDocumentation.resource;
 import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWithPath;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -41,39 +40,22 @@ class AuthDocsTest {
                         resource(ResourceSnippetParameters.builder()
                                 .tag("Auth")
                                 .summary("데모 계정 로그인")
-                                .description("성공하면 moeun_at(HttpOnly) 쿠키를 발급한다. 실패하면 401.")
+                                .description("성공하면 본문 {}와 moeun_at(HttpOnly) 쿠키를 발급한다. 실패하면 401 INVALID_CREDENTIALS.")
                                 .requestFields(
                                         fieldWithPath("loginId").description("아이디"),
                                         fieldWithPath("password").description("비밀번호"))
-                                .responseFields(
-                                        fieldWithPath("loginId").description("아이디"),
-                                        fieldWithPath("hasPlan").description("저장된 내 계획이 있는지"))
                                 .build())));
     }
 
     @Test
     void logout() throws Exception {
         mockMvc.perform(post("/api/auth/logout").cookie(loginCookie()))
-                .andExpect(status().isNoContent())
+                .andExpect(status().isOk())
                 .andDo(document("auth-logout",
                         resource(ResourceSnippetParameters.builder()
                                 .tag("Auth")
                                 .summary("로그아웃")
                                 .description("moeun_at 쿠키를 지운다.")
-                                .build())));
-    }
-
-    @Test
-    void me() throws Exception {
-        mockMvc.perform(get("/api/auth/me").cookie(loginCookie()))
-                .andExpect(status().isOk())
-                .andDo(document("auth-me",
-                        resource(ResourceSnippetParameters.builder()
-                                .tag("Auth")
-                                .summary("로그인 상태 확인")
-                                .responseFields(
-                                        fieldWithPath("loginId").description("아이디"),
-                                        fieldWithPath("hasPlan").description("저장된 내 계획이 있는지"))
                                 .build())));
     }
 
