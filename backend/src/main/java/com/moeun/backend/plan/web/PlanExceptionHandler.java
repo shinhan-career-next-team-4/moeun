@@ -13,7 +13,8 @@ import com.moeun.backend.plan.application.PlanConflictException;
 import com.moeun.backend.plan.application.PlanValidationException;
 
 @Order(Ordered.HIGHEST_PRECEDENCE)   // 공통 처리기(config)의 포괄 처리보다 먼저 본다
-@RestControllerAdvice(basePackageClasses = PlanController.class)
+// 입력 저장(PUT /api/plan, calc.web)도 plan 저장 서비스를 부르므로 컨트롤러를 가리지 않고 plan 예외를 바꾼다(#30)
+@RestControllerAdvice
 class PlanExceptionHandler {
 
     @ExceptionHandler(PlanValidationException.class)
