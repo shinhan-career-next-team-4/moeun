@@ -7,7 +7,8 @@ import { RESULT_PATH } from "../../app/routes";
 import { COPY } from "../../shared/copy/copy";
 import { Button, ChipGroup, FieldError, UnitInput } from "../../shared/ui";
 import { formatFieldError, goalLabel, type ServerFieldError } from "../../shared/units/units";
-import { buildPutPlanBody, emptyForm, FIELD_ORDER, validateClientForm } from "./formState";
+import type { ResultPlanView } from "../result/types";
+import { buildPutPlanBody, emptyForm, FIELD_ORDER, formFromPlan, validateClientForm } from "./formState";
 import { GOAL_TYPES, type FormErrors, type FormField, type GoalType, type PlanForm } from "./types";
 
 const FIELD_ELEMENT_ID: Record<FormField, string> = {
@@ -23,14 +24,19 @@ const GOAL_OPTIONS = GOAL_TYPES.map((code) => ({ value: code, label: goalLabel(c
 
 export function PlanInputPage() {
   const navigate = useNavigate();
-  const [ready, setReady] = useState(false);
+  const initialSlot = planStore.getState().view;
+  const initialView = initialSlot ? (initialSlot.body as ResultPlanView) : null;
+
+  const [ready, setReady] = useState(initialView !== null);
+  const [existingView, setExistingView] = useState<ResultPlanView | null>(initialView);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [form, setForm] = useState<PlanForm>(emptyForm);
+  const [form, setForm] = useState<PlanForm>(() => (initialView ? formFromPlan(initialView.plan) : emptyForm()));
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    if (initialView !== null) return;
     let active = true;
     planStore
       .loadPlan()
@@ -40,6 +46,7 @@ export function PlanInputPage() {
           navigate(RESULT_PATH, { replace: true });
           return;
         }
+        setExistingView(null);
         setReady(true);
       })
       .catch((caught) => {
@@ -50,7 +57,7 @@ export function PlanInputPage() {
     return () => {
       active = false;
     };
-  }, [navigate]);
+  }, [initialView, navigate]);
 
   if (loadError) {
     return (
@@ -115,6 +122,10 @@ export function PlanInputPage() {
   }
 
   const errorCount = Object.keys(errors).length;
+  const recheckNotice = existingView
+    ? COPY["input.heldAssetsRecheck"].replace("{calcStartMonth}", existingView.display["calcStartMonth"] ?? "")
+    : null;
+  const currentRatioText = existingView?.display["conditions.savingsRatioPct"] ?? null;
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
@@ -124,9 +135,13 @@ export function PlanInputPage() {
         className="mx-auto flex w-full max-w-2xl flex-col gap-8 rounded-2xl bg-surface p-8 shadow-sm"
       >
         <header className="flex flex-col gap-1">
-          <h1 className="text-xl font-bold text-text">새 목표 세우기</h1>
+          <h1 className="text-xl font-bold text-text">{existingView ? "입력 수정" : "새 목표 세우기"}</h1>
           <p className="text-sm text-text-muted">목표 금액과 기간, 월 저축 가능 금액을 입력해 주세요.</p>
         </header>
+
+        {recheckNotice && (
+          <p className="rounded-lg bg-primary-soft px-4 py-3 text-sm text-primary-strong">{recheckNotice}</p>
+        )}
 
         {errorCount > 0 && (
           <p role="alert" className="rounded-lg bg-surface-muted px-4 py-3 text-sm text-danger">
@@ -230,6 +245,12 @@ export function PlanInputPage() {
             help="연, 세전 기준"
           />
         </section>
+
+        {currentRatioText && (
+          <p className="rounded-lg bg-surface-muted px-4 py-3 text-sm text-text-muted">
+            {COPY["input.currentRatioLabel"]}: <strong className="text-text">{currentRatioText}</strong>
+          </p>
+        )}
 
         {submitError && (
           <p role="alert" className="text-sm text-danger">

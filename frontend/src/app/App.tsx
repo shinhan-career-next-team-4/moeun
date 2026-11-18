@@ -4,6 +4,7 @@ import { api } from "../api";
 import { ApiError } from "../api/errors";
 import { LoginPage } from "../features/auth";
 import { PlanInputPage } from "../features/input";
+import { ResultPage } from "../features/result";
 import { COPY } from "../shared/copy/copy";
 import { Button } from "../shared/ui";
 import { INPUT_PATH, LOGIN_PATH, RESULT_PATH } from "./routes";
@@ -51,24 +52,13 @@ function Layout() {
   );
 }
 
-function ResultPlaceholder() {
-  return (
-    <div className="mx-auto max-w-2xl px-6 py-10">
-      <div className="rounded-2xl bg-surface p-8 shadow-sm">
-        <h1 className="text-xl font-bold text-text">계산 결과</h1>
-        <p className="mt-2 text-sm text-text-muted">결과 화면(#49·#50)은 다음 PR에서 이어집니다.</p>
-      </div>
-    </div>
-  );
-}
-
 export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
         <Route path={INPUT_PATH} element={<PlanInputPage />} />
         <Route path={LOGIN_PATH} element={<LoginPage />} />
-        <Route path={RESULT_PATH} element={<ResultPlaceholder />} />
+        <Route path={RESULT_PATH} element={<ResultPage />} />
         <Route path="*" element={<Navigate to={INPUT_PATH} replace />} />
       </Route>
     </Routes>
