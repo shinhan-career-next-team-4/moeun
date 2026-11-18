@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -26,6 +28,7 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/auth")
 class AuthController {
 
+    private static final Logger LOG = LoggerFactory.getLogger(AuthController.class);
     private static final String WRONG_LOGIN_MESSAGE = "아이디 또는 비밀번호를 확인해 주세요.";
 
     private final AuthService authService;
@@ -49,9 +52,11 @@ class AuthController {
         long memberId = member.get().getId();
         authService.loggedIn(memberId);
         String token = tokenService.issue(memberId);
-        return ResponseEntity.ok()
+        ResponseEntity<Map<String, Object>> response = ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, tokenService.tokenCookie(token).toString())
                 .body(Map.of());
+        LOG.info("auth.login memberId={}", memberId);
+        return response;
     }
 
     @SkipRenewal
