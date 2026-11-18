@@ -2,6 +2,7 @@ package com.moeun.backend.calc.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 import java.math.BigDecimal;
 import java.time.YearMonth;
@@ -272,6 +273,51 @@ class CalcEngineTest {
         assertThat(result.status()).isEqualTo(CalcStatus.ALREADY_EXCEEDED);
         assertThat(result.scenarios()).isEmpty();
         assertThat(result.targetMonth()).isEqualTo(START_MONTH.plusMonths(36));
+    }
+
+    @Test
+    @DisplayName("조건 해석 결과로 계산하면 기본금리 사용 여부·기준월이 가정 보기에, 금리 버전이 데이터 버전에 남는다")
+    void recordsDefaultSavingsRateFromResolvedConditions() {
+        ConditionResolver.ResolvedConditions resolved = new ConditionResolver.ResolvedConditions(
+                createInput(30_000_000L, 36, 0L, HALF_PCT), true, YearMonth.of(2026, 10), 11L);
+
+        CalcResult result = engine.calculate(resolved, PARAMS, SP500);
+
+        assertThat(result.assumptions().isDefaultSavingsRate()).isTrue();
+        assertThat(result.assumptions().savingsRateBaseMonth()).isEqualTo(YearMonth.of(2026, 10));
+        assertThat(result.dataVersions().savingsRateVersionId()).isEqualTo(11L);
+        assertThat(result.scenarios()).isEqualTo(engine.calculate(resolved.input(), PARAMS, SP500).scenarios());
+    }
+
+    @Test
+    @DisplayName("사용자가 넣은 금리면 기본금리 정보가 비고, 데이터 버전만 미리 구해도 계산 결과의 버전과 같다")
+    void determinesSameVersionsWithoutRunningBootstrap() {
+        ConditionResolver.ResolvedConditions entered = new ConditionResolver.ResolvedConditions(
+                createInput(30_000_000L, 36, 0L, HALF_PCT), false, null, null);
+        ConditionResolver.ResolvedConditions exceeded = new ConditionResolver.ResolvedConditions(
+                createInput(10_000_000L, 36, 12_000_000L, HALF_PCT), true, YearMonth.of(2026, 10), 11L);
+        ConditionResolver.ResolvedConditions savingsOnly = new ConditionResolver.ResolvedConditions(
+                createSavingsOnlyInput(36, 0L), true, YearMonth.of(2026, 10), 11L);
+
+        for (ConditionResolver.ResolvedConditions resolved : List.of(entered, exceeded, savingsOnly)) {
+            assertThat(engine.determineDataVersions(resolved, PARAMS, SP500))
+                    .isEqualTo(engine.calculate(resolved, PARAMS, SP500).dataVersions());
+        }
+        assertThat(engine.calculate(entered, PARAMS, SP500).assumptions().isDefaultSavingsRate()).isFalse();
+        assertThat(engine.determineDataVersions(entered, PARAMS, SP500).savingsRateVersionId()).isNull();
+    }
+
+    @Test
+    @DisplayName("ETF 계획에 S&P500이 없거나 종가가 모자라면 버전만 구할 때도 계산과 같은 예외로 막는다")
+    void rejectsSameInputsAsCalculateWhenDeterminingVersions() {
+        ConditionResolver.ResolvedConditions withEtf = new ConditionResolver.ResolvedConditions(
+                createInput(30_000_000L, 36, 0L, HALF_PCT), false, null, null);
+        Sp500Series tooShort = GoldenCase.createConstantReturnSeries(10, new BigDecimal("0.01"));
+
+        assertThatIllegalArgumentException().isThrownBy(() -> engine.determineDataVersions(withEtf, PARAMS, null));
+        assertThatIllegalArgumentException().isThrownBy(() -> engine.calculate(withEtf, PARAMS, null));
+        assertThatIllegalStateException().isThrownBy(() -> engine.determineDataVersions(withEtf, PARAMS, tooShort));
+        assertThatIllegalStateException().isThrownBy(() -> engine.calculate(withEtf, PARAMS, tooShort));
     }
 
     @Test
