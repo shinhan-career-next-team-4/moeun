@@ -2,25 +2,17 @@
 # 금액은 원 단위. 화면은 만원으로 입력·표시한다. 근거: docs/superpowers/specs/2026-11-16-a2-plan-auth-design.md §4.2
 moeun:
   rules:
-    base-savings-ratio-pct: 50          # 기준 비중 적금 50 : ETF 50. calc_param.DEFAULT_SAVINGS_RATIO와 같아야 한다(TBD-13)
     period-presets: [3, 6, 12, 24, 36]  # 개월
     fields:
       GOAL_CUSTOM_NAME:         { required: false, min: 1, max: 100, unit: CHAR }
       GOAL_AMOUNT:              { required: true,  min: 10000, max: 1000000000, unit: KRW, step: 10000 }
-      TARGET_PERIOD_MONTHS:     { required: false, min: 1, max: 600, unit: MONTH }
+      TARGET_PERIOD_MONTHS:     { required: true, min: 1, max: 600, unit: MONTH }
       HELD_ASSETS:              { required: true,  min: 0, max: 1000000000, unit: KRW, step: 10000 }
-      MONTHLY_SAVING:           { required: false, min: 10000, max: 10000000, unit: KRW, step: 10000 }
-      SAVINGS_RATE_PCT:         { required: false, min: 0, max: 50, unit: PERCENT, scale: 2 }
-      EXISTING_SAVINGS_MONTHLY: { required: false, min: 0, max: 10000000, unit: KRW, step: 10000 }
-      EXISTING_ETF_MONTHLY:     { required: false, min: 0, max: 10000000, unit: KRW, step: 10000 }
+      MONTHLY_SAVING_AMOUNT:    { required: true, min: 10000, max: 10000000, unit: KRW, step: 10000 }
+      SAVINGS_RATE_INPUT_PCT:   { required: false, min: 0, max: 50, unit: PERCENT, scale: 2 }
       SAVINGS_RATIO_PCT:        { required: false, min: 0, max: 100, unit: PERCENT, scale: 0 }
-    goal-defaults:
-      JEONSE:       { amount: 100000000, period-months: 24 }
-      WEDDING:      { amount: 30000000,  period-months: 12 }
-      INDEPENDENCE: { amount: 30000000,  period-months: 36 }
-      TRAVEL:       { amount: 2000000,   period-months: 6 }
     change-paths:                       # 경로별로 바꿀 수 있는 항목. max-fields 0 = 제한 없음
       INPUT_EDIT:  { all-fields: true, max-fields: 0 }
-      ALTERNATIVE: { fields: [MONTHLY_SAVING, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT], max-fields: 1 }
-      COMPARE:     { fields: [MONTHLY_SAVING, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT, SAVINGS_RATE_PCT], max-fields: 4 }
-      CHAT:        { fields: [MONTHLY_SAVING, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT, SAVINGS_RATE_PCT], max-fields: 4 }
+      ALTERNATIVE: { fields: [MONTHLY_SAVING_AMOUNT, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT], max-fields: 1 }
+      COMPARE:     { fields: [MONTHLY_SAVING_AMOUNT, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT], max-fields: 4 }
+      CHAT:        { fields: [MONTHLY_SAVING_AMOUNT, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT], max-fields: 4 }

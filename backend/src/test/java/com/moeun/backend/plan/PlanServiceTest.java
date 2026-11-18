@@ -69,21 +69,19 @@ class PlanServiceTest {
         jdbc.sql("UPDATE plan_version SET calc_start_month = DATE '2026-01-01' WHERE member_id = ?")
                 .param(memberId).update();
 
-        PlanView view = planService.save(memberId, valid().monthlySaving(1_500_000L).build());
+        PlanView view = planService.save(memberId, valid().monthlySavingAmount(1_500_000L).build());
 
         assertThat(view.calcStartMonth()).isEqualTo("2026-01");
         assertThat(view.monthlySaving()).isEqualTo(1_500_000L);
     }
 
     @Test
-    void saveStoresResolvedRatioAndBothExistingAmounts() {
-        PlanView view = planService.save(memberId, valid().monthlySaving(2_000_000L)
-                .existing(1_000_000L, 200_000L).ratioChoice(RatioChoice.KEEP_CURRENT).build());
+    void saveStoresNoExistingContributionAndNoRatio() {
+        PlanView view = planService.save(memberId, valid().build());
 
-        assertThat(view.savingsRatioPct()).isEqualTo(83);
-        assertThat(view.existingSavingsMonthly()).isEqualTo(1_000_000L);
-        assertThat(view.existingEtfMonthly()).isEqualTo(200_000L);
-        assertThat(view.ratioChoice()).isEqualTo(RatioChoice.KEEP_CURRENT);
+        assertThat(view.savingsRatioPct()).isNull();
+        assertThat(jdbc.sql("SELECT existing_monthly_contribution FROM plan_version WHERE member_id = ?")
+                .param(memberId).query(Long.class).optional()).isEmpty();
     }
 
     @Test

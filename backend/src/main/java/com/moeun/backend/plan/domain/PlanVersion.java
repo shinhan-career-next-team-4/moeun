@@ -55,12 +55,6 @@ public class PlanVersion {
     @Column(name = "savings_rate_input_pct", precision = 6, scale = 3)
     private BigDecimal savingsRatePct;
 
-    @Column(name = "existing_savings_monthly")
-    private Long existingSavingsMonthly;
-
-    @Column(name = "existing_etf_monthly")
-    private Long existingEtfMonthly;
-
     @JdbcTypeCode(SqlTypes.SMALLINT)
     @Column(name = "savings_ratio_pct")
     private Integer savingsRatioPct;
@@ -77,8 +71,7 @@ public class PlanVersion {
     @SuppressWarnings("checkstyle:ParameterNumber")
     public PlanVersion(Long memberId, GoalType goalType, String goalCustomName, Long goalAmount,
             Integer targetPeriodMonths, LocalDate calcStartMonth, Long heldAssets, Long monthlySaving,
-            BigDecimal savingsRatePct, Long existingSavingsMonthly, Long existingEtfMonthly, Integer savingsRatioPct,
-            String source, Instant createdAt) {
+            BigDecimal savingsRatePct, Integer savingsRatioPct, String source, Instant createdAt) {
         this.memberId = memberId;
         this.goalType = goalType;
         this.goalCustomName = goalCustomName;
@@ -88,8 +81,6 @@ public class PlanVersion {
         this.heldAssets = heldAssets;
         this.monthlySaving = monthlySaving;
         this.savingsRatePct = savingsRatePct;
-        this.existingSavingsMonthly = existingSavingsMonthly;
-        this.existingEtfMonthly = existingEtfMonthly;
         this.savingsRatioPct = savingsRatioPct;
         this.source = source;
         this.createdAt = createdAt;
@@ -133,14 +124,6 @@ public class PlanVersion {
 
     public BigDecimal getSavingsRatePct() {
         return savingsRatePct;
-    }
-
-    public Long getExistingSavingsMonthly() {
-        return existingSavingsMonthly;
-    }
-
-    public Long getExistingEtfMonthly() {
-        return existingEtfMonthly;
     }
 
     public Integer getSavingsRatioPct() {

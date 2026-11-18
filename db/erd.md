@@ -60,10 +60,9 @@ erDiagram
         int target_period_months "NULL=기한 미정"
         date calc_start_month
         bigint held_assets
-        bigint monthly_saving_amount "NULL=모름"
+        bigint monthly_saving_amount "필수"
         numeric savings_rate_input_pct "NULL=기본금리"
-        bigint existing_savings_monthly "NULL=토글 OFF"
-        bigint existing_etf_monthly "NULL=토글 OFF"
+        bigint existing_monthly_contribution "항상 NULL"
         smallint savings_ratio_pct "NULL=규칙 산출"
         varchar source
         timestamptz created_at
@@ -240,10 +239,9 @@ CREATE TABLE plan_version (
     target_period_months           INT,                     -- NULL = 기한 미정
     calc_start_month               DATE         NOT NULL,
     held_assets                    BIGINT       NOT NULL DEFAULT 0,
-    monthly_saving_amount          BIGINT,                  -- NULL = '잘 모르겠어요'
+    monthly_saving_amount          BIGINT,                  
     savings_rate_input_pct         NUMERIC(6,3),            -- NULL = 기본금리
-    existing_savings_monthly       BIGINT,                  -- 기존 적금 월 납입액. NULL = 토글 OFF
-    existing_etf_monthly           BIGINT,                  -- 기존 ETF 월 납입액. NULL = 토글 OFF
+    existing_monthly_contribution  BIGINT,                  -- 항상 NULL(계약 C12a-5-1). 컬럼만 남겨 둔다
     savings_ratio_pct              SMALLINT,                -- NULL = 규칙으로 산출(토글/기본값). 사용자가 직접 정한 비중만 저장
     source                         VARCHAR(20)  NOT NULL,   -- 이 버전을 만든 경로
     created_at                     TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -251,8 +249,8 @@ CREATE TABLE plan_version (
     CONSTRAINT ck_pv_period      CHECK (target_period_months IS NULL OR target_period_months > 0),
     CONSTRAINT ck_pv_amounts     CHECK (held_assets >= 0
                                         AND (monthly_saving_amount IS NULL OR monthly_saving_amount >= 0)
-                                        AND (existing_savings_monthly IS NULL OR existing_savings_monthly >= 0)
-                                        AND (existing_etf_monthly IS NULL OR existing_etf_monthly >= 0)),
+                                        AND (existing_monthly_contribution IS NULL
+                                             OR existing_monthly_contribution >= 0)),
     CONSTRAINT ck_pv_rate        CHECK (savings_rate_input_pct IS NULL OR savings_rate_input_pct >= 0),
     CONSTRAINT ck_pv_ratio       CHECK (savings_ratio_pct IS NULL OR savings_ratio_pct BETWEEN 0 AND 100),
     CONSTRAINT ck_pv_source      CHECK (source IN ('INPUT','ALTERNATIVE','COMPARE','CHAT'))
@@ -416,7 +414,7 @@ CREATE TABLE chat_message_citation (
 | FR-INP-05 | `plan_version.held_assets` | |
 | FR-INP-06 | `plan_version.monthly_saving_amount`(NULL = 모름) | |
 | FR-INP-07 | `plan_version.savings_rate_input_pct`(NULL = 기본), `calc_run.savings_rate_version_id` | `ConditionResolver` |
-| FR-INP-08 | `plan_version.existing_savings_monthly`, `existing_etf_monthly`, `savings_ratio_pct`(직접 정한 비중만) | `RatioResolver`, `calc_param.DEFAULT_SAVINGS_RATIO` |
+| FR-INP-08 | `plan_version.savings_ratio_pct`(직접 정한 비중만) | `RatioResolver`, `calc_param.DEFAULT_SAVINGS_RATIO` |
 | FR-INP-09 | `plan_version` 단순 CHECK | `ConditionValidator(INPUT_EDIT)`, `PlanInputValidator` |
 | FR-INP-10 | `plan_version` INSERT + `plan` + `calc_run(PLAN)` (Q4-a) | |
 | FR-INP-11 | `plan.current_version_id` → `plan_version` | |

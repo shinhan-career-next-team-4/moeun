@@ -7,10 +7,8 @@ public enum InputField {
     GOAL_AMOUNT,
     TARGET_PERIOD_MONTHS,
     HELD_ASSETS,
-    MONTHLY_SAVING,
-    SAVINGS_RATE_PCT,
-    EXISTING_SAVINGS_MONTHLY,
-    EXISTING_ETF_MONTHLY,
+    MONTHLY_SAVING_AMOUNT,
+    SAVINGS_RATE_INPUT_PCT,
     SAVINGS_RATIO_PCT;
 
     /** API JSON의 필드명(camelCase). 오류 응답의 field 값으로 쓴다. */

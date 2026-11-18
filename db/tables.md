@@ -45,10 +45,9 @@ INSERT만 하는 이력이다. 적용하거나 입력을 수정할 때마다 새
 | `target_period_months` | 원본: 목표 기간. NULL이면 기한 미정(FR-INP-04) |
 | `calc_start_month` | 원본: 계획을 세운 시점의 계산 시작월. 같은 조건이라도 시작월에 따라 결과와 목표일이 달라진다(FR-RES-04, FR-PLAN-05, TBD-38) |
 | `held_assets` | 원본: 지금 이 목표에 쓸 수 있는 돈(FR-INP-05) |
-| `monthly_saving_amount` | 원본: 월 저축 가능 금액. NULL이면 '잘 모르겠어요'(FR-INP-06) |
+| `monthly_saving_amount` | 원본: 월 저축 가능 금액(필수) |
 | `savings_rate_input_pct` | 원본: 사용자가 넣은 적금 금리. NULL이면 기본금리(FR-INP-07) |
-| `existing_savings_monthly` | 원본: 이미 저축 중인 적금 월납입액. NULL이면 토글 OFF(FR-INP-08). 입력 수정 화면 복원용(FR-INP-11) |
-| `existing_etf_monthly` | 원본: 이미 저축 중인 ETF 월납입액. NULL이면 토글 OFF(FR-INP-08). 입력 수정 화면 복원용(FR-INP-11) |
+| `existing_monthly_contribution` | 항상 NULL(계약 C12a-5-1). 컬럼만 남아 있고 앱은 읽지도 쓰지도 않는다 |
 | `savings_ratio_pct` | 원본: 사용자가 직접 정한 비중만 저장한다. 대안·비교·대화로 바꿔 적용한 경우다. NULL이면 `RatioResolver`가 규칙으로 산출 |
 | `source` | 원본: 이 버전을 만든 경로(INPUT/ALTERNATIVE/COMPARE/CHAT). 적용 출처 표시용 |
 | `created_at` | 원본: 버전이 생긴 시각 |

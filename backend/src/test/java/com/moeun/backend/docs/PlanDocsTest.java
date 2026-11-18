@@ -35,23 +35,24 @@ import jakarta.servlet.http.Cookie;
 class PlanDocsTest {
 
     private static final String PLAN_BODY = """
-            {"goalType":"JEONSE","goalAmount":50000000,"targetPeriodMonths":36,"heldAssets":6000000,
-             "monthlySaving":2000000,"savingsRatePct":3.2,"existingSavingsMonthly":1000000,
-             "existingEtfMonthly":200000,"ratioChoice":"KEEP_CURRENT"}""";
+            {"goalType":"HOUSE","goalAmount":50000000,"targetPeriodMonths":36,"heldAssets":6000000,
+             "monthlySavingAmount":2000000,"savingsRateInputPct":3.2}""";
 
     private static final List<FieldDescriptor> INPUT_FIELDS = List.of(
-            fieldWithPath("goalType").description("목표 종류: JEONSE, WEDDING, INDEPENDENCE, TRAVEL, CUSTOM"),
+            fieldWithPath("goalType")
+                    .description("목표 종류: HOUSE, CAR, WEDDING, EDUCATION, TRAVEL, EMERGENCY_FUND, CUSTOM"),
             fieldWithPath("goalCustomName").description("직접 입력 목표명(CUSTOM일 때 필수, 100자)").optional(),
             fieldWithPath("goalAmount").description("목표 금액(원, 1만원 단위)"),
-            fieldWithPath("targetPeriodMonths").description("목표 기간(개월). null = 기간 미정").optional(),
+            fieldWithPath("targetPeriodMonths").description("목표 기간(개월)"),
             fieldWithPath("heldAssets").description("지금 이 목표에 쓸 수 있는 돈(원)"),
-            fieldWithPath("monthlySaving").description("월 저축 가능 금액(원). null = 잘 모르겠어요").optional(),
-            fieldWithPath("savingsRatePct").description("적금 금리(연, 세전, %). null = 기본금리").optional(),
-            fieldWithPath("existingSavingsMonthly").description("기존 적금 월 납입액(원). null = 토글 OFF").optional(),
-            fieldWithPath("existingEtfMonthly").description("기존 ETF 월 납입액(원). null = 토글 OFF").optional(),
-            fieldWithPath("ratioChoice").description("BASE(기준 비중) / KEEP_CURRENT(지금 비중 유지)").optional());
+            fieldWithPath("monthlySavingAmount").description("월 저축 가능 금액(원)"),
+            fieldWithPath("savingsRateInputPct").description("적금 금리(연, 세전, %). null = 기본금리").optional());
 
-    private static final List<FieldDescriptor> VIEW_FIELDS = concat(INPUT_FIELDS, List.of(
+    private static final List<FieldDescriptor> VIEW_FIELDS = concat(
+            INPUT_FIELDS.stream().filter(d -> !d.getPath().equals("monthlySavingAmount")
+                    && !d.getPath().equals("savingsRateInputPct")).toList(), List.of(
+            fieldWithPath("monthlySaving").description("월 저축 가능 금액(원)"),
+            fieldWithPath("savingsRatePct").description("적금 금리(연, 세전, %). null = 기본금리").optional(),
             fieldWithPath("savingsRatioPct").description("저장된 적금 비중(%). null = 기준 비중").optional(),
             fieldWithPath("calcStartMonth").description("계산 시작 월(yyyy-MM, 처음 저장한 달)"),
             fieldWithPath("baselineScenario").description("기준 시나리오 GOOD/AVG/BAD"),
@@ -133,23 +134,6 @@ class PlanDocsTest {
                         .description("한 단계까지만. 되돌릴 계획이 없거나 revision이 다르면 409.")
                         .requestFields(fieldWithPath("expectedRevision").description("현재 revision"))
                         .responseFields(VIEW_FIELDS).build())));
-    }
-
-    @Test
-    void inputRulesDoc() throws Exception {
-        mockMvc.perform(get("/api/input-rules").cookie(cookie))
-                .andExpect(status().isOk())
-                .andDo(document("input-rules", resource(ResourceSnippetParameters.builder()
-                        .tag("Plan").summary("입력 규칙")
-                        .description("항목별 필수·범위·단위, 목표 기본값, 기간 프리셋, 기준 비중. 금액은 원.")
-                        .responseFields(
-                                subsectionWithPath("fields").description("항목명(camelCase) → "
-                                        + "{required, min, max, unit, scale?, step?}"),
-                                subsectionWithPath("goalTypes").description("[{code, defaultAmount?, "
-                                        + "defaultPeriodMonths?}] 화면 순서"),
-                                fieldWithPath("periodPresets").description("기간 프리셋(개월)"),
-                                fieldWithPath("baseSavingsRatioPct").description("기준 적금 비중(%)"))
-                        .build())));
     }
 
     private static List<FieldDescriptor> concat(List<FieldDescriptor> first, List<FieldDescriptor> second) {

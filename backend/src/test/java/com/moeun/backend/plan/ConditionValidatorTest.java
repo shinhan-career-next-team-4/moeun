@@ -30,7 +30,7 @@ class ConditionValidatorTest {
         ConditionOverride changes = new ConditionOverride(null, null, null, new BigDecimal("4.00"));
 
         assertThat(validator.validate(ChangePath.ALTERNATIVE, changes))
-                .containsExactly(new FieldError("savingsRatePct", "FIELD_NOT_CHANGEABLE"));
+                .containsExactly(new FieldError("savingsRateInputPct", "FIELD_NOT_CHANGEABLE"));
     }
 
     @Test
@@ -38,7 +38,7 @@ class ConditionValidatorTest {
         ConditionOverride changes = new ConditionOverride(10_010_000L, null, 101, null);
 
         assertThat(validator.validate(ChangePath.CHAT, changes)).containsExactlyInAnyOrder(
-                new FieldError("monthlySaving", "OUT_OF_RANGE"),
+                new FieldError("monthlySavingAmount", "OUT_OF_RANGE"),
                 new FieldError("savingsRatioPct", "OUT_OF_RANGE"));
     }
 

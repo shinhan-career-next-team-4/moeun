@@ -15,7 +15,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import com.moeun.backend.plan.FieldError;
 import com.moeun.backend.plan.GoalType;
 import com.moeun.backend.plan.PlanRulesFixture;
-import com.moeun.backend.plan.RatioChoice;
 
 class PlanInputValidatorTest {
 
@@ -29,7 +28,7 @@ class PlanInputValidatorTest {
         return Stream.of(
                 amount("goalAmount", 10_000L, 1_000_000_000L, PlanInputBuilder::goalAmount),
                 amount("heldAssets", 0L, 1_000_000_000L, PlanInputBuilder::heldAssets),
-                amount("monthlySaving", 10_000L, 10_000_000L, PlanInputBuilder::monthlySaving));
+                amount("monthlySavingAmount", 10_000L, 10_000_000L, PlanInputBuilder::monthlySavingAmount));
     }
 
     private static Arguments amount(String field, long min, long max,
@@ -65,17 +64,17 @@ class PlanInputValidatorTest {
 
     @Test
     void rateWithThreeDecimalsIsInvalidScale() {
-        assertThat(errors(valid().savingsRatePct("3.255")))
-                .containsExactly(new FieldError("savingsRatePct", "INVALID_SCALE"));
-        assertThat(errors(valid().savingsRatePct("3.25"))).isEmpty();
-        assertThat(errors(valid().savingsRatePct("3.250"))).isEmpty();
+        assertThat(errors(valid().savingsRateInputPct("3.255")))
+                .containsExactly(new FieldError("savingsRateInputPct", "INVALID_SCALE"));
+        assertThat(errors(valid().savingsRateInputPct("3.25"))).isEmpty();
+        assertThat(errors(valid().savingsRateInputPct("3.250"))).isEmpty();
     }
 
     @Test
     void rateFiftyPointZeroOneIsOutOfRange() {
-        assertThat(errors(valid().savingsRatePct("50.01")))
-                .containsExactly(new FieldError("savingsRatePct", "OUT_OF_RANGE"));
-        assertThat(errors(valid().savingsRatePct("50.00"))).isEmpty();
+        assertThat(errors(valid().savingsRateInputPct("50.01")))
+                .containsExactly(new FieldError("savingsRateInputPct", "OUT_OF_RANGE"));
+        assertThat(errors(valid().savingsRateInputPct("50.00"))).isEmpty();
     }
 
     @Test
@@ -112,64 +111,15 @@ class PlanInputValidatorTest {
     }
 
     @Test
-    void bothPeriodAndSavingMissingIsOneOf() {
-        assertThat(errors(valid().targetPeriodMonths(null).monthlySaving(null)))
-                .containsExactly(new FieldError("targetPeriodMonths", "ONE_OF_PERIOD_OR_SAVING"));
-        assertThat(errors(valid().targetPeriodMonths(null))).isEmpty();
-        assertThat(errors(valid().monthlySaving(null))).isEmpty();
-    }
-
-    @Test
-    void existingSumOverSavingIsRejected() {
-        assertThat(errors(valid().monthlySaving(1_000_000L).existing(800_000L, 300_000L)
-                .ratioChoice(RatioChoice.BASE)))
-                .containsExactly(new FieldError("existingSavingsMonthly", "EXISTING_EXCEEDS_SAVING"));
-    }
-
-    @Test
-    void existingSumNotComparedWhenSavingUnknown() {
-        assertThat(errors(valid().monthlySaving(null).existing(800_000L, 300_000L).ratioChoice(RatioChoice.BASE)))
-                .isEmpty();
-    }
-
-    @Test
-    void existingAmountsUseSameRangeRules() {
-        assertThat(errors(valid().existing(10_010_000L, 0L).monthlySaving(null).ratioChoice(RatioChoice.BASE)))
-                .contains(new FieldError("existingSavingsMonthly", "OUT_OF_RANGE"));
-        assertThat(errors(valid().existing(0L, 5_001L).ratioChoice(RatioChoice.BASE)))
-                .contains(new FieldError("existingEtfMonthly", "NOT_UNIT"));
-    }
-
-    @Test
-    void existingPositiveWithoutRatioChoiceIsRequired() {
-        assertThat(errors(valid().existing(1_000_000L, 200_000L).monthlySaving(2_000_000L)))
-                .containsExactly(new FieldError("ratioChoice", "RATIO_CHOICE_REQUIRED"));
-    }
-
-    @Test
-    void existingZeroSumNeedsNoRatioChoice() {
-        assertThat(errors(valid().existing(0L, 0L))).isEmpty();
+    void periodAndMonthlySavingAreBothRequired() {
+        assertThat(validator.validate(valid().targetPeriodMonths(null).build()))
+                .containsExactly(new FieldError("targetPeriodMonths", "REQUIRED"));
+        assertThat(validator.validate(valid().monthlySavingAmount(null).build()))
+                .containsExactly(new FieldError("monthlySavingAmount", "REQUIRED"));
     }
 
     @Test
     void heldAssetsAboveGoalIsNotAnError() {
         assertThat(errors(valid().goalAmount(10_000_000L).heldAssets(20_000_000L))).isEmpty();
-    }
-
-    @Test
-    void keepCurrentRatioRoundsToInteger() {
-        PlanInputBuilder keep = valid().monthlySaving(2_000_000L).ratioChoice(RatioChoice.KEEP_CURRENT);
-        assertThat(validator.resolveSavingsRatioPct(keep.existing(1_000_000L, 200_000L).build())).isEqualTo(83);
-        assertThat(validator.resolveSavingsRatioPct(keep.existing(700_000L, 800_000L).build())).isEqualTo(47);
-        assertThat(validator.resolveSavingsRatioPct(keep.existing(0L, 300_000L).build())).isEqualTo(0);
-    }
-
-    @Test
-    void baseOrToggleOffOrZeroSumResolvesToNull() {
-        assertThat(validator.resolveSavingsRatioPct(valid().build())).isNull();
-        assertThat(validator.resolveSavingsRatioPct(
-                valid().existing(1_000_000L, 200_000L).ratioChoice(RatioChoice.BASE).build())).isNull();
-        assertThat(validator.resolveSavingsRatioPct(
-                valid().existing(0L, 0L).ratioChoice(RatioChoice.KEEP_CURRENT).build())).isNull();
     }
 }

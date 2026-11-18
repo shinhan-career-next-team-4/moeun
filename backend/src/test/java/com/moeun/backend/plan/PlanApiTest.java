@@ -28,8 +28,8 @@ import jakarta.servlet.http.Cookie;
 class PlanApiTest {
 
     static final String VALID_PLAN = """
-            {"goalType":"JEONSE","goalAmount":50000000,"targetPeriodMonths":36,"heldAssets":6000000,
-             "monthlySaving":1200000}""";
+            {"goalType":"HOUSE","goalAmount":50000000,"targetPeriodMonths":36,"heldAssets":6000000,
+             "monthlySavingAmount":1200000}""";
 
     @Autowired
     MockMvc mockMvc;
@@ -72,12 +72,12 @@ class PlanApiTest {
 
     @Test
     void postPlanWithErrorsReturns400WithFieldCodes() throws Exception {
-        postJson("/api/plan", "{\"goalType\":\"JEONSE\",\"heldAssets\":0}")
+        postJson("/api/plan", "{\"goalType\":\"HOUSE\",\"heldAssets\":0}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[*].field",
-                        containsInAnyOrder("goalAmount", "targetPeriodMonths")))
+                        containsInAnyOrder("goalAmount", "targetPeriodMonths", "monthlySavingAmount")))
                 .andExpect(jsonPath("$.errors[*].code",
-                        containsInAnyOrder("REQUIRED", "ONE_OF_PERIOD_OR_SAVING")));
+                        containsInAnyOrder("REQUIRED", "REQUIRED", "REQUIRED")));
     }
 
     @Test
@@ -124,24 +124,8 @@ class PlanApiTest {
     }
 
     @Test
-    void inputRulesReturnsCamelCaseFieldsAndGoalDefaults() throws Exception {
-        mockMvc.perform(get("/api/input-rules").cookie(cookie))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.fields.goalAmount.max").value(1_000_000_000))
-                .andExpect(jsonPath("$.fields.goalAmount.step").value(10_000))
-                .andExpect(jsonPath("$.fields.savingsRatePct.scale").value(2))
-                .andExpect(jsonPath("$.goalTypes[0].code").value("JEONSE"))
-                .andExpect(jsonPath("$.goalTypes[0].defaultAmount").value(100_000_000))
-                .andExpect(jsonPath("$.goalTypes[4].code").value("CUSTOM"))
-                .andExpect(jsonPath("$.goalTypes[4].defaultAmount").doesNotExist())
-                .andExpect(jsonPath("$.periodPresets").value(org.hamcrest.Matchers.contains(3, 6, 12, 24, 36)))
-                .andExpect(jsonPath("$.baseSavingsRatioPct").value(50));
-    }
-
-    @Test
     void planEndpointsRequireLogin() throws Exception {
         mockMvc.perform(get("/api/plan")).andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/api/input-rules")).andExpect(status().isUnauthorized());
         mockMvc.perform(post("/api/plan").contentType(MediaType.APPLICATION_JSON).content(VALID_PLAN))
                 .andExpect(status().isUnauthorized());
     }

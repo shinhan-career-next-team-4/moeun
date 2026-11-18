@@ -8,16 +8,13 @@ import java.util.Optional;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import com.moeun.backend.plan.ChangePath;
-import com.moeun.backend.plan.GoalType;
 import com.moeun.backend.plan.InputField;
 
 /** config/rules.yml(moeun.rules) 바인딩. 입력 검증, 경로 검증, 입력 규칙 API가 함께 쓴다. */
 @ConfigurationProperties("moeun.rules")
 public record PlanRules(
-        int baseSavingsRatioPct,
         List<Integer> periodPresets,
         Map<InputField, FieldRule> fields,
-        Map<GoalType, GoalDefault> goalDefaults,
         Map<ChangePath, PathRule> changePaths) {
 
     /** 값 하나를 항목 규칙에 비춰 본다. 소수 자리 → 단위 → 범위 순서로 첫 위반 코드를 돌려준다. */
@@ -37,9 +34,6 @@ public record PlanRules(
 
     public record FieldRule(boolean required, BigDecimal min, BigDecimal max, String unit, Integer scale,
             Long step) {
-    }
-
-    public record GoalDefault(long amount, int periodMonths) {
     }
 
     public record PathRule(boolean allFields, List<InputField> fields, int maxFields) {

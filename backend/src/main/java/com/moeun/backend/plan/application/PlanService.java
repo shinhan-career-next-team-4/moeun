@@ -15,7 +15,6 @@ import com.moeun.backend.plan.ConditionOverride;
 import com.moeun.backend.plan.ConditionValidator;
 import com.moeun.backend.plan.FieldError;
 import com.moeun.backend.plan.PlanChanged;
-import com.moeun.backend.plan.RatioChoice;
 import com.moeun.backend.plan.domain.Plan;
 import com.moeun.backend.plan.domain.PlanRepository;
 import com.moeun.backend.plan.domain.PlanVersion;
@@ -57,7 +56,7 @@ public class PlanService {
         LocalDate calcStartMonth = existing.map(plan -> version(memberId, plan.getCurrentVersionId()))
                 .map(PlanVersion::getCalcStartMonth)
                 .orElseGet(() -> YearMonth.now(clock).atDay(1));   // TBD-38: 처음 저장한 달로 고정
-        PlanVersion saved = versionRepository.save(newVersion(memberId, in, inputValidator.resolveSavingsRatioPct(in),
+        PlanVersion saved = versionRepository.save(newVersion(memberId, in, null,
                 calcStartMonth, "INPUT"));
         Long before = existing.map(Plan::getCurrentVersionId).orElse(null);
         if (existing.isEmpty()) {
@@ -107,10 +106,8 @@ public class PlanService {
         return versionRepository.findByIdAndMemberId(versionId, memberId).orElseThrow();
     }
 
-    /** 현재 버전에 바뀐 값만 덮는다. 비중 선택은 적용 경로에서 의미가 없어 기존 납입액 검사만 통과하도록 채운다. */
+    /** 현재 버전에 바뀐 값만 덮는다. */
     private static PlanInput merge(PlanVersion current, ConditionOverride changes) {
-        boolean existingPositive = orZero(current.getExistingSavingsMonthly())
-                + orZero(current.getExistingEtfMonthly()) > 0;
         return new PlanInput(
                 current.getGoalType(),
                 current.getGoalCustomName(),
@@ -118,10 +115,7 @@ public class PlanService {
                 firstNonNull(changes.targetPeriodMonths(), current.getTargetPeriodMonths()),
                 current.getHeldAssets(),
                 firstNonNull(changes.monthlySaving(), current.getMonthlySaving()),
-                firstNonNull(changes.savingsRatePct(), current.getSavingsRatePct()),
-                current.getExistingSavingsMonthly(),
-                current.getExistingEtfMonthly(),
-                existingPositive ? RatioChoice.BASE : null);
+                firstNonNull(changes.savingsRatePct(), current.getSavingsRatePct()));
     }
 
     private PlanVersion newVersion(long memberId, PlanInput in, Integer savingsRatioPct, LocalDate calcStartMonth,
@@ -129,28 +123,18 @@ public class PlanService {
         String customName = in.goalCustomName() == null ? null : in.goalCustomName().strip();
         return new PlanVersion(memberId, in.goalType(),
                 in.goalType() == com.moeun.backend.plan.GoalType.CUSTOM ? customName : null,
-                in.goalAmount(), in.targetPeriodMonths(), calcStartMonth, in.heldAssets(), in.monthlySaving(),
-                in.savingsRatePct(), in.existingSavingsMonthly(), in.existingEtfMonthly(), savingsRatioPct, source,
-                clock.instant());
+                in.goalAmount(), in.targetPeriodMonths(), calcStartMonth, in.heldAssets(), in.monthlySavingAmount(),
+                in.savingsRateInputPct(), savingsRatioPct, source, clock.instant());
     }
 
     private PlanView toView(Plan plan) {
         PlanVersion version = version(plan.getMemberId(), plan.getCurrentVersionId());
-        long existingSum = orZero(version.getExistingSavingsMonthly()) + orZero(version.getExistingEtfMonthly());
-        RatioChoice choice = null;
-        if (existingSum > 0) {
-            choice = version.getSavingsRatioPct() != null ? RatioChoice.KEEP_CURRENT : RatioChoice.BASE;
-        }
         return new PlanView(version.getGoalType(), version.getGoalCustomName(), version.getGoalAmount(),
                 version.getTargetPeriodMonths(), version.getHeldAssets(), version.getMonthlySaving(),
-                version.getSavingsRatePct(), version.getExistingSavingsMonthly(), version.getExistingEtfMonthly(),
-                choice, version.getSavingsRatioPct(), YearMonth.from(version.getCalcStartMonth()).toString(),
+                version.getSavingsRatePct(),
+                version.getSavingsRatioPct(), YearMonth.from(version.getCalcStartMonth()).toString(),
                 plan.getBaselineScenario(), plan.getRevision(), plan.getPreviousVersionId() != null,
                 version.getCreatedAt());
-    }
-
-    private static long orZero(Long value) {
-        return value == null ? 0L : value;
     }
 
     private static <T> T firstNonNull(T first, T second) {
