@@ -22,7 +22,7 @@ class ConditionValidatorTest {
         ConditionOverride changes = new ConditionOverride(1_500_000L, 48, null, null);
 
         assertThat(validator.validate(ChangePath.ALTERNATIVE, changes))
-                .containsExactly(FieldError.tooManyChanges("changes"));
+                .containsExactly(FieldError.tooManyChanges("conditionChanges"));
     }
 
     @Test
@@ -45,8 +45,8 @@ class ConditionValidatorTest {
     @Test
     void emptyOverrideIsRequired() {
         assertThat(validator.validate(ChangePath.COMPARE, new ConditionOverride(null, null, null, null)))
-                .containsExactly(FieldError.required("changes"));
+                .containsExactly(FieldError.required("conditionChanges"));
         assertThat(validator.validate(ChangePath.COMPARE, null))
-                .containsExactly(FieldError.required("changes"));
+                .containsExactly(FieldError.required("conditionChanges"));
     }
 }

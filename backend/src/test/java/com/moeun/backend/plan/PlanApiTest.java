@@ -116,6 +116,17 @@ class PlanApiTest {
     }
 
     @Test
+    void applyWithNotChangeableFieldIs422WithFieldNotChangeableCode() throws Exception {
+        seedPlan();
+        postJson("/api/plan/apply",
+                "{\"source\":\"ALTERNATIVE\",\"changes\":{\"savingsRateInputPct\":3.5},\"expectedRevision\":1}")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("FIELD_NOT_CHANGEABLE"))
+                .andExpect(jsonPath("$.errors[0].field").value("savingsRateInputPct"))
+                .andExpect(jsonPath("$.errors[0].reason").value("NOT_CHANGEABLE"));
+    }
+
+    @Test
     void applyWithStaleRevisionReturns409WithCurrentPlan() throws Exception {
         seedPlan();
         postJson("/api/plan/apply",
