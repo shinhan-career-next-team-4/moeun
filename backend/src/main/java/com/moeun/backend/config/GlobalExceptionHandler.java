@@ -1,6 +1,7 @@
 package com.moeun.backend.config;
 
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +13,8 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
@@ -31,7 +34,20 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException exception,
             HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         return ResponseEntity.badRequest().body(problem(HttpStatus.BAD_REQUEST, "요청 본문을 읽을 수 없어요.",
-                ProblemCode.MALFORMED_REQUEST));
+                ProblemCode.MALFORMED_REQUEST.name()));
+    }
+
+    /** 빈 값 검사 실패(@Valid)는 계약상 422 VALIDATION_FAILED이고 필드마다 REQUIRED 하나를 싣는다. */
+    @Override
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException exception,
+            HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        ProblemDetail problem = problem(HttpStatus.UNPROCESSABLE_ENTITY, "입력값을 확인해 주세요.", "VALIDATION_FAILED");
+        problem.setProperty("errors", exception.getBindingResult().getFieldErrors().stream()
+                .map(FieldError::getField)
+                .distinct()
+                .map(field -> Map.of("field", field, "reason", "REQUIRED"))
+                .toList());
+        return ResponseEntity.unprocessableEntity().body(problem);
     }
 
     @Override
@@ -53,12 +69,12 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ResponseEntity<ProblemDetail> internalError(Exception exception) {
         LOG.error("처리하지 못한 예외", exception);
         return ResponseEntity.internalServerError().body(problem(HttpStatus.INTERNAL_SERVER_ERROR,
-                "잠시 후 다시 시도해 주세요.", ProblemCode.INTERNAL_ERROR));
+                "잠시 후 다시 시도해 주세요.", ProblemCode.INTERNAL_ERROR.name()));
     }
 
-    private static ProblemDetail problem(HttpStatus status, String detail, ProblemCode code) {
+    private static ProblemDetail problem(HttpStatus status, String detail, String code) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
-        problem.setProperty("code", code.name());
+        problem.setProperty("code", code);
         problem.setProperty("errors", List.of());
         return problem;
     }

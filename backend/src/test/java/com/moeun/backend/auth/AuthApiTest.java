@@ -80,6 +80,16 @@ class AuthApiTest {
     }
 
     @Test
+    void loginWithBlankPasswordIs422WithRequiredError() throws Exception {
+        login("demo01", "")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors.length()").value(1))
+                .andExpect(jsonPath("$.errors[0].field").value("password"))
+                .andExpect(jsonPath("$.errors[0].reason").value("REQUIRED"));
+    }
+
+    @Test
     void loginWithUnknownIdReturnsSameMessageAsWrongPassword() throws Exception {
         login("nobody", "pw-123456")
                 .andExpect(status().isUnauthorized())
