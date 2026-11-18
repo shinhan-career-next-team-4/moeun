@@ -1,13 +1,11 @@
 package com.moeun.backend.config;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -24,17 +22,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableConfigurationProperties(CorsProperties.class)
 public class SecurityConfig {
 
-    private static final String UNAUTHORIZED_BODY =
-            "{\"title\":\"Unauthorized\",\"status\":401,\"detail\":\"로그인이 필요해요.\"}";
-
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        AuthenticationEntryPoint unauthorized = (request, response, ex) -> {
-            response.setStatus(HttpStatus.UNAUTHORIZED.value());
-            response.setContentType("application/problem+json");
-            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-            response.getWriter().write(UNAUTHORIZED_BODY);
-        };
+    SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationEntryPoint unauthorized)
+            throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)   // SameSite=Lax 쿠키 + JSON 본문만 받는다(A-2 설계 §4.1)
                 .cors(Customizer.withDefaults())

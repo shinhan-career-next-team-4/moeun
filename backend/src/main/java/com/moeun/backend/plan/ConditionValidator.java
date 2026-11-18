@@ -33,12 +33,12 @@ public class ConditionValidator {
         PlanRules.PathRule pathRule = rules.changePaths().get(path);
         List<FieldError> errors = new ArrayList<>();
         if (pathRule.maxFields() > 0 && changed.size() > pathRule.maxFields()) {
-            errors.add(FieldError.of(CHANGES, "TOO_MANY_CHANGES"));
+            errors.add(FieldError.tooManyChanges(CHANGES));
             return errors;
         }
         changed.forEach((field, value) -> {
             if (!pathRule.allows(field)) {
-                errors.add(FieldError.of(field.apiName(), "NOT_CHANGEABLE"));
+                errors.add(FieldError.notChangeable(field.apiName()));
                 return;
             }
             rules.check(field, value).ifPresent(errors::add);

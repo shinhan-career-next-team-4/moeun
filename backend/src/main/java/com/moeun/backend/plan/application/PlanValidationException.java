@@ -4,7 +4,7 @@ import java.util.List;
 
 import com.moeun.backend.plan.FieldError;
 
-/** 입력 검증 실패. 컨트롤러가 400 + errors로 바꾼다. */
+/** 입력 검증 실패. 컨트롤러가 422 + errors로 바꾼다. */
 public class PlanValidationException extends RuntimeException {
 
     private final transient List<FieldError> errors;

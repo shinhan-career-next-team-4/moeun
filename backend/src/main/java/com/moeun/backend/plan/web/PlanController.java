@@ -47,7 +47,7 @@ class PlanController {
         if (request.source() == null || !APPLY_SOURCES.contains(request.source())) {
             throw new PlanValidationException(List.of(request.source() == null
                     ? FieldError.required("source")
-                    : FieldError.of("source", "OUT_OF_RANGE")));
+                    : FieldError.notChangeable("source")));
         }
         return planService.apply(memberId(jwt), request.source(), request.changes(), requireRevision(
                 request.expectedRevision()));

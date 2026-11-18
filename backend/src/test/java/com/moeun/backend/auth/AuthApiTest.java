@@ -74,6 +74,8 @@ class AuthApiTest {
     void loginWithWrongPasswordReturns401WithMessage() throws Exception {
         login("demo01", "wrong")
                 .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"))
+                .andExpect(jsonPath("$.errors").isEmpty())
                 .andExpect(jsonPath("$.detail").value(WRONG_LOGIN_MESSAGE));
     }
 
@@ -81,6 +83,8 @@ class AuthApiTest {
     void loginWithUnknownIdReturnsSameMessageAsWrongPassword() throws Exception {
         login("nobody", "pw-123456")
                 .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"))
+                .andExpect(jsonPath("$.errors").isEmpty())
                 .andExpect(jsonPath("$.detail").value(WRONG_LOGIN_MESSAGE));
     }
 

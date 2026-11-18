@@ -70,7 +70,8 @@ public class PlanService {
     }
 
     public PlanView apply(long memberId, ChangePath path, ConditionOverride changes, long expectedRevision) {
-        Plan plan = planRepository.findById(memberId).orElseThrow(() -> new PlanConflictException(Optional.empty()));
+        Plan plan = planRepository.findById(memberId).orElseThrow(
+                () -> new PlanConflictException(PlanConflictException.PLAN_CHANGED, Optional.empty()));
         throwIfInvalid(conditionValidator.validate(path, changes));
         PlanVersion current = version(memberId, plan.getCurrentVersionId());
         PlanInput merged = merge(current, changes);
@@ -79,15 +80,16 @@ public class PlanService {
         PlanVersion saved = versionRepository.save(
                 newVersion(memberId, merged, ratio, current.getCalcStartMonth(), path.name()));
         if (planRepository.replaceCurrent(memberId, saved.getId(), expectedRevision) == 0) {
-            throw new PlanConflictException(find(memberId));
+            throw new PlanConflictException(PlanConflictException.PLAN_CHANGED, find(memberId));
         }
         return publishAndView(memberId, "APPLY", current.getId(), saved.getId());
     }
 
     public PlanView undo(long memberId, long expectedRevision) {
-        Plan plan = planRepository.findById(memberId).orElseThrow(() -> new PlanConflictException(Optional.empty()));
+        Plan plan = planRepository.findById(memberId).orElseThrow(
+                () -> new PlanConflictException(PlanConflictException.PLAN_CHANGED, Optional.empty()));
         if (planRepository.restorePrevious(memberId, expectedRevision) == 0) {
-            throw new PlanConflictException(find(memberId));
+            throw new PlanConflictException(PlanConflictException.PLAN_CHANGED, find(memberId));
         }
         return publishAndView(memberId, "UNDO", plan.getCurrentVersionId(), plan.getPreviousVersionId());
     }

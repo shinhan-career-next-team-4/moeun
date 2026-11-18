@@ -15,7 +15,15 @@ public record FieldError(String field, String reason, Long min, Long max, String
         return of(field, "REQUIRED");
     }
 
-    public static FieldError of(String field, String reason) {
+    public static FieldError notChangeable(String field) {
+        return of(field, "NOT_CHANGEABLE");
+    }
+
+    public static FieldError tooManyChanges(String field) {
+        return of(field, "TOO_MANY_CHANGES");
+    }
+
+    private static FieldError of(String field, String reason) {
         return new FieldError(field, reason, null, null, null, null);
     }
 

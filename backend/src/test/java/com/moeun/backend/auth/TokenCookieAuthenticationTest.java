@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Clock;
@@ -49,7 +51,10 @@ class TokenCookieAuthenticationTest {
     void requestWithoutCookieGets401ProblemDetail() throws Exception {
         mockMvc.perform(get("/api/test/echo"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
+                .andExpect(jsonPath("$.errors").isArray())
+                .andExpect(cookie().maxAge(JwtTokenService.COOKIE_NAME, 0));
     }
 
     @Test
@@ -76,7 +81,9 @@ class TokenCookieAuthenticationTest {
         String expired = new JwtTokenService(jwtProperties, past).issue(7L);
 
         mockMvc.perform(get("/api/test/echo").cookie(tokenCookie(expired)))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
+                .andExpect(cookie().maxAge(JwtTokenService.COOKIE_NAME, 0));
     }
 
     @Test

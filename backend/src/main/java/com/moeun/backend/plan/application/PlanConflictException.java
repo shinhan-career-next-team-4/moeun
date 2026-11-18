@@ -2,14 +2,25 @@ package com.moeun.backend.plan.application;
 
 import java.util.Optional;
 
-/** 그사이 계획이 바뀌었거나(revision 불일치) 적용·되돌리기할 계획이 없다. 컨트롤러가 409 + 현재 계획으로 바꾼다. */
+/**
+ * 그사이 계획이 바뀌었거나(revision 불일치) 적용·되돌리기할 계획이 없다. 컨트롤러가 409 + code + 현재 계획으로 바꾼다.
+ * code는 오류 본문에 그대로 실리는 계약 코드다.
+ */
 public class PlanConflictException extends RuntimeException {
 
+    public static final String PLAN_CHANGED = "PLAN_CHANGED";
+
+    private final String code;
     private final transient PlanView current;
 
-    public PlanConflictException(Optional<PlanView> current) {
-        super("plan conflict");
+    public PlanConflictException(String code, Optional<PlanView> current) {
+        super("plan conflict: " + code);
+        this.code = code;
         this.current = current.orElse(null);
+    }
+
+    public String code() {
+        return code;
     }
 
     public Optional<PlanView> current() {

@@ -22,7 +22,7 @@ class ConditionValidatorTest {
         ConditionOverride changes = new ConditionOverride(1_500_000L, 48, null, null);
 
         assertThat(validator.validate(ChangePath.ALTERNATIVE, changes))
-                .containsExactly(FieldError.of("changes", "TOO_MANY_CHANGES"));
+                .containsExactly(FieldError.tooManyChanges("changes"));
     }
 
     @Test
@@ -30,7 +30,7 @@ class ConditionValidatorTest {
         ConditionOverride changes = new ConditionOverride(null, null, null, new BigDecimal("4.00"));
 
         assertThat(validator.validate(ChangePath.ALTERNATIVE, changes))
-                .containsExactly(FieldError.of("savingsRateInputPct", "NOT_CHANGEABLE"));
+                .containsExactly(FieldError.notChangeable("savingsRateInputPct"));
     }
 
     @Test

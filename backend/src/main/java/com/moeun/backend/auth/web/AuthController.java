@@ -1,5 +1,6 @@
 package com.moeun.backend.auth.web;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.http.HttpHeaders;
@@ -40,6 +41,8 @@ class AuthController {
         Optional<Member> member = authService.authenticate(request.loginId(), request.password());
         if (member.isEmpty()) {
             ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, WRONG_LOGIN_MESSAGE);
+            problem.setProperty("code", "INVALID_CREDENTIALS");
+            problem.setProperty("errors", List.of());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
         }
         long memberId = member.get().getId();

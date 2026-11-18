@@ -3,6 +3,8 @@ package com.moeun.backend.plan;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -71,9 +73,10 @@ class PlanApiTest {
     }
 
     @Test
-    void postPlanWithErrorsReturns400WithFieldCodes() throws Exception {
+    void postPlanWithErrorsReturns422WithFieldCodes() throws Exception {
         postJson("/api/plan", "{\"goalType\":\"HOUSE\",\"heldAssets\":0}")
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.errors[*].field",
                         containsInAnyOrder("goalAmount", "targetPeriodMonths", "monthlySavingAmount")))
                 .andExpect(jsonPath("$.errors[*].reason",
@@ -104,6 +107,8 @@ class PlanApiTest {
         postJson("/api/plan/apply",
                 "{\"source\":\"CHAT\",\"changes\":{\"monthlySaving\":1600000},\"expectedRevision\":1}")
                 .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PLAN_CHANGED"))
+                .andExpect(jsonPath("$.errors").isEmpty())
                 .andExpect(jsonPath("$.plan.monthlySaving").value(1_500_000))
                 .andExpect(jsonPath("$.plan.revision").value(2));
     }
@@ -114,18 +119,41 @@ class PlanApiTest {
 
         postJson("/api/plan/apply",
                 "{\"source\":\"INPUT_EDIT\",\"changes\":{\"monthlySaving\":1500000},\"expectedRevision\":1}")
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[0].field").value("source"));
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.errors[0].field").value("source"))
+                .andExpect(jsonPath("$.errors[0].reason").value("NOT_CHANGEABLE"));
     }
 
     @Test
-    void malformedJsonIs400() throws Exception {
-        postJson("/api/plan", "{\"goalType\":\"UNKNOWN\"}").andExpect(status().isBadRequest());
+    void applyWithoutSourceIsRequired() throws Exception {
+        postJson("/api/plan", VALID_PLAN);
+
+        postJson("/api/plan/apply", "{\"changes\":{},\"expectedRevision\":1}")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.errors[0].field").value("source"))
+                .andExpect(jsonPath("$.errors[0].reason").value("REQUIRED"));
+    }
+
+    @Test
+    void malformedJsonIs400WithCode() throws Exception {
+        postJson("/api/plan", "{\"goalType\":").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"))
+                .andExpect(jsonPath("$.errors").isEmpty());
+    }
+
+    @Test
+    void unknownEnumValueIs400WithCode() throws Exception {
+        postJson("/api/plan", "{\"goalType\":\"UNKNOWN\"}").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
     }
 
     @Test
     void planEndpointsRequireLogin() throws Exception {
-        mockMvc.perform(get("/api/plan")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/plan")).andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
+                .andExpect(jsonPath("$.errors").isArray())
+                .andExpect(cookie().maxAge(JwtTokenService.COOKIE_NAME, 0));
         mockMvc.perform(post("/api/plan").contentType(MediaType.APPLICATION_JSON).content(VALID_PLAN))
                 .andExpect(status().isUnauthorized());
     }
