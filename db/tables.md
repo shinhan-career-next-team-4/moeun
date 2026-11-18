@@ -1,6 +1,9 @@
 # 테이블별 역할과 필드 저장 이유 (v2, 최소 저장)
 
-기준: `final/schema.sql` (테이블 14개). 이전 버전(25개)은 `final/v1/tables.md`에 있다.
+기준: `../backend/src/main/resources/db/schema.sql` (테이블 14개).
+
+> 이전 버전(v1, 테이블 25개)의 스키마·문서는 설계 워크스페이스 산출물로 이 저장소에 포함되지 않는다.
+> 본문에서 v1을 언급하는 곳은 기록이며, 이 저장소에서 열 수 있는 파일이 아니다.
 
 DB에는 코드로 다시 만들 수 없는 것만 둔다. 각 필드의 "저장 이유"는 아래 셋 중 하나다.
 
@@ -44,7 +47,8 @@ INSERT만 하는 이력이다. 적용하거나 입력을 수정할 때마다 새
 | `held_assets` | 원본: 지금 이 목표에 쓸 수 있는 돈(FR-INP-05) |
 | `monthly_saving_amount` | 원본: 월 저축 가능 금액. NULL이면 '잘 모르겠어요'(FR-INP-06) |
 | `savings_rate_input_pct` | 원본: 사용자가 넣은 적금 금리. NULL이면 기본금리(FR-INP-07) |
-| `existing_monthly_contribution` | 원본: 이미 저축 중인 월납입액 1개. NULL이면 토글 OFF(FR-INP-08) |
+| `existing_savings_monthly` | 원본: 이미 저축 중인 적금 월납입액. NULL이면 토글 OFF(FR-INP-08). 입력 수정 화면 복원용(FR-INP-11) |
+| `existing_etf_monthly` | 원본: 이미 저축 중인 ETF 월납입액. NULL이면 토글 OFF(FR-INP-08). 입력 수정 화면 복원용(FR-INP-11) |
 | `savings_ratio_pct` | 원본: 사용자가 직접 정한 비중만 저장한다. 대안·비교·대화로 바꿔 적용한 경우다. NULL이면 `RatioResolver`가 규칙으로 산출 |
 | `source` | 원본: 이 버전을 만든 경로(INPUT/ALTERNATIVE/COMPARE/CHAT). 적용 출처 표시용 |
 | `created_at` | 원본: 버전이 생긴 시각 |

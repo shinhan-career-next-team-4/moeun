@@ -1,0 +1,24 @@
+# 로컬 개발용 DB. 실행: docker compose up -d
+# 접속 정보는 backend application.yml 기본값, ai-server .env.example의 DATABASE_URL과 같다.
+# 스키마와 vector 확장은 backend 기동 시 db/schema.sql이 만든다.
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: moeun-db
+    environment:
+      POSTGRES_DB: moeun
+      POSTGRES_USER: moeun
+      POSTGRES_PASSWORD: moeun
+      TZ: UTC
+    ports:
+      - "5432:5432"
+    volumes:
+      - moeun-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U moeun -d moeun"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  moeun-db-data:
