@@ -12,7 +12,8 @@ import java.util.Optional;
  *
  * @param goalAmount 목표 금액. 0보다 커야 한다
  * @param targetPeriodMonths 계산 시작월부터 목표월까지 남은 개월 수. null = 기한 미정(목표 도달 시점을 구한다)
- * @param calcStartMonth 계산 시작월. 재계산할 때는 현재 월이 들어온다
+ * @param calcStartMonth 계산 시작월. 항상 계획에 저장된 calc_start_month다(처음 저장한 달, 이후 바꾸지 않음).
+ *     대화·비교·대안으로 다시 계산해도 같은 값이다(D-013, D-032, 계약 C2-8)
  * @param heldAssets 보유 자산. 0 이상이며 운용 수익 없이 원금에 더한다
  * @param monthlySavingAmount 월 저축액. null = '잘 모르겠어요'(필요한 월 저축액을 구한다)
  * @param savingsRatePct 적금 금리(연, 세전, %). 사용자가 비웠으면 기본금리가 채워져 들어온다
