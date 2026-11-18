@@ -26,7 +26,12 @@ class PlanExceptionHandler {
 
     @ExceptionHandler(PlanConflictException.class)
     ProblemDetail conflict(PlanConflictException exception) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "그사이 계획이 바뀌었어요.");
+        String detail = switch (exception.code()) {
+            case PlanConflictException.NO_PLAN -> "저장된 계획이 없어요.";
+            case PlanConflictException.NOTHING_TO_UNDO -> "되돌릴 직전 계획이 없어요.";
+            default -> "그사이 계획이 바뀌었어요.";
+        };
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, detail);
         problem.setProperty("code", exception.code());
         problem.setProperty("errors", List.of());
         problem.setProperty("plan", exception.current().orElse(null));

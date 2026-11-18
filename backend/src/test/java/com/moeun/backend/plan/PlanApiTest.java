@@ -1,8 +1,9 @@
 package com.moeun.backend.plan;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static com.moeun.backend.plan.application.PlanInputBuilder.valid;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -29,17 +30,17 @@ import jakarta.servlet.http.Cookie;
 @Import(TestcontainersConfig.class)
 class PlanApiTest {
 
-    static final String VALID_PLAN = """
-            {"goalType":"HOUSE","goalAmount":50000000,"targetPeriodMonths":36,"heldAssets":6000000,
-             "monthlySavingAmount":1200000}""";
-
     @Autowired
     MockMvc mockMvc;
 
     @Autowired
     JdbcClient jdbc;
 
+    @Autowired
+    PlanSaveService saveService;
+
     Cookie cookie;
+    long memberId;
 
     @BeforeEach
     void login() throws Exception {
@@ -48,76 +49,93 @@ class PlanApiTest {
         cookie = mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"loginId\":\"demo01\",\"password\":\"pw-123456\"}"))
                 .andReturn().getResponse().getCookie(JwtTokenService.COOKIE_NAME);
+        memberId = jdbc.sql("SELECT id FROM member WHERE login_id = 'demo01'").query(Long.class).single();
     }
 
     private ResultActions postJson(String path, String body) throws Exception {
         return mockMvc.perform(post(path).cookie(cookie).contentType(MediaType.APPLICATION_JSON).content(body));
     }
 
+    private PlanSaveResult seedPlan() {
+        return saveService.save(memberId, valid().build(), null);
+    }
+
     @Test
-    void getPlanWithoutPlanIs404() throws Exception {
+    void planEndpointsForSaveAndReadAreGone() throws Exception {
         mockMvc.perform(get("/api/plan").cookie(cookie)).andExpect(status().isNotFound());
-    }
-
-    @Test
-    void postPlanReturnsViewAndThenGetReturnsIt() throws Exception {
-        postJson("/api/plan", VALID_PLAN)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.goalAmount").value(50_000_000))
-                .andExpect(jsonPath("$.revision").value(1))
-                .andExpect(jsonPath("$.canUndo").value(false))
-                .andExpect(jsonPath("$.baselineScenario").value("AVG"));
-
-        mockMvc.perform(get("/api/plan").cookie(cookie)).andExpect(jsonPath("$.monthlySaving").value(1_200_000));
-    }
-
-    @Test
-    void postPlanWithErrorsReturns422WithFieldCodes() throws Exception {
-        postJson("/api/plan", "{\"goalType\":\"HOUSE\",\"heldAssets\":0}")
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
-                .andExpect(jsonPath("$.errors[*].field",
-                        containsInAnyOrder("goalAmount", "targetPeriodMonths", "monthlySavingAmount")))
-                .andExpect(jsonPath("$.errors[*].reason",
-                        containsInAnyOrder("REQUIRED", "REQUIRED", "REQUIRED")));
+        mockMvc.perform(put("/api/plan").cookie(cookie).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/input-rules").cookie(cookie)).andExpect(status().isNotFound());
     }
 
     @Test
     void applyAndUndoRoundTrip() throws Exception {
-        postJson("/api/plan", VALID_PLAN);
+        seedPlan();
 
         postJson("/api/plan/apply",
-                "{\"source\":\"COMPARE\",\"changes\":{\"monthlySaving\":1500000},\"expectedRevision\":1}")
+                "{\"source\":\"COMPARE\",\"changes\":{\"monthlySavingAmount\":1500000},\"expectedRevision\":1}")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.monthlySaving").value(1_500_000))
-                .andExpect(jsonPath("$.canUndo").value(true));
+                .andExpect(jsonPath("$.revision").value(2));
         postJson("/api/plan/undo", "{\"expectedRevision\":2}")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.monthlySaving").value(1_200_000))
-                .andExpect(jsonPath("$.canUndo").value(false));
+                .andExpect(jsonPath("$.revision").value(3))
+                .andExpect(jsonPath("$.plan").doesNotExist());
+    }
+
+    @Test
+    void undoWithoutPlanReturns409NoPlan() throws Exception {
+        postJson("/api/plan/undo", "{\"expectedRevision\":1}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("NO_PLAN"))
+                .andExpect(jsonPath("$.errors").isEmpty());
+    }
+
+    @Test
+    void secondUndoReturns409NothingToUndo() throws Exception {
+        seedPlan();
+        postJson("/api/plan/apply",
+                "{\"source\":\"COMPARE\",\"changes\":{\"monthlySavingAmount\":1500000},\"expectedRevision\":1}");
+        postJson("/api/plan/undo", "{\"expectedRevision\":2}");
+
+        postJson("/api/plan/undo", "{\"expectedRevision\":3}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("NOTHING_TO_UNDO"))
+                .andExpect(jsonPath("$.errors").isEmpty());
+    }
+
+    @Test
+    void undoWithStaleRevisionReturns409PlanChanged() throws Exception {
+        seedPlan();
+        postJson("/api/plan/apply",
+                "{\"source\":\"COMPARE\",\"changes\":{\"monthlySavingAmount\":1500000},\"expectedRevision\":1}");
+
+        postJson("/api/plan/undo", "{\"expectedRevision\":1}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PLAN_CHANGED"))
+                .andExpect(jsonPath("$.errors").isEmpty());
     }
 
     @Test
     void applyWithStaleRevisionReturns409WithCurrentPlan() throws Exception {
-        postJson("/api/plan", VALID_PLAN);
+        seedPlan();
         postJson("/api/plan/apply",
-                "{\"source\":\"CHAT\",\"changes\":{\"monthlySaving\":1500000},\"expectedRevision\":1}");
+                "{\"source\":\"CHAT\",\"changes\":{\"monthlySavingAmount\":1500000},\"expectedRevision\":1}");
 
         postJson("/api/plan/apply",
-                "{\"source\":\"CHAT\",\"changes\":{\"monthlySaving\":1600000},\"expectedRevision\":1}")
+                "{\"source\":\"CHAT\",\"changes\":{\"monthlySavingAmount\":1600000},\"expectedRevision\":1}")
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("PLAN_CHANGED"))
                 .andExpect(jsonPath("$.errors").isEmpty())
-                .andExpect(jsonPath("$.plan.monthlySaving").value(1_500_000))
+                .andExpect(jsonPath("$.plan.monthlySavingAmount").value(1_500_000))
                 .andExpect(jsonPath("$.plan.revision").value(2));
     }
 
     @Test
     void applyFromInputEditSourceIsRejected() throws Exception {
-        postJson("/api/plan", VALID_PLAN);
+        seedPlan();
 
         postJson("/api/plan/apply",
-                "{\"source\":\"INPUT_EDIT\",\"changes\":{\"monthlySaving\":1500000},\"expectedRevision\":1}")
+                "{\"source\":\"INPUT_EDIT\",\"changes\":{\"monthlySavingAmount\":1500000},\"expectedRevision\":1}")
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.errors[0].field").value("source"))
                 .andExpect(jsonPath("$.errors[0].reason").value("NOT_CHANGEABLE"));
@@ -125,7 +143,7 @@ class PlanApiTest {
 
     @Test
     void applyWithoutSourceIsRequired() throws Exception {
-        postJson("/api/plan", VALID_PLAN);
+        seedPlan();
 
         postJson("/api/plan/apply", "{\"changes\":{},\"expectedRevision\":1}")
                 .andExpect(status().isUnprocessableEntity())
@@ -135,7 +153,7 @@ class PlanApiTest {
 
     @Test
     void malformedJsonIs400WithCode() throws Exception {
-        postJson("/api/plan", "{\"goalType\":").andExpect(status().isBadRequest())
+        postJson("/api/plan/undo", "{\"expectedRevision\":").andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"))
                 .andExpect(jsonPath("$.errors").isEmpty());
     }
@@ -152,7 +170,7 @@ class PlanApiTest {
 
     @Test
     void unsupportedMediaTypeIs415WithMalformedRequestCode() throws Exception {
-        mockMvc.perform(post("/api/plan").cookie(cookie).contentType(MediaType.TEXT_PLAIN).content("x"))
+        mockMvc.perform(post("/api/plan/undo").cookie(cookie).contentType(MediaType.TEXT_PLAIN).content("x"))
                 .andExpect(status().isUnsupportedMediaType())
                 .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
                 .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"))
@@ -162,18 +180,18 @@ class PlanApiTest {
 
     @Test
     void unknownEnumValueIs400WithCode() throws Exception {
-        postJson("/api/plan", "{\"goalType\":\"UNKNOWN\"}").andExpect(status().isBadRequest())
+        postJson("/api/plan/apply", "{\"source\":\"UNKNOWN\"}").andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
     }
 
     @Test
     void planEndpointsRequireLogin() throws Exception {
-        mockMvc.perform(get("/api/plan")).andExpect(status().isUnauthorized())
+        mockMvc.perform(post("/api/plan/undo").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedRevision\":1}"))
+                .andExpect(status().isUnauthorized())
                 .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
                 .andExpect(jsonPath("$.errors").isArray())
                 .andExpect(cookie().maxAge(JwtTokenService.COOKIE_NAME, 0));
-        mockMvc.perform(post("/api/plan").contentType(MediaType.APPLICATION_JSON).content(VALID_PLAN))
-                .andExpect(status().isUnauthorized());
     }
 }

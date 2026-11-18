@@ -1,15 +1,18 @@
 package com.moeun.backend.plan.application;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
 import com.moeun.backend.plan.FieldError;
 import com.moeun.backend.plan.GoalType;
 import com.moeun.backend.plan.InputField;
+import com.moeun.backend.plan.PlanInput;
 import com.moeun.backend.plan.application.PlanRules.FieldRule;
+
+import tools.jackson.databind.JsonNode;
 
 /** 입력 화면 전체 검증(FR-INP-09, CP-02). 항목별 범위는 PlanRules, 항목 간 규칙은 이 클래스가 맡는다. */
 @Component
@@ -28,11 +31,12 @@ public class PlanInputValidator {
         } else if (in.goalType() == GoalType.CUSTOM) {
             checkCustomName(in.goalCustomName(), errors);
         }
-        checkRequired(InputField.GOAL_AMOUNT, in.goalAmount(), errors);
-        checkRequired(InputField.HELD_ASSETS, in.heldAssets(), errors);
-        checkRequired(InputField.TARGET_PERIOD_MONTHS, in.targetPeriodMonths(), errors);
-        checkRequired(InputField.MONTHLY_SAVING_AMOUNT, in.monthlySavingAmount(), errors);
-        checkOptional(InputField.SAVINGS_RATE_INPUT_PCT, in.savingsRateInputPct(), errors);
+        Map<String, JsonNode> fields = in.fields();
+        checkRequired(InputField.GOAL_AMOUNT, fields, errors);
+        checkRequired(InputField.HELD_ASSETS, fields, errors);
+        checkRequired(InputField.TARGET_PERIOD_MONTHS, fields, errors);
+        checkRequired(InputField.MONTHLY_SAVING_AMOUNT, fields, errors);
+        checkOptional(InputField.SAVINGS_RATE_INPUT_PCT, fields, errors);
         return errors;
     }
 
@@ -50,19 +54,28 @@ public class PlanInputValidator {
         }
     }
 
-    private void checkRequired(InputField field, Number value, List<FieldError> errors) {
-        if (value == null) {
+    private void checkRequired(InputField field, Map<String, JsonNode> fields, List<FieldError> errors) {
+        JsonNode node = fields.get(field.apiName());
+        if (node == null || node.isNull()) {
             errors.add(FieldError.required(field.apiName()));
             return;
         }
-        checkOptional(field, value, errors);
+        checkNode(field, node, errors);
     }
 
-    private void checkOptional(InputField field, Number value, List<FieldError> errors) {
-        if (value == null) {
+    private void checkOptional(InputField field, Map<String, JsonNode> fields, List<FieldError> errors) {
+        JsonNode node = fields.get(field.apiName());
+        if (node == null || node.isNull()) {
             return;
         }
-        BigDecimal decimal = value instanceof BigDecimal d ? d : new BigDecimal(value.toString());
-        rules.check(field, decimal).ifPresent(errors::add);
+        checkNode(field, node, errors);
+    }
+
+    private void checkNode(InputField field, JsonNode node, List<FieldError> errors) {
+        if (!node.isNumber()) {
+            errors.add(FieldError.notInteger(field.apiName()));
+            return;
+        }
+        rules.check(field, node.decimalValue()).ifPresent(errors::add);
     }
 }

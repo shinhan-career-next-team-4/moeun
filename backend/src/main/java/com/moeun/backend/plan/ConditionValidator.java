@@ -51,10 +51,10 @@ public class ConditionValidator {
         if (changes == null) {
             return changed;
         }
-        putIfPresent(changed, InputField.MONTHLY_SAVING_AMOUNT, changes.monthlySaving());
+        putIfPresent(changed, InputField.MONTHLY_SAVING_AMOUNT, changes.monthlySavingAmount());
         putIfPresent(changed, InputField.TARGET_PERIOD_MONTHS, changes.targetPeriodMonths());
         putIfPresent(changed, InputField.SAVINGS_RATIO_PCT, changes.savingsRatioPct());
-        putIfPresent(changed, InputField.SAVINGS_RATE_INPUT_PCT, changes.savingsRatePct());
+        putIfPresent(changed, InputField.SAVINGS_RATE_INPUT_PCT, changes.savingsRateInputPct());
         return changed;
     }
 

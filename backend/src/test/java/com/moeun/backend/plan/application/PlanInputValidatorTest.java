@@ -68,9 +68,9 @@ class PlanInputValidatorTest {
 
     @Test
     void decimalAmountIsNotInteger() {
+        assertThat(errors(valid().goalAmountRaw(new BigDecimal("300000.5"))))
+                .containsExactly(new FieldError("goalAmount", "NOT_INTEGER", null, null, null, null));
         PlanRules rules = PlanRulesFixture.load();
-        assertThat(rules.check(InputField.GOAL_AMOUNT, new BigDecimal("300000.5")))
-                .contains(new FieldError("goalAmount", "NOT_INTEGER", null, null, null, null));
         assertThat(rules.check(InputField.GOAL_AMOUNT, new BigDecimal("300000.0"))).isEmpty();
     }
 
