@@ -71,6 +71,23 @@ public class CalcRunRecorder {
         return calcRunRepository.save(CalcRun.createPlanRun(planVersionId, versions)).getId();
     }
 
+    /**
+     * 대화 재계산 한 건을 calc_run(CHAT)으로 기록한다(계약 C2-7). 요청마다 새 행이고 멱등 키가 없다.
+     * 실패한 요청은 호출자 트랜잭션이 롤백해 행이 남지 않는다.
+     *
+     * @param planVersionId 비교의 기준인 현재 계획 버전
+     * @param versions current·changed에 함께 쓴 기준 데이터 버전과 엔진 버전
+     * @return calc_run id(calcRunId)
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public long recordChatRun(long planVersionId, AppliedDataVersions versions) {
+        if (TransactionSynchronizationManager.isCurrentTransactionReadOnly()) {
+            throw new IllegalStateException("calc_run cannot be recorded in a read-only transaction");
+        }
+        requireKinds(versions);
+        return calcRunRepository.save(CalcRun.createChatRun(planVersionId, versions)).getId();
+    }
+
     /** DB가 데이터 종류 일치를 막지 않으므로(ADR-002) 금리 자리에 지수 버전이 들어가지 않게 기록 전에 확인한다. */
     private void requireKinds(AppliedDataVersions versions) {
         if (versions.savingsRateVersionId() != null) {

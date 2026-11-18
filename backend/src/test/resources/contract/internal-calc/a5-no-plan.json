@@ -1,0 +1,8 @@
+{
+  "type": "about:blank",
+  "title": "계획이 없어요",
+  "status": 409,
+  "instance": "/internal/calc",
+  "code": "NO_PLAN",
+  "errors": []
+}
