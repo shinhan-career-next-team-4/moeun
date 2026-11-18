@@ -3,7 +3,6 @@ package com.moeun.backend.plan;
 import static com.moeun.backend.plan.application.PlanInputBuilder.valid;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -61,10 +60,8 @@ class PlanApiTest {
     }
 
     @Test
-    void planEndpointsForSaveAndReadAreGone() throws Exception {
-        mockMvc.perform(get("/api/plan").cookie(cookie)).andExpect(status().isNotFound());
-        mockMvc.perform(put("/api/plan").cookie(cookie).contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isNotFound());
+    void inputRulesEndpointIsGone() throws Exception {
+        // GET·PUT /api/plan(P-4·P-3)은 plan이 아니라 calc.web이 맡는다(#30, #31). 테스트는 calc 쪽에 있다
         mockMvc.perform(get("/api/input-rules").cookie(cookie)).andExpect(status().isNotFound());
     }
 
