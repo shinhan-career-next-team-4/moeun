@@ -22,7 +22,7 @@
 | `calc_alternative` (대안 카드 3종, READY/UNAVAILABLE, 사유 문구 키) | 계산 함수 `AlternativeFinder.find(input, result, baseline)`. 변경 단위는 `calc_param`(ALT_STEP_*), 사유 문구는 `copy.ko.yml › alt.unavailable.<FIELD>` | FR-ALT-01, FR-ALT-02, FR-ALT-03, FR-ALT-04 |
 | `calc_run_override` (비교·대화로 바꾼 조건) | 비교: 요청 본문 `ConditionOverride`로만 존재하고 저장하지 않음. 대화: `chat_message.condition_changes`(재계산에 쓴 값) | FR-CMP-02, FR-CMP-03, FR-AI-07, FR-PLAN-01 |
 | `plan_application` (적용·되돌리기 채택 이력) | 앱 감사 로그 이벤트 `plan.changed {memberId, action: INPUT/APPLY/UNDO, beforeVersionId, afterVersionId, revision}` | FR-PLAN-01, FR-PLAN-03, FR-PLAN-04 |
-| `user_session` (서버 세션) | 무상태 JWT. `JwtTokenService`(만료 `auth.jwt.ttl=30m`). `TokenRenewalFilter`가 사용자 조작 요청에만 새 토큰을 발급하고, 폴링 엔드포인트는 `@SkipRenewal`로 제외. 로그아웃은 클라이언트가 토큰을 삭제 | FR-AUTH-02, FR-AUTH-03, NFR-SEC-02 |
+| `user_session` (서버 세션) | 무상태 JWT. `JwtTokenService`(만료 `auth.jwt.ttl=30m`). `TokenRenewalInterceptor`가 사용자 조작 요청에만 새 토큰을 발급하고, 폴링 엔드포인트는 `@SkipRenewal`로 제외. 로그아웃은 클라이언트가 토큰을 삭제 | FR-AUTH-02, FR-AUTH-03, NFR-SEC-02 |
 
 ## 2. 삭제한 컬럼
 
@@ -35,7 +35,7 @@
 | `plan_version.goal_is_custom` | `goal_type_code == GoalType.CUSTOM` | FR-INP-02 |
 | `plan_version.has_deadline` | `target_period_months != null` | FR-INP-04 |
 | `plan_version.ratio_source` | `RatioResolver.resolve(pv, params)`의 분기로 결정: `savings_ratio_pct`가 있으면 USER, 기존 납입액이 있으면 DERIVED_EXISTING, 둘 다 없으면 DEFAULT | FR-INP-08 |
-| `plan_version.savings_ratio_pct`의 산출값 (NOT NULL → NULL 허용) | 사용자가 직접 정한 비중만 저장. 나머지는 `RatioResolver`가 `existing_monthly_contribution / monthly_saving_amount` 또는 `calc_param.DEFAULT_SAVINGS_RATIO`로 계산 | FR-INP-08, CP-04 |
+| `plan_version.savings_ratio_pct`의 산출값 (NOT NULL → NULL 허용) | 사용자가 직접 정한 비중만 저장. 저장값이 없으면 `RatioResolver`가 `calc_param.DEFAULT_SAVINGS_RATIO`를 쓴다. 기존 납입액(적금·ETF)은 비중 선택에만 쓰고 계산에 직접 쓰지 않는다 | FR-INP-08, CP-04 |
 | `plan_version.applied_from_calc_run_id` | 삭제. 버전의 출처는 `plan_version.source`로 충분함. COMPARE 실행은 저장하지 않음 | FR-ALT-04, FR-PLAN-03 |
 | `plan.current_calc_run_id`, `current_run_type` | 조회 `CalcRunRepository.findLatest(planVersionId, PLAN)` (인덱스 `ix_calc_run_latest`) | FR-PLAN-05, FR-RES-05 |
 | `plan.updated_at` | 로그 `plan.changed` | FR-PLAN-03 |

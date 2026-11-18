@@ -57,12 +57,12 @@ erDiagram
         varchar goal_type_code "enum GoalType"
         varchar goal_custom_name "CUSTOM일 때"
         bigint goal_amount
-        int target_period_months "NULL=기한 미정"
+        int target_period_months "필수"
         date calc_start_month
         bigint held_assets
-        bigint monthly_saving_amount "NULL=모름"
+        bigint monthly_saving_amount "필수"
         numeric savings_rate_input_pct "NULL=기본금리"
-        bigint existing_monthly_contribution "NULL=토글 OFF"
+        bigint existing_monthly_contribution "항상 NULL"
         smallint savings_ratio_pct "NULL=규칙 산출"
         varchar source
         timestamptz created_at
@@ -234,14 +234,14 @@ CREATE TABLE plan_version (
     id                             BIGSERIAL    PRIMARY KEY,
     member_id                      BIGINT       NOT NULL REFERENCES member(id) ON DELETE CASCADE,
     goal_type_code                 VARCHAR(30)  NOT NULL,   -- 앱 enum GoalType
-    goal_custom_name               VARCHAR(50),             -- GoalType.CUSTOM일 때만 (앱 검증)
+    goal_custom_name               VARCHAR(100),             -- GoalType.CUSTOM일 때만 (앱 검증)
     goal_amount                    BIGINT       NOT NULL,
-    target_period_months           INT,                     -- NULL = 기한 미정
+    target_period_months           INT,                     -- 필수(앱 검증)
     calc_start_month               DATE         NOT NULL,
     held_assets                    BIGINT       NOT NULL DEFAULT 0,
-    monthly_saving_amount          BIGINT,                  -- NULL = '잘 모르겠어요'
+    monthly_saving_amount          BIGINT,                  -- 필수(앱 검증)
     savings_rate_input_pct         NUMERIC(6,3),            -- NULL = 기본금리
-    existing_monthly_contribution  BIGINT,                  -- NULL = 토글 OFF
+    existing_monthly_contribution  BIGINT,                  -- 항상 NULL(계약 C12a-5-1). 컬럼만 남겨 둔다
     savings_ratio_pct              SMALLINT,                -- NULL = 규칙으로 산출(토글/기본값). 사용자가 직접 정한 비중만 저장
     source                         VARCHAR(20)  NOT NULL,   -- 이 버전을 만든 경로
     created_at                     TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -249,7 +249,8 @@ CREATE TABLE plan_version (
     CONSTRAINT ck_pv_period      CHECK (target_period_months IS NULL OR target_period_months > 0),
     CONSTRAINT ck_pv_amounts     CHECK (held_assets >= 0
                                         AND (monthly_saving_amount IS NULL OR monthly_saving_amount >= 0)
-                                        AND (existing_monthly_contribution IS NULL OR existing_monthly_contribution >= 0)),
+                                        AND (existing_monthly_contribution IS NULL
+                                             OR existing_monthly_contribution >= 0)),
     CONSTRAINT ck_pv_rate        CHECK (savings_rate_input_pct IS NULL OR savings_rate_input_pct >= 0),
     CONSTRAINT ck_pv_ratio       CHECK (savings_ratio_pct IS NULL OR savings_ratio_pct BETWEEN 0 AND 100),
     CONSTRAINT ck_pv_source      CHECK (source IN ('INPUT','ALTERNATIVE','COMPARE','CHAT'))
@@ -399,7 +400,7 @@ CREATE TABLE chat_message_citation (
 | FR-ALT-03 | `calc_param`(ALT_STEP_*) | `AlternativeFinder`(조건 하나만 변경) |
 | FR-ALT-04 | 적용 시 `plan_version(source='ALTERNATIVE')` + `plan` | 비교는 요청마다 계산 |
 | FR-AUTH-01 | `member.login_id`, `password_hash` | 로그 `auth.login` |
-| FR-AUTH-02 | — | `JwtTokenService`(30분), `TokenRenewalFilter`(조작 요청만 재발급) |
+| FR-AUTH-02 | — | `JwtTokenService`(30분), `TokenRenewalInterceptor`(조작 요청만 재발급) |
 | FR-AUTH-03 | — | 클라이언트 토큰 삭제 |
 | FR-CMP-01 | — | `CalcEngine`(비중별 3구간 = 위험 범위) |
 | FR-CMP-02 | — | 요청 본문 `ConditionOverride`, `ConditionValidator(COMPARE)` |
@@ -409,11 +410,11 @@ CREATE TABLE chat_message_citation (
 | FR-INP-01 | `plan_version.goal_type_code` | enum `GoalType` |
 | FR-INP-02 | `plan_version.goal_custom_name` | `GoalType.CUSTOM`, `PlanInputValidator` |
 | FR-INP-03 | `plan_version.goal_amount NOT NULL > 0` | |
-| FR-INP-04 | `plan_version.target_period_months`(NULL = 기한 미정) | |
+| FR-INP-04 | `plan_version.target_period_months`(필수) | |
 | FR-INP-05 | `plan_version.held_assets` | |
-| FR-INP-06 | `plan_version.monthly_saving_amount`(NULL = 모름) | |
+| FR-INP-06 | `plan_version.monthly_saving_amount`(필수) | |
 | FR-INP-07 | `plan_version.savings_rate_input_pct`(NULL = 기본), `calc_run.savings_rate_version_id` | `ConditionResolver` |
-| FR-INP-08 | `plan_version.existing_monthly_contribution`(1개), `savings_ratio_pct`(직접 정한 비중만) | `RatioResolver`, `calc_param.DEFAULT_SAVINGS_RATIO` |
+| FR-INP-08 | `plan_version.savings_ratio_pct`(직접 정한 비중만) | `RatioResolver`, `calc_param.DEFAULT_SAVINGS_RATIO` |
 | FR-INP-09 | `plan_version` 단순 CHECK | `ConditionValidator(INPUT_EDIT)`, `PlanInputValidator` |
 | FR-INP-10 | `plan_version` INSERT + `plan` + `calc_run(PLAN)` (Q4-a) | |
 | FR-INP-11 | `plan.current_version_id` → `plan_version` | |
@@ -577,8 +578,8 @@ WHERE member_id = $user AND revision = $toast_revision AND previous_version_id I
 
 ### D. 비중(FR-INP-08)은 사용자가 정한 값만 저장한다
 - `savings_ratio_pct`가 NULL이면 `RatioResolver`가 다음 순서로 정한다.
-  1. 기존 납입액이 있으면 `existing_monthly_contribution / monthly_saving_amount`
-  2. 없으면 `calc_param.DEFAULT_SAVINGS_RATIO`
+  - 저장값이 없으면 `calc_param.DEFAULT_SAVINGS_RATIO`(기준 비중 50).
+  - 기존 납입액(적금·ETF)은 입력 화면에서 "기준 비중으로 맞추기 / 지금 비중 유지"를 고르는 데만 쓴다. "지금 비중 유지"를 고르면 그 비중을 `savings_ratio_pct`에 저장한다(CF-08, A-2 설계 §4.3).
 - 기본 비중이 버전 데이터(`calc_param`)에 있으므로, 기본값이 바뀌어도 과거 `calc_run`은 당시 파라미터 버전으로 같은 결과를 낸다.
 - 대안·비교·대화로 비중을 바꿔 적용하면 그 값을 `savings_ratio_pct`에 저장하고, 이 값이 토글 산출값보다 우선한다.
 

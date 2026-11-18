@@ -24,7 +24,7 @@ import com.moeun.backend.refdata.Sp500Series;
  * application.yml의 기본 시드 설정을 그대로 쓰고, 레포에 없는 S&P500 파일 위치만 테스트용 가짜 파일로 바꾼다.
  */
 // TestcontainersConfig가 config 패키지에 있어서, config 모듈을 함께 포함하지 않으면 DB 컨테이너 빈이 걸러진다
-@ApplicationModuleTest(extraIncludes = "config")
+@ApplicationModuleTest(extraIncludes = {"config", "auth"})
 @Import(TestcontainersConfig.class)
 @TestPropertySource(properties = "MOEUN_SP500_FILE=classpath:refdata/test-sp500-2016-10-to-2026-10.csv")
 class DefaultSeedConfigTest {

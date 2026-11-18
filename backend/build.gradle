@@ -88,6 +88,7 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    environment 'JWT_SECRET', 'test-only-jwt-secret-not-for-any-real-env-000'   // 테스트 전용 서명 키
 }
 
 checkstyle {

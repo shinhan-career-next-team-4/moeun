@@ -1,6 +1,9 @@
 # 테이블별 역할과 필드 저장 이유 (v2, 최소 저장)
 
-기준: `final/schema.sql` (테이블 14개). 이전 버전(25개)은 `final/v1/tables.md`에 있다.
+기준: `../backend/src/main/resources/db/schema.sql` (테이블 14개).
+
+> 이전 버전(v1, 테이블 25개)의 스키마·문서는 설계 워크스페이스 산출물로 이 저장소에 포함되지 않는다.
+> 본문에서 v1을 언급하는 곳은 기록이며, 이 저장소에서 열 수 있는 파일이 아니다.
 
 DB에는 코드로 다시 만들 수 없는 것만 둔다. 각 필드의 "저장 이유"는 아래 셋 중 하나다.
 
@@ -39,12 +42,12 @@ INSERT만 하는 이력이다. 적용하거나 입력을 수정할 때마다 새
 | `goal_type_code` | 원본: 사용자가 고른 목표 종류(FR-INP-01). 값 목록은 enum `GoalType` |
 | `goal_custom_name` | 원본: '직접 입력'한 목표명(FR-INP-02) |
 | `goal_amount` | 원본: 목표 금액(FR-INP-03). CHECK > 0 |
-| `target_period_months` | 원본: 목표 기간. NULL이면 기한 미정(FR-INP-04) |
+| `target_period_months` | 원본: 목표 기간(필수, FR-INP-04) |
 | `calc_start_month` | 원본: 계획을 세운 시점의 계산 시작월. 같은 조건이라도 시작월에 따라 결과와 목표일이 달라진다(FR-RES-04, FR-PLAN-05, TBD-38) |
 | `held_assets` | 원본: 지금 이 목표에 쓸 수 있는 돈(FR-INP-05) |
-| `monthly_saving_amount` | 원본: 월 저축 가능 금액. NULL이면 '잘 모르겠어요'(FR-INP-06) |
+| `monthly_saving_amount` | 원본: 월 저축 가능 금액(필수) |
 | `savings_rate_input_pct` | 원본: 사용자가 넣은 적금 금리. NULL이면 기본금리(FR-INP-07) |
-| `existing_monthly_contribution` | 원본: 이미 저축 중인 월납입액 1개. NULL이면 토글 OFF(FR-INP-08) |
+| `existing_monthly_contribution` | 항상 NULL(계약 C12a-5-1). 컬럼만 남아 있고 앱은 읽지도 쓰지도 않는다 |
 | `savings_ratio_pct` | 원본: 사용자가 직접 정한 비중만 저장한다. 대안·비교·대화로 바꿔 적용한 경우다. NULL이면 `RatioResolver`가 규칙으로 산출 |
 | `source` | 원본: 이 버전을 만든 경로(INPUT/ALTERNATIVE/COMPARE/CHAT). 적용 출처 표시용 |
 | `created_at` | 원본: 버전이 생긴 시각 |

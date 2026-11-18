@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// AC-1: 새로 clone한 사용자가 개발 서버를 켜면 빈 레이아웃(헤더 포함)이 뜬다.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -18,8 +17,9 @@ const renderAt = (path: string) =>
     </MemoryRouter>,
   );
 
-describe("AC-1 공통 레이아웃", () => {
-  it.each(["/", LOGIN_PATH, "/아직-없는-경로"])("%s 에서도 헤더(banner)와 본문 영역(main)이 보인다", (path) => {
+describe("공통 레이아웃", () => {
+  it.each([INPUT_PATH, LOGIN_PATH, "/아직-없는-경로"])("%s 에서도 헤더(banner)와 본문 영역(main)이 보인다", (path) => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     renderAt(path);
     const header = screen.getByRole("banner");
     expect(header.textContent?.trim().length).toBeGreaterThan(0);
@@ -34,10 +34,10 @@ describe("AC-1 공통 레이아웃", () => {
     expect(INPUT_PATH).not.toBe(LOGIN_PATH);
   });
 
-  it("빈 레이아웃은 API를 부르지 않는다(라우팅 가드·화면 데이터는 다른 Issue)", async () => {
+  it("로그인 화면은 초기 진입 시 API를 부르지 않는다", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
-    renderAt("/");
+    renderAt(LOGIN_PATH);
     await new Promise((r) => setTimeout(r, 10));
     expect(fetchSpy).not.toHaveBeenCalled();
   });

@@ -33,7 +33,7 @@ import com.moeun.backend.refdata.Sp500Series;
 import com.moeun.backend.refdata.domain.DataVersionRepository;
 
 // TestcontainersConfig가 config 패키지에 있어서, config 모듈을 함께 포함하지 않으면 DB 컨테이너 빈이 걸러진다
-@ApplicationModuleTest(extraIncludes = "config")
+@ApplicationModuleTest(extraIncludes = {"config", "auth"})
 @Import(TestcontainersConfig.class)
 class ReferenceDataLoaderTest {
 
