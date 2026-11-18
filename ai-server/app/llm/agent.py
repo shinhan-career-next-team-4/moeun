@@ -23,6 +23,7 @@ from pydantic import BaseModel, ValidationError
 from app.core.config import Effort
 from app.core.copy import load_copy
 from app.llm.assemble import ForbiddenExpression, check_recommendation, replace_product_names
+from app.llm.number_check import NumberMismatch, check_numbers
 from app.llm.prompts import EXPLAIN_INSTRUCTION, SYSTEM_PROMPT
 from app.schemas import (
     ChatMode,
@@ -248,6 +249,8 @@ class _Turn:
     disclosure_orgs: dict[int, str] = field(default_factory=dict)   # 검색된 공시 chunk_id -> 운용사, 검색 순서
     validation_failed: bool = False   # 이번 요청에서 VALIDATION_FAILED를 받았다. 다시 계산하지 않는다
     fixed_copy_key: str | None = None   # 문구표 고정 문장으로 끝내는 거절을 받았다
+    # 이번 요청의 계산 200 응답 display 값과 422 minDisplay·maxDisplay. 숫자 대조의 근거다(요청마다 따로, FR-AI-02)
+    number_evidence: list[str] = field(default_factory=list)
 
 
 ToolHandler = Callable[[_Turn, dict[str, Any]], Awaitable[str]]
@@ -348,6 +351,9 @@ class ChatAgent:
     def _on_rejected(self, turn: _Turn, block: BetaToolUseBlock, e: CalcRejected) -> BetaToolResultBlockParam:
         if e.code == "VALIDATION_FAILED":
             turn.validation_failed = True
+            turn.number_evidence.extend(
+                v for item in e.errors for k in ("minDisplay", "maxDisplay") if isinstance(v := item.get(k), str)
+            )
             body = {"code": e.code, "errors": _errors_for_model(e.errors)}
             return {
                 "type": "tool_result",
@@ -379,6 +385,9 @@ class ChatAgent:
         result = await self._calc.recalculate(turn.req.member_id, turn.req.baseline_scenario, changes)
         turn.calc_run_id = result["calcRunId"]
         turn.condition_changes = changes.changed()
+        display = result.get("display")
+        if isinstance(display, dict):
+            turn.number_evidence.extend(v for v in display.values() if isinstance(v, str))
         if dropped:
             # 모델이 뺀 조건을 계산에 쓴 것처럼 답하지 않게 알린다(서버 사실 원칙)
             result = {**result, "excludedConditions": dropped, "note": EXCLUDED_NOTE}
@@ -526,6 +535,14 @@ def _cover_orgs(turn: _Turn, citations: list[int], min_orgs: int = 2) -> list[in
     return [*citations, extra]
 
 
+def _number_evidence(turn: _Turn) -> list[str]:
+    """본문 숫자의 근거: 이번 요청의 planContext display, 계산 응답·422 표시값, 이번 요청 text(U-1, U-2).
+    history·검색 결과·이전 요청의 값은 근거가 아니다."""
+    req = turn.req
+    plan_display = [v for v in req.plan_context.display.values() if isinstance(v, str)] if req.plan_context else []
+    return [*plan_display, *turn.number_evidence, *([req.text] if req.text else [])]
+
+
 def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
     """DB CHECK(ck_cm_recalc/explain/out_of_scope)를 만족하도록 모델 출력을 서버 사실로 보정한다."""
     req = turn.req
@@ -558,6 +575,10 @@ def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
             check_recommendation(body)
         except ForbiddenExpression as e:
             raise AgentError("FORBIDDEN_EXPRESSION", str(e)) from e
+        try:
+            check_numbers(body, _number_evidence(turn))   # PR-04. 상품명·추천 검사 뒤, 바뀐 본문을 대조한다
+        except NumberMismatch as e:
+            raise AgentError("NUMBER_MISMATCH", str(e)) from e
         content = with_tax_note(req, body)
     return ChatResponse(
         message_type=message_type,
