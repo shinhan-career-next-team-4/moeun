@@ -127,7 +127,7 @@ class PlanApiTest {
     }
 
     @Test
-    void applyWithStaleRevisionReturns409WithCurrentPlan() throws Exception {
+    void applyWithStaleRevisionReturns409WithoutCurrentPlan() throws Exception {
         seedPlan();
         postJson("/api/plan/apply",
                 "{\"source\":\"CHAT\",\"changes\":{\"monthlySavingAmount\":1500000},\"expectedRevision\":1}");
@@ -137,8 +137,7 @@ class PlanApiTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("PLAN_CHANGED"))
                 .andExpect(jsonPath("$.errors").isEmpty())
-                .andExpect(jsonPath("$.plan.monthlySavingAmount").value(1_500_000))
-                .andExpect(jsonPath("$.plan.revision").value(2));
+                .andExpect(jsonPath("$.plan").doesNotExist());
     }
 
     @Test

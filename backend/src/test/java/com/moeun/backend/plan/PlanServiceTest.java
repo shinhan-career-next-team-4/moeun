@@ -159,7 +159,7 @@ class PlanServiceTest {
     }
 
     @Test
-    void applyWithStaleRevisionThrowsConflictWithCurrentPlan() {
+    void applyWithStaleRevisionThrowsPlanChangedAndKeepsCurrent() {
         PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
         applyService.apply(memberId, ChangePath.CHAT, new ConditionOverride(1_500_000L, null, null, null),
                 saved.revision());
@@ -167,8 +167,9 @@ class PlanServiceTest {
         assertThatThrownBy(() -> applyService.apply(memberId, ChangePath.CHAT,
                 new ConditionOverride(1_600_000L, null, null, null), saved.revision()))
                 .isInstanceOf(PlanConflictException.class)
-                .satisfies(e -> assertThat(((PlanConflictException)e).current().orElseThrow().monthlySavingAmount())
-                        .isEqualTo(1_500_000L));
+                .satisfies(e -> assertThat(((PlanConflictException)e).code())
+                        .isEqualTo(PlanConflictException.PLAN_CHANGED));
+        assertThat(saveService.findCurrent(memberId).orElseThrow().monthlySavingAmount()).isEqualTo(1_500_000L);
     }
 
     @Test
@@ -228,7 +229,6 @@ class PlanServiceTest {
                 .satisfies(e -> {
                     PlanConflictException conflict = (PlanConflictException)e;
                     assertThat(conflict.code()).isEqualTo(PlanConflictException.NO_PLAN);
-                    assertThat(conflict.current()).isEmpty();
                 });
     }
 
@@ -253,5 +253,27 @@ class PlanServiceTest {
         saveService.save(memberId, valid().build(), null);
 
         assertThat(saveService.findCurrent(otherMemberId)).isEmpty();
+    }
+
+    @Test
+    void findVersionReturnsAnOlderVersionOfMyPlan() {
+        PlanSaveResult first = saveService.save(memberId, valid().build(), null);
+        long originalMonthly = saveService.findCurrent(memberId).orElseThrow().monthlySavingAmount();
+        applyService.apply(memberId, ChangePath.COMPARE,
+                new ConditionOverride(1_500_000L, null, null, null), first.revision());
+
+        PlanView old = saveService.findVersion(memberId, first.planVersionId()).orElseThrow();
+
+        assertThat(old.currentVersionId()).isEqualTo(first.planVersionId());
+        assertThat(old.monthlySavingAmount()).isEqualTo(originalMonthly);
+        assertThat(saveService.findCurrent(memberId).orElseThrow().monthlySavingAmount()).isEqualTo(1_500_000L);
+    }
+
+    @Test
+    void findVersionHidesOtherMembersVersionAndUnknownId() {
+        PlanSaveResult mine = saveService.save(memberId, valid().build(), null);
+
+        assertThat(saveService.findVersion(otherMemberId, mine.planVersionId())).isEmpty();
+        assertThat(saveService.findVersion(memberId, mine.planVersionId() + 9_999L)).isEmpty();
     }
 }

@@ -65,6 +65,13 @@ public class PlanService implements PlanSaveService, PlanApplyService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Optional<PlanView> findVersion(long memberId, long planVersionId) {
+        return versionRepository.findByIdAndMemberId(planVersionId, memberId)
+                .flatMap(version -> planRepository.findById(memberId).map(plan -> toView(plan, version)));
+    }
+
+    @Override
     public PlanSaveResult save(long memberId, PlanInput in, Long expectedRevision) {
         throwIfInvalid(inputValidator.validate(in));
         Optional<Plan> existing = planRepository.findById(memberId);
@@ -83,12 +90,12 @@ public class PlanService implements PlanSaveService, PlanApplyService {
         long newRevision;
         if (existing.isEmpty()) {
             if (planRepository.insertIfAbsent(memberId, saved.getId(), DEFAULT_BASELINE) == 0) {
-                throw new PlanConflictException(PlanConflictException.PLAN_CHANGED, findCurrent(memberId));
+                throw new PlanConflictException(PlanConflictException.PLAN_CHANGED);
             }
             newRevision = 1L;
         } else {
             if (planRepository.replaceCurrent(memberId, saved.getId(), expectedRevision) == 0) {
-                throw new PlanConflictException(PlanConflictException.PLAN_CHANGED, findCurrent(memberId));
+                throw new PlanConflictException(PlanConflictException.PLAN_CHANGED);
             }
             newRevision = expectedRevision + 1;
         }
@@ -99,7 +106,7 @@ public class PlanService implements PlanSaveService, PlanApplyService {
     @Override
     public PlanSaveResult apply(long memberId, ChangePath path, ConditionOverride changes, long expectedRevision) {
         Plan plan = planRepository.findById(memberId).orElseThrow(
-                () -> new PlanConflictException(PlanConflictException.NO_PLAN, Optional.empty()));
+                () -> new PlanConflictException(PlanConflictException.NO_PLAN));
         throwIfInvalid(conditionValidator.validate(path, changes));
         PlanVersion current = version(memberId, plan.getCurrentVersionId());
         PlanInput merged = merge(current, changes);
@@ -108,7 +115,7 @@ public class PlanService implements PlanSaveService, PlanApplyService {
         PlanVersion saved = versionRepository.save(
                 newVersion(memberId, merged, ratio, current.getCalcStartMonth(), path.name()));
         if (planRepository.replaceCurrent(memberId, saved.getId(), expectedRevision) == 0) {
-            throw new PlanConflictException(PlanConflictException.PLAN_CHANGED, findCurrent(memberId));
+            throw new PlanConflictException(PlanConflictException.PLAN_CHANGED);
         }
         long newRevision = expectedRevision + 1;
         events.publishEvent(new PlanChanged(memberId, "APPLY", current.getId(), saved.getId(), newRevision));
@@ -117,17 +124,17 @@ public class PlanService implements PlanSaveService, PlanApplyService {
 
     public long undo(long memberId, long expectedRevision) {
         Plan plan = planRepository.findById(memberId).orElseThrow(
-                () -> new PlanConflictException(PlanConflictException.NO_PLAN, Optional.empty()));
+                () -> new PlanConflictException(PlanConflictException.NO_PLAN));
         if (plan.getPreviousVersionId() == null) {
-            throw new PlanConflictException(PlanConflictException.NOTHING_TO_UNDO, Optional.of(toView(plan)));
+            throw new PlanConflictException(PlanConflictException.NOTHING_TO_UNDO);
         }
         if (!plan.getRevision().equals(expectedRevision)) {
-            throw new PlanConflictException(PlanConflictException.PLAN_CHANGED, Optional.of(toView(plan)));
+            throw new PlanConflictException(PlanConflictException.PLAN_CHANGED);
         }
         PlanVersion previous = version(memberId, plan.getPreviousVersionId());
         PlanVersion copied = versionRepository.save(copyVersion(previous));
         if (planRepository.applyUndo(memberId, copied.getId(), expectedRevision) == 0) {
-            throw new PlanConflictException(PlanConflictException.PLAN_CHANGED, findCurrent(memberId));
+            throw new PlanConflictException(PlanConflictException.PLAN_CHANGED);
         }
         long newRevision = expectedRevision + 1;
         events.publishEvent(new PlanChanged(memberId, "UNDO", plan.getCurrentVersionId(), copied.getId(), newRevision));
@@ -137,13 +144,13 @@ public class PlanService implements PlanSaveService, PlanApplyService {
     private void checkExpectedRevision(Optional<Plan> existing, Long expectedRevision) {
         if (existing.isEmpty()) {
             if (expectedRevision != null) {
-                throw new PlanConflictException(PlanConflictException.PLAN_CHANGED, Optional.empty());
+                throw new PlanConflictException(PlanConflictException.PLAN_CHANGED);
             }
             return;
         }
         Plan plan = existing.get();
         if (expectedRevision == null || !plan.getRevision().equals(expectedRevision)) {
-            throw new PlanConflictException(PlanConflictException.PLAN_CHANGED, Optional.of(toView(plan)));
+            throw new PlanConflictException(PlanConflictException.PLAN_CHANGED);
         }
     }
 
@@ -221,7 +228,10 @@ public class PlanService implements PlanSaveService, PlanApplyService {
     }
 
     private PlanView toView(Plan plan) {
-        PlanVersion version = version(plan.getMemberId(), plan.getCurrentVersionId());
+        return toView(plan, version(plan.getMemberId(), plan.getCurrentVersionId()));
+    }
+
+    private static PlanView toView(Plan plan, PlanVersion version) {
         return new PlanView(
                 version.getId(),
                 version.getGoalType(),
