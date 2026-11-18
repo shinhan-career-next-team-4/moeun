@@ -85,6 +85,18 @@ class PlanServiceTest {
     }
 
     @Test
+    void secondSaveCopiesSavingsRatioFromCurrentVersion() {
+        PlanView saved = planService.save(memberId, valid().build());
+        PlanView applied = planService.apply(memberId, ChangePath.ALTERNATIVE,
+                new ConditionOverride(null, null, 70, null), saved.revision());
+        assertThat(applied.savingsRatioPct()).isEqualTo(70);
+
+        PlanView resaved = planService.save(memberId, valid().monthlySavingAmount(1_500_000L).build());
+
+        assertThat(resaved.savingsRatioPct()).isEqualTo(70);
+    }
+
+    @Test
     void saveWithErrorsThrowsValidationExceptionAndWritesNothing() {
         assertThatThrownBy(() -> planService.save(memberId, valid().goalAmount(null).build()))
                 .isInstanceOf(PlanValidationException.class)

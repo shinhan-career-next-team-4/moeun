@@ -56,7 +56,9 @@ public class PlanService {
         LocalDate calcStartMonth = existing.map(plan -> version(memberId, plan.getCurrentVersionId()))
                 .map(PlanVersion::getCalcStartMonth)
                 .orElseGet(() -> YearMonth.now(clock).atDay(1));   // TBD-38: 처음 저장한 달로 고정
-        PlanVersion saved = versionRepository.save(newVersion(memberId, in, null,
+        Integer savingsRatioPct = existing.map(plan -> version(memberId, plan.getCurrentVersionId()))
+                .map(PlanVersion::getSavingsRatioPct).orElse(null);   // 요청에 없는 값은 현재 버전에서 복사(C12a-5-1)
+        PlanVersion saved = versionRepository.save(newVersion(memberId, in, savingsRatioPct,
                 calcStartMonth, "INPUT"));
         Long before = existing.map(Plan::getCurrentVersionId).orElse(null);
         if (existing.isEmpty()) {

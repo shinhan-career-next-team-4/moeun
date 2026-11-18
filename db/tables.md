@@ -42,7 +42,7 @@ INSERT만 하는 이력이다. 적용하거나 입력을 수정할 때마다 새
 | `goal_type_code` | 원본: 사용자가 고른 목표 종류(FR-INP-01). 값 목록은 enum `GoalType` |
 | `goal_custom_name` | 원본: '직접 입력'한 목표명(FR-INP-02) |
 | `goal_amount` | 원본: 목표 금액(FR-INP-03). CHECK > 0 |
-| `target_period_months` | 원본: 목표 기간. NULL이면 기한 미정(FR-INP-04) |
+| `target_period_months` | 원본: 목표 기간(필수, FR-INP-04) |
 | `calc_start_month` | 원본: 계획을 세운 시점의 계산 시작월. 같은 조건이라도 시작월에 따라 결과와 목표일이 달라진다(FR-RES-04, FR-PLAN-05, TBD-38) |
 | `held_assets` | 원본: 지금 이 목표에 쓸 수 있는 돈(FR-INP-05) |
 | `monthly_saving_amount` | 원본: 월 저축 가능 금액(필수) |

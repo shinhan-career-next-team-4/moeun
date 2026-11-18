@@ -71,10 +71,10 @@ CREATE TABLE IF NOT EXISTS plan_version (
     goal_type_code                 VARCHAR(30)  NOT NULL,   -- 앱 enum GoalType
     goal_custom_name               VARCHAR(100),             -- GoalType.CUSTOM일 때만 (앱 검증)
     goal_amount                    BIGINT       NOT NULL,
-    target_period_months           INT,                     -- NULL = 기한 미정
+    target_period_months           INT,                     -- 필수(앱 검증)
     calc_start_month               DATE         NOT NULL,
     held_assets                    BIGINT       NOT NULL DEFAULT 0,
-    monthly_saving_amount          BIGINT,                  
+    monthly_saving_amount          BIGINT,                  -- 필수(앱 검증)
     savings_rate_input_pct         NUMERIC(6,3),            -- NULL = 기본금리
     existing_monthly_contribution  BIGINT,                  -- 항상 NULL(계약 C12a-5-1). 컬럼만 남겨 둔다
     savings_ratio_pct              SMALLINT,                -- NULL = 규칙으로 산출(토글/기본값). 사용자가 직접 정한 비중만 저장

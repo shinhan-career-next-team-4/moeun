@@ -57,7 +57,7 @@ erDiagram
         varchar goal_type_code "enum GoalType"
         varchar goal_custom_name "CUSTOM일 때"
         bigint goal_amount
-        int target_period_months "NULL=기한 미정"
+        int target_period_months "필수"
         date calc_start_month
         bigint held_assets
         bigint monthly_saving_amount "필수"
@@ -236,10 +236,10 @@ CREATE TABLE plan_version (
     goal_type_code                 VARCHAR(30)  NOT NULL,   -- 앱 enum GoalType
     goal_custom_name               VARCHAR(100),             -- GoalType.CUSTOM일 때만 (앱 검증)
     goal_amount                    BIGINT       NOT NULL,
-    target_period_months           INT,                     -- NULL = 기한 미정
+    target_period_months           INT,                     -- 필수(앱 검증)
     calc_start_month               DATE         NOT NULL,
     held_assets                    BIGINT       NOT NULL DEFAULT 0,
-    monthly_saving_amount          BIGINT,                  
+    monthly_saving_amount          BIGINT,                  -- 필수(앱 검증)
     savings_rate_input_pct         NUMERIC(6,3),            -- NULL = 기본금리
     existing_monthly_contribution  BIGINT,                  -- 항상 NULL(계약 C12a-5-1). 컬럼만 남겨 둔다
     savings_ratio_pct              SMALLINT,                -- NULL = 규칙으로 산출(토글/기본값). 사용자가 직접 정한 비중만 저장
@@ -410,9 +410,9 @@ CREATE TABLE chat_message_citation (
 | FR-INP-01 | `plan_version.goal_type_code` | enum `GoalType` |
 | FR-INP-02 | `plan_version.goal_custom_name` | `GoalType.CUSTOM`, `PlanInputValidator` |
 | FR-INP-03 | `plan_version.goal_amount NOT NULL > 0` | |
-| FR-INP-04 | `plan_version.target_period_months`(NULL = 기한 미정) | |
+| FR-INP-04 | `plan_version.target_period_months`(필수) | |
 | FR-INP-05 | `plan_version.held_assets` | |
-| FR-INP-06 | `plan_version.monthly_saving_amount`(NULL = 모름) | |
+| FR-INP-06 | `plan_version.monthly_saving_amount`(필수) | |
 | FR-INP-07 | `plan_version.savings_rate_input_pct`(NULL = 기본), `calc_run.savings_rate_version_id` | `ConditionResolver` |
 | FR-INP-08 | `plan_version.savings_ratio_pct`(직접 정한 비중만) | `RatioResolver`, `calc_param.DEFAULT_SAVINGS_RATIO` |
 | FR-INP-09 | `plan_version` 단순 CHECK | `ConditionValidator(INPUT_EDIT)`, `PlanInputValidator` |
