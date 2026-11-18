@@ -142,6 +142,26 @@ class PlanApiTest {
     }
 
     @Test
+    void unknownPathIs404WithMalformedRequestCode() throws Exception {
+        mockMvc.perform(get("/api/plan/nowhere").cookie(cookie))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"))
+                .andExpect(jsonPath("$.errors").isArray())
+                .andExpect(jsonPath("$.errors").isEmpty());
+    }
+
+    @Test
+    void unsupportedMediaTypeIs415WithMalformedRequestCode() throws Exception {
+        mockMvc.perform(post("/api/plan").cookie(cookie).contentType(MediaType.TEXT_PLAIN).content("x"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"))
+                .andExpect(jsonPath("$.errors").isArray())
+                .andExpect(jsonPath("$.errors").isEmpty());
+    }
+
+    @Test
     void unknownEnumValueIs400WithCode() throws Exception {
         postJson("/api/plan", "{\"goalType\":\"UNKNOWN\"}").andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));

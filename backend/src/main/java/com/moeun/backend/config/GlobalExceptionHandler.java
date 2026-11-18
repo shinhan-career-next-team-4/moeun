@@ -22,7 +22,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 
 /**
  * 모듈 핸들러가 잡지 않은 오류를 계약 오류 본문(ProblemDetail + code + errors[])으로 바꾼다.
- * 스프링 MVC 자체 예외는 원래 상태를 지키고, 400은 MALFORMED_REQUEST, 5xx는 INTERNAL_ERROR 코드를 싣는다.
+ * 스프링 MVC 자체 예외는 원래 상태를 지키고, 5xx는 INTERNAL_ERROR, 그 밖에는 MALFORMED_REQUEST 코드를 싣는다.
  */
 @RestControllerAdvice
 @Order(Ordered.LOWEST_PRECEDENCE)
@@ -41,7 +41,8 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException exception,
             HttpHeaders headers, HttpStatusCode status, WebRequest request) {
-        ProblemDetail problem = problem(HttpStatus.UNPROCESSABLE_ENTITY, "입력값을 확인해 주세요.", "VALIDATION_FAILED");
+        ProblemDetail problem = problem(HttpStatus.UNPROCESSABLE_ENTITY, "입력값을 확인해 주세요.",
+                ProblemCode.VALIDATION_FAILED.name());
         problem.setProperty("errors", exception.getBindingResult().getFieldErrors().stream()
                 .map(FieldError::getField)
                 .distinct()
@@ -56,11 +57,8 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ResponseEntity<Object> response = super.handleExceptionInternal(exception, body, headers, statusCode, request);
         if (response != null && response.getBody() instanceof ProblemDetail problem) {
             problem.setProperty("errors", List.of());
-            if (statusCode.value() == HttpStatus.BAD_REQUEST.value()) {
-                problem.setProperty("code", ProblemCode.MALFORMED_REQUEST.name());
-            } else if (statusCode.is5xxServerError()) {
-                problem.setProperty("code", ProblemCode.INTERNAL_ERROR.name());
-            }
+            problem.setProperty("code", (statusCode.is5xxServerError()
+                    ? ProblemCode.INTERNAL_ERROR : ProblemCode.MALFORMED_REQUEST).name());
         }
         return response;
     }
