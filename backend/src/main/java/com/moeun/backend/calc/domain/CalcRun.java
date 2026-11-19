@@ -66,6 +66,11 @@ public class CalcRun {
         return new CalcRun(planVersionId, RunType.PLAN, versions);
     }
 
+    /** 대화 재계산 기록(run_type = CHAT). 요청마다 새 행이다(계약 C2-7). */
+    public static CalcRun createChatRun(long planVersionId, AppliedDataVersions versions) {
+        return new CalcRun(planVersionId, RunType.CHAT, versions);
+    }
+
     /** 이 기록이 같은 기준 데이터 버전과 엔진 버전으로 계산한 것인지. 다르면 같은 계획 버전이라도 새로 기록한다(G-18). */
     public boolean hasSameVersions(AppliedDataVersions versions) {
         return toVersions().equals(versions);
