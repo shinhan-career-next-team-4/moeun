@@ -76,14 +76,19 @@ public class ChatMessageRepository {
                 .list();
     }
 
-    /** 응답이 null로 비워 둔 calcRunId·baselineScenario는 행에 이미 있는 값을 유지한다. */
+    /**
+     * 응답이 null로 비워 둔 calcRunId·baselineScenario는 행에 이미 있는 값을 유지한다.
+     * 단 OUT_OF_SCOPE는 계산 기록을 가리키지 않으므로(ck_cm_out_of_scope) calc_run_id를 NULL로 비운다.
+     */
     public int complete(long id, long memberId, String messageType, String content, Long calcRunId,
             String baselineScenario, String conditionChangesJson) {
         return jdbc.sql("UPDATE chat_message SET status = 'COMPLETED', message_type = ?, content = ?, "
-                        + "calc_run_id = COALESCE(?, calc_run_id), baseline_scenario = COALESCE(?, baseline_scenario), "
+                        + "calc_run_id = CASE WHEN ? = 'OUT_OF_SCOPE' THEN NULL ELSE COALESCE(?, calc_run_id) END, "
+                        + "baseline_scenario = COALESCE(?, baseline_scenario), "
                         + "condition_changes = CAST(? AS jsonb) "
                         + "WHERE id = ? AND member_id = ? AND status = 'PENDING'")
-                .params(messageType, content, calcRunId, baselineScenario, conditionChangesJson, id, memberId)
+                .params(messageType, content, messageType, calcRunId, baselineScenario, conditionChangesJson, id,
+                        memberId)
                 .update();
     }
 

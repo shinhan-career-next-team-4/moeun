@@ -1,5 +1,9 @@
 package com.moeun.backend.chat.application;
 
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
+import java.net.http.HttpConnectTimeoutException;
+import java.net.http.HttpTimeoutException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -10,6 +14,8 @@ import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientResponseException;
 
 import com.moeun.backend.calc.Scenario;
 import com.moeun.backend.chat.domain.ChatMessageRepository;
@@ -67,12 +73,47 @@ public class ChatAnswerListener {
         }
         PendingMessage message = read.get().message();
         try {
-            AiChatAnswer answer = aiClient.chat(buildRequest(read.get()));
+            AiChatRequest request = buildRequest(read.get());
+            AiChatAnswer answer;
+            try {
+                answer = aiClient.chat(request);
+            } catch (RuntimeException e) {
+                // ai-server 예외 메시지에는 응답 본문이 들어 있을 수 있어 예외를 붙이지 않고 분류·상태 코드만 남긴다
+                LOG.warn("chat.answer.aiFailed messageId={} memberId={} error={} status={}",
+                        message.id(), message.memberId(), errorKind(e), statusCode(e));
+                fail(message);
+                return;
+            }
             complete(message, answer);
         } catch (RuntimeException e) {
             LOG.warn("chat.answer.failed messageId={} memberId={}", message.id(), message.memberId(), e);
             fail(message);
         }
+    }
+
+    private static String errorKind(RuntimeException error) {
+        if (error instanceof RestClientResponseException) {
+            return "HTTP_ERROR";
+        }
+        if (error instanceof ResourceAccessException) {
+            for (Throwable cause = error.getCause(); cause != null; cause = cause.getCause()) {
+                if (cause instanceof HttpConnectTimeoutException || cause instanceof ConnectException) {
+                    return "CONNECT";
+                }
+                if (cause instanceof HttpTimeoutException || cause instanceof SocketTimeoutException) {
+                    return "TIMEOUT";
+                }
+            }
+            return "IO";
+        }
+        if (error instanceof AiServerException) {
+            return "BAD_RESPONSE";
+        }
+        return error.getClass().getSimpleName();
+    }
+
+    private static Integer statusCode(RuntimeException error) {
+        return error instanceof RestClientResponseException response ? response.getStatusCode().value() : null;
     }
 
     /**
