@@ -4,9 +4,11 @@ import static com.moeun.backend.plan.application.PlanInputBuilder.valid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.StreamSupport;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -18,9 +20,11 @@ import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.modulith.test.AssertablePublishedEvents;
 
 import com.moeun.backend.config.TestcontainersConfig;
-import com.moeun.backend.plan.application.PlanConflictException;
 import com.moeun.backend.plan.application.PlanService;
-import com.moeun.backend.plan.application.PlanValidationException;
+import com.moeun.backend.plan.application.PlanUndoService;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
 
 @ApplicationModuleTest(extraIncludes = {"config", "auth"})
 @Import(TestcontainersConfig.class)
@@ -34,6 +38,9 @@ class PlanServiceTest {
 
     @Autowired
     PlanService planService;
+
+    @Autowired
+    PlanUndoService undoService;
 
     @Autowired
     JdbcClient jdbc;
@@ -91,13 +98,9 @@ class PlanServiceTest {
         PlanSaveResult first = saveService.save(memberId, valid().build(), null);
 
         assertThatThrownBy(() -> saveService.save(memberId, valid().build(), first.revision() - 1))
-                .isInstanceOf(PlanConflictException.class)
-                .extracting(e -> ((PlanConflictException)e).code())
-                .isEqualTo(PlanConflictException.PLAN_CHANGED);
+                .isInstanceOf(PlanChangedException.class);
         assertThatThrownBy(() -> saveService.save(memberId, valid().build(), null))
-                .isInstanceOf(PlanConflictException.class)
-                .extracting(e -> ((PlanConflictException)e).code())
-                .isEqualTo(PlanConflictException.PLAN_CHANGED);
+                .isInstanceOf(PlanChangedException.class);
     }
 
     @Test
@@ -113,8 +116,8 @@ class PlanServiceTest {
     @Test
     void secondSaveCopiesSavingsRatioFromCurrentVersion() {
         PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
-        PlanSaveResult applied = applyService.apply(memberId, ChangePath.ALTERNATIVE,
-                new ConditionOverride(null, null, 70, null), saved.revision());
+        PlanApplyResult applied = applyService.apply(memberId, ChangePath.ALTERNATIVE,
+                changes("savingsRatioPct", 70L), saved.revision(), null);
         assertThat(saveService.findCurrent(memberId).orElseThrow().savingsRatioPct()).isEqualTo(70);
 
         saveService.save(memberId, valid().monthlySavingAmount(1_500_000L).build(), applied.revision());
@@ -125,8 +128,8 @@ class PlanServiceTest {
     @Test
     void saveWithErrorsThrowsValidationExceptionAndWritesNothing() {
         assertThatThrownBy(() -> saveService.save(memberId, valid().goalAmount(null).build(), null))
-                .isInstanceOf(PlanValidationException.class)
-                .extracting(e -> ((PlanValidationException)e).errors())
+                .isInstanceOf(ConditionViolationException.class)
+                .extracting(e -> ((ConditionViolationException)e).errors())
                 .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
                 .containsExactly(FieldError.required("goalAmount"));
         assertThat(jdbc.sql("SELECT count(*) FROM plan_version").query(Long.class).single()).isZero();
@@ -136,8 +139,8 @@ class PlanServiceTest {
     void applyCreatesVersionFromCurrentPlusChanges() {
         PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
 
-        PlanSaveResult applied = applyService.apply(memberId, ChangePath.COMPARE,
-                new ConditionOverride(1_500_000L, null, null, null), saved.revision());
+        PlanApplyResult applied = applyService.apply(memberId, ChangePath.COMPARE,
+                changes("monthlySavingAmount", 1_500_000L), saved.revision(), null);
         PlanView view = saveService.findCurrent(memberId).orElseThrow();
 
         assertThat(applied.revision()).isEqualTo(2L);
@@ -154,31 +157,29 @@ class PlanServiceTest {
         PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
 
         assertThatThrownBy(() -> applyService.apply(memberId, ChangePath.ALTERNATIVE,
-                new ConditionOverride(null, null, null, new java.math.BigDecimal("4.00")), saved.revision()))
-                .isInstanceOf(PlanValidationException.class);
+                changes("savingsRateInputPct", new BigDecimal("4.00")), saved.revision(), null))
+                .isInstanceOf(ConditionViolationException.class);
     }
 
     @Test
     void applyWithStaleRevisionThrowsPlanChangedAndKeepsCurrent() {
         PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
-        applyService.apply(memberId, ChangePath.CHAT, new ConditionOverride(1_500_000L, null, null, null),
-                saved.revision());
+        applyService.apply(memberId, ChangePath.CHAT, changes("monthlySavingAmount", 1_500_000L),
+                saved.revision(), null);
 
         assertThatThrownBy(() -> applyService.apply(memberId, ChangePath.CHAT,
-                new ConditionOverride(1_600_000L, null, null, null), saved.revision()))
-                .isInstanceOf(PlanConflictException.class)
-                .satisfies(e -> assertThat(((PlanConflictException)e).code())
-                        .isEqualTo(PlanConflictException.PLAN_CHANGED));
+                changes("monthlySavingAmount", 1_600_000L), saved.revision(), null))
+                .isInstanceOf(PlanChangedException.class);
         assertThat(saveService.findCurrent(memberId).orElseThrow().monthlySavingAmount()).isEqualTo(1_500_000L);
     }
 
     @Test
     void undoCopiesPreviousVersionAsNewVersionAndClearsPrevious() {
         PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
-        PlanSaveResult applied = applyService.apply(memberId, ChangePath.COMPARE,
-                new ConditionOverride(1_500_000L, null, null, null), saved.revision());
+        PlanApplyResult applied = applyService.apply(memberId, ChangePath.COMPARE,
+                changes("monthlySavingAmount", 1_500_000L), saved.revision(), null);
 
-        long undoneRevision = planService.undo(memberId, applied.revision());
+        long undoneRevision = undoService.undo(memberId, applied.revision());
         PlanView undone = saveService.findCurrent(memberId).orElseThrow();
 
         assertThat(undoneRevision).isEqualTo(3L);
@@ -190,54 +191,44 @@ class PlanServiceTest {
 
     @Test
     void undoWithoutPlanIsNoPlan() {
-        assertThatThrownBy(() -> planService.undo(memberId, 1L))
-                .isInstanceOf(PlanConflictException.class)
-                .extracting(e -> ((PlanConflictException)e).code())
-                .isEqualTo(PlanConflictException.NO_PLAN);
+        assertThatThrownBy(() -> undoService.undo(memberId, 1L))
+                .isInstanceOf(NoPlanException.class);
     }
 
     @Test
     void secondUndoIsNothingToUndo() {
         PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
-        PlanSaveResult applied = applyService.apply(memberId, ChangePath.COMPARE,
-                new ConditionOverride(1_500_000L, null, null, null), saved.revision());
-        long undoneRevision = planService.undo(memberId, applied.revision());
+        PlanApplyResult applied = applyService.apply(memberId, ChangePath.COMPARE,
+                changes("monthlySavingAmount", 1_500_000L), saved.revision(), null);
+        long undoneRevision = undoService.undo(memberId, applied.revision());
 
-        assertThatThrownBy(() -> planService.undo(memberId, undoneRevision))
-                .isInstanceOf(PlanConflictException.class)
-                .extracting(e -> ((PlanConflictException)e).code())
-                .isEqualTo(PlanConflictException.NOTHING_TO_UNDO);
+        assertThatThrownBy(() -> undoService.undo(memberId, undoneRevision))
+                .isInstanceOf(NothingToUndoException.class);
     }
 
     @Test
     void undoWithStaleRevisionIsPlanChanged() {
         PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
-        PlanSaveResult applied = applyService.apply(memberId, ChangePath.COMPARE,
-                new ConditionOverride(1_500_000L, null, null, null), saved.revision());
+        PlanApplyResult applied = applyService.apply(memberId, ChangePath.COMPARE,
+                changes("monthlySavingAmount", 1_500_000L), saved.revision(), null);
 
-        assertThatThrownBy(() -> planService.undo(memberId, applied.revision() - 1))
-                .isInstanceOf(PlanConflictException.class)
-                .extracting(e -> ((PlanConflictException)e).code())
-                .isEqualTo(PlanConflictException.PLAN_CHANGED);
+        assertThatThrownBy(() -> undoService.undo(memberId, applied.revision() - 1))
+                .isInstanceOf(PlanChangedException.class);
     }
 
     @Test
     void applyWithoutPlanIsNoPlan() {
         assertThatThrownBy(() -> applyService.apply(memberId, ChangePath.COMPARE,
-                new ConditionOverride(1_500_000L, null, null, null), 1L))
-                .isInstanceOf(PlanConflictException.class)
-                .satisfies(e -> {
-                    PlanConflictException conflict = (PlanConflictException)e;
-                    assertThat(conflict.code()).isEqualTo(PlanConflictException.NO_PLAN);
-                });
+                changes("monthlySavingAmount", 1_500_000L), 1L, null))
+                .isInstanceOf(NoPlanException.class);
     }
 
     @Test
     void eachChangePublishesPlanChanged(AssertablePublishedEvents events) {
         PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
-        PlanSaveResult applied = applyService.apply(memberId, ChangePath.COMPARE,
-                new ConditionOverride(1_500_000L, null, null, null), saved.revision());
-        planService.undo(memberId, applied.revision());
+        PlanApplyResult applied = applyService.apply(memberId, ChangePath.COMPARE,
+                changes("monthlySavingAmount", 1_500_000L), saved.revision(), null);
+        undoService.undo(memberId, applied.revision());
 
         List<PlanChanged> changes = StreamSupport.stream(events.ofType(PlanChanged.class).spliterator(), false)
                 .toList();
@@ -260,7 +251,7 @@ class PlanServiceTest {
         PlanSaveResult first = saveService.save(memberId, valid().build(), null);
         long originalMonthly = saveService.findCurrent(memberId).orElseThrow().monthlySavingAmount();
         applyService.apply(memberId, ChangePath.COMPARE,
-                new ConditionOverride(1_500_000L, null, null, null), first.revision());
+                changes("monthlySavingAmount", 1_500_000L), first.revision(), null);
 
         PlanView old = saveService.findVersion(memberId, first.planVersionId()).orElseThrow();
 
@@ -275,5 +266,128 @@ class PlanServiceTest {
 
         assertThat(saveService.findVersion(otherMemberId, mine.planVersionId())).isEmpty();
         assertThat(saveService.findVersion(memberId, mine.planVersionId() + 9_999L)).isEmpty();
+    }
+
+    @Test
+    void applyReturnsPreviousVersionIdAndKeepsCalcStartMonth() {
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+        String startMonth = saveService.findCurrent(memberId).orElseThrow().calcStartMonth();
+
+        PlanApplyResult applied = applyService.apply(memberId, ChangePath.CHAT,
+                changes("monthlySavingAmount", 1_500_000L), saved.revision(), saved.planVersionId());
+
+        assertThat(applied.previousVersionId()).isEqualTo(saved.planVersionId());
+        assertThat(applied.planVersionId()).isGreaterThan(saved.planVersionId());
+        assertThat(applied.revision()).isEqualTo(2L);
+        assertThat(saveService.findCurrent(memberId).orElseThrow().calcStartMonth()).isEqualTo(startMonth);
+    }
+
+    @Test
+    void applyRejectsInputEditPath() {
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+
+        assertThatThrownBy(() -> applyService.apply(memberId, ChangePath.INPUT_EDIT,
+                changes("monthlySavingAmount", 1_500_000L), saved.revision(), null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void applyWithNotChangeableKeyIsFieldNotChangeable() {
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+
+        assertThatThrownBy(() -> applyService.apply(memberId, ChangePath.CHAT,
+                changes("goalAmount", 10_000_000L), saved.revision(), null))
+                .isInstanceOf(ConditionViolationException.class)
+                .satisfies(e -> assertThat(((ConditionViolationException)e).code())
+                        .isEqualTo("FIELD_NOT_CHANGEABLE"));
+        assertThat(versionCount()).isOne();
+    }
+
+    @Test
+    void applyOutOfRangeChangeCarriesRangeInErrors() {
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+
+        assertThatThrownBy(() -> applyService.apply(memberId, ChangePath.CHAT,
+                changes("monthlySavingAmount", 1L), saved.revision(), null))
+                .isInstanceOf(ConditionViolationException.class)
+                .satisfies(e -> {
+                    ConditionViolationException violation = (ConditionViolationException)e;
+                    assertThat(violation.code()).isEqualTo("VALIDATION_FAILED");
+                    assertThat(violation.errors()).singleElement().satisfies(error -> {
+                        assertThat(error.field()).isEqualTo("monthlySavingAmount");
+                        assertThat(error.reason()).isEqualTo("OUT_OF_RANGE");
+                        assertThat(error.min()).isNotNull();
+                        assertThat(error.max()).isNotNull();
+                        assertThat(error.unit()).isNotNull();
+                        assertThat(error.scale()).isNull();
+                    });
+                });
+    }
+
+    @Test
+    void applyWithStaleBaseVersionIsStaleComparison() {
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+        PlanApplyResult applied = applyService.apply(memberId, ChangePath.COMPARE,
+                changes("monthlySavingAmount", 1_500_000L), saved.revision(), null);
+        long versionsBefore = versionCount();
+
+        assertThatThrownBy(() -> applyService.apply(memberId, ChangePath.CHAT,
+                changes("monthlySavingAmount", 1_600_000L), applied.revision(), saved.planVersionId()))
+                .isInstanceOf(StaleBaseVersionException.class);
+        assertThat(versionCount()).isEqualTo(versionsBefore);
+    }
+
+    @Test
+    void staleRevisionWinsOverStaleBaseVersion() {
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+        applyService.apply(memberId, ChangePath.COMPARE,
+                changes("monthlySavingAmount", 1_500_000L), saved.revision(), null);
+
+        assertThatThrownBy(() -> applyService.apply(memberId, ChangePath.CHAT,
+                changes("monthlySavingAmount", 1_600_000L), saved.revision(), saved.planVersionId()))
+                .isInstanceOf(PlanChangedException.class);
+    }
+
+    @Test
+    void undoMakesCopyThatStalesComparisonsOnTheOldVersion() {
+        PlanSaveResult first = saveService.save(memberId, valid().build(), null);
+        PlanApplyResult applied = applyService.apply(memberId, ChangePath.COMPARE,
+                changes("monthlySavingAmount", 1_500_000L), first.revision(), first.planVersionId());
+
+        long undoneRevision = undoService.undo(memberId, applied.revision());
+        PlanView undone = saveService.findCurrent(memberId).orElseThrow();
+
+        assertThat(undone.currentVersionId()).isNotEqualTo(first.planVersionId());
+        assertThat(undone.canUndo()).isFalse();
+        assertThat(undone.revision()).isEqualTo(undoneRevision);
+        assertThat(jdbc.sql("SELECT source FROM plan_version WHERE id = ?")
+                .param(undone.currentVersionId()).query(String.class).single()).isEqualTo("INPUT");
+        assertThatThrownBy(() -> applyService.apply(memberId, ChangePath.CHAT,
+                changes("monthlySavingAmount", 1_600_000L), undoneRevision, first.planVersionId()))
+                .isInstanceOf(StaleBaseVersionException.class);
+    }
+
+    @Test
+    void undoWithStaleRevisionWritesNoVersion() {
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+        PlanApplyResult applied = applyService.apply(memberId, ChangePath.COMPARE,
+                changes("monthlySavingAmount", 1_500_000L), saved.revision(), null);
+        long versionsBefore = versionCount();
+
+        assertThatThrownBy(() -> undoService.undo(memberId, applied.revision() - 1))
+                .isInstanceOf(PlanChangedException.class);
+        assertThat(versionCount()).isEqualTo(versionsBefore);
+    }
+
+    private long versionCount() {
+        return jdbc.sql("SELECT count(*) FROM plan_version").query(Long.class).single();
+    }
+
+    private static Map<String, JsonNode> changes(String key, long value) {
+        return Map.of(key, JsonNodeFactory.instance.numberNode(value));
+    }
+
+    private static Map<String, JsonNode> changes(String key, BigDecimal value) {
+        return Map.of(key, JsonNodeFactory.instance.numberNode(value));
     }
 }
