@@ -21,9 +21,10 @@ import com.moeun.backend.refdata.Sp500Series;
 
 /**
  * 대화 재계산 유스케이스(계약 internal-calc C2-2 검사 순서 7~9, C2-7, C2-8).
- * <p>기준은 항상 그 회원의 현재 계획이고, 이번 요청의 바꾼 조건만 얹는다(이전 변경은 쌓지 않음, D-041). 시작월은 현재
- * 계획의 값이다. current와 changed는 같은 기준 데이터·엔진 버전으로 계산하고 그 버전으로 calc_run(CHAT) 한 행을 남긴다.
- * <p>display까지 이 트랜잭션 안에서 만든다. 기록 뒤에 실패해도 기록이 함께 롤백되어 실패한 요청에는 행이 없다.
+ * <p>{@link #compare}의 기준은 그 회원의 현재 계획이고, 이번 요청의 바꾼 조건만 얹는다(이전 변경은 쌓지 않음, D-041).
+ * 시작월은 기준 계획의 값이다. current와 changed는 같은 기준 데이터·엔진 버전으로 계산하고 그 버전으로 calc_run(CHAT)
+ * 한 행을 남긴다. display도 같은 트랜잭션 안에서 만들므로 어느 단계에서 실패해도 기록이 함께 롤백된다.
+ * <p>계산 부분({@link #computeComparison})은 기록하지 않고, 저장된 대화 기록을 다시 계산하는 쪽(#78)도 같이 쓴다.
  */
 @Service
 public class CompareConditionsUseCase {
@@ -66,6 +67,24 @@ public class CompareConditionsUseCase {
         Sp500Series sp500 = referenceDataService.findActiveSp500Series().orElse(null);
         SavingsAvgRateData defaultRate = referenceDataService.findActiveSavingsAvgRate().orElse(null);
 
+        ComputedComparison computed = computeComparison(plan, changes, params, sp500, defaultRate);
+        long calcRunId = calcRunRecorder.recordChatRun(plan.currentVersionId(), computed.versions());
+        return new ComparisonResult(calcRunId, computed.comparison(), computed.display());
+    }
+
+    /**
+     * 기록하지 않고 비교만 계산한다. 이 요청({@link #compare})과, 저장된 대화 기록을 그때의 데이터로 다시 계산하는
+     * planContext 쪽(#78 {@code ChatComparisonQuery.recompute})이 같은 코드를 써서 두 결과가 글자까지 같다.
+     *
+     * @param plan 비교의 기준 계획(현재 계획, 또는 대화 기록의 계획 버전)
+     * @param changes 바꾼 조건
+     * @param params 계산 파라미터
+     * @param sp500 S&P500 월말 종가. ETF가 없으면 null이어도 된다
+     * @param defaultRate 적금 평균금리. 기본금리가 필요 없으면 null이어도 된다
+     * @throws CalcRejectedException 이미 목표 초과(409 ALREADY_EXCEEDED)
+     */
+    public ComputedComparison computeComparison(PlanView plan, ConditionOverride changes, CalcParams params,
+            Sp500Series sp500, SavingsAvgRateData defaultRate) {
         ConditionResolver.ResolvedConditions current = conditionResolver.resolve(plan, defaultRate, params);
         if (current.input().hasExceededGoal()) {
             // 대화로 목표·보유 자산을 바꿀 수 없어 changed도 초과다. current도 계산하지 않는다(C3-2)
@@ -79,10 +98,9 @@ public class CompareConditionsUseCase {
         currentResult = withVersions(currentResult, versions);
         changedResult = withVersions(changedResult, versions);
 
-        long calcRunId = calcRunRecorder.recordChatRun(plan.currentVersionId(), versions);
         CalcComparison comparison = CalcComparison.of(currentResult, changedResult, current.input(),
                 changed.input());
-        return new ComparisonResult(calcRunId, comparison, buildDisplay(comparison, current, changed));
+        return new ComputedComparison(comparison, versions, buildDisplay(comparison, current, changed));
     }
 
     /**
@@ -115,6 +133,21 @@ public class CompareConditionsUseCase {
             display.put(prefix + "afterTaxGainDelta", formatter.formatDifference(diff.afterTaxGainDelta()));
         }
         return display;
+    }
+
+    /**
+     * 기록 전의 비교 결과.
+     *
+     * @param comparison 비교 결과
+     * @param versions current·changed에 함께 쓴 기준 데이터·엔진 버전(calc_run(CHAT)에 기록할 값)
+     * @param display 표시 문자열 맵
+     */
+    public record ComputedComparison(CalcComparison comparison, AppliedDataVersions versions,
+            Map<String, String> display) {
+
+        public ComputedComparison {
+            display = Map.copyOf(display);
+        }
     }
 
     /**
