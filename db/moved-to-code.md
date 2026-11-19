@@ -3,9 +3,9 @@
 최소 저장 원칙(ADR-002, `final/decision.md`)에 따라 v1 스키마(`final/v1/schema.sql`)에서 삭제한 테이블·컬럼·제약을 정리한다. 각 항목이 어디로 갔는지와 관련 REQ-ID를 적었다.
 
 - enum·클래스·설정 키 이름은 구현 시 이 이름을 쓰자는 제안이다. 아직 코드가 없으므로 구현할 때 이 문서를 같이 고친다.
-- 공통 설정 파일은 두 개다. 두 서버(Spring, FastAPI)가 함께 읽는다(NFR-INT-03).
-  - `config/rules.yml`: 입력 규칙·경로 규칙
-  - `copy/copy.ko.yml`: 문구표 (CP-05)
+- 설정 파일은 두 개다.
+  - `backend/src/main/resources/config/rules.yml`: 입력 규칙·경로 규칙. Spring 전용이다. ai-server는 범위를 오류 본문으로 받으므로 읽지 않는다.
+  - `copy/copy.ko.yml`: 문구표 (CP-05). 프론트와 AI 서버가 함께 읽는다.
 - 계산은 전부 Spring 계산 엔진 `CalcEngine`에서 한다(NFR-INT-01). 같은 입력, 같은 기준 데이터 버전, 같은 `engine_version`이면 같은 결과가 나와야 한다. 계산 로직을 바꾸면 반드시 `engine_version`을 올린다.
 
 ## 1. 삭제한 테이블
@@ -22,7 +22,7 @@
 | `calc_alternative` (대안 카드 3종, READY/UNAVAILABLE, 사유 문구 키) | 계산 함수 `AlternativeFinder.find(input, result, baseline)`. 변경 단위는 `calc_param`(ALT_STEP_*), 사유 문구는 `copy.ko.yml › alt.unavailable.<FIELD>` | FR-ALT-01, FR-ALT-02, FR-ALT-03, FR-ALT-04 |
 | `calc_run_override` (비교·대화로 바꾼 조건) | 비교: 요청 본문 `ConditionOverride`로만 존재하고 저장하지 않음. 대화: `chat_message.condition_changes`(재계산에 쓴 값) | FR-CMP-02, FR-CMP-03, FR-AI-07, FR-PLAN-01 |
 | `plan_application` (적용·되돌리기 채택 이력) | 앱 감사 로그 이벤트 `plan.changed {memberId, action: INPUT/APPLY/UNDO, beforeVersionId, afterVersionId, revision}` | FR-PLAN-01, FR-PLAN-03, FR-PLAN-04 |
-| `user_session` (서버 세션) | 무상태 JWT. `JwtTokenService`(만료 `auth.jwt.ttl=30m`). `TokenRenewalInterceptor`가 사용자 조작 요청에만 새 토큰을 발급하고, 폴링 엔드포인트는 `@SkipRenewal`로 제외. 로그아웃은 클라이언트가 토큰을 삭제 | FR-AUTH-02, FR-AUTH-03, NFR-SEC-02 |
+| `user_session` (서버 세션) | 무상태 JWT. `JwtTokenService`(만료 `auth.jwt.ttl=30m`). `TokenRenewalInterceptor`가 사용자 조작 요청에만 새 토큰을 발급하고, 폴링 엔드포인트는 `@SkipRenewal`로 제외. 로그아웃은 서버 `POST /api/auth/logout`이 인증 쿠키를 만료시키고 `MemberLoggedOut` 이벤트로 chat이 대화를 삭제 | FR-AUTH-02, FR-AUTH-03, NFR-SEC-02 |
 
 ## 2. 삭제한 컬럼
 

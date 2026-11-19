@@ -401,7 +401,7 @@ CREATE TABLE chat_message_citation (
 | FR-ALT-04 | 적용 시 `plan_version(source='ALTERNATIVE')` + `plan` | 비교는 요청마다 계산 |
 | FR-AUTH-01 | `member.login_id`, `password_hash` | 로그 `auth.login` |
 | FR-AUTH-02 | — | `JwtTokenService`(30분), `TokenRenewalInterceptor`(조작 요청만 재발급) |
-| FR-AUTH-03 | — | 클라이언트 토큰 삭제 |
+| FR-AUTH-03 | — | 서버 `POST /api/auth/logout`(쿠키 만료) + `MemberLoggedOut` → chat 대화 삭제 |
 | FR-CMP-01 | — | `CalcEngine`(비중별 3구간 = 위험 범위) |
 | FR-CMP-02 | — | 요청 본문 `ConditionOverride`, `ConditionValidator(COMPARE)` |
 | FR-CMP-03 | — | 프론트 상태 초기화 |
@@ -531,15 +531,17 @@ WHERE c.message_id = $msg AND d.doc_type = 'DISCLOSURE';
 ### Q4. 계획 저장 / 적용 / 되돌리기 (FR-INP-10, FR-PLAN-01~04)
 
 ```sql
--- (a) 최초 저장 (FR-INP-10)
+-- (a) 입력 저장 (FR-INP-10): expectedRevision 검사 + 첫 저장/수정 저장 분기 (Y-3, Y-11)
 BEGIN;
 INSERT INTO plan_version (member_id, goal_type_code, ..., source) VALUES ($user, ..., 'INPUT') RETURNING id;   -- :v
+-- 첫 저장: 이미 행이 있으면 아무것도 하지 않는다(갱신하지 않는다)
 INSERT INTO plan (member_id, current_version_id, baseline_scenario) VALUES ($user, :v, 'AVG')
-    ON CONFLICT (member_id) DO UPDATE
-    SET previous_version_id = plan.current_version_id, current_version_id = EXCLUDED.current_version_id,
-        revision = plan.revision + 1;                      -- 입력 수정 저장도 같은 경로
+    ON CONFLICT (member_id) DO NOTHING;                    -- 0행이면 아래 UPDATE로 간다
+-- 수정 저장: 확인 시점의 revision과 같을 때만 갱신
+UPDATE plan SET previous_version_id = current_version_id, current_version_id = :v, revision = revision + 1
+WHERE member_id = $user AND revision = $expectedRevision;  -- 0행이면 PlanChangedException
 INSERT INTO calc_run (plan_version_id, run_type, ...) VALUES (:v, 'PLAN', ...);
-COMMIT;
+COMMIT;                                                    -- 0행이면 ROLLBACK + 409 PLAN_CHANGED
 
 -- (b) 대안·비교·대화 결과 적용 (FR-PLAN-03): 확인창을 연 시점의 revision으로 갱신
 BEGIN;
@@ -554,7 +556,7 @@ UPDATE plan SET current_version_id = previous_version_id, previous_version_id = 
 WHERE member_id = $user AND revision = $toast_revision AND previous_version_id IS NOT NULL;
 ```
 
-- 모두 `plan` PK로 갱신한다. `revision` 조건 하나로 중복 전송, 동시 수정, 오래된 되돌리기 토큰을 막는다. v1의 `plan_application`·`request_key`·트리거가 맡던 역할이다.
+- 모두 `plan` PK로 갱신한다. `revision` 조건 하나로 중복 전송, 동시 수정, 오래된 되돌리기 토큰을 막는다. (a)의 입력 저장도 `expectedRevision`을 검사하며, 0행이면 `PlanChangedException`으로 전체(검증 → 저장 → 계산 한 트랜잭션)를 롤백하고 409 `PLAN_CHANGED`를 돌려준다. v1의 `plan_application`·`request_key`·트리거가 맡던 역할이다.
 - 되돌린 뒤에는 `previous_version_id = NULL`이라 다시 되돌릴 수 없다. "직전 계획 1개"(FR-PLAN-04) 요구와 같다.
 - 되돌린 버전의 결과는 Q1과 같은 방식으로 최신 `calc_run`을 읽어 다시 계산한다.
 
@@ -605,8 +607,8 @@ WHERE member_id = $user AND revision = $toast_revision AND previous_version_id I
 
 ### G. 인증은 무상태 JWT
 - 액세스 토큰 만료는 30분이다. 사용자 조작 요청에는 새 토큰을 내려 30분 비활동 만료를 구현한다(슬라이딩). 폴링에는 재발급하지 않는다.
-- 로그아웃은 클라이언트가 토큰을 지우는 것으로 처리한다.
-- **포기한 것:** 서버 측 강제 로그아웃과 토큰 폐기. 로그아웃 후에도 탈취된 토큰은 남은 만료 시간(최대 30분) 동안 유효하다. NFR-SEC-02 "서버에서 관리"는 "서명과 만료를 서버가 검증한다"로 재해석했다(사용자 확인을 받음). 상세는 ADR-002.
+- 로그아웃은 서버가 처리한다. `POST /api/auth/logout`이 인증 쿠키를 만료시키고 `MemberLoggedOut` 이벤트를 발행하면 chat이 그 회원의 대화를 삭제한다(Y-1).
+- **포기한 것:** 서버 측 강제 로그아웃과 토큰 폐기. 쿠키는 만료되지만 이미 나간 토큰은 남은 만료 시간(최대 30분) 동안 서버에서 유효하다. NFR-SEC-02 "서버에서 관리"는 "서명과 만료를 서버가 검증한다"로 재해석했다(사용자 확인을 받음). 상세는 ADR-002.
 
 ### H. 로그로 보낸 것
 - AI 시도 버전(prompt/model/copy), 질문 입력 경로, 실패 코드, 응답 시간, 최근 로그인, 계획 변경 이벤트.

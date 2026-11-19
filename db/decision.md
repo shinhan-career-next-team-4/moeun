@@ -118,7 +118,7 @@ ADR-001의 채택안은 무결성을 DB에서 최대한 강제했다. 그 결과
    - 나머지는 enum, 설정 파일(`config/rules.yml`, `copy/copy.ko.yml`), 계산 함수, 로그로 옮긴다. 항목별 이동 위치는 `moved-to-code.md`에 있다.
 2. **계산 결과를 저장하지 않는다.**
    - `calc_run`은 계획 버전, 기준 데이터 버전 3종, `engine_version`만 기록한다. 결과는 화면을 열 때 다시 계산한다.
-   - COMPARE 실행은 저장하지 않는다. CHAT 재계산은 메시지가 참조할 때만 1행 남기며, 바꾼 값은 `chat_message.condition_changes`에 둔다.
+   - COMPARE 실행은 저장하지 않는다. CHAT 재계산은 대화 재계산 요청마다 1행 남긴다. 메시지가 참조하지 않는 행은 남을 수 있으며 정리하지 않는다(D-057). 바꾼 값은 `chat_message.condition_changes`에 둔다.
 3. **무결성은 PK/FK/NOT NULL/UNIQUE와 단순 CHECK까지만 둔다.**
    - 트리거, 생성 컬럼, 복사값 일치용 복합 FK는 쓰지 않는다.
    - 소유권은 앱이 모든 쿼리에 `member_id` 조건을 붙여 검증한다.
@@ -126,7 +126,7 @@ ADR-001의 채택안은 무결성을 DB에서 최대한 강제했다. 그 결과
    - 채택 이력 테이블과 멱등 키를 없앤다. 중복 전송과 동시 수정은 `revision` 낙관적 락이 막는다.
 5. **인증을 무상태 JWT로 바꾼다.**
    - 만료는 30분이다. 사용자 조작 요청에만 새 토큰을 발급하고(슬라이딩), 폴링에는 발급하지 않는다.
-   - 로그아웃은 클라이언트가 토큰을 지우는 것으로 처리한다. `user_session` 테이블은 삭제한다.
+   - 로그아웃은 서버가 처리한다. `POST /api/auth/logout`이 인증 쿠키를 만료시키고 `MemberLoggedOut` 이벤트를 발행하면, chat이 그 회원의 대화를 삭제한다(Y-1). `user_session` 테이블은 삭제한다.
    - NFR-SEC-02 "세션은 서버에서 관리"는 "서버가 토큰 서명과 만료를 검증하고, 만료된 토큰의 요청은 처리하지 않는다"로 재해석한다. 이 재해석은 사용자가 확인했다.
 6. **RAG 반정규화는 `chunk_embedding.is_active` 하나만 남긴다.**
    - 부분 HNSW 인덱스의 조건으로 꼭 필요하기 때문이다. 문서 이용 허락 상태는 적재 스크립트가 관리한다.
@@ -137,12 +137,12 @@ ADR-001의 채택안은 무결성을 DB에서 최대한 강제했다. 그 결과
 
 | 포기한 것 | v1에서 맡던 장치 | 이제 맡는 곳 |
 |---|---|---|
-| 서버 측 강제 로그아웃·토큰 폐기 | `user_session` 행 삭제 | 없음. 로그아웃해도 토큰은 남은 만료 시간 동안 유효 |
+| 서버 측 강제 로그아웃·토큰 폐기 | `user_session` 행 삭제 | 없음. 서버 로그아웃은 쿠키를 만료시키므로 브라우저는 토큰을 더 보내지 않지만, 이미 나간 토큰은 남은 만료 시간(최대 30분) 동안 서버에서 그대로 유효하다. 데모 범위에서 수용한다 |
 | 다른 사용자 행 참조를 DB가 차단 | `(member_id, id)` 복합 FK | 리포지토리의 `member_id` 조건 |
 | 바꾼 값의 범위·개수를 DB가 거부 | `input_field` + `trg_override_rule` | `ConditionValidator` |
 | 결과의 영속 보관(재계산 없이 조회) | `calc_scenario_result`, `calc_alternative` | `CalcEngine` 재계산 + 앱 캐시 |
 | 적용·되돌리기 이벤트의 DB 감사 이력 | `plan_application` + 트리거 | 로그 `plan.changed` |
-| 같은 요청의 멱등 처리(같은 응답 재반환) | `request_key` UNIQUE | `revision` 불일치로 0행 → 현재 상태 반환 |
+| 같은 요청의 멱등 처리(같은 응답 재반환) | `request_key` UNIQUE | `revision` 불일치로 0행이면 전체 롤백 + 409 `PLAN_CHANGED`(현재 상태를 싣지 않음) |
 | 청크·임베딩 불변 보장 | 불변 트리거 | 적재 스크립트 규칙(필요하면 DB 권한으로 UPDATE 금지) |
 | `doc_type`·운용사로 ANN 단계 필터 | 임베딩 행 반정규화 | 조인 후 필터 + `iterative_scan` |
 | 데이터 종류 일치(금리 자리에 지수 버전 금지) | 생성 컬럼 + 복합 FK | `DataVersionService.requireKind` |
