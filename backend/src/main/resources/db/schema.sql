@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS plan_version (
     savings_rate_input_pct         NUMERIC(6,3),            -- NULL = 기본금리
     existing_monthly_contribution  BIGINT,                  -- 항상 NULL(계약 C12a-5-1). 컬럼만 남겨 둔다
     savings_ratio_pct              SMALLINT,                -- NULL = 규칙으로 산출(토글/기본값). 사용자가 직접 정한 비중만 저장
-    source                         VARCHAR(20)  NOT NULL,   -- 이 버전을 만든 경로
+    source                         VARCHAR(20)  NOT NULL,   -- 이 버전을 만든 경로. 되돌리기로 복사한 버전은 복사한 원본의 경로
     created_at                     TIMESTAMPTZ  NOT NULL DEFAULT now(),
     CONSTRAINT ck_pv_goal_amount CHECK (goal_amount > 0),
     CONSTRAINT ck_pv_period      CHECK (target_period_months IS NULL OR target_period_months > 0),

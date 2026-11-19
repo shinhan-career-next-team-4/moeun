@@ -8,6 +8,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Map;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,7 +25,10 @@ import com.moeun.backend.auth.application.JwtTokenService;
 import com.moeun.backend.config.TestcontainersConfig;
 
 import jakarta.servlet.http.Cookie;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
 
+/** 되돌리기 REST(P-5)와 plan 모듈 오류 본문. 적용은 REST가 없고(P-6은 #68) 서비스를 직접 부른다(F-5). */
 @SpringBootTest(properties = "moeun.demo.accounts=demo01:pw-123456")
 @AutoConfigureMockMvc
 @Import(TestcontainersConfig.class)
@@ -37,6 +42,9 @@ class PlanApiTest {
 
     @Autowired
     PlanSaveService saveService;
+
+    @Autowired
+    PlanApplyService applyService;
 
     Cookie cookie;
     long memberId;
@@ -59,6 +67,12 @@ class PlanApiTest {
         return saveService.save(memberId, valid().build(), null);
     }
 
+    private PlanApplyResult applyChange(long expectedRevision) {
+        Map<String, JsonNode> changes = Map.of("monthlySavingAmount",
+                JsonNodeFactory.instance.numberNode(1_500_000L));
+        return applyService.apply(memberId, ChangePath.COMPARE, changes, expectedRevision, null);
+    }
+
     @Test
     void inputRulesEndpointIsGone() throws Exception {
         // GET·PUT /api/plan(P-4·P-3)은 plan이 아니라 calc.web이 맡는다(#30, #31). 테스트는 calc 쪽에 있다
@@ -66,16 +80,24 @@ class PlanApiTest {
     }
 
     @Test
-    void applyAndUndoRoundTrip() throws Exception {
+    void applyEndpointIsNotMappedYet() throws Exception {
+        // P-6 POST /api/plan/apply는 Should라서 #68이 맡는다(계약 C12a-9)
         seedPlan();
 
         postJson("/api/plan/apply",
                 "{\"source\":\"COMPARE\",\"changes\":{\"monthlySavingAmount\":1500000},\"expectedRevision\":1}")
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.revision").value(2));
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void undoReturnsNewRevisionOnly() throws Exception {
+        seedPlan();
+        applyChange(1L);
+
         postJson("/api/plan/undo", "{\"expectedRevision\":2}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.revision").value(3))
+                .andExpect(jsonPath("$.undoAvailable").doesNotExist())
                 .andExpect(jsonPath("$.plan").doesNotExist());
     }
 
@@ -83,6 +105,7 @@ class PlanApiTest {
     void undoWithoutPlanReturns409NoPlan() throws Exception {
         postJson("/api/plan/undo", "{\"expectedRevision\":1}")
                 .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
                 .andExpect(jsonPath("$.code").value("NO_PLAN"))
                 .andExpect(jsonPath("$.errors").isEmpty());
     }
@@ -90,9 +113,8 @@ class PlanApiTest {
     @Test
     void secondUndoReturns409NothingToUndo() throws Exception {
         seedPlan();
-        postJson("/api/plan/apply",
-                "{\"source\":\"COMPARE\",\"changes\":{\"monthlySavingAmount\":1500000},\"expectedRevision\":1}");
-        postJson("/api/plan/undo", "{\"expectedRevision\":2}");
+        applyChange(1L);
+        postJson("/api/plan/undo", "{\"expectedRevision\":2}").andExpect(status().isOk());
 
         postJson("/api/plan/undo", "{\"expectedRevision\":3}")
                 .andExpect(status().isConflict())
@@ -101,36 +123,11 @@ class PlanApiTest {
     }
 
     @Test
-    void undoWithStaleRevisionReturns409PlanChanged() throws Exception {
+    void undoWithStaleRevisionReturns409PlanChangedWithoutCurrentPlan() throws Exception {
         seedPlan();
-        postJson("/api/plan/apply",
-                "{\"source\":\"COMPARE\",\"changes\":{\"monthlySavingAmount\":1500000},\"expectedRevision\":1}");
+        applyChange(1L);
 
         postJson("/api/plan/undo", "{\"expectedRevision\":1}")
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("PLAN_CHANGED"))
-                .andExpect(jsonPath("$.errors").isEmpty());
-    }
-
-    @Test
-    void applyWithNotChangeableFieldIs422WithFieldNotChangeableCode() throws Exception {
-        seedPlan();
-        postJson("/api/plan/apply",
-                "{\"source\":\"ALTERNATIVE\",\"changes\":{\"savingsRateInputPct\":3.5},\"expectedRevision\":1}")
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.code").value("FIELD_NOT_CHANGEABLE"))
-                .andExpect(jsonPath("$.errors[0].field").value("savingsRateInputPct"))
-                .andExpect(jsonPath("$.errors[0].reason").value("NOT_CHANGEABLE"));
-    }
-
-    @Test
-    void applyWithStaleRevisionReturns409WithoutCurrentPlan() throws Exception {
-        seedPlan();
-        postJson("/api/plan/apply",
-                "{\"source\":\"CHAT\",\"changes\":{\"monthlySavingAmount\":1500000},\"expectedRevision\":1}");
-
-        postJson("/api/plan/apply",
-                "{\"source\":\"CHAT\",\"changes\":{\"monthlySavingAmount\":1600000},\"expectedRevision\":1}")
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("PLAN_CHANGED"))
                 .andExpect(jsonPath("$.errors").isEmpty())
@@ -138,24 +135,22 @@ class PlanApiTest {
     }
 
     @Test
-    void applyFromInputEditSourceIsRejected() throws Exception {
+    void undoWithoutExpectedRevisionIs400MalformedRequest() throws Exception {
         seedPlan();
 
-        postJson("/api/plan/apply",
-                "{\"source\":\"INPUT_EDIT\",\"changes\":{\"monthlySavingAmount\":1500000},\"expectedRevision\":1}")
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.errors[0].field").value("source"))
-                .andExpect(jsonPath("$.errors[0].reason").value("NOT_CHANGEABLE"));
+        postJson("/api/plan/undo", "{}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"))
+                .andExpect(jsonPath("$.errors").isEmpty());
     }
 
     @Test
-    void applyWithoutSourceIsRequired() throws Exception {
+    void undoWithNonIntegerExpectedRevisionIs400MalformedRequest() throws Exception {
         seedPlan();
 
-        postJson("/api/plan/apply", "{\"changes\":{},\"expectedRevision\":1}")
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.errors[0].field").value("source"))
-                .andExpect(jsonPath("$.errors[0].reason").value("REQUIRED"));
+        postJson("/api/plan/undo", "{\"expectedRevision\":\"two\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
     }
 
     @Test
@@ -183,12 +178,6 @@ class PlanApiTest {
                 .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"))
                 .andExpect(jsonPath("$.errors").isArray())
                 .andExpect(jsonPath("$.errors").isEmpty());
-    }
-
-    @Test
-    void unknownEnumValueIs400WithCode() throws Exception {
-        postJson("/api/plan/apply", "{\"source\":\"UNKNOWN\"}").andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
     }
 
     @Test

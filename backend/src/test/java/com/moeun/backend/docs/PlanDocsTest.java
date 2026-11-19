@@ -8,6 +8,8 @@ import static org.springframework.restdocs.payload.PayloadDocumentation.subsecti
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Map;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,9 +24,12 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.epages.restdocs.apispec.ResourceSnippetParameters;
 import com.moeun.backend.auth.application.JwtTokenService;
 import com.moeun.backend.config.TestcontainersConfig;
+import com.moeun.backend.plan.ChangePath;
+import com.moeun.backend.plan.PlanApplyService;
 import com.moeun.backend.plan.PlanSaveService;
 
 import jakarta.servlet.http.Cookie;
+import tools.jackson.databind.node.JsonNodeFactory;
 
 @SpringBootTest(properties = "moeun.demo.accounts=demo01:pw-123456")
 @AutoConfigureMockMvc
@@ -40,6 +45,9 @@ class PlanDocsTest {
 
     @Autowired
     PlanSaveService saveService;
+
+    @Autowired
+    PlanApplyService applyService;
 
     Cookie cookie;
     long memberId;
@@ -59,32 +67,10 @@ class PlanDocsTest {
     }
 
     @Test
-    void applyPlanDoc() throws Exception {
-        savePlan();
-        mockMvc.perform(post("/api/plan/apply").cookie(cookie).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"source\":\"COMPARE\",\"changes\":{\"monthlySavingAmount\":1500000},"
-                                + "\"expectedRevision\":1}"))
-                .andExpect(status().isOk())
-                .andDo(document("plan-apply", resource(ResourceSnippetParameters.builder()
-                        .tag("Plan").summary("바꾼 조건을 내 계획으로 적용")
-                        .description("revision이 다르면 409 PLAN_CHANGED. 검증 오류는 422 VALIDATION_FAILED.")
-                        .requestFields(
-                                fieldWithPath("source").description("ALTERNATIVE / COMPARE / CHAT"),
-                                subsectionWithPath("changes")
-                                        .description("monthlySavingAmount, targetPeriodMonths, savingsRatioPct, "
-                                                + "savingsRateInputPct 중 바꾼 것만"),
-                                fieldWithPath("expectedRevision").description("확인창을 열 때의 revision"))
-                        .responseFields(
-                                fieldWithPath("planVersionId").description("새 계획 버전 id"),
-                                fieldWithPath("revision").description("새 계획 revision"))
-                        .build())));
-    }
-
-    @Test
     void undoPlanDoc() throws Exception {
         savePlan();
-        mockMvc.perform(post("/api/plan/apply").cookie(cookie).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"source\":\"CHAT\",\"changes\":{\"monthlySavingAmount\":1500000},\"expectedRevision\":1}"));
+        applyService.apply(memberId, ChangePath.CHAT,
+                Map.of("monthlySavingAmount", JsonNodeFactory.instance.numberNode(1_500_000L)), 1L, null);
         mockMvc.perform(post("/api/plan/undo").cookie(cookie).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"expectedRevision\":2}"))
                 .andExpect(status().isOk())

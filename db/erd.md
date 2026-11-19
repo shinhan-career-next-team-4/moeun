@@ -544,20 +544,32 @@ INSERT INTO calc_run (plan_version_id, run_type, ...) VALUES (:v, 'PLAN', ...);
 COMMIT;                                                    -- 0행이면 ROLLBACK + 409 PLAN_CHANGED
 
 -- (b) 대안·비교·대화 결과 적용 (FR-PLAN-03): 확인창을 연 시점의 revision으로 갱신
+-- 검사 순서: 계획 없음(NO_PLAN) -> 조건 검증 -> revision -> 기준 버전 -> 저장 (계약 C12b-7-1)
 BEGIN;
+-- 비교를 만든 기준 버전이 아직 현재 버전인지 본다. null이면 건너뛴다(대안·비교 적용)
+SELECT current_version_id, revision FROM plan WHERE member_id = $user;
+-- revision이 다르면 409 PLAN_CHANGED, 같고 기준 버전만 다르면 409 STALE_COMPARISON
 INSERT INTO plan_version (...) VALUES (..., $source) RETURNING id;                                         -- :v
 UPDATE plan SET previous_version_id = current_version_id, current_version_id = :v, revision = revision + 1
 WHERE member_id = $user AND revision = $expected;            -- 0행이면 ROLLBACK (중복 전송·동시 수정)
 INSERT INTO calc_run (plan_version_id, run_type, ...) VALUES (:v, 'PLAN', ...);
 COMMIT;
 
--- (c) 되돌리기 (FR-PLAN-04): 직전 1단계로. 토스트가 들고 있는 revision이 토큰 역할
-UPDATE plan SET current_version_id = previous_version_id, previous_version_id = NULL, revision = revision + 1
-WHERE member_id = $user AND revision = $toast_revision AND previous_version_id IS NOT NULL;
+-- (c) 되돌리기 (FR-PLAN-04, D-068): 포인터를 되돌리지 않고 직전 버전 행을 복사해 새 버전으로 넣는다
+BEGIN;
+-- 먼저 읽는다. 조건부 UPDATE 하나로는 NOTHING_TO_UNDO와 PLAN_CHANGED를 구분할 수 없다
+SELECT previous_version_id, revision FROM plan WHERE member_id = $user;   -- 없으면 409 NO_PLAN
+-- previous_version_id IS NULL이면 409 NOTHING_TO_UNDO, revision이 다르면 409 PLAN_CHANGED
+INSERT INTO plan_version (member_id, ..., source, ...)                    -- source까지 그대로 복사
+SELECT member_id, ..., source, ... FROM plan_version WHERE id = $previous RETURNING id;                    -- :v
+UPDATE plan SET current_version_id = :v, previous_version_id = NULL, revision = revision + 1
+WHERE member_id = $user AND revision = $toast_revision;      -- 0행이면 ROLLBACK + 409 PLAN_CHANGED
+COMMIT;                                                      -- calc_run(PLAN)은 PlanChanged 리스너가 기록
 ```
 
 - 모두 `plan` PK로 갱신한다. `revision` 조건 하나로 중복 전송, 동시 수정, 오래된 되돌리기 토큰을 막는다. (a)의 입력 저장도 `expectedRevision`을 검사하며, 0행이면 `PlanChangedException`으로 전체(검증 → 저장 → 계산 한 트랜잭션)를 롤백하고 409 `PLAN_CHANGED`를 돌려준다. v1의 `plan_application`·`request_key`·트리거가 맡던 역할이다.
 - 되돌린 뒤에는 `previous_version_id = NULL`이라 다시 되돌릴 수 없다. "직전 계획 1개"(FR-PLAN-04) 요구와 같다.
+- 되돌리기가 새 id를 만들기 때문에(D-068), 되돌리기 전에 만든 비교는 기준 버전이 현재 버전과 달라져 (b)의 기준 버전 검사에서 409 `STALE_COMPARISON`으로 걸린다. 비교(기준 V1) → 적용(V2) → 되돌리기에서 현재가 다시 V1이 되는 틈이 없다.
 - 되돌린 버전의 결과는 Q1과 같은 방식으로 최신 `calc_run`을 읽어 다시 계산한다.
 
 ---
