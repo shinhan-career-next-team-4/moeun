@@ -4,8 +4,9 @@ import { ApiError } from "../../api/errors";
 import { ComparisonNotices, ComparisonResult, useComparison, useComparisonController, type ComparisonPlanStore } from "./comparison";
 import { COPY, unitChar } from "./copy";
 import { Citations } from "./explanation/Citations";
-import { useExplanationRequest } from "./explanation/useExplanationRequest";
+import { postExplanation, useExplanationRequest } from "./explanation/useExplanationRequest";
 import type { ChatDeps } from "./index";
+import { useRetryExplanation } from "./retry/useRetryExplanation";
 import { Suggestions } from "./suggestions";
 import type { ChatAccepted, ChatMessage } from "./types";
 import { useChatPollingInternal } from "./useChatPolling";
@@ -64,6 +65,11 @@ export function ChatWindow({ deps: givenDeps = defaultDeps }: { deps?: ChatDeps 
   const chat = useChatPollingInternal(deps, comparisonController.receive);
   const { accepted, answerPendingElsewhere } = chat;
   useExplanationRequest(deps, chat);
+  const retryExplanation = useRetryExplanation(
+    deps,
+    chat,
+    useCallback((calcRunId: number, retryOfMessageId?: number) => postExplanation(deps.api, calcRunId, retryOfMessageId), [deps.api]),
+  );
 
   // 공유 계획 store는 읽기만 한다. 초과 판단은 settledStatus 하나로 한다.
   const { planStore: store } = deps;
@@ -139,7 +145,7 @@ export function ChatWindow({ deps: givenDeps = defaultDeps }: { deps?: ChatDeps 
       <ComparisonNotices comparison={comparison} />
       {chat.pollingFailed && <p data-testid="chat-polling-failed">{COPY.pollingFailed}</p>}
       {settledStatus === "CALCULATED" && (
-        <button type="button" data-testid="chat-retry-explanation">
+        <button type="button" data-testid="chat-retry-explanation" disabled={retryExplanation.disabled} onClick={retryExplanation.retry}>
           {RETRY_EXPLANATION_LABEL}
         </button>
       )}

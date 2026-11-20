@@ -42,8 +42,10 @@ function memoryOf(store: Store): TabMemory {
   return memory;
 }
 
-function postExplanation(api: ChatDeps["api"], calcRunId: number): Promise<unknown> {
-  return api.request("POST", "/api/chat/explanations", { calcRunId });
+/** retryOfMessageId가 있으면 '설명 다시 요청'(FR-AI-05)이다. */
+export function postExplanation(api: ChatDeps["api"], calcRunId: number, retryOfMessageId?: number): Promise<unknown> {
+  const body = retryOfMessageId === undefined ? { calcRunId } : { calcRunId, retryOfMessageId };
+  return api.request("POST", "/api/chat/explanations", body);
 }
 
 // 회복 재조회가 돌려준 결과는 store에 먼저 반영되고, 재조회 Promise는 그 뒤 정해진 몇 단계(async 반환, loadPlan의 finally, 아래 then·catch·finally)를 거쳐서야 끝난다.
