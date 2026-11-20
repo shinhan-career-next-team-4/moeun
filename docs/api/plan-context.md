@@ -99,9 +99,12 @@
 | `isDefaultSavingsRate` | boolean | 예 | — | 기본금리 사용 여부 판단용 |
 | `savingsRateBaseMonth` | `"YYYY-MM"` \| null | 아니오 | `assumptions.savingsRateBaseMonth` | null이면 display 키 없음 |
 | `savingsRatioPct` | integer | 아니오 | (`conditions.savingsRatioPct`) | |
-| `taxRatePct` | number | 아니오 | **[D-060]** `assumptions.taxRatePct` | raw는 모델에 넘기지 않는다 |
+| `taxRatePct` | number | 아니오 | **[D-060]** `assumptions.taxRatePct` | raw는 모델에 넘기지 않는다. **#150부터 적금 이자 세율**(ETF 차익은 `etfGainTaxRatePct`). 규칙 8·세금 응답 보장의 기준을 종목 세율까지 넓히는 일은 B팀 합의 대기 |
 | `scenarioMethod` | `CAGR` \| `ROLLING_DISTRIBUTION` \| null | **코드는 아니오. 문구로 바꿔서 넘김** | — | ai-server가 문구표 `scenarioMethod.<CODE>` 문장으로 바꿔 `scenarioMethodNote`로 넣는다. null(ETF 0%)이면 넣지 않음 |
-| `sp500BaseDate` | `"YYYY-MM-DD"` \| null | 아니오 | `assumptions.sp500BaseDate` | null이면 display 키 없음 |
+| `sp500BaseDate` | `"YYYY-MM-DD"` \| null | 아니오 | `assumptions.sp500BaseDate` | null이면 display 키 없음. 이름은 그대로지만 값은 계산에 쓴 ETF 종목 데이터의 기준일(#138) |
+| `etfProductCode` | string \| null | 아니오 | — | **추가(#150)** 계산에 쓴 ETF 종목 코드. ETF 0%면 null |
+| `etfProductName` | string \| null | 아니오 | `assumptions.etfProductName`(합의 대기) | **추가(#150)** 종목 화면 이름("코스피200 추종 ETF", CP-06). ETF 0%면 null |
+| `etfGainTaxRatePct` | number \| null | 아니오 | `assumptions.etfGainTaxRatePct`(합의 대기) | **추가(#150)** 종목 매매차익 세율. 국내 주식형 0. `taxRatePct`는 적금 이자 세율이 된다 |
 | `excludedItems` | string[] | **코드는 아니오. 문구로 바꿔서 넘김** | — | ai-server가 문구표 `excluded.<CODE>` 문장 배열로 바꿔 `excludedNotes`로 넣는다 |
 
 **반영하지 않은 항목·3구간 산정 방식 문장**
@@ -132,6 +135,8 @@
 | `assumptions.savingsRateBaseMonth` | `YYYY년 M월`. null이면 키 없음 | **추가** |
 | `assumptions.sp500BaseDate` | `YYYY년 M월`(일은 버림). null이면 키 없음 | **추가** |
 | `assumptions.taxRatePct` | **[D-060]** `N.N%`, 끝 0 제거(`15.4`·`15.40` → `15.4%`) | 새 형식 |
+| `assumptions.etfProductName` | 종목 화면 이름 그대로. ETF 0%면 키 없음 | **추가(#150), B팀 합의 대기**: Spring은 만들지만 아직 허용 패턴·요구 키에 없어 ai-server가 버린다 |
+| `assumptions.etfGainTaxRatePct` | `N.N%`. 비과세면 `0%(국내 주식형 ETF 매매차익 비과세)`(문구표 `tax.etfTaxFree`). ETF 0%면 키 없음 | **추가(#150), B팀 합의 대기** |
 
 `<S>` = `GOOD` \| `AVG` \| `BAD`(시나리오 이름). 실제로 있는 시나리오만 키를 만든다.
 
