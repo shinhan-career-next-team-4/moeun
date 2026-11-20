@@ -17,7 +17,7 @@ export const COPY = {
   "undo.failed": "되돌리지 못했어요. 다시 시도해 주세요",
   "result.loadFailed": "결과를 불러오지 못했어요. 다시 시도해 주세요",
   "result.alreadyExceeded":
-    "가진 자산 {heldAssets}이 목표 금액 {goalAmount}을 이미 넘었어요. 목표 금액은 입력 수정에서 바꿀 수 있어요",
+    "가진 자산 {heldAssets}이 목표 금액 {goalAmount}을 이미 넘었어요. 대화로 목표 금액을 더 높게 바꿔 볼 수 있어요",
   "result.notReachedInPeriod": "목표 기간 안에는 목표 금액에 닿지 못해요",
   "result.scenarioNotice": "세 가지 경우는 과거 데이터의 범위를 나눈 시나리오이고 미래를 예측한 값이 아니에요",
   "result.defaultSavingsRate": "적금 금리는 평균 금리를 기본값으로 사용했어요",

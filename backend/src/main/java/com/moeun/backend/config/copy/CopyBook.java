@@ -28,7 +28,8 @@ public final class CopyBook {
     /** 필수 키 중 enum으로 만들 수 없는 것. 문구표를 바꾸면 ai-server의 REQUIRED_KEYS도 함께 고친다. */
     private static final List<String> FIXED_KEYS = List.of(
             "outOfScope", "outOfScope.tax", "disclaimer", "tax.note",
-            "chat.unchangeableCondition", "chat.noPlan", "chat.alreadyExceeded", "chat.failed",
+            "chat.unchangeableCondition", "chat.noPlan", "chat.alreadyExceeded", "chat.goalAmountChangedNote",
+            "chat.changedAlreadyExceeded", "chat.cardAlreadyExceeded", "chat.failed",
             "chat.pollingFailed", "chat.sendFailed",
             "template.achieved", "template.missed", "template.increase", "template.decrease",
             "template.unchanged", "template.ratio",
@@ -43,8 +44,8 @@ public final class CopyBook {
             "validation.TOO_MANY_DECIMALS",
             "unit.manwon", "unit.won", "unit.month", "unit.pct", "unit.char");
 
-    private static final List<String> CONDITION_CODES =
-            List.of("monthlySavingAmount", "savingsRatioPct", "savingsRateInputPct", "targetPeriodMonths");
+    private static final List<String> CONDITION_CODES = List.of(
+            "goalAmount", "monthlySavingAmount", "savingsRatioPct", "savingsRateInputPct", "targetPeriodMonths");
 
     private static final List<String> ERROR_CODES = List.of("VALIDATION_FAILED", "FIELD_NOT_CHANGEABLE", "NO_PLAN",
             "ALREADY_EXCEEDED", "MALFORMED_REQUEST", "INVALID_INTERNAL_KEY", "CALC_FAILED");

@@ -24,7 +24,9 @@ PLAN_CONTEXT = json.loads(   # 계약 C1a 예시 planContext
     (APP_DIR.parents[1] / "docs" / "api" / "examples" / "plan-context" / "plan-context-basic.json")
     .read_text(encoding="utf-8")
 )
-CONDITION_KEYS = ("monthlySavingAmount", "savingsRatioPct", "savingsRateInputPct", "targetPeriodMonths")
+CONDITION_KEYS = (
+    "goalAmount", "monthlySavingAmount", "savingsRatioPct", "savingsRateInputPct", "targetPeriodMonths",
+)
 OUT_OF_SCOPE_KEY = "outOfScope"
 UNCHANGEABLE_KEY = "chat.unchangeableCondition"
 OUT_OF_SCOPE_OPENING = "이 질문은 모은에서 다루지 않아요"   # 이슈가 글자 그대로 적은 시작 문장
@@ -115,14 +117,13 @@ async def test_out_of_scope_content_comes_from_copy_book_not_from_model():
     assert MODEL_OWN_SENTENCE not in resp.content
 
 
-async def test_out_of_scope_content_lists_the_four_changeable_conditions_from_copy_book():
-    """안내에는 대화로 바꿀 수 있는 4개 조건 이름(문구표 condition.* 값)이 모두 들어가고 목표 금액은 없다 (M-5, M-2)"""
+async def test_out_of_scope_content_lists_the_five_changeable_conditions_from_copy_book():
+    """안내에는 대화로 바꿀 수 있는 5개 조건 이름(문구표 condition.* 값)이 모두 들어간다 (D-090)"""
     claude = FakeClaude([text_resp("OUT_OF_SCOPE", MODEL_OWN_SENTENCE)])
     resp = await make_agent(claude, FakeCalc()).run(question("삼성전자 주식 사면 어때요"))
     copy = load_copy()
     for code in CONDITION_KEYS:
         assert copy.get(f"condition.{code}") in resp.content
-    assert "목표 금액" not in resp.content
 
 
 async def test_refusal_stop_reason_uses_the_same_copy_book_content():

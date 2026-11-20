@@ -22,17 +22,22 @@ tax:
 
 # 대화창 안내(/internal/calc C3-2, planContext 경로, 프론트 대화창 첫 줄)
 chat:
-  # 대화로 못 바꾸는 조건 안내(D-056). 범위 밖 안내(outOfScope)와 다른 키다
-  unchangeableCondition: "목표 금액은 입력 수정에서 바꿀 수 있어요. 대화로는 월 저축액·비중·적금 금리·기한을 바꿔 볼 수 있어요"
+  # 대화로 못 바꾸는 조건 안내(D-056, D-090). 범위 밖 안내(outOfScope)와 다른 키다
+  unchangeableCondition: "목표 종류·기존 납입액은 여기서 바꿀 수 없어요. 보유 자산은 입력 수정에서 바꿀 수 있어요."
   noPlan: "먼저 목표와 조건을 입력해 계획을 만들어 주세요"
-  # 대화창용 초과 안내(D-072). 결과 화면용 result.alreadyExceeded와 합치지 않는다
-  alreadyExceeded: "이미 가진 자산이 목표 금액을 초과했어요. 목표 금액은 입력 수정에서 바꿀 수 있어요"
+  # 대화창용 초과 안내(D-072, D-092). 결과 화면용 result.alreadyExceeded와 합치지 않는다
+  alreadyExceeded: "이미 가진 자산이 목표 금액을 넘었어요. 대화로 목표 금액을 더 높게 바꿔 볼 수 있어요."
+  # 목표 금액 변경 비교 주의 문구·적용 시 초과 예고·비교 카드 초과 칸(D-090·D-092)
+  goalAmountChangedNote: "목표 금액이 {currentGoal}에서 {changedGoal}으로 바뀌어, 달성 여부는 각각 자기 목표 기준이에요."
+  changedAlreadyExceeded: "이 조건으로 적용하면 이미 목표를 넘은 상태가 돼요"
+  cardAlreadyExceeded: "가진 자산 {heldAssets}이 목표 금액 {goalAmount}을 이미 넘었어요"
   # AI 답변 실패 안내(FR-AI-04). FAILED 메시지의 content
   failed: "답변을 만들지 못했어요. 잠시 후 다시 질문해 주세요"
   pollingFailed: "답변을 불러오지 못하고 있어요. 잠시 후 다시 시도해 주세요"
   sendFailed: "메시지를 보내지 못했어요. 다시 시도해 주세요"
-  # 질문 예시 버튼(D-064). 값·변화량 없이 조건만 고른다
+  # 질문 예시 버튼(D-064, D-090). 값·변화량 없이 조건만 고른다
   exampleQuestion:
+    goalAmount: "목표 금액을 바꿔 보고 싶어요"
     monthlySavingAmount: "월 저축액을 바꿔 보고 싶어요"
     savingsRatioPct: "저축 비중을 바꿔 보고 싶어요"
     savingsRateInputPct: "적금 금리를 바꿔 보고 싶어요"
@@ -74,6 +79,7 @@ scenarioMethod:
 
 # 비교 카드(H-15, C12b-6). 키는 conditions의 camelCase 키와 같다
 condition:
+  goalAmount: "목표 금액"
   monthlySavingAmount: "월 저축액"
   savingsRatioPct: "저축 비중"
   savingsRateInputPct: "적금 금리"
@@ -115,8 +121,8 @@ undo:
   failed: "되돌리지 못했어요. 다시 시도해 주세요"
 result:
   loadFailed: "결과를 불러오지 못했어요. 다시 시도해 주세요"
-  # 결과 화면용 초과 안내(FR-RES-01). 대화창용 chat.alreadyExceeded와 합치지 않는다
-  alreadyExceeded: "가진 자산 {heldAssets}이 목표 금액 {goalAmount}을 이미 넘었어요. 목표 금액은 입력 수정에서 바꿀 수 있어요"
+  # 결과 화면용 초과 안내(FR-RES-01, D-090·D-092). 대화창용 chat.alreadyExceeded와 합치지 않는다
+  alreadyExceeded: "가진 자산 {heldAssets}이 목표 금액 {goalAmount}을 이미 넘었어요. 대화로 목표 금액을 더 높게 바꿔 볼 수 있어요"
   notReachedInPeriod: "목표 기간 안에는 목표 금액에 닿지 못해요"
   # D-029
   scenarioNotice: "세 가지 경우는 과거 데이터의 범위를 나눈 시나리오이고 미래를 예측한 값이 아니에요"
