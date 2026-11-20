@@ -6,6 +6,8 @@ import type { AlternativeKey, AlternativeValues } from "./types";
 interface AlternativeCardProps {
   alternativeKey: AlternativeKey;
   values?: AlternativeValues;
+  /** '비교하기'. 이 대안의 조건을 비교 영역에 채운다(프론트 상태만, 저장 없음) */
+  onCompare?: (values: AlternativeValues) => void;
   /** 기한 카드에서 사용자가 적은 기간(개월). D-020·D-039: 기간은 사용자가 정한다 */
   onPeriodSubmit?: (months: number) => void;
 }
@@ -13,14 +15,19 @@ interface AlternativeCardProps {
 interface RowProps {
   label: string;
   value?: string;
+  tone?: "normal" | "warn";
+  suffix?: string;
 }
 
-function Row({ label, value }: RowProps) {
+function Row({ label, value, tone = "normal", suffix }: RowProps) {
   if (!value) return null;
   return (
     <div className="flex items-baseline justify-between gap-3">
       <dt className="shrink-0 text-xs text-text-muted">{label}</dt>
-      <dd className="text-right text-sm font-medium text-text">{value}</dd>
+      <dd className={`text-right text-sm font-medium ${tone === "warn" ? "text-danger" : "text-text"}`}>
+        {value}
+        {suffix && <span className="ml-1 whitespace-nowrap">{suffix}</span>}
+      </dd>
     </div>
   );
 }
@@ -60,7 +67,7 @@ function PeriodInput({ onSubmit }: { onSubmit: (months: number) => void }) {
 }
 
 /** 대안 카드 하나(FR-ALT-02). 서버 값이 없는 줄은 그리지 않고, 하나도 없으면 안내만 보여 준다. */
-export function AlternativeCard({ alternativeKey, values, onPeriodSubmit }: AlternativeCardProps) {
+export function AlternativeCard({ alternativeKey, values, onCompare, onPeriodSubmit }: AlternativeCardProps) {
   const hasValues =
     values !== undefined && Object.values(values).some((value) => typeof value === "string" && value.length > 0);
 
@@ -73,12 +80,31 @@ export function AlternativeCard({ alternativeKey, values, onPeriodSubmit }: Alte
           <Row label={COPY["alt.rowChange"]} value={values.change} />
           <Row label={COPY["alt.rowAvgAsset"]} value={values.avgAfterTaxAsset} />
           <Row label={COPY["alt.rowGapToGoal"]} value={values.gapToGoal} />
-          <Row label={COPY["alt.rowBad"]} value={values.badAfterTaxAsset} />
+          <Row
+            label={COPY["alt.rowBad"]}
+            value={values.badAfterTaxAsset}
+            tone="warn"
+            suffix={values.volatilityWarning ? COPY["alt.volatilityWarning"] : undefined}
+          />
         </dl>
       ) : (
         <p className="text-xs text-text-muted">{COPY["alt.valuePending"]}</p>
       )}
       {onPeriodSubmit && <PeriodInput onSubmit={onPeriodSubmit} />}
+      <div className="mt-auto flex gap-2 pt-1">
+        <Button
+          variant="secondary"
+          className="h-9 flex-1 px-2"
+          disabled={!hasValues || !onCompare}
+          onClick={() => values && onCompare?.(values)}
+        >
+          {COPY["alt.compare"]}
+        </Button>
+        {/* 적용은 A팀 확인·저장 흐름(FR-PLAN-01, D-046)으로 넘긴다. 그 흐름이 붙기 전에는 비활성 */}
+        <Button variant="secondary" className="h-9 flex-1 px-2" disabled title={COPY["alt.applyPending"]}>
+          {COPY["alt.apply"]}
+        </Button>
+      </div>
     </li>
   );
 }

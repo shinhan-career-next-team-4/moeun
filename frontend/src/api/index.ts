@@ -1,6 +1,7 @@
 // 앱이 쓰는 기본 인스턴스를 조립한다. store가 api.request를 쓰고 래퍼가 store를 쓰는 순환은 지연 참조로 푼다.
 import { createAuthSync } from "./authSync";
 import { createApiClient, resolveApiMode } from "./client";
+import { applyMockFilesFromEnv } from "./mock";
 import { polling } from "./polling";
 import { createPlanStore } from "./planStore";
 
@@ -36,5 +37,8 @@ export const api = createApiClient({
   authSync,
 });
 lazy.api = api;
+
+// 목 모드에서만 쓴다. VITE_MOCK_FILES로 기본 목 파일을 골라 바꾼다(개발용)
+if (resolveApiMode(import.meta.env) === "mock") applyMockFilesFromEnv(import.meta.env);
 
 export { polling };

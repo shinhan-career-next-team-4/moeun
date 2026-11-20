@@ -1,6 +1,6 @@
 import { COPY } from "../../shared/copy/copy";
 import { AlternativeCard } from "./AlternativeCard";
-import type { AlternativeKey, AlternativeValuesByKey } from "./types";
+import type { AlternativeKey, AlternativeValues, AlternativeValuesByKey } from "./types";
 
 /** 카드 순서는 와이어프레임과 같다. 순서는 우열이 아니다(FR-ALT-02 머리글). */
 const CARD_ORDER: AlternativeKey[] = ["monthlySavingAmount", "targetPeriodMonths", "savingsRatioPct"];
@@ -10,11 +10,13 @@ interface AlternativeSectionProps {
   isAchieved: boolean;
   /** 대안 산출 API(#66)가 준 display 문자열. 없으면 카드는 빈 카드다 */
   values?: AlternativeValuesByKey;
+  /** '비교하기'를 누른 대안. 비교 영역에 조건을 채운다(FR-ALT-04) */
+  onCompare?: (values: AlternativeValues) => void;
   onPeriodSubmit?: (months: number) => void;
 }
 
 /** 대안 영역(FR-ALT-01·02, 와이어프레임 03). 미달일 때만 보인다. */
-export function AlternativeSection({ isAchieved, values, onPeriodSubmit }: AlternativeSectionProps) {
+export function AlternativeSection({ isAchieved, values, onCompare, onPeriodSubmit }: AlternativeSectionProps) {
   if (isAchieved) return null;
 
   return (
@@ -29,6 +31,7 @@ export function AlternativeSection({ isAchieved, values, onPeriodSubmit }: Alter
             key={key}
             alternativeKey={key}
             values={values?.[key]}
+            onCompare={onCompare}
             onPeriodSubmit={key === "targetPeriodMonths" ? onPeriodSubmit : undefined}
           />
         ))}

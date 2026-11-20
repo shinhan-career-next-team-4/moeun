@@ -69,6 +69,11 @@ function responsesOf(fileName: string): MockResponse[] {
 
 /** 목 파일 하나를 골라 그 요청 키(또는 공통 파일이면 모든 키)의 응답으로 쓴다. 그 키의 호출 횟수는 0으로 돌아간다. */
 export function useMock(fileName: string): void {
+  selectMockFile(fileName);
+}
+
+/** useMock의 알맹이. 이름이 use로 시작하지 않아 훅 규칙 검사에 걸리지 않는다(화면 코드가 아니다). */
+function selectMockFile(fileName: string): void {
   responsesOf(fileName);
   const prefix = fileName.split(".")[0];
   if (prefix === COMMON_PREFIX) {
@@ -101,6 +106,22 @@ function toKeys(method: string, path: string): { concrete: string; generic: stri
 function pathOf(input: string): string {
   const end = input.search(/[?#]/);
   return end === -1 ? input : input.slice(0, end);
+}
+
+/**
+ * 개발 중 기본 목을 바꿔 보는 길(계약 C12a-12·C12b-12의 기본 파일은 그대로 둔다).
+ * `VITE_MOCK_FILES=get-plan.200.json,get-messages.200-failed.json npm run dev`처럼 쉼표로 적는다.
+ * 예: 대안 영역은 미달일 때만 보이므로(FR-ALT-01) `get-plan.200.json`을 골라야 보인다.
+ */
+export function applyMockFilesFromEnv(env: Record<string, unknown>): string[] {
+  const raw = env.VITE_MOCK_FILES;
+  if (typeof raw !== "string" || raw.trim() === "") return [];
+  const names = raw
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name !== "");
+  for (const name of names) selectMockFile(name);
+  return names;
 }
 
 /** 실제 fetch처럼 요청 키(메서드 + 경로, 쿼리 제외)에 맞는 목 응답을 Response로 돌려준다. */
