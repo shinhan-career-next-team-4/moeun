@@ -9,11 +9,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import com.moeun.backend.refdata.Sp500Series.MonthlyClose;
+import com.moeun.backend.refdata.EtfSeries.MonthlyClose;
 import com.moeun.backend.refdata.application.CsvRows.Row;
 
-/** S&P500 월별 종가 CSV(ym,close_value)를 읽고 검증한다. */
-final class Sp500CsvParser {
+/** ETF 종목 월말 종가 CSV(ym,close_value)를 읽고 검증한다. 종목마다 같은 형식이다(S&P500 포함). */
+final class EtfPriceCsvParser {
 
     /**
      * 최소 개월 수. 120개월 구간 하나의 수익률을 내려면 시작과 끝, 121개 점이 필요하다.
@@ -25,7 +25,7 @@ final class Sp500CsvParser {
     private static final int MAX_INTEGER_DIGITS = 10;
     private static final int MAX_SCALE = 4;
 
-    private Sp500CsvParser() {
+    private EtfPriceCsvParser() {
     }
 
     /** 월 오름차순으로 돌려준다. */

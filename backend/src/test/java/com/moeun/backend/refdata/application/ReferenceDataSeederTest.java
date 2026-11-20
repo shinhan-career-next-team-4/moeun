@@ -19,7 +19,10 @@ import com.moeun.backend.refdata.DataVersionService;
 @ApplicationModuleTest(extraIncludes = {"config", "auth"})
 @Import(TestcontainersConfig.class)
 @TestPropertySource(properties = {
-    "moeun.refdata.seeds[0].kind=SP500",
+    "moeun.refdata.seeds[0].kind=ETF_PRICE",
+    "moeun.refdata.seeds[0].product-code=SP500",
+    "moeun.refdata.seeds[0].display-name=S&P500 추종 ETF",
+    "moeun.refdata.seeds[0].gain-tax-rate-pct=15.4",
     "moeun.refdata.seeds[0].version-label=test-2025-12",
     "moeun.refdata.seeds[0].base-date=2025-12-31",
     "moeun.refdata.seeds[0].source=테스트용 가짜 데이터",
@@ -49,7 +52,7 @@ class ReferenceDataSeederTest {
     @Test
     @DisplayName("서버가 뜨면 설정에 적힌 세 종류가 모두 적재돼 활성 버전이 된다")
     void loadsSeedsOnStartup() {
-        assertThat(dataVersionService.findActive(DataKind.SP500)).isPresent();
+        assertThat(dataVersionService.findActiveEtf("SP500")).isPresent();
         assertThat(dataVersionService.findActive(DataKind.SAVINGS_RATE)).isPresent();
         assertThat(dataVersionService.findActive(DataKind.CALC_PARAM)).isPresent();
         assertThat(countVersions()).isEqualTo(3);

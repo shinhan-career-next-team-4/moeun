@@ -1,10 +1,10 @@
-"""convert_sp500.py 테스트. 실행: python3 -m unittest discover -s backend/scripts/refdata"""
+"""convert_etf_monthly.py 테스트. 실행: python3 -m unittest discover -s backend/scripts/refdata"""
 import datetime
 import os
 import tempfile
 import unittest
 
-import convert_sp500 as converter
+import convert_etf_monthly as converter
 
 TODAY = datetime.date(2026, 11, 17)
 
@@ -24,15 +24,15 @@ def stooq_csv(start_year, start_month, count, skip=None):
     return "\n".join(lines) + "\n"
 
 
-class ConvertSp500Test(unittest.TestCase):
+class ConvertEtfMonthlyTest(unittest.TestCase):
 
-    def convert(self, text, end_month="2026-10", months=121):
+    def convert(self, text, end_month="2026-10", months=121, product="SP500"):
         with tempfile.TemporaryDirectory() as folder:
             source = os.path.join(folder, "source.csv")
-            target = os.path.join(folder, "out", "sp500-monthly.csv")
+            target = os.path.join(folder, "out", "monthly.csv")
             with open(source, "w", encoding="utf-8") as file:
                 file.write(text)
-            converter.convert(source, target, end_month, months, TODAY)
+            converter.convert(source, target, end_month, months, TODAY, product)
             with open(target, encoding="utf-8") as file:
                 return file.read().splitlines()
 
@@ -94,6 +94,32 @@ class ConvertSp500Test(unittest.TestCase):
     def test_rejects_unknown_file_format(self):
         with self.assertRaisesRegex(converter.ConversionError, "unknown header"):
             self.convert("Datum,Wert\n2026-10-30,1\n")
+
+
+    def test_reads_investing_file_in_oldest_first_order_and_drops_unfinished_month(self):
+        # 069500·133690 파일은 오래된 날짜부터이고, 진행 중인 달(2026-11)이 들어 있다
+        lines = ['"날짜","종가","시가","고가","저가","거래량","변동 %"']
+        year, month = 2016, 10
+        for index in range(122):
+            lines.append(f'"{year:04d}- {month:02d}- 01","{25000 + index:,}","1","1","1","1M","0.1%"')
+            month += 1
+            if month == 13:
+                year, month = year + 1, 1
+        data = [line for line in self.convert("\n".join(lines) + "\n", product="069500")
+                if not line.startswith("#")]
+        self.assertEqual(data[0], "ym,close_value")
+        self.assertEqual(data[1], "2016-10,25000")
+        self.assertEqual(data[-1], "2026-10,25120")
+        self.assertEqual(len(data), 122)
+
+    def test_writes_product_code_in_comment(self):
+        lines = self.convert(stooq_csv(2016, 10, 121), product="133690")
+        self.assertIn("133690", lines[0])
+
+    def test_default_output_follows_product_code(self):
+        self.assertTrue(converter.default_output("SP500").endswith(os.path.join("data", "seed", "sp500-monthly.csv")))
+        self.assertTrue(converter.default_output("069500").endswith(
+            os.path.join("data", "seed", "etf-069500-monthly.csv")))
 
 
 if __name__ == "__main__":

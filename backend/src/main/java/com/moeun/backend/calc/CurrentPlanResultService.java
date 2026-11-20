@@ -13,9 +13,9 @@ import com.moeun.backend.calc.application.ResultDisplayBuilder;
 import com.moeun.backend.plan.PlanSaveService;
 import com.moeun.backend.plan.PlanView;
 import com.moeun.backend.refdata.CalcParams;
+import com.moeun.backend.refdata.EtfSeries;
 import com.moeun.backend.refdata.ReferenceDataService;
 import com.moeun.backend.refdata.SavingsAvgRateData;
-import com.moeun.backend.refdata.Sp500Series;
 
 /**
  * 현재 계획의 결과를 조회하고 calc_run(PLAN)을 "없으면 기록"한다(#29, ERD Q1, 계약 G-18, C12a-6-3).
@@ -97,11 +97,11 @@ public class CurrentPlanResultService {
         CalcParams params = referenceDataService.findActiveCalcParams()
                 .orElseThrow(() -> new IllegalStateException("active calc params are not loaded"));
         // S&P500은 레포에 없어 각자 적재한다(A안). 없으면 ETF가 든 계획만 엔진이 이유를 담아 막는다
-        Sp500Series sp500 = referenceDataService.findActiveSp500Series().orElse(null);
+        EtfSeries sp500 = referenceDataService.findRepresentativeEtfSeries().orElse(null);
         SavingsAvgRateData defaultRate = referenceDataService.findActiveSavingsAvgRate().orElse(null);
         return new ActiveData(params, sp500, defaultRate);
     }
 
-    private record ActiveData(CalcParams params, Sp500Series sp500, SavingsAvgRateData defaultRate) {
+    private record ActiveData(CalcParams params, EtfSeries sp500, SavingsAvgRateData defaultRate) {
     }
 }

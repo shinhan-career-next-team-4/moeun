@@ -12,9 +12,9 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.moeun.backend.refdata.Sp500Series.MonthlyClose;
+import com.moeun.backend.refdata.EtfSeries.MonthlyClose;
 
-class Sp500CsvParserTest {
+class EtfPriceCsvParserTest {
 
     private static final YearMonth START_MONTH = YearMonth.of(2015, 1);
     private static final int ENOUGH_MONTHS = 130;
@@ -22,7 +22,7 @@ class Sp500CsvParserTest {
     @Test
     @DisplayName("월과 종가를 읽어 월 오름차순으로 돌려준다")
     void parsesMonthlyCloses() {
-        List<MonthlyClose> closes = Sp500CsvParser.parse(toStream(createSp500Csv(START_MONTH, ENOUGH_MONTHS)));
+        List<MonthlyClose> closes = EtfPriceCsvParser.parse(toStream(createSp500Csv(START_MONTH, ENOUGH_MONTHS)));
 
         assertThat(closes).hasSize(ENOUGH_MONTHS);
         assertThat(closes.get(0)).isEqualTo(new MonthlyClose(START_MONTH, new BigDecimal("100")));
@@ -34,7 +34,7 @@ class Sp500CsvParserTest {
     void sortsByMonth() {
         String csv = createSp500Csv(START_MONTH.plusMonths(1), ENOUGH_MONTHS) + START_MONTH + ",99.5\n";
 
-        List<MonthlyClose> closes = Sp500CsvParser.parse(toStream(csv));
+        List<MonthlyClose> closes = EtfPriceCsvParser.parse(toStream(csv));
 
         assertThat(closes.get(0)).isEqualTo(new MonthlyClose(START_MONTH, new BigDecimal("99.5")));
     }
@@ -44,16 +44,16 @@ class Sp500CsvParserTest {
     void skipsCommentAndBlankLines() {
         String csv = "# 테스트용\n\n" + createSp500Csv(START_MONTH, ENOUGH_MONTHS);
 
-        assertThat(Sp500CsvParser.parse(toStream(csv))).hasSize(ENOUGH_MONTHS);
+        assertThat(EtfPriceCsvParser.parse(toStream(csv))).hasSize(ENOUGH_MONTHS);
     }
 
     @Test
     @DisplayName("121개월은 받고 120개월은 거부한다")
     void requiresMinimumMonthCount() {
-        assertThat(Sp500CsvParser.parse(toStream(createSp500Csv(START_MONTH, Sp500CsvParser.MIN_MONTH_COUNT))))
-                .hasSize(Sp500CsvParser.MIN_MONTH_COUNT);
-        assertThatThrownBy(() -> Sp500CsvParser.parse(
-                toStream(createSp500Csv(START_MONTH, Sp500CsvParser.MIN_MONTH_COUNT - 1))))
+        assertThat(EtfPriceCsvParser.parse(toStream(createSp500Csv(START_MONTH, EtfPriceCsvParser.MIN_MONTH_COUNT))))
+                .hasSize(EtfPriceCsvParser.MIN_MONTH_COUNT);
+        assertThatThrownBy(() -> EtfPriceCsvParser.parse(
+                toStream(createSp500Csv(START_MONTH, EtfPriceCsvParser.MIN_MONTH_COUNT - 1))))
                 .isInstanceOf(ReferenceDataLoadException.class)
                 .hasMessageContaining("at least 121 months");
     }
@@ -63,7 +63,7 @@ class Sp500CsvParserTest {
     void rejectsMissingMonth() {
         String csv = createSp500Csv(START_MONTH, ENOUGH_MONTHS).replace("2016-03,114\n", "");
 
-        assertThatThrownBy(() -> Sp500CsvParser.parse(toStream(csv)))
+        assertThatThrownBy(() -> EtfPriceCsvParser.parse(toStream(csv)))
                 .isInstanceOf(ReferenceDataLoadException.class)
                 .hasMessageContaining("missing month 2016-03");
     }
@@ -73,7 +73,7 @@ class Sp500CsvParserTest {
     void rejectsDuplicateMonth() {
         String csv = createSp500Csv(START_MONTH, ENOUGH_MONTHS) + "2015-01,100\n";
 
-        assertThatThrownBy(() -> Sp500CsvParser.parse(toStream(csv)))
+        assertThatThrownBy(() -> EtfPriceCsvParser.parse(toStream(csv)))
                 .isInstanceOf(ReferenceDataLoadException.class)
                 .hasMessage("line 132: duplicate month 2015-01");
     }
@@ -81,37 +81,37 @@ class Sp500CsvParserTest {
     @Test
     @DisplayName("종가가 0이거나 음수면 거부한다")
     void rejectsNonPositiveClose() {
-        assertThatThrownBy(() -> Sp500CsvParser.parse(toStream("ym,close_value\n2015-01,0\n")))
+        assertThatThrownBy(() -> EtfPriceCsvParser.parse(toStream("ym,close_value\n2015-01,0\n")))
                 .isInstanceOf(ReferenceDataLoadException.class)
                 .hasMessage("line 2: close_value must be positive");
-        assertThatThrownBy(() -> Sp500CsvParser.parse(toStream("ym,close_value\n2015-01,-1.5\n")))
+        assertThatThrownBy(() -> EtfPriceCsvParser.parse(toStream("ym,close_value\n2015-01,-1.5\n")))
                 .isInstanceOf(ReferenceDataLoadException.class);
     }
 
     @Test
     @DisplayName("형식이 틀린 파일은 거부한다")
     void rejectsMalformedFile() {
-        assertThatThrownBy(() -> Sp500CsvParser.parse(toStream("month,close\n2015-01,100\n")))
+        assertThatThrownBy(() -> EtfPriceCsvParser.parse(toStream("month,close\n2015-01,100\n")))
                 .hasMessageContaining("header must be ym,close_value");
-        assertThatThrownBy(() -> Sp500CsvParser.parse(toStream("ym,close_value\n2015/01,100\n")))
+        assertThatThrownBy(() -> EtfPriceCsvParser.parse(toStream("ym,close_value\n2015/01,100\n")))
                 .hasMessage("line 2: month must be yyyy-MM");
-        assertThatThrownBy(() -> Sp500CsvParser.parse(toStream("ym,close_value\n2015-01,abc\n")))
+        assertThatThrownBy(() -> EtfPriceCsvParser.parse(toStream("ym,close_value\n2015-01,abc\n")))
                 .hasMessage("line 2: not a number in column 2");
-        assertThatThrownBy(() -> Sp500CsvParser.parse(toStream("ym,close_value\n2015-01,100,7\n")))
+        assertThatThrownBy(() -> EtfPriceCsvParser.parse(toStream("ym,close_value\n2015-01,100,7\n")))
                 .hasMessage("line 2: expected 2 columns but found 3");
-        assertThatThrownBy(() -> Sp500CsvParser.parse(toStream("ym,close_value\n2015-01,100.12345\n")))
+        assertThatThrownBy(() -> EtfPriceCsvParser.parse(toStream("ym,close_value\n2015-01,100.12345\n")))
                 .hasMessage("line 2: at most 4 decimal places allowed");
-        assertThatThrownBy(() -> Sp500CsvParser.parse(toStream("ym,close_value\n2015-01,12345678901\n")))
+        assertThatThrownBy(() -> EtfPriceCsvParser.parse(toStream("ym,close_value\n2015-01,12345678901\n")))
                 .hasMessage("line 2: number is too large");
     }
 
     @Test
     @DisplayName("데이터 줄이 없으면 거부한다")
     void rejectsEmptyFile() {
-        assertThatThrownBy(() -> Sp500CsvParser.parse(toStream("")))
+        assertThatThrownBy(() -> EtfPriceCsvParser.parse(toStream("")))
                 .isInstanceOf(ReferenceDataLoadException.class)
                 .hasMessage("file has no data rows");
-        assertThatThrownBy(() -> Sp500CsvParser.parse(toStream("ym,close_value\n")))
+        assertThatThrownBy(() -> EtfPriceCsvParser.parse(toStream("ym,close_value\n")))
                 .hasMessage("file has no data rows");
     }
 }
