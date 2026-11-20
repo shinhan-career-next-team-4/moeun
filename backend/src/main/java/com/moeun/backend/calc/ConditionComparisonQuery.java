@@ -12,6 +12,7 @@ public interface ConditionComparisonQuery {
      * 그 회원의 현재 계획을 기준으로 바꾼 조건만 얹어 current·changed를 계산한다. 범위 검사는 하지 않는다(부르는 쪽이
      * 먼저 {@code ConditionValidator}로 검증한다).
      *
+     * @return {@code basePlanVersionId}는 지금의 현재 계획 버전이다(기록이 없는 비교라 calc_run의 버전이 아니다)
      * @param changes 검증을 통과한 바꾼 조건(하나 이상)
      * @throws CalcRejectedException 계획 없음(409 NO_PLAN), 바꾼 조건으로도 이미 목표 초과(409 ALREADY_EXCEEDED)
      */

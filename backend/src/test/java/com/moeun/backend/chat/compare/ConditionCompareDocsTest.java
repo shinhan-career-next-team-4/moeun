@@ -4,6 +4,7 @@ import static com.epages.restdocs.apispec.MockMvcRestDocumentationWrapper.docume
 import static com.epages.restdocs.apispec.ResourceDocumentation.resource;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.post;
+import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWithPath;
 import static org.springframework.restdocs.payload.PayloadDocumentation.subsectionWithPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,7 +32,7 @@ class ConditionCompareDocsTest extends ConditionCompareTestSupport {
                         .description("현재 계획에 바꾼 조건만 얹어 current·changed·diff를 계산해 돌려준다(FR-CMP-02). "
                                 + "계획을 바꾸지 않고 calc_run·대화 메시지도 남기지 않으며 월별 그래프 점은 싣지 않는다. "
                                 + "바꿀 수 있는 조건은 goalAmount, monthlySavingAmount, targetPeriodMonths, savingsRatioPct, "
-                                + "savingsRateInputPct(최대 6개, 값이 null인 키는 무시)다. ETF 비중이 0%가 아니면 "
+                                + "savingsRateInputPct(값이 null인 키는 무시)다. ETF 비중이 0%가 아니면 "
                                 + "current·changed의 scenarios에 GOOD·AVG·BAD 3구간이 오고 0%면 AVG 하나다. "
                                 + "허용 밖 키·범위 밖·정수 자리 소수·숫자가 아닌 값·빈 변경은 422 VALIDATION_FAILED(errors에 걸린 "
                                 + "필드 전부), 계획 없음 409 NO_PLAN, 바꾼 조건으로도 이미 목표 초과 409 ALREADY_EXCEEDED, "
@@ -39,6 +40,8 @@ class ConditionCompareDocsTest extends ConditionCompareTestSupport {
                         .requestFields(
                                 subsectionWithPath("conditionChanges").description("바꿀 조건. 키는 camelCase, 값은 숫자"))
                         .responseFields(
+                                fieldWithPath("applicable").description("지금 계획 기준의 비교인지. 이 API는 항상 true"),
+                                fieldWithPath("changedKeys[]").description("바꾼 조건의 키(null이 아닌 값, 요청 순서)"),
                                 subsectionWithPath("conditions").description("두 계산에 쓴 5개 조건 {current, changed}"),
                                 subsectionWithPath("current").description("현재 계획 결과(월별 점 없음)"),
                                 subsectionWithPath("changed").description("조건을 바꾼 결과(월별 점 없음)"),

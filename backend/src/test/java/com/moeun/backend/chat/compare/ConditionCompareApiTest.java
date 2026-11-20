@@ -17,6 +17,12 @@ import tools.jackson.databind.JsonNode;
 /** 조건 변경 비교 {@code POST /api/compare}(#64, FR-CMP-02). */
 class ConditionCompareApiTest extends ConditionCompareTestSupport {
 
+    private List<String> keysOf(JsonNode keys) {
+        List<String> names = new ArrayList<>();
+        keys.forEach(key -> names.add(key.asString()));
+        return names;
+    }
+
     private List<String> scenarios(JsonNode result) {
         List<String> names = new ArrayList<>();
         result.get("scenarios").forEach(scenario -> names.add(scenario.get("scenario").asString()));
@@ -36,6 +42,10 @@ class ConditionCompareApiTest extends ConditionCompareTestSupport {
         assertThat(response.get("changed").isObject()).isTrue();
         assertThat(response.get("diff").isObject()).isTrue();
         assertThat(response.get("display").isObject()).isTrue();
+        // 프론트(#65)가 F-4와 같은 모양으로 읽는다: 바꾼 키와, 지금 계획에 적용할 수 있는 비교인지
+        assertThat(response.get("applicable").asBoolean()).isTrue();
+        assertThat(keysOf(response.get("changedKeys"))).containsExactlyInAnyOrder("monthlySavingAmount",
+                "targetPeriodMonths");
         JsonNode conditions = response.get("conditions");
         assertThat(conditions.get("current").get("monthlySavingAmount").asLong()).isEqualTo(300_000L);
         assertThat(conditions.get("current").get("targetPeriodMonths").asInt()).isEqualTo(36);
@@ -74,6 +84,28 @@ class ConditionCompareApiTest extends ConditionCompareTestSupport {
         JsonNode response = ok("{\"monthlySavingAmount\":400000,\"targetPeriodMonths\":null}");
 
         assertThat(response.get("conditions").get("changed").get("targetPeriodMonths").asInt()).isEqualTo(36);
+        assertThat(keysOf(response.get("changedKeys"))).containsExactly("monthlySavingAmount");
+    }
+
+    @Test
+    @DisplayName("diff는 changed − current다(AVG 구간의 원금·세후 자산 차이가 두 결과의 차이와 같다)")
+    void diffIsChangedMinusCurrent() throws Exception {
+        savePlan(300_000L);
+
+        JsonNode response = ok("{\"monthlySavingAmount\":400000,\"targetPeriodMonths\":30}");
+
+        JsonNode current = response.get("current").get("scenarios");
+        JsonNode changed = response.get("changed").get("scenarios");
+        JsonNode diff = response.get("diff").get("byScenario");
+        for (int i = 0; i < diff.size(); i++) {
+            assertThat(diff.get(i).get("principalDelta").asLong())
+                    .isEqualTo(changed.get(i).get("principal").asLong() - current.get(i).get("principal").asLong());
+            assertThat(diff.get(i).get("afterTaxAssetDelta").asLong()).isEqualTo(
+                    changed.get(i).get("afterTaxAsset").asLong() - current.get(i).get("afterTaxAsset").asLong());
+        }
+        // 기한을 36 → 30개월로 줄이면 목표월도 6개월 앞당겨진다
+        assertThat(response.get("changed").get("targetMonth").asString())
+                .isNotEqualTo(response.get("current").get("targetMonth").asString());
     }
 
     // ---------- 수용 기준 2: 허용 범위 밖 값은 422 VALIDATION_FAILED ----------

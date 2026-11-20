@@ -56,10 +56,17 @@ class ConditionCompareController {
         }
         try {
             return ConditionCompareResponse.from(
-                    comparisons.compareWithCurrentPlan(Long.parseLong(jwt.getSubject()), toOverride(changes)));
+                    comparisons.compareWithCurrentPlan(Long.parseLong(jwt.getSubject()), toOverride(changes)),
+                    changedKeys(changes));
         } catch (CalcRejectedException rejected) {
-            throw CompareRequestException.conflict(rejected.code(), copy.get("error.title." + rejected.code()));
+            throw CompareRequestException.rejected(rejected.status(), rejected.code(),
+                    copy.get("error.title." + rejected.code()));
         }
+    }
+
+    /** 값이 null이 아닌 키. 요청 순서를 지킨다. */
+    private static List<String> changedKeys(Map<String, JsonNode> changes) {
+        return changes.entrySet().stream().filter(entry -> !entry.getValue().isNull()).map(Map.Entry::getKey).toList();
     }
 
     /** 검증을 통과한 값이라 범위와 자릿수가 맞다. null인 키는 바꾸지 않음이다. */
