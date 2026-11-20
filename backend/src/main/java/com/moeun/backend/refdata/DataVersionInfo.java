@@ -10,6 +10,13 @@ import java.time.LocalDate;
  * @param versionLabel 사람이 읽는 버전 이름. 종류 안에서 겹치지 않는다
  * @param baseDate 데이터 기준일
  * @param source 출처
+ * @param productCode ETF 가격 버전의 종목 코드. 그 밖의 종류는 null
  */
-public record DataVersionInfo(long id, DataKind dataKind, String versionLabel, LocalDate baseDate, String source) {
+public record DataVersionInfo(long id, DataKind dataKind, String versionLabel, LocalDate baseDate, String source,
+        String productCode) {
+
+    /** 종목이 없는 종류(금리, 계산 파라미터)의 버전. */
+    public DataVersionInfo(long id, DataKind dataKind, String versionLabel, LocalDate baseDate, String source) {
+        this(id, dataKind, versionLabel, baseDate, source, null);
+    }
 }

@@ -18,7 +18,7 @@ DB에는 코드로 다시 만들 수 없는 것만 둔다. 각 필드의 "저장
 | 사용자 | `member` |
 | 내 계획 | `plan_version`, `plan` |
 | 계산 기록 | `calc_run` |
-| 기준 데이터 | `data_version`, `savings_avg_rate`, `sp500_monthly`, `calc_param` |
+| 기준 데이터 | `data_version`, `savings_avg_rate`, `etf_monthly`, `etf_product_version`, `calc_param` (`sp500_monthly`는 #138 전 구조, 보정용) |
 | RAG 자료 | `source_org`, `rag_document`, `rag_chunk`, `chunk_embedding` |
 | AI 대화 | `chat_message`, `chat_message_citation` |
 
@@ -69,7 +69,7 @@ INSERT만 하는 이력이다. 적용하거나 입력을 수정할 때마다 새
 | `plan_version_id` | 참조: 계산에 쓴 조건 |
 | `run_type` | 참조: PLAN(내 계획) / CHAT(대화 재계산). 비교 실행은 저장하지 않는다. CHAT은 재계산이 성공할 때마다 1행 남고, 메시지가 참조하지 않는 행도 정리하지 않는다(D-057) |
 | `savings_rate_version_id` | 참조: 기본금리를 썼다면 그 버전(NFR-INT-02). 기준 데이터는 시간이 지나면 바뀌어 다시 알아낼 수 없다 |
-| `sp500_version_id` | 참조: ETF가 포함된 경우 쓴 지수 버전 |
+| `sp500_version_id` | 참조: ETF가 포함된 경우 쓴 ETF 가격 버전(종목은 그 버전의 `product_code`. 이름은 #138 전 그대로) |
 | `calc_param_version_id` | 참조: 세율·총보수·기본 비중·대안 단위 버전 |
 | `engine_version` | 참조: 계산 엔진 버전. 로직을 바꾸면 올려서 재현 범위를 구분한다 |
 | `created_at` | 참조: 같은 버전에 대한 최신 기록을 고른다(FR-PLAN-05). 재로그인 시 재계산하지 않는다(D-010) |
@@ -78,9 +78,10 @@ INSERT만 하는 이력이다. 적용하거나 입력을 수정할 때마다 새
 | 필드 | 저장 이유 |
 |---|---|
 | `id` | 참조: `calc_run`과 각 데이터 테이블이 가리킨다 |
-| `data_kind` | 외부: SAVINGS_RATE / SP500 / CALC_PARAM |
+| `data_kind` | 외부: SAVINGS_RATE / ETF_PRICE / CALC_PARAM (#138 전 SP500은 ETF_PRICE + 종목 SP500으로 보정) |
+| `product_code` | 외부: ETF_PRICE만 종목 코드(SP500, 069500 등). 그 밖은 NULL(CHECK) |
 | `version_label`, `base_date`, `source` | 외부: '가정 보기'에 보여주는 기준일·출처(FR-RES-06) |
-| `is_active` | 참조: 종류별로 지금 쓸 버전 1개(부분 UNIQUE). 잘못 적재했을 때 이전 버전으로 되돌리는 스위치 |
+| `is_active` | 참조: 종류별(ETF는 종목별)로 지금 쓸 버전 1개(부분 UNIQUE). 잘못 적재했을 때 이전 버전으로 되돌리는 스위치 |
 | `loaded_at` | 외부: 적재 시점 |
 
 ## 6. `savings_avg_rate` — 은행연합회 전월 평균금리 (FR-DATA-01)
@@ -90,12 +91,21 @@ INSERT만 하는 이력이다. 적용하거나 입력을 수정할 때마다 새
 | `base_month` | 외부: 기준월. 매월 1일만 허용(CHECK) |
 | `avg_rate_pct` | 외부: 평균금리. 금리를 비워 둔 입력의 기본값(FR-INP-07) |
 
-## 7. `sp500_monthly` — S&P500 월별 과거 데이터 (FR-DATA-02)
+## 7. `etf_monthly` — ETF 종목별 월말 종가 (FR-DATA-02, #138)
 | 필드 | 저장 이유 |
 |---|---|
-| `(data_version_id, ym)` | 참조: 버전별로 월 1행 |
-| `close_value` | 외부: 종가. 3구간과 월별 범위 계산에 쓴다 |
-| `total_return_index` | 외부: 배당을 포함한 지수(있을 때만). 수익률 산정 방식(TBD-01)이 정해지면 쓴다 |
+| `(data_version_id, ym)` | 참조: 버전별로 월 1행. 어느 종목인지는 버전의 `product_code`가 정한다 |
+| `close_value` | 외부: 월말 종가(분배금 제외). 3구간과 월별 범위 계산에 쓴다. S&P500도 종목 하나(SP500)다 |
+
+## 7-1. `etf_product_version` — 가격 버전의 종목 정보 (#138)
+| 필드 | 저장 이유 |
+|---|---|
+| `data_version_id` (PK) | 참조: 가격 버전당 1행 |
+| `product_code` | 외부: 종목 코드 |
+| `display_name` | 외부: 화면 이름. 상품명 대신 추종 지수로 쓴다(CP-06) |
+| `gain_tax_rate_pct` | 외부: 매매차익 세율. 국내 주식형 ETF는 0. 데이터 버전에 묶어 두어 설정이 바뀌어도 옛 계산을 재현한다(NFR-INT-02) |
+
+`sp500_monthly`는 #138 전 구조다. 앱은 읽지 않고, `schema.sql` 끝의 보정 구간이 기존 로컬 DB의 값을 `etf_monthly`로 옮길 때만 쓴다.
 
 ## 8. `calc_param` — 계산 파라미터 값 (CP-03)
 | 필드 | 저장 이유 |

@@ -38,16 +38,26 @@ class ConditionChangesTest {
     }
 
     @Test
-    @DisplayName("허용 4개(월 저축액·비중·적금 금리·기간) 밖의 키만 골라 요청 순서로 돌려준다")
+    @DisplayName("허용 5개(목표 금액·월 저축액·비중·적금 금리·기간) 밖의 키만 골라 요청 순서로 돌려준다")
     void findsUnchangeableKeys() {
         Map<String, JsonNode> changes = new LinkedHashMap<>();
         changes.put("goalAmount", NODES.numberNode(1));
         changes.put("monthlySavingAmount", NODES.numberNode(1));
         changes.put("heldAssets", NODES.numberNode(1));
 
-        assertThat(ConditionChanges.unchangeableKeys(changes)).containsExactly("goalAmount", "heldAssets");
-        assertThat(ConditionChanges.CHANGEABLE_KEYS).containsExactlyInAnyOrder("monthlySavingAmount",
+        assertThat(ConditionChanges.unchangeableKeys(changes)).containsExactly("heldAssets");
+        assertThat(ConditionChanges.CHANGEABLE_KEYS).containsExactlyInAnyOrder("goalAmount", "monthlySavingAmount",
                 "savingsRatioPct", "savingsRateInputPct", "targetPeriodMonths");
+    }
+
+    @Test
+    @DisplayName("목표 금액도 정수로 바꾼다(D-092 1단계)")
+    void convertsGoalAmount() {
+        ConditionChanges.Conversion conversion = ConditionChanges.convert(
+                Map.of("goalAmount", NODES.numberNode(25_000_000)));
+
+        assertThat(conversion.override().goalAmount()).isEqualTo(25_000_000L);
+        assertThat(conversion.isExact()).isTrue();
     }
 
     @Test
@@ -71,7 +81,8 @@ class ConditionChangesTest {
 
         ConditionChanges.Conversion conversion = ConditionChanges.convert(changes);
 
-        assertThat(conversion.override()).isEqualTo(new ConditionOverride(500_000L, 24, 30, new BigDecimal("3.125")));
+        assertThat(conversion.override())
+                .isEqualTo(new ConditionOverride(500_000L, 24, 30, new BigDecimal("3.125"), null, null));
         assertThat(conversion.notIntegerKeys()).isEmpty();
         assertThat(conversion.outOfTypeRangeKeys()).isEmpty();
         assertThat(conversion.isExact()).isTrue();
@@ -83,7 +94,7 @@ class ConditionChangesTest {
         ConditionChanges.Conversion conversion = ConditionChanges.convert(
                 Map.of("monthlySavingAmount", NODES.numberNode(500_000)));
 
-        assertThat(conversion.override()).isEqualTo(new ConditionOverride(500_000L, null, null, null));
+        assertThat(conversion.override()).isEqualTo(new ConditionOverride(500_000L, null, null, null, null, null));
     }
 
     @Test

@@ -29,13 +29,14 @@ class DocType(StrEnum):
 
 
 class ConditionChanges(ApiModel):
-    """대화로 바꿀 수 있는 조건 4개(M-2, D-040). None = 바꾸지 않음.
+    """대화로 바꿀 수 있는 조건 1단계 5개(D-090·D-092, D-040 대체). None = 바꾸지 않음.
 
     타입만 검사한다. 범위 검증은 Spring 한 곳에서 한다(계약 원칙 2, D-033).
     """
 
     model_config = ConfigDict(extra="forbid")
 
+    goal_amount: StrictInt | None = None
     monthly_saving_amount: StrictInt | None = None
     savings_ratio_pct: StrictInt | None = None
     savings_rate_input_pct: StrictFloat | StrictInt | None = Field(default=None, allow_inf_nan=False)

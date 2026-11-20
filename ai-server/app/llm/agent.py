@@ -43,6 +43,7 @@ log = logging.getLogger(__name__)
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 MAX_CITATIONS = 5
 _CONDITION_COPY_KEYS = (
+    "condition.goalAmount",
     "condition.monthlySavingAmount",
     "condition.savingsRatioPct",
     "condition.savingsRateInputPct",
@@ -51,7 +52,7 @@ _CONDITION_COPY_KEYS = (
 
 
 def out_of_scope_content() -> str:
-    """범위 밖 안내. 모델 문장 대신 문구표 문장과 대화로 바꿀 수 있는 4개 조건 이름을 잇는다(M-5, D-045)."""
+    """범위 밖 안내. 모델 문장 대신 문구표 문장과 대화로 바꿀 수 있는 5개 조건 이름을 잇는다(D-090·D-092)."""
     copy = load_copy()
     names = "·".join(copy.get(key) for key in _CONDITION_COPY_KEYS)
     return f"{copy.get('outOfScope')} 대화로는 {names}을 바꿔 볼 수 있어요."
@@ -72,6 +73,7 @@ def _nullable(type_: str, **extra: Any) -> dict[str, Any]:
 
 
 _CONDITION_FIELDS = {
+    "goal_amount": _nullable("integer", description="목표 금액(원)"),
     "monthly_saving_amount": _nullable("integer", description="월 저축액(원)"),
     "savings_ratio_pct": _nullable("integer", description="적금 비중(%), 나머지는 ETF"),
     "savings_rate_input_pct": _nullable("number", description="적금 연 금리(%)"),
@@ -83,7 +85,8 @@ TOOLS: list[BetaToolParam] = [
         "name": "recalculate",
         "description": (
             "사용자의 현재 계획에서 일부 조건만 바꿔 Spring 계산 엔진으로 다시 계산한다. "
-            "바꿀 수 있는 조건은 월 저축액·적금 비중·적금 금리·기한 네 가지이고, 바꾸지 않는 조건은 null로 둔다. "
+            "바꿀 수 있는 조건은 목표 금액·월 저축액·적금 비중·적금 금리·기한 다섯 가지이고, "
+            "바꾸지 않는 조건은 null로 둔다. "
             "금액은 원 단위 정수, 기한은 개월 수."
         ),
         "strict": True,
@@ -183,7 +186,10 @@ _KO_MAN = (
     rf"(?<![가-힣]){_KO_IDIOM}(?:{_KO_TENS}만{_KO_FOLLOW}|{_KO_DIGIT}만{_KO_ONE_DIGIT_MAN_FOLLOW})"
 )
 _KO_NUMERAL = rf"{_KO_MAN}|(?<![가-힣]){_KO_TENS}{_KO_FOLLOW}"
-_MONTHLY = re.compile(rf"(?<!개)월|매달|한\s?달|저축(?!\s*기간)|납입|적립|\d\s*만|{_KO_MAN}|만원|\d\s*원")
+_GOAL = re.compile(r"목표(?!\s*(?:기간|기한|일|까지))|모으려|모을")
+_HELD = re.compile(r"보유|가진|모아\s?둔|모았|이미|지금\s*있는")
+_MONTHLY_EXPLICIT = re.compile(r"(?<!개)월|매달|한\s?달|저축(?!\s*기간)|납입|적립")
+_MONTHLY = re.compile(rf"{_MONTHLY_EXPLICIT.pattern}|\d\s*만|{_KO_MAN}|만원|\d\s*원")
 _PERIOD = re.compile(r"기간|기한|개월|년|\d\s*달")
 # 적금·예금 바로 뒤에 금리 단어가 오면 상품 이름이 아니라 금리를 꾸미는 말이다
 _RATIO_WORDS = re.compile(r"비중|비율|반반|etf|주식|배분|(?:예금|적금)(?!\s*(?:금리|이율|이자))")
@@ -194,6 +200,65 @@ _NUMBER = re.compile(rf"\d+(?:\.\d+)?|{_KO_NUMERAL}")
 _THOUSANDS_COMMA = re.compile(r"(?<=\d),(?=\d{3})")
 # "3년 6개월", "5년(60개월)", "60개월(5년)"은 기간 하나를 두 단위로 말한 것이다
 _PERIOD_COMPOUND = re.compile(r"\d+\s*년\s*\(?\s*\d+\s*개월\s*\)?|\d+\s*개월\s*\(?\s*\d+\s*년\s*\)?")
+_KO_DIGIT_VALUES = dict(zip("일이삼사오육칠팔구", range(1, 10), strict=True))
+_KO_UNIT_VALUES = {"십": 10, "백": 100, "천": 1000}
+_AMOUNT_EXPR = re.compile(
+    rf"({_NUMBER.pattern})\s*(?:억\s*(?:({_NUMBER.pattern})\s*만\s*원?)?|만\s*원?|원)?"
+)
+
+
+def _parse_ko_numeral(token: str) -> float | None:
+    try:
+        return float(token)
+    except ValueError:
+        pass
+    if token.endswith("만"):
+        base = _parse_ko_numeral(token[:-1])
+        return None if base is None else base * 10_000
+    total = 0
+    current = 0
+    for ch in token:
+        if ch in _KO_DIGIT_VALUES:
+            current = _KO_DIGIT_VALUES[ch]
+        elif ch in _KO_UNIT_VALUES:
+            total += (current or 1) * _KO_UNIT_VALUES[ch]
+            current = 0
+        else:
+            return None
+    return float(total + current)
+
+
+def _candidate_krw_amounts(text: str) -> set[int]:
+    """발화의 숫자·단위 표현에서 나올 수 있는 원 단위 금액 후보 집합(기존 _NUMBER·_THOUSANDS_COMMA 재사용)."""
+    cleaned = _THOUSANDS_COMMA.sub("", text)
+    candidates: set[int] = set()
+    for match in _AMOUNT_EXPR.finditer(cleaned):
+        full = match.group(0)
+        n1 = _parse_ko_numeral(match.group(1))
+        if n1 is None:
+            continue
+        if "억" in full:
+            total = round(n1 * 100_000_000)
+            if match.group(2):
+                n2 = _parse_ko_numeral(match.group(2))
+                if n2 is not None:
+                    total += round(n2 * 10_000)
+            candidates.add(total)
+        elif "만" in full:
+            candidates.add(round(n1 if match.group(1).endswith("만") else n1 * 10_000))
+        else:
+            candidates.add(round(n1))
+    return candidates
+
+
+def check_amount_units(text: str, changes: ConditionChanges) -> bool:
+    """1단계 goal_amount 추출 값이 발화의 숫자·단위 표현과 맞는지 대조한다(CF12-9-3)."""
+    if changes.goal_amount is None:
+        return True
+    lowered = text.lower()
+    if _count_numbers(lowered) == 0:
+        return True
+    return changes.goal_amount in _candidate_krw_amounts(lowered)
 
 
 def _count_numbers(text: str) -> int:
@@ -206,8 +271,13 @@ def _stated_conditions(text: str) -> set[str]:
     ratio_words = bool(_RATIO_WORDS.search(text))
     rate_words = bool(_RATE_WORDS.search(text))
     percent = bool(_PERCENT.search(text))
+    goal_hit = bool(_GOAL.search(text))
+    held_hit = bool(_HELD.search(text))
+    monthly_hit = bool(_MONTHLY_EXPLICIT.search(text)) if (goal_hit or held_hit) else bool(_MONTHLY.search(text))
     stated = {
-        "monthly_saving_amount": bool(_MONTHLY.search(text)),
+        "goal_amount": goal_hit,
+        "held_assets": held_hit,
+        "monthly_saving_amount": monthly_hit,
         "savings_ratio_pct": ratio_words or (not rate_words and percent),
         "savings_rate_input_pct": rate_words or (not ratio_words and percent),
         "target_period_months": bool(_PERIOD.search(text)),
@@ -249,6 +319,8 @@ class _Turn:
     disclosure_orgs: dict[int, str] = field(default_factory=dict)   # 검색된 공시 chunk_id -> 운용사, 검색 순서
     validation_failed: bool = False   # 이번 요청에서 VALIDATION_FAILED를 받았다. 다시 계산하지 않는다
     fixed_copy_key: str | None = None   # 문구표 고정 문장으로 끝내는 거절을 받았다
+    goal_changed_note_params: tuple[str, str] | None = None
+    changed_already_exceeded: bool = False
     # 이번 요청의 계산 200 응답 display 값과 422 minDisplay·maxDisplay. 숫자 대조의 근거다(요청마다 따로, FR-AI-02)
     number_evidence: list[str] = field(default_factory=list)
 
@@ -382,12 +454,22 @@ class ChatAgent:
             changes = filtered
         if not changes.changed():
             raise CalcError("바꿀 조건이 없습니다. 무엇을 바꿀지 사용자에게 되물으세요.")
+        if turn.req.text and not check_amount_units(turn.req.text, changes):
+            raise CalcError("목표 금액의 단위(원·만원·억원)가 발화와 맞지 않습니다. 정확한 금액을 다시 물으세요.")
         result = await self._calc.recalculate(turn.req.member_id, turn.req.baseline_scenario, changes)
         turn.calc_run_id = result["calcRunId"]
         turn.condition_changes = changes.changed()
+        changed_obj = result.get("changed")
+        if isinstance(changed_obj, dict):
+            turn.changed_already_exceeded = changed_obj.get("status") == "ALREADY_EXCEEDED"
         display = result.get("display")
         if isinstance(display, dict):
             turn.number_evidence.extend(v for v in display.values() if isinstance(v, str))
+            if "goal_amount" in turn.condition_changes:
+                cur_goal = display.get("conditions.current.goalAmount")
+                chg_goal = display.get("conditions.changed.goalAmount")
+                if isinstance(cur_goal, str) and isinstance(chg_goal, str):
+                    turn.goal_changed_note_params = (cur_goal, chg_goal)
         if dropped:
             # 모델이 뺀 조건을 계산에 쓴 것처럼 답하지 않게 알린다(서버 사실 원칙)
             result = {**result, "excludedConditions": dropped, "note": EXCLUDED_NOTE}
@@ -580,6 +662,19 @@ def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
         except NumberMismatch as e:
             raise AgentError("NUMBER_MISMATCH", str(e)) from e
         content = with_tax_note(req, body)
+        copy = load_copy()
+        if turn.goal_changed_note_params is not None:
+            note = copy.get(
+                "chat.goalAmountChangedNote",
+                currentGoal=turn.goal_changed_note_params[0],
+                changedGoal=turn.goal_changed_note_params[1],
+            )
+            if note not in content:
+                content = f"{content}\n\n{note}"
+        if turn.changed_already_exceeded:
+            exceeded_note = copy.get("chat.changedAlreadyExceeded")
+            if exceeded_note not in content:
+                content = f"{content}\n\n{exceeded_note}"
     return ChatResponse(
         message_type=message_type,
         content=content,

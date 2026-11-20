@@ -25,7 +25,13 @@ _ERROR_CODES = (
     "INVALID_INTERNAL_KEY",
     "CALC_FAILED",
 )
-_CONDITION_CODES = ("monthlySavingAmount", "savingsRatioPct", "savingsRateInputPct", "targetPeriodMonths")
+_CONDITION_CODES = (
+    "goalAmount",
+    "monthlySavingAmount",
+    "savingsRatioPct",
+    "savingsRateInputPct",
+    "targetPeriodMonths",
+)
 _ACHIEVEMENT_CHANGES = ("STAYS_ACHIEVED", "STAYS_MISSED", "MISS_TO_ACHIEVE", "ACHIEVE_TO_MISS")
 # backend의 ExcludedItem·ScenarioMethod enum 코드와 같은 목록이다(G-14). enum이 늘면 두 곳을 함께 고친다.
 _EXCLUDED_CODES = ("ETF_TOTAL_EXPENSE", "EXCHANGE_RATE", "ETF_DISTRIBUTION", "HELD_ASSET_RETURN", "SAVINGS_REDEPOSIT")
@@ -40,6 +46,9 @@ _FIXED_KEYS = (
     "chat.unchangeableCondition",
     "chat.noPlan",
     "chat.alreadyExceeded",
+    "chat.goalAmountChangedNote",
+    "chat.changedAlreadyExceeded",
+    "chat.cardAlreadyExceeded",
     "chat.failed",
     "chat.pollingFailed",
     "chat.sendFailed",

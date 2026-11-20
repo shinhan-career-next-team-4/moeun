@@ -99,6 +99,8 @@ public class ConditionValidator {
         if (changes == null) {
             return changed;
         }
+        putIfPresent(changed, InputField.GOAL_AMOUNT, changes.goalAmount());
+        putIfPresent(changed, InputField.HELD_ASSETS, changes.heldAssets());
         putIfPresent(changed, InputField.MONTHLY_SAVING_AMOUNT, changes.monthlySavingAmount());
         putIfPresent(changed, InputField.TARGET_PERIOD_MONTHS, changes.targetPeriodMonths());
         putIfPresent(changed, InputField.SAVINGS_RATIO_PCT, changes.savingsRatioPct());

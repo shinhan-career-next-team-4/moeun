@@ -22,7 +22,7 @@ import com.moeun.backend.calc.Scenario;
 import com.moeun.backend.calc.ScenarioMethod;
 import com.moeun.backend.calc.ScenarioResult;
 import com.moeun.backend.refdata.CalcParams;
-import com.moeun.backend.refdata.Sp500Series;
+import com.moeun.backend.refdata.EtfSeries;
 
 /**
  * 계산 엔진(#26 적금, #27 ETF 3구간·판정·초과). 기대값은 docs/calc-spec.md를 손으로 계산한 골든 케이스다.
@@ -34,7 +34,7 @@ class CalcEngineTest {
     private static final int HALF_PCT = 50;
     private static final CalcParams PARAMS = GoldenCase.createParams(new BigDecimal("15.4"));
     /** 레포의 테스트용 가짜 S&P500 121개월(실제 값 아님). 실제 데이터는 이용 조건 때문에 레포에 없다. */
-    private static final Sp500Series SP500 = GoldenCase.readTestSp500Series();
+    private static final EtfSeries SP500 = GoldenCase.readTestEtfSeries();
 
     private final CalcEngine engine = new CalcEngine();
 
@@ -312,7 +312,7 @@ class CalcEngineTest {
     void rejectsSameInputsAsCalculateWhenDeterminingVersions() {
         ConditionResolver.ResolvedConditions withEtf = new ConditionResolver.ResolvedConditions(
                 createInput(30_000_000L, 36, 0L, HALF_PCT), false, null, null);
-        Sp500Series tooShort = GoldenCase.createConstantReturnSeries(10, new BigDecimal("0.01"));
+        EtfSeries tooShort = GoldenCase.createConstantReturnSeries(10, new BigDecimal("0.01"));
 
         assertThatIllegalArgumentException().isThrownBy(() -> engine.determineDataVersions(withEtf, PARAMS, null));
         assertThatIllegalArgumentException().isThrownBy(() -> engine.calculate(withEtf, PARAMS, null));

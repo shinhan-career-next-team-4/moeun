@@ -31,6 +31,7 @@ import com.moeun.backend.refdata.application.VersionSpec;
 @Import(TestcontainersConfig.class)
 class ReferenceDataServiceVersionTest {
 
+    private static final EtfProduct SP500_PRODUCT = new EtfProduct("SP500", "S&P500 추종 ETF", new BigDecimal("15.4"));
     private static final String SOURCE = "테스트용 가짜 데이터";
     private static final VersionSpec V1 = new VersionSpec("test-v1", LocalDate.of(2025, 12, 1), SOURCE);
     private static final VersionSpec V2 = new VersionSpec("test-v2", LocalDate.of(2026, 1, 1), SOURCE);
@@ -52,7 +53,8 @@ class ReferenceDataServiceVersionTest {
 
     private DataVersionInfo loadFile(DataKind kind, VersionSpec spec, String classpathFile) throws Exception {
         try (InputStream csv = new ClassPathResource(classpathFile).getInputStream()) {
-            return loader.load(kind, spec, csv).orElseThrow();
+            return (kind == DataKind.ETF_PRICE ? loader.loadEtf(SP500_PRODUCT, spec, csv)
+                    : loader.load(kind, spec, csv)).orElseThrow();
         }
     }
 
@@ -98,17 +100,17 @@ class ReferenceDataServiceVersionTest {
     @Test
     @DisplayName("옛 S&P500 버전 id로 그 버전의 월말 종가를 시간 순서대로 꺼낸다")
     void readsInactiveSp500Version() throws Exception {
-        DataVersionInfo old = loadFile(DataKind.SP500, V1, "refdata/test-sp500-monthly.csv");
-        loadFile(DataKind.SP500, SP500_V2, "refdata/test-sp500-2016-10-to-2026-10.csv");
+        DataVersionInfo old = loadFile(DataKind.ETF_PRICE, V1, "refdata/test-sp500-monthly.csv");
+        loadFile(DataKind.ETF_PRICE, SP500_V2, "refdata/test-sp500-2016-10-to-2026-10.csv");
 
-        Sp500Series series = referenceDataService.requireSp500Series(old.id());
+        EtfSeries series = referenceDataService.requireEtfSeries(old.id());
 
         assertThat(series.version()).isEqualTo(old);
         assertThat(series.monthlyCloses()).isNotEmpty();
         assertThat(series.monthlyCloses()).isSortedAccordingTo(
                 (left, right) -> left.month().compareTo(right.month()));
         assertThat(series.monthlyCloses().size()).isEqualTo(jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM sp500_monthly WHERE data_version_id = ?", Integer.class, old.id()));
+                "SELECT count(*) FROM etf_monthly WHERE data_version_id = ?", Integer.class, old.id()));
     }
 
     @Test
@@ -118,7 +120,7 @@ class ReferenceDataServiceVersionTest {
 
         assertThatThrownBy(() -> referenceDataService.requireSavingsAvgRate(params.id()))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> referenceDataService.requireSp500Series(params.id()))
+        assertThatThrownBy(() -> referenceDataService.requireEtfSeries(params.id()))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> referenceDataService.requireCalcParams(9_999L))
                 .isInstanceOf(IllegalArgumentException.class);

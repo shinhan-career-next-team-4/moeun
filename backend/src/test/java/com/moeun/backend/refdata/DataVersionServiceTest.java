@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 
@@ -27,6 +28,7 @@ import com.moeun.backend.refdata.application.VersionSpec;
 @Import(TestcontainersConfig.class)
 class DataVersionServiceTest {
 
+    private static final EtfProduct SP500_PRODUCT = new EtfProduct("SP500", "S&P500 추종 ETF", new BigDecimal("15.4"));
     private static final String SOURCE = "테스트용 가짜 데이터";
     private static final VersionSpec SP500_SPEC = new VersionSpec("test-2025-12", LocalDate.of(2025, 12, 31), SOURCE);
     private static final VersionSpec RATE_SPEC = new VersionSpec("test-2025-12", LocalDate.of(2025, 12, 1), SOURCE);
@@ -50,7 +52,7 @@ class DataVersionServiceTest {
     @Test
     @DisplayName("세 종류가 모두 활성이면 적금 금리·지수·파라미터 활성 버전 3개를 한 번에 돌려준다")
     void findsAllThreeActiveVersions() throws Exception {
-        DataVersionInfo sp500 = loadFile(DataKind.SP500, SP500_SPEC, "refdata/test-sp500-monthly.csv");
+        DataVersionInfo sp500 = loadFile(DataKind.ETF_PRICE, SP500_SPEC, "refdata/test-sp500-monthly.csv");
         DataVersionInfo savingsRate = loadFile(DataKind.SAVINGS_RATE, RATE_SPEC, "refdata/test-savings-avg-rate.csv");
         DataVersionInfo calcParam = loadFile(DataKind.CALC_PARAM, PARAM_V1, "refdata/test-calc-param.csv");
 
@@ -61,7 +63,7 @@ class DataVersionServiceTest {
     @Test
     @DisplayName("한 종류라도 활성 버전이 없으면 비어 있다")
     void isEmptyWhenAnyKindIsMissing() throws Exception {
-        loadFile(DataKind.SP500, SP500_SPEC, "refdata/test-sp500-monthly.csv");
+        loadFile(DataKind.ETF_PRICE, SP500_SPEC, "refdata/test-sp500-monthly.csv");
         loadFile(DataKind.CALC_PARAM, PARAM_V1, "refdata/test-calc-param.csv");
 
         assertThat(dataVersionService.findActiveVersions()).isEmpty();
@@ -90,7 +92,8 @@ class DataVersionServiceTest {
 
     private DataVersionInfo loadFile(DataKind kind, VersionSpec spec, String classpathFile) throws Exception {
         try (InputStream csv = new ClassPathResource(classpathFile).getInputStream()) {
-            return loader.load(kind, spec, csv).orElseThrow();
+            return (kind == DataKind.ETF_PRICE ? loader.loadEtf(SP500_PRODUCT, spec, csv)
+                    : loader.load(kind, spec, csv)).orElseThrow();
         }
     }
 

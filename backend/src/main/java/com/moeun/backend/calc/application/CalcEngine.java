@@ -21,7 +21,7 @@ import com.moeun.backend.calc.ScenarioMethod;
 import com.moeun.backend.calc.ScenarioResult;
 import com.moeun.backend.refdata.CalcParamKey;
 import com.moeun.backend.refdata.CalcParams;
-import com.moeun.backend.refdata.Sp500Series;
+import com.moeun.backend.refdata.EtfSeries;
 
 /**
  * 계산 엔진(docs/calc-spec.md). 금융 계산은 이 엔진에서만 한다(NFR-INT-01).
@@ -48,7 +48,7 @@ public class CalcEngine {
      * 조건 해석({@link ConditionResolver}) 결과로 계산한다. 기본금리를 썼는지·기준월은 가정 보기에,
      * 기본금리 데이터 버전은 데이터 버전(calc_run 기록)에 남긴다. 결과 화면·planContext는 이 진입점을 쓴다.
      */
-    public CalcResult calculate(ConditionResolver.ResolvedConditions resolved, CalcParams params, Sp500Series sp500) {
+    public CalcResult calculate(ConditionResolver.ResolvedConditions resolved, CalcParams params, EtfSeries sp500) {
         return calculate(resolved.input(), params, sp500, DefaultRate.from(resolved));
     }
 
@@ -57,10 +57,10 @@ public class CalcEngine {
      * calc_run을 기록만 하면 되는 곳(PlanChanged 리스너)이 쓴다. {@link #calculate}의 데이터 버전과 항상 같다.
      */
     public AppliedDataVersions determineDataVersions(ConditionResolver.ResolvedConditions resolved,
-            CalcParams params, Sp500Series sp500) {
+            CalcParams params, EtfSeries sp500) {
         CalcInput input = resolved.input();
         rejectOutOfScope(input);
-        Sp500Series usedSp500 = null;
+        EtfSeries usedSp500 = null;
         if (!input.hasExceededGoal() && input.hasEtf()) {
             // calculate가 거절하는 경우(S&P500 없음, 종가 부족)는 여기서도 같은 예외로 막는다.
             // 그러지 않으면 S&P500 버전이 빈 기록이 남아 "ETF 0%"처럼 읽히고 다시 계산할 수도 없다(NFR-INT-02)
@@ -80,11 +80,11 @@ public class CalcEngine {
      * @throws IllegalArgumentException 기한 없음·월 저축액 모름(해커톤 범위 밖), 또는 ETF 계획에 S&P500이 없을 때
      * @throws IllegalStateException ETF 계산에 필요한 S&P500 종가가 모자랄 때
      */
-    public CalcResult calculate(CalcInput input, CalcParams params, Sp500Series sp500) {
+    public CalcResult calculate(CalcInput input, CalcParams params, EtfSeries sp500) {
         return calculate(input, params, sp500, DefaultRate.NONE);
     }
 
-    private CalcResult calculate(CalcInput input, CalcParams params, Sp500Series sp500, DefaultRate defaultRate) {
+    private CalcResult calculate(CalcInput input, CalcParams params, EtfSeries sp500, DefaultRate defaultRate) {
         rejectOutOfScope(input);
         int targetPeriodMonths = input.targetPeriodMonths();
         YearMonth targetMonth = input.calcStartMonth().plusMonths(targetPeriodMonths);
@@ -107,7 +107,7 @@ public class CalcEngine {
         List<ScenarioResult> scenarios = input.hasEtf()
                 ? calculateEtfScenarios(input, params, sp500, savings, monthlySaving.subtract(savingsDeposit))
                 : List.of(calculateSavingsOnly(input, savings));
-        Sp500Series usedSp500 = input.hasEtf() ? sp500 : null;
+        EtfSeries usedSp500 = input.hasEtf() ? sp500 : null;
         return new CalcResult(CalcStatus.CALCULATED, input.goalAmount(), input.calcStartMonth(), targetMonth,
                 input.baselineScenario(), scenarios, null,
                 createAssumptions(input, taxRatePct, usedSp500, defaultRate),
@@ -124,7 +124,7 @@ public class CalcEngine {
         return ScenarioResults.create(Scenario.AVG, input.goalAmount(), createMonthlyPoints(input, totals));
     }
 
-    private static List<ScenarioResult> calculateEtfScenarios(CalcInput input, CalcParams params, Sp500Series sp500,
+    private static List<ScenarioResult> calculateEtfScenarios(CalcInput input, CalcParams params, EtfSeries sp500,
             SavingsCalculator savings, BigDecimal etfDeposit) {
         requireSp500(sp500);
         List<BigDecimal> observedReturns = MonthlyReturns.fromCloses(sp500.monthlyCloses(), observationMonths(params));
@@ -162,7 +162,7 @@ public class CalcEngine {
         return points;
     }
 
-    private static Assumptions createAssumptions(CalcInput input, BigDecimal taxRatePct, Sp500Series usedSp500,
+    private static Assumptions createAssumptions(CalcInput input, BigDecimal taxRatePct, EtfSeries usedSp500,
             DefaultRate defaultRate) {
         List<ExcludedItem> excludedItems = new ArrayList<>();
         if (usedSp500 != null) {
@@ -180,7 +180,7 @@ public class CalcEngine {
                 usedSp500 == null ? null : usedSp500.version().baseDate(), excludedItems);
     }
 
-    private static AppliedDataVersions createDataVersions(CalcParams params, Sp500Series usedSp500,
+    private static AppliedDataVersions createDataVersions(CalcParams params, EtfSeries usedSp500,
             DefaultRate defaultRate) {
         Long sp500VersionId = usedSp500 == null ? null : usedSp500.version().id();
         return new AppliedDataVersions(defaultRate.versionId(), sp500VersionId, params.version().id(),
@@ -214,7 +214,7 @@ public class CalcEngine {
         }
     }
 
-    private static void requireSp500(Sp500Series sp500) {
+    private static void requireSp500(EtfSeries sp500) {
         if (sp500 == null) {
             throw new IllegalArgumentException("S&P500 data is required for plans with ETF");
         }

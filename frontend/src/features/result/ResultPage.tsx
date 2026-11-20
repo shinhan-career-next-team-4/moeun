@@ -3,6 +3,7 @@ import { planStore } from "../../api";
 import { ApiError } from "../../api/errors";
 import { COPY } from "../../shared/copy/copy";
 import { Button } from "../../shared/ui";
+import { AlternativeSection } from "../alternative";
 import { AssumptionsSection } from "./AssumptionsSection";
 import { Disclaimer } from "./Disclaimer";
 import { PlanConditionBar } from "./PlanConditionBar";
@@ -105,6 +106,8 @@ export function ResultPage() {
             scenarioMethod={result.assumptions.scenarioMethod}
           />
           <ResultChart scenarios={result.scenarios} goalAmount={result.goalAmount} display={display} />
+          {/* 대안 영역(#67). 기준 시나리오가 미달일 때만 보인다(FR-ALT-01) */}
+          <AlternativeSection isAchieved={baseline?.isAchieved ?? false} />
         </>
       )}
 

@@ -15,9 +15,9 @@ import com.moeun.backend.plan.ConditionOverride;
 import com.moeun.backend.plan.PlanSaveService;
 import com.moeun.backend.plan.PlanView;
 import com.moeun.backend.refdata.CalcParams;
+import com.moeun.backend.refdata.EtfSeries;
 import com.moeun.backend.refdata.ReferenceDataService;
 import com.moeun.backend.refdata.SavingsAvgRateData;
-import com.moeun.backend.refdata.Sp500Series;
 
 /**
  * 대화 재계산 유스케이스(계약 internal-calc C2-2 검사 순서 7~9, C2-7, C2-8).
@@ -64,7 +64,7 @@ public class CompareConditionsUseCase {
         PlanView plan = planSaveService.findCurrent(memberId).orElseThrow(CalcRejectedException::noPlan);
         CalcParams params = referenceDataService.findActiveCalcParams()
                 .orElseThrow(() -> new IllegalStateException("active calc params are not loaded"));
-        Sp500Series sp500 = referenceDataService.findActiveSp500Series().orElse(null);
+        EtfSeries sp500 = referenceDataService.findRepresentativeEtfSeries().orElse(null);
         SavingsAvgRateData defaultRate = referenceDataService.findActiveSavingsAvgRate().orElse(null);
 
         ComputedComparison computed = computeComparison(plan, changes, params, sp500, defaultRate);
@@ -84,14 +84,14 @@ public class CompareConditionsUseCase {
      * @throws CalcRejectedException 이미 목표 초과(409 ALREADY_EXCEEDED)
      */
     public ComputedComparison computeComparison(PlanView plan, ConditionOverride changes, CalcParams params,
-            Sp500Series sp500, SavingsAvgRateData defaultRate) {
+            EtfSeries sp500, SavingsAvgRateData defaultRate) {
         ConditionResolver.ResolvedConditions current = conditionResolver.resolve(plan, defaultRate, params);
-        if (current.input().hasExceededGoal()) {
-            // 대화로 목표·보유 자산을 바꿀 수 없어 changed도 초과다. current도 계산하지 않는다(C3-2)
-            throw CalcRejectedException.alreadyExceeded();
-        }
         ConditionResolver.ResolvedConditions changed = conditionResolver.resolveChanged(plan, changes, defaultRate,
                 params);
+        if (current.input().hasExceededGoal() && changed.input().hasExceededGoal()) {
+            // 바꾼 조건으로도 여전히 초과면 비교 결과 없이 409 ALREADY_EXCEEDED(D-092, C3-2)
+            throw CalcRejectedException.alreadyExceeded();
+        }
         CalcResult currentResult = calcEngine.calculate(current, params, sp500);
         CalcResult changedResult = calcEngine.calculate(changed, params, sp500);
         AppliedDataVersions versions = merge(currentResult.dataVersions(), changedResult.dataVersions());
@@ -100,7 +100,7 @@ public class CompareConditionsUseCase {
 
         CalcComparison comparison = CalcComparison.of(currentResult, changedResult, current.input(),
                 changed.input());
-        return new ComputedComparison(comparison, versions, buildDisplay(comparison, current, changed));
+        return new ComputedComparison(comparison, versions, buildDisplay(comparison, current, changed, changes));
     }
 
     /**
@@ -120,12 +120,15 @@ public class CompareConditionsUseCase {
                 versions);
     }
 
-    /** current·changed는 공유 빌더(#28)로, diff만 여기서 방향 단어로 만든다(계약 C2-6, D-055). */
+    /** current·changed는 공유 빌더(#28)로, diff만 여기서 방향 단어로 만든다(계약 C2-6, D-055, D-092). */
     private Map<String, String> buildDisplay(CalcComparison comparison, ConditionResolver.ResolvedConditions current,
-            ConditionResolver.ResolvedConditions changed) {
+            ConditionResolver.ResolvedConditions changed, ConditionOverride changes) {
+        boolean goalChanged = changes.goalAmount() != null;
         Map<String, String> display = new LinkedHashMap<>();
-        display.putAll(displayBuilder.build(current.input(), comparison.current(), CURRENT, CONDITIONS_CURRENT));
-        display.putAll(displayBuilder.build(changed.input(), comparison.changed(), CHANGED, CONDITIONS_CHANGED));
+        display.putAll(displayBuilder.build(current.input(), comparison.current(), CURRENT, CONDITIONS_CURRENT,
+                goalChanged, !goalChanged));
+        display.putAll(displayBuilder.build(changed.input(), comparison.changed(), CHANGED, CONDITIONS_CHANGED,
+                goalChanged, !goalChanged));
         for (CalcComparison.ScenarioDiff diff : comparison.diff().byScenario()) {
             String prefix = "diff." + diff.scenario() + ".";
             display.put(prefix + "afterTaxAssetDelta", formatter.formatDifference(diff.afterTaxAssetDelta()));

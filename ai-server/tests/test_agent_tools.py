@@ -18,12 +18,14 @@ from app.llm.agent import TOOLS, ChatAgent
 from app.llm.prompts import SYSTEM_PROMPT
 from app.schemas import ChatRequest, ChatResponse, ConditionChanges, DocType, RetrievedChunk
 
-FOUR_KEYS = {"monthly_saving_amount", "savings_ratio_pct", "savings_rate_input_pct", "target_period_months"}
-REMOVED_KEYS = {"goal_amount", "held_assets", "existing_monthly_contribution"}
-GOAL_AMOUNT_COPY = (
-    "목표 금액은 입력 수정에서 바꿀 수 있어요. 대화로는 월 저축액·비중·적금 금리·기한을 바꿔 볼 수 있어요"
+FIVE_KEYS = {
+    "goal_amount", "monthly_saving_amount", "savings_ratio_pct", "savings_rate_input_pct", "target_period_months",
+}
+REMOVED_KEYS = {"held_assets", "existing_monthly_contribution"}
+UNCHANGEABLE_COPY = (
+    "목표 종류·기존 납입액은 여기서 바꿀 수 없어요. 보유 자산은 입력 수정에서 바꿀 수 있어요."
 )
-NULLS = dict.fromkeys(sorted(FOUR_KEYS))
+NULLS = dict.fromkeys(sorted(FIVE_KEYS))
 PLAN_CONTEXT = json.loads(
     (Path(__file__).resolve().parents[2] / "docs" / "api" / "examples" / "plan-context" / "plan-context-basic.json")
     .read_text(encoding="utf-8")
@@ -86,76 +88,94 @@ def last_tool_result(claude: FakeClaude) -> dict[str, Any]:
 
 # ---- 수용 기준 1, 9: 도구 스키마와 ConditionChanges가 같은 4키 ----
 
-def test_recalculate_tool_schema_has_only_four_keys():
-    """도구 스키마 필드는 월 저축액·비중·적금 금리·기한 4개뿐이다 (수용 기준 1, M-2)"""
+def test_recalculate_tool_schema_has_only_five_keys():
+    """도구 스키마 필드는 목표 금액·월 저축액·비중·적금 금리·기한 5개다 (D-090·D-092)"""
     schema = recalc_schema()
-    assert set(schema["properties"]) == FOUR_KEYS
-    assert set(schema["required"]) == FOUR_KEYS
+    assert set(schema["properties"]) == FIVE_KEYS
+    assert set(schema["required"]) == FIVE_KEYS
     assert schema["additionalProperties"] is False
 
 
-def test_condition_changes_model_has_only_four_keys():
-    """ConditionChanges 필드는 4키뿐이고 목표 금액·보유 자산·기존 납입액이 없다 (H-13, D-040)"""
-    assert set(ConditionChanges.model_fields) == FOUR_KEYS
+def test_condition_changes_model_has_only_five_keys():
+    """ConditionChanges 필드는 5키뿐이고 보유 자산(2단계)·기존 납입액이 없다 (D-090)"""
+    assert set(ConditionChanges.model_fields) == FIVE_KEYS
     assert not REMOVED_KEYS & set(ConditionChanges.model_fields)
     assert set(ConditionChanges.model_fields) == set(recalc_schema()["properties"])
 
 
-def test_condition_changes_json_aliases_are_camel_case_four_keys():
-    """JSON 별칭(Spring 계약)도 camelCase 4개다 (수용 기준 1 표기)"""
+def test_condition_changes_json_aliases_are_camel_case_five_keys():
+    """JSON 별칭(Spring 계약)도 camelCase 5개다"""
     props = ConditionChanges.model_json_schema(by_alias=True)["properties"]
-    assert set(props) == {"monthlySavingAmount", "savingsRatioPct", "savingsRateInputPct", "targetPeriodMonths"}
+    assert set(props) == {
+        "goalAmount", "monthlySavingAmount", "savingsRatioPct", "savingsRateInputPct", "targetPeriodMonths",
+    }
 
 
 @pytest.mark.parametrize("removed", sorted(REMOVED_KEYS))
 def test_condition_changes_rejects_removed_keys(removed):
-    """구 키는 extra=forbid로 거절된다 (H-13)"""
+    """제외 키는 extra=forbid로 거절된다"""
     with pytest.raises(ValidationError):
         ConditionChanges.model_validate({removed: 1})
 
 
-# ---- 수용 기준 2: 목표 금액 발화 ----
+# ---- 수용 기준 2: 목표 금액 계산 허용 및 변경 불가 조건 ----
 
-async def test_goal_amount_utterance_answers_with_dedicated_copy_without_calc():
-    """목표 금액 발화는 계산 없이 전용 문구 ANSWER다, OUT_OF_SCOPE 아님 (FR-AI-06, D-056)"""
-    claude = FakeClaude([text_resp("ANSWER", GOAL_AMOUNT_COPY)])
-    calc = FakeCalc()
-    resp = await make_agent(claude, calc).run(question("목표 금액을 1억으로 바꿔줘", plan_context=PLAN_CONTEXT))
-    assert calc.calls == []
-    assert resp.message_type == "ANSWER"
-    assert resp.content == GOAL_AMOUNT_COPY
-    assert resp.calc_run_id is None and resp.condition_changes is None
-
-
-async def test_recalculate_with_goal_amount_key_is_tool_error_and_not_forwarded():
-    """모델이 goal_amount를 넣어 recalculate를 부르면 is_error이고 계산을 부르지 않는다 (D-040)"""
+async def test_goal_amount_utterance_calls_recalculate():
+    """목표 금액 발화는 recalculate를 부르고 RECALC_RESULT로 응답한다 (D-090)"""
     claude = FakeClaude([
         tool_resp("recalculate", {**NULLS, "goal_amount": 100_000_000}),
-        text_resp("ANSWER", GOAL_AMOUNT_COPY),
+        text_resp("RECALC_RESULT", "목표 1억 기준 결과입니다"),
     ])
     calc = FakeCalc()
-    resp = await make_agent(claude, calc).run(question("목표 금액을 1억으로 바꿔줘"))
+    resp = await make_agent(claude, calc).run(question("목표를 1억으로 바꿔줘", plan_context=PLAN_CONTEXT))
+    assert calc.calls == [{"goal_amount": 100_000_000}]
+    assert resp.message_type == "RECALC_RESULT"
+    assert resp.condition_changes == {"goal_amount": 100_000_000}
+
+
+@pytest.mark.parametrize(
+    ("text", "wrong_amount"),
+    [("목표 1억으로", 10_000), ("목표 2,500만원으로", 250_000_000)],
+)
+async def test_goal_amount_unit_mismatch_is_tool_error_without_calc(text, wrong_amount):
+    """만·억 단위 오환산은 Spring 호출 전 check_amount_units에서 걸러 CLARIFY로 되묻는다 (CF12-9-3)"""
+    claude = FakeClaude([
+        tool_resp("recalculate", {**NULLS, "goal_amount": wrong_amount}),
+        text_resp("CLARIFY", "정확한 목표 금액을 다시 알려 주세요"),
+    ])
+    calc = FakeCalc()
+    resp = await make_agent(claude, calc).run(question(text))
+    assert last_tool_result(claude)["is_error"] is True
+    assert calc.calls == []
+    assert resp.message_type == "CLARIFY" and resp.calc_run_id is None
+
+
+async def test_recalculate_with_held_assets_key_is_tool_error_and_not_forwarded():
+    """1단계에서 제외된 held_assets를 넣어 recalculate를 부르면 is_error이고 계산을 부르지 않는다 (D-090)"""
+    claude = FakeClaude([
+        tool_resp("recalculate", {**NULLS, "held_assets": 10_000_000}),
+        text_resp("ANSWER", UNCHANGEABLE_COPY),
+    ])
+    calc = FakeCalc()
+    resp = await make_agent(claude, calc).run(question("보유 자산을 1,000만원으로 바꿔줘"))
     assert last_tool_result(claude)["is_error"] is True
     assert calc.calls == []
     assert resp.message_type == "ANSWER" and resp.calc_run_id is None
 
 
-def test_system_prompt_contains_goal_amount_copy_and_four_conditions():
-    """프롬프트에 목표 금액 전용 문구가 글자 그대로 있고 4조건만 안내한다 (D-056, M-2)"""
-    assert GOAL_AMOUNT_COPY in SYSTEM_PROMPT
-    for keyword in ("월 저축액", "비중", "적금 금리", "기한"):
+def test_system_prompt_contains_unchangeable_copy_and_five_conditions():
+    """프롬프트에 변경 불가 전용 문구가 글자 그대로 있고 5조건을 안내한다 (D-090, D-092)"""
+    assert UNCHANGEABLE_COPY in SYSTEM_PROMPT
+    for keyword in ("목표 금액", "월 저축액", "비중", "적금 금리", "기한"):
         assert keyword in SYSTEM_PROMPT
-    # 대화로 바꿀 수 있는 조건 안내에 구 조건이 남아 있지 않다
-    assert "보유 자산" not in SYSTEM_PROMPT
-    assert "기존 월 납입액" not in SYSTEM_PROMPT
 
 
-async def test_refusal_copy_no_longer_offers_goal_amount_as_changeable():
-    """범위 밖 안내 문구는 4조건 기준이라 목표 금액을 바꿀 수 있다고 하지 않는다 (M-2)"""
+async def test_refusal_copy_offers_five_changeable_conditions():
+    """범위 밖 안내 문구는 5조건 기준이라 목표 금액도 포함한다 (D-090)"""
     claude = FakeClaude([SimpleNamespace(stop_reason="refusal", content=[])])
     resp = await make_agent(claude, FakeCalc()).run(question("이 종목 사도 돼?"))
     assert resp.message_type == "OUT_OF_SCOPE"
-    assert "목표 금액" not in resp.content
+    assert "목표 금액" in resp.content
     assert "월 저축액" in resp.content
 
 
@@ -312,20 +332,21 @@ async def test_absolute_value_utterance_calls_recalculate():
 
 # ---- 수용 기준 10: C12b-14 키 표기와 응답 계약 ----
 
-async def test_condition_changes_keys_stay_snake_case_for_all_four_keys():
+async def test_condition_changes_keys_stay_snake_case_for_all_five_keys():
     """condition_changes 키는 snake_case 그대로이고 camelCase 변환을 하지 않는다 (C12b-14)"""
     changes = {
+        "goal_amount": 40_000_000,
         "monthly_saving_amount": 400_000,
         "savings_ratio_pct": 30,
         "savings_rate_input_pct": 3.5,
         "target_period_months": 24,
     }
     claude = FakeClaude([tool_resp("recalculate", changes), text_resp("ANSWER", "결과")])
-    resp = await make_agent(claude, FakeCalc()).run(question("이렇게 바꿔줘"))
+    resp = await make_agent(claude, FakeCalc()).run(question("목표 4000만원으로 이렇게 바꿔줘"))
     assert resp.condition_changes == changes
-    assert set(resp.condition_changes or {}) == FOUR_KEYS
+    assert set(resp.condition_changes or {}) == FIVE_KEYS
     dumped = resp.model_dump(by_alias=True)["conditionChanges"]  # dict 키는 별칭 변환 대상이 아니다
-    assert set(dumped) == FOUR_KEYS
+    assert set(dumped) == FIVE_KEYS
 
 
 def test_chat_response_has_no_new_fields():

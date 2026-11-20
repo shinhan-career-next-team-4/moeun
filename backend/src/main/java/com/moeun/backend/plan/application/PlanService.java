@@ -153,7 +153,9 @@ public class PlanService implements PlanSaveService, PlanApplyService, PlanUndoS
                 longField(changes, InputField.MONTHLY_SAVING_AMOUNT),
                 intField(changes, InputField.TARGET_PERIOD_MONTHS),
                 ratio,
-                decimalField(changes, InputField.SAVINGS_RATE_INPUT_PCT));
+                decimalField(changes, InputField.SAVINGS_RATE_INPUT_PCT),
+                longField(changes, InputField.GOAL_AMOUNT),
+                longField(changes, InputField.HELD_ASSETS));
     }
 
     @Override
@@ -202,8 +204,10 @@ public class PlanService implements PlanSaveService, PlanApplyService, PlanUndoS
     private static PlanInput merge(PlanVersion current, ConditionOverride changes) {
         Map<String, JsonNode> fields = new LinkedHashMap<>();
         JsonNodeFactory factory = JsonNodeFactory.instance;
-        fields.put(InputField.GOAL_AMOUNT.apiName(), factory.numberNode(current.getGoalAmount()));
-        fields.put(InputField.HELD_ASSETS.apiName(), factory.numberNode(current.getHeldAssets()));
+        fields.put(InputField.GOAL_AMOUNT.apiName(),
+                factory.numberNode(firstNonNull(changes.goalAmount(), current.getGoalAmount())));
+        fields.put(InputField.HELD_ASSETS.apiName(),
+                factory.numberNode(firstNonNull(changes.heldAssets(), current.getHeldAssets())));
         fields.put(InputField.TARGET_PERIOD_MONTHS.apiName(),
                 factory.numberNode(firstNonNull(changes.targetPeriodMonths(), current.getTargetPeriodMonths())));
         fields.put(InputField.MONTHLY_SAVING_AMOUNT.apiName(),

@@ -296,11 +296,22 @@ class PlanServiceTest {
         PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
 
         assertThatThrownBy(() -> applyService.apply(memberId, ChangePath.CHAT,
-                changes("goalAmount", 10_000_000L), saved.revision(), null))
+                changes("heldAssets", 10_000_000L), saved.revision(), null))
                 .isInstanceOf(ConditionViolationException.class)
                 .satisfies(e -> assertThat(((ConditionViolationException)e).code())
                         .isEqualTo("FIELD_NOT_CHANGEABLE"));
         assertThat(versionCount()).isOne();
+    }
+
+    @Test
+    void applyWithGoalAmountUpdatesPlanGoalAmount() {
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+
+        PlanApplyResult applied = applyService.apply(memberId, ChangePath.CHAT,
+                changes("goalAmount", 80_000_000L), saved.revision(), null);
+
+        assertThat(applied.revision()).isEqualTo(2L);
+        assertThat(saveService.findCurrent(memberId).orElseThrow().goalAmount()).isEqualTo(80_000_000L);
     }
 
     @Test

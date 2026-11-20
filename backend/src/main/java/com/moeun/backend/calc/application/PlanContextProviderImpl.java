@@ -22,9 +22,9 @@ import com.moeun.backend.plan.ConditionOverride;
 import com.moeun.backend.plan.PlanSaveService;
 import com.moeun.backend.plan.PlanView;
 import com.moeun.backend.refdata.CalcParams;
+import com.moeun.backend.refdata.EtfSeries;
 import com.moeun.backend.refdata.ReferenceDataService;
 import com.moeun.backend.refdata.SavingsAvgRateData;
-import com.moeun.backend.refdata.Sp500Series;
 
 import tools.jackson.databind.JsonNode;
 
@@ -137,8 +137,8 @@ public class PlanContextProviderImpl implements PlanContextProvider, ChatCompari
     /** 기록이 남긴 버전의 기준 데이터. 기록에 없는 데이터(ETF 0%의 S&P500, 직접 넣은 금리의 평균금리)는 쓰지 않았다. */
     private RecordedData loadRecordedData(CalcRun run) {
         CalcParams params = referenceDataService.requireCalcParams(run.getCalcParamVersionId());
-        Sp500Series sp500 = run.getSp500VersionId() == null
-                ? null : referenceDataService.requireSp500Series(run.getSp500VersionId());
+        EtfSeries sp500 = run.getSp500VersionId() == null
+                ? null : referenceDataService.requireEtfSeries(run.getSp500VersionId());
         SavingsAvgRateData defaultRate = run.getSavingsRateVersionId() == null
                 ? null : referenceDataService.requireSavingsAvgRate(run.getSavingsRateVersionId());
         return new RecordedData(params, sp500, defaultRate);
@@ -155,7 +155,7 @@ public class PlanContextProviderImpl implements PlanContextProvider, ChatCompari
      * 저장된 대화의 바꾼 조건을 타입만 바꾼다. 범위는 검사하지 않는다(C12b-6). null 값은 바꾸지 않은 것으로 본다.
      * 변환은 {@code /internal/calc}와 같은 {@link ConditionChanges}를 쓰고, 맞지 않는 값은 모두 예외로 낸다.
      *
-     * @throws IllegalArgumentException 허용 4개 밖의 키, 숫자가 아닌 값, 정수 자리의 소수, 타입 범위를 넘는 정수
+     * @throws IllegalArgumentException 허용 5개 밖의 키, 숫자가 아닌 값, 정수 자리의 소수, 타입 범위를 넘는 정수
      */
     private static ConditionOverride toOverride(Map<String, JsonNode> conditionChanges) {
         Map<String, JsonNode> changes = ConditionChanges.withoutNulls(conditionChanges);
@@ -177,6 +177,6 @@ public class PlanContextProviderImpl implements PlanContextProvider, ChatCompari
     private record OwnedRun(CalcRun run, PlanView plan) {
     }
 
-    private record RecordedData(CalcParams params, Sp500Series sp500, SavingsAvgRateData defaultRate) {
+    private record RecordedData(CalcParams params, EtfSeries sp500, SavingsAvgRateData defaultRate) {
     }
 }
