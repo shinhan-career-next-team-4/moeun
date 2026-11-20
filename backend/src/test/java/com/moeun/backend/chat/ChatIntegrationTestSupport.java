@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.awaitility.core.ConditionTimeoutException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.mockito.Mockito;
@@ -115,7 +116,22 @@ abstract class ChatIntegrationTestSupport {
     void settle() {
         AI.release(500, "{\"error\":\"TEST_END\"}");
         AI.awaitIdle();
+        awaitListenersSettled();
         clock.useSystem();
+    }
+
+    /**
+     * 테스트가 끝나도 비동기 리스너가 아직 ai-server를 부르기 전일 수 있다(첫 호출의 느린 준비 등). 그 호출이 다음 테스트의
+     * 스텁 기록에 섞이지 않도록 발행된 답변 요청이 모두 끝날 때까지 잠시 기다린다. 끝나지 않는 이벤트를 일부러 남기는 테스트가
+     * 있어 시간이 지나면 그냥 넘어간다.
+     */
+    private void awaitListenersSettled() {
+        try {
+            await().atMost(Duration.ofSeconds(3)).until(() -> incompleteAnswerEvents() == 0);
+        } catch (ConditionTimeoutException e) {
+            // 남겨 둔 이벤트가 있는 테스트다
+        }
+        AI.awaitIdle();
     }
 
     Cookie login(String loginId) throws Exception {
