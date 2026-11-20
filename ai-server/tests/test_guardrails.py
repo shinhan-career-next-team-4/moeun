@@ -45,9 +45,11 @@ def product_chunk(chunk_id: int, title: str) -> RetrievedChunk:
 
 
 async def run_answer(content: str, request: ChatRequest | None = None) -> ChatResponse | AgentError:
-    """모델이 content를 낸 한 턴을 돌린다. 거부하면 AgentError를 돌려준다(올리지 않고 값으로 받는다)."""
+    """모델이 content를 낸 한 턴을 돌린다. 거부하면 AgentError를 돌려준다(올리지 않고 값으로 받는다).
+    금지 표현이면 1회 재시도하므로(#98) 재시도 응답도 같은 content로 준비한다."""
     try:
-        return await make_agent(FakeClaude([text_resp("ANSWER", content)])).run(request or question())
+        claude = FakeClaude([text_resp("ANSWER", content), text_resp("ANSWER", content)])
+        return await make_agent(claude).run(request or question())
     except AgentError as e:
         return e
 
@@ -175,7 +177,7 @@ async def test_positive_recommendation_next_to_negation_is_still_blocked():
 async def test_recommendation_check_applies_to_all_non_out_of_scope_types():
     """CLARIFY·ANSWER 본문 모두 같은 검사를 받는다"""
     for message_type in ("ANSWER", "CLARIFY"):
-        claude = FakeClaude([text_resp(message_type, "이 상품을 추천해요")])
+        claude = FakeClaude([text_resp(message_type, "이 상품을 추천해요")] * 2)   # 재시도(#98)도 같은 본문
         try:
             resp: ChatResponse | AgentError = await make_agent(claude).run(question("뭐가 좋아요"))
         except AgentError as e:

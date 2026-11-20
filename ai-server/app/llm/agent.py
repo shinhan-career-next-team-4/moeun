@@ -40,6 +40,24 @@ from app.tools.calc import CalcError, CalcFailed, CalcRejected
 
 log = logging.getLogger(__name__)
 
+
+class _RedactRequestBody(logging.Filter):
+    """SDK가 DEBUG에서 남기는 "Request options" 레코드에서 messages·system을 뺀다. 요청 JSON 전체에는
+    planContext 본문과 이전 답변(history, 재시도로 살아남은 답 포함)이 들어 있어 어떤 로그에도 본문을 남기지 않는
+    원칙(P-7, AC-4)을 깬다. 모델에 보내는 요청은 건드리지 않고 로그 레코드만 고친다. 로거 레벨은 그대로다."""
+
+    _DROPPED = ("messages", "system")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        options = record.args
+        if isinstance(options, dict) and isinstance(options.get("json_data"), dict):
+            body = {k: v for k, v in options["json_data"].items() if k not in self._DROPPED}
+            record.args = {**options, "json_data": body}
+        return True
+
+
+logging.getLogger("anthropic._base_client").addFilter(_RedactRequestBody())
+
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 MAX_CITATIONS = 5
 _CONDITION_COPY_KEYS = (
@@ -238,6 +256,31 @@ class AgentError(Exception):
         self.code = code
 
 
+class _ForbiddenAnswer(AgentError):
+    """본문 검사(M-4)에 걸린 답. run이 사유로 재시도 여부를 정한다. 최종 거부 코드는 FORBIDDEN_EXPRESSION이다."""
+
+    def __init__(self, reason: str):
+        super().__init__("FORBIDDEN_EXPRESSION", reason)
+        self.reason = reason
+
+
+# 재시도 때 모델에게 붙이는 교정 지시. 걸린 표현을 빼거나 바꾸라고만 하고 본문은 다시 적지 않는다(P-2, P-7)
+_CORRECTIONS = {
+    "recommendation": (
+        "방금 쓴 답변은 '추천' 표현이 있어 거부됐습니다. 같은 자료로 답변을 새로 쓰되 추천 표현을 빼거나 "
+        "추천하지 않는 표현으로 바꾸고, 새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
+    ),
+    "product_name": (
+        "방금 쓴 답변은 지수를 알 수 없는 상품명이 있어 거부됐습니다. 같은 자료로 답변을 새로 쓰되 상품명을 빼거나 "
+        "'S&P500 추종 ETF' 같은 일반 표현으로 바꾸고, 새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
+    ),
+}
+
+
+# 재시도 응답이 refusal일 때 assemble에 넘기는 서버 입력. 모델 본문·인용이 없다
+_OUT_OF_SCOPE_ANSWER = FinalAnswer(message_type="OUT_OF_SCOPE", content="", citation_chunk_ids=[])
+
+
 @dataclass
 class _Turn:
     """한 요청 동안 도구가 만든 서버 쪽 사실. 모델 출력보다 이것을 믿는다."""
@@ -268,6 +311,9 @@ class ChatAgent:
         max_rounds: int,
     ):
         self._client = client
+        # 교정 재시도 호출은 SDK 자동 재전송을 끈다. 재전송되면 사실상 세 번째 호출이 된다(P-10, AC-6).
+        # 테스트 대역은 with_options가 없어 실제 SDK 클라이언트일 때만 사본을 만든다
+        self._retry_client = client.with_options(max_retries=0) if isinstance(client, AsyncAnthropic) else client
         self._calc = calc
         self._retriever = retriever
         self._model = model
@@ -293,23 +339,11 @@ class ChatAgent:
         messages = build_messages(req)
 
         for _ in range(self._max_rounds):
-            resp = await self._client.beta.messages.create(
-                model=self._model,
-                max_tokens=16000,
-                system=SYSTEM_PROMPT,
-                tools=TOOLS,
-                messages=messages,
-                output_config=self._output_config,
-                cache_control={"type": "ephemeral"},
-                betas=[FALLBACK_BETA],
-                fallbacks="default",
-            )
+            resp = await self._create(messages)
 
             match resp.stop_reason:
                 case "refusal":
-                    return ChatResponse(
-                        message_type="OUT_OF_SCOPE", content=out_of_scope_content(), baseline_scenario=req.baseline_scenario
-                    )
+                    return _refusal(req)
                 case "max_tokens":
                     raise AgentError("MAX_TOKENS")
                 case "tool_use":
@@ -324,14 +358,52 @@ class ChatAgent:
                         )
                     messages.append(BetaUserMessageParam(role="user", content=results))   # 결과는 한 메시지에 모두
                 case _:
-                    text = "".join(b.text for b in resp.content if isinstance(b, BetaTextBlock))
+                    final = _parse_final(resp)
                     try:
-                        final = FinalAnswer.model_validate_json(text)
-                    except ValidationError as e:
-                        raise AgentError("BAD_OUTPUT", str(e)[:300]) from e
-                    return assemble(turn, final)
+                        return assemble(turn, final)
+                    except _ForbiddenAnswer as e:
+                        # 금지 표현이면 이미 실행한 도구 결과를 그대로 두고 모델만 한 번 다시 부른다(M-4 후속)
+                        log.info("forbidden expression: reason=%s attempt=1 message_id=%s", e.reason, req.message_id)
+                        return await self._retry(turn, messages, e.reason)
 
         raise AgentError("TOO_MANY_ROUNDS")
+
+    async def _create(self, messages: list[BetaMessageParam], *, client: Any = None, **extra: Any) -> Any:
+        return await (client or self._client).beta.messages.create(
+            model=self._model,
+            max_tokens=16000,
+            system=SYSTEM_PROMPT,
+            tools=TOOLS,
+            messages=messages,
+            output_config=self._output_config,
+            cache_control={"type": "ephemeral"},
+            betas=[FALLBACK_BETA],
+            fallbacks="default",
+            **extra,
+        )
+
+    async def _retry(self, turn: _Turn, messages: list[BetaMessageParam], reason: str) -> ChatResponse:
+        """교정 지시를 붙여 모델을 한 번만 다시 부른다. 도구는 실행하지 않고 첫 호출과 같은 분기·보정을 거친다(P-4, P-6).
+        거부된 첫 답은 요청에 싣지 않는다. SDK DEBUG 로그가 요청 JSON 전체를 남기기 때문이다(P-7, D-1)."""
+        req = turn.req
+        retry_messages = [*messages, BetaUserMessageParam(role="user", content=_CORRECTIONS[reason])]
+        # tool_choice none은 이 호출에만 준다(요청 지역)
+        retry = await self._create(retry_messages, client=self._retry_client, tool_choice={"type": "none"})
+        match retry.stop_reason:
+            case "refusal":
+                return assemble(turn, _OUT_OF_SCOPE_ANSWER)   # 서버가 만든 입력으로 같은 보정을 거친다(P-4)
+            case "max_tokens":
+                if _answer_text(retry):   # 텍스트가 있으면 잘린 JSON이다. 본문은 detail에 싣지 않는다(P-17, D-2)
+                    raise AgentError("BAD_OUTPUT", "max_tokens")
+                raise AgentError("MAX_TOKENS")
+            case "tool_use":
+                raise AgentError("FORBIDDEN_EXPRESSION", "tool_use on retry")   # PD-009. 도구를 실행하지 않는다
+        final = _parse_final(retry)
+        try:
+            return assemble(turn, final)
+        except _ForbiddenAnswer as e:
+            log.warning("forbidden expression: reason=%s attempt=2 message_id=%s", e.reason, req.message_id)
+            raise
 
     async def _call_tool(self, turn: _Turn, block: BetaToolUseBlock) -> BetaToolResultBlockParam:
         handler = self._tools.get(block.name)
@@ -411,6 +483,24 @@ def _errors_for_model(errors: list[dict[str, Any]]) -> list[dict[str, Any]]:
         else item
         for item in errors
     ]
+
+
+def _refusal(req: ChatRequest) -> ChatResponse:
+    return ChatResponse(
+        message_type="OUT_OF_SCOPE", content=out_of_scope_content(), baseline_scenario=req.baseline_scenario
+    )
+
+
+def _answer_text(resp: Any) -> str:
+    return "".join(b.text for b in resp.content if isinstance(b, BetaTextBlock))
+
+
+def _parse_final(resp: Any) -> FinalAnswer:
+    """최종 응답 파싱. 오류 문구에 모델 원문(input_value)이 실리지 않게 오류 종류와 위치만 남긴다(P-16, P-7)."""
+    try:
+        return FinalAnswer.model_validate_json(_answer_text(resp))
+    except ValidationError as e:
+        raise AgentError("BAD_OUTPUT", ",".join(f"{err['type']}@{err['loc']}" for err in e.errors())) from None
 
 
 def _reject(req: ChatRequest, code: str) -> AgentError:
@@ -574,11 +664,11 @@ def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
             body = replace_product_names(final.content)   # M-4, D-028
             check_recommendation(body)
         except ForbiddenExpression as e:
-            raise AgentError("FORBIDDEN_EXPRESSION", str(e)) from e
+            raise _ForbiddenAnswer(str(e)) from e
         try:
             check_numbers(body, _number_evidence(turn))   # PR-04. 상품명·추천 검사 뒤, 바뀐 본문을 대조한다
-        except NumberMismatch as e:
-            raise AgentError("NUMBER_MISMATCH", str(e)) from e
+        except NumberMismatch:
+            raise AgentError("NUMBER_MISMATCH") from None   # 불일치 토큰이 본문 전체일 수 있어 detail을 뺀다(P-7)
         content = with_tax_note(req, body)
     return ChatResponse(
         message_type=message_type,
