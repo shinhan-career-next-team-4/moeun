@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ChangeEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent } from "react";
 import { api, planStore, polling } from "../../api";
 import { ApiError } from "../../api/errors";
+import { ComparisonCard, ComparisonNotices, useComparison, useComparisonController } from "./comparison";
 import { COPY, unitChar } from "./copy";
 import type { ChatDeps } from "./index";
 import type { ChatAccepted, ChatMessage } from "./types";
@@ -47,14 +48,22 @@ function Bubble({ message }: { message: ChatMessage }) {
   );
 }
 
-export function ChatWindow({ deps = defaultDeps }: { deps?: ChatDeps }) {
-  const chat = useChatPollingInternal(deps);
+export function ChatWindow({ deps: givenDeps = defaultDeps }: { deps?: ChatDeps }) {
+  // 같은 인스턴스를 담은 새 deps 객체로 다시 그려도 폴링·비교 상태가 초기화되지 않게 인스턴스 기준으로 안정화한다(P-67).
+  const deps = useMemo<ChatDeps>(
+    () => ({ api: givenDeps.api, polling: givenDeps.polling, planStore: givenDeps.planStore }),
+    [givenDeps.api, givenDeps.polling, givenDeps.planStore],
+  );
+  const comparisonController = useComparisonController(deps);
+  const chat = useChatPollingInternal(deps, comparisonController.receive);
   const { accepted, answerPendingElsewhere } = chat;
 
   // 공유 계획 store는 읽기만 한다. 초과 판단은 settledStatus 하나로 한다.
   const { planStore: store } = deps;
   const subscribe = useCallback((onChange: () => void) => store.subscribe(() => onChange()), [store]);
   const settledStatus = useSyncExternalStore(subscribe, () => store.getState().settledStatus);
+
+  const comparison = useComparison(comparisonController, chat.messages, settledStatus === "ALREADY_EXCEEDED");
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -112,9 +121,13 @@ export function ChatWindow({ deps = defaultDeps }: { deps?: ChatDeps }) {
       {settledStatus === "ALREADY_EXCEEDED" && <p data-testid="chat-already-exceeded">{COPY.alreadyExceeded}</p>}
       <div data-testid="chat-messages">
         {chat.messages.map((message) => (
-          <Bubble key={message.id} message={message} />
+          <Fragment key={message.id}>
+            <Bubble message={message} />
+            <ComparisonCard comparison={comparison} message={message} />
+          </Fragment>
         ))}
       </div>
+      <ComparisonNotices comparison={comparison} />
       {chat.pollingFailed && <p data-testid="chat-polling-failed">{COPY.pollingFailed}</p>}
       {settledStatus === "CALCULATED" && (
         <button type="button" data-testid="chat-retry-explanation">

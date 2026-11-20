@@ -111,9 +111,13 @@ export const networkError = () => ApiError.network();
 export type Reply = unknown | Error | Promise<unknown> | (() => unknown);
 export type Call = { method: string; path: string; body?: unknown };
 
+/** F-2(메시지 목록 복원·폴링) 경로인가. `/api/chat/messages`와 `?afterId=`만 해당하고 F-4(`/{id}/comparison`)는 아니다. */
+export const isF2Path = (requestPath: string) => requestPath.split(/[?#]/)[0] === "/api/chat/messages";
+
 /**
  * 호출 순서대로 응답을 소비하는 api.request. 배열 끝을 넘으면 마지막 응답을 반복한다(목과 같다).
  * Error 인스턴스는 던지고, Promise는 기다린다.
+ * GET 큐는 F-2 경로만 쓴다. F-2가 아닌 GET(#53 F-4 등)은 큐를 소비하지 않고 404 NOT_FOUND로 답한다(#53 사용자 결정 4차 B1=A).
  */
 export function makeFakeApi(replies: { get?: Reply[]; post?: Reply[] }) {
   const queues = { GET: [...(replies.get ?? [])], POST: [...(replies.post ?? [])] };
@@ -121,6 +125,7 @@ export function makeFakeApi(replies: { get?: Reply[]; post?: Reply[] }) {
   const calls: Call[] = [];
   const request = vi.fn(async (method: string, requestPath: string, body?: unknown) => {
     calls.push({ method, path: requestPath, body });
+    if (method === "GET" && !isF2Path(requestPath)) throw problem(404, "NOT_FOUND");
     const key = method as "GET" | "POST";
     const queue = queues[key];
     if (!queue || queue.length === 0) throw new Error(`스크립트에 없는 호출: ${method} ${requestPath}`);
@@ -130,7 +135,7 @@ export function makeFakeApi(replies: { get?: Reply[]; post?: Reply[] }) {
     if (value instanceof Error) throw value;
     return value;
   });
-  const gets = () => calls.filter((c) => c.method === "GET" && c.path.startsWith("/api/chat/messages"));
+  const gets = () => calls.filter((c) => c.method === "GET" && isF2Path(c.path));
   const posts = () => calls.filter((c) => c.method === "POST");
   return { request, calls, gets, posts };
 }

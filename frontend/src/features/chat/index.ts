@@ -1,9 +1,9 @@
-import type { PlanStore } from "../../api/planStore";
+import type { ComparisonPlanStore } from "./comparison";
 
 export interface ChatDeps {
   api: { request<T = unknown>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> };
   polling: { register(stop: () => void): () => void };
-  planStore: Pick<PlanStore, "getState" | "subscribe">;
+  planStore: ComparisonPlanStore;
 }
 
 export { ChatWindow } from "./ChatWindow";

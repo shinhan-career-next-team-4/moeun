@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, planStore } from "../../api";
 import { ApiError } from "../../api/errors";
 import { COPY } from "../../shared/copy/copy";
@@ -18,17 +18,31 @@ export function UndoToast({ appliedRevision, onDismiss, onFeedback }: UndoToastP
   const [submittingRevision, setSubmittingRevision] = useState<number | null>(null);
   const [errorState, setErrorState] = useState<{ revision: number; text: string } | null>(null);
 
+  // 토스트가 닫히거나 바뀌면 진행 중이던 되돌리기 요청은 폐기된 것이다. 그 늦은 응답은 새 계획·새 토스트에 영향을 주지 않는다.
+  // 세대는 React 정리를 기다리지 않고 폐기 시점에 동기로 올린다. 계획 교체와 늦은 응답이 정리 전에 이어져도 막기 위해서다.
+  const generation = useRef(0);
+
   useEffect(() => {
     if (appliedRevision === null) return;
-    const timer = window.setTimeout(onDismiss, UNDO_TIMEOUT_MS);
+    const discard = () => {
+      generation.current += 1;
+      onDismiss();
+    };
+    const timer = window.setTimeout(discard, UNDO_TIMEOUT_MS);
     const unsub = planStore.onRevisionChange((next) => {
-      if (next !== appliedRevision) onDismiss();
+      if (next !== appliedRevision) discard();
     });
     return () => {
       window.clearTimeout(timer);
       unsub();
     };
   }, [appliedRevision, onDismiss]);
+
+  useEffect(() => {
+    return () => {
+      generation.current += 1;
+    };
+  }, [appliedRevision]);
 
   if (appliedRevision === null) return null;
 
@@ -37,16 +51,19 @@ export function UndoToast({ appliedRevision, onDismiss, onFeedback }: UndoToastP
 
   async function handleUndo() {
     if (submitting || appliedRevision === null) return;
+    const issuedAt = generation.current;
     setSubmittingRevision(appliedRevision);
     setErrorState(null);
     try {
       const res = await api.request<{ revision: number }>("POST", "/api/plan/undo", {
         expectedRevision: appliedRevision,
       });
+      if (generation.current !== issuedAt) return;
       planStore.acceptRevision(res.revision);
       onDismiss();
       planStore.loadPlan({ fresh: true }).catch(() => {});
     } catch (caught) {
+      if (generation.current !== issuedAt) return;
       setSubmittingRevision(null);
       if (!(caught instanceof ApiError)) {
         setErrorState({ revision: appliedRevision, text: COPY["undo.failed"] });

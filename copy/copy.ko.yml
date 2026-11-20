@@ -94,6 +94,8 @@ toast:
   applyFailed: "적용하지 못했어요"
 comparison:
   loadFailed: "비교 결과를 불러오지 못했어요"
+  applyButton: "내 계획으로 적용"
+  previousResult: "이전 결과"
 
 # 로그인·입력·계획·되돌리기·결과 화면(C12a-7-1, J-13)
 common:
