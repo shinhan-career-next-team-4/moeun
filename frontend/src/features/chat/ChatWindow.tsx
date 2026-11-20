@@ -3,6 +3,7 @@ import { api, planStore, polling } from "../../api";
 import { ApiError } from "../../api/errors";
 import { COPY, unitChar } from "./copy";
 import type { ChatDeps } from "./index";
+import { Suggestions } from "./suggestions";
 import type { ChatAccepted, ChatMessage } from "./types";
 import { useChatPollingInternal } from "./useChatPolling";
 
@@ -75,21 +76,23 @@ export function ChatWindow({ deps = defaultDeps }: { deps?: ChatDeps }) {
   const answerBlocking = chat.answerPending && !chat.pollingFailed;
   const sendable = trimmed.length >= 1 && trimmed.length <= MAX_LENGTH && !sending && !answerBlocking;
 
-  async function send(): Promise<void> {
-    if (!sendable || sendingRef.current) return;
+  // example이 있으면 예시 버튼 문장을 그대로 보내고 입력창에 써 둔 글은 지우지 않는다.
+  async function send(example?: string): Promise<void> {
+    const body = example ?? trimmed;
+    if (sendingRef.current || sending || answerBlocking || body.length < 1 || body.length > MAX_LENGTH) return;
     sendingRef.current = true;
     setSending(true);
     setInputError(null);
     setToast(false);
     try {
-      const response = await deps.api.request<ChatAccepted>("POST", "/api/chat/messages", { text: trimmed });
+      const response = await deps.api.request<ChatAccepted>("POST", "/api/chat/messages", { text: body });
       if (!mountedRef.current) return;
       const createdAt = new Date().toISOString();
       accepted(
-        { id: response.userMessageId, role: "USER", messageType: "QUESTION", status: "COMPLETED", content: trimmed, citations: [], createdAt },
+        { id: response.userMessageId, role: "USER", messageType: "QUESTION", status: "COMPLETED", content: body, citations: [], createdAt },
         { id: response.assistantMessageId, role: "ASSISTANT", messageType: null, status: "PENDING", content: null, citations: [], createdAt },
       );
-      setText("");
+      if (example === undefined) setText("");
     } catch (error) {
       if (!mountedRef.current) return;
       const code = error instanceof ApiError ? error.code : null;
@@ -121,6 +124,7 @@ export function ChatWindow({ deps = defaultDeps }: { deps?: ChatDeps }) {
           {RETRY_EXPLANATION_LABEL}
         </button>
       )}
+      <Suggestions disabled={sending || answerBlocking} onPick={(question) => void send(question)} />
       <textarea
         data-testid="chat-input"
         maxLength={MAX_LENGTH}

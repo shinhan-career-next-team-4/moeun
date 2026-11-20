@@ -46,6 +46,8 @@ chat:
     savingsRatioPct: "저축 비중을 바꿔 보고 싶어요"
     savingsRateInputPct: "적금 금리를 바꿔 보고 싶어요"
     targetPeriodMonths: "목표 기간을 바꿔 보고 싶어요"
+    # ETF 위험 설명 질문(PD-013). 상품명·추천 표현 없이 묻는다
+    etfRisk: "ETF에는 어떤 위험이 있어요?"
 
 # 대안 영역(FR-ALT-01~04, 와이어프레임 03 W-07·W-08). 카드 본문 값은 대안 산출 API(#66)가 주는 display 문자열만 쓴다
 alt:
