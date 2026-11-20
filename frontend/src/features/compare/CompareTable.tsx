@@ -2,7 +2,7 @@ import { COPY, type CopyMap } from "../../shared/copy/copy";
 import type { ComparisonView, ConditionKey } from "./types";
 
 const CONDITION_LABEL_KEY: Record<ConditionKey, string> = {
-  goalAmount: "compare.goalAmount",
+  goalAmount: "condition.goalAmount",
   monthlySavingAmount: "condition.monthlySavingAmount",
   savingsRatioPct: "condition.savingsRatioPct",
   savingsRateInputPct: "condition.savingsRateInputPct",

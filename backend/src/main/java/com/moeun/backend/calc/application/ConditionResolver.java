@@ -35,7 +35,7 @@ public class ConditionResolver {
      * @throws IllegalStateException 계획의 필수 값이 비었거나, 금리를 비웠는데 기본금리 데이터가 없을 때
      */
     public ResolvedConditions resolve(PlanView plan, SavingsAvgRateData defaultRate, CalcParams params) {
-        return resolveChanged(plan, new ConditionOverride(null, null, null, null), defaultRate, params);
+        return resolveChanged(plan, new ConditionOverride(null, null, null, null, null, null), defaultRate, params);
     }
 
     /**
@@ -51,10 +51,12 @@ public class ConditionResolver {
             CalcParams params) {
         // 기간·월 저축액은 rules.yml에서 필수라 저장된 계획에 늘 있다. CalcInput은 null을 '기한 미정'·'모름'으로 받지만
         // 해커톤 범위 밖(D-045)이라 여기서는 빈 값을 깨진 데이터로 본다. 이 입력을 열면 이 검사도 함께 바꾼다
-        long goalAmount = require(plan.goalAmount(), "goalAmount");
+        long goalAmount = changes.goalAmount() != null
+                ? changes.goalAmount() : require(plan.goalAmount(), "goalAmount");
         int targetPeriodMonths = changes.targetPeriodMonths() != null
                 ? changes.targetPeriodMonths() : require(plan.targetPeriodMonths(), "targetPeriodMonths");
-        long heldAssets = require(plan.heldAssets(), "heldAssets");
+        long heldAssets = changes.heldAssets() != null
+                ? changes.heldAssets() : require(plan.heldAssets(), "heldAssets");
         long monthlySavingAmount = changes.monthlySavingAmount() != null
                 ? changes.monthlySavingAmount() : require(plan.monthlySavingAmount(), "monthlySavingAmount");
         // 비중을 바꾸지 않은 요청은 현재 계획의 해석된 비중을 그대로 쓴다(C2-8 방어 규칙)

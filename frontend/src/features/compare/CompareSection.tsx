@@ -7,7 +7,7 @@ import type { ComparisonView, ConditionChanges, ConditionKey } from "./types";
 
 /** ② 탭에서 고를 수 있는 조건. 비중은 ①에서 따로 받는다(와이어프레임 03) */
 const PICKABLE: { key: Exclude<ConditionKey, "savingsRatioPct">; labelKey: string; unit: string }[] = [
-  { key: "goalAmount", labelKey: "compare.goalAmount", unit: "만원" },
+  { key: "goalAmount", labelKey: "condition.goalAmount", unit: "만원" },
   { key: "monthlySavingAmount", labelKey: "condition.monthlySavingAmount", unit: "만원" },
   { key: "savingsRateInputPct", labelKey: "condition.savingsRateInputPct", unit: "%" },
   { key: "targetPeriodMonths", labelKey: "condition.targetPeriodMonths", unit: "개월" },

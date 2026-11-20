@@ -28,15 +28,19 @@ CREATE TABLE IF NOT EXISTS member (
 CREATE TABLE IF NOT EXISTS data_version (
     id             BIGSERIAL    PRIMARY KEY,
     data_kind      VARCHAR(20)  NOT NULL,
+    product_code   VARCHAR(20),                           -- ETF_PRICE만: 종목 코드(SP500, 069500 등). 그 밖은 NULL
     version_label  VARCHAR(50)  NOT NULL,
     base_date      DATE         NOT NULL,
     source         VARCHAR(100) NOT NULL,
     is_active      BOOLEAN      NOT NULL DEFAULT FALSE,
     loaded_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    CONSTRAINT ck_data_kind CHECK (data_kind IN ('SAVINGS_RATE','SP500','CALC_PARAM')),
-    CONSTRAINT uq_data_version_label UNIQUE (data_kind, version_label)
+    -- 아래 세 제약을 바꾸면 파일 끝 보정 구간의 같은 제약도 함께 고친다(보정 구간이 기동마다 다시 만든다)
+    CONSTRAINT ck_data_kind CHECK (data_kind IN ('SAVINGS_RATE','ETF_PRICE','CALC_PARAM')),
+    CONSTRAINT ck_data_version_product CHECK ((data_kind = 'ETF_PRICE') = (product_code IS NOT NULL)),
+    CONSTRAINT uq_data_version_label UNIQUE NULLS NOT DISTINCT (data_kind, product_code, version_label)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uq_data_version_active ON data_version (data_kind) WHERE is_active;  -- 종류별 활성 버전 1개
+-- 종류별(ETF는 종목별) 활성 버전 1개 인덱스 uq_data_version_active_product는 파일 끝 보정 구간에서 만든다.
+-- 옛 DB에는 product_code 칸이 아직 없어서, 칸을 더한 뒤에 만들어야 한다
 
 CREATE TABLE IF NOT EXISTS savings_avg_rate (
     data_version_id  BIGINT       PRIMARY KEY REFERENCES data_version(id),
@@ -46,6 +50,25 @@ CREATE TABLE IF NOT EXISTS savings_avg_rate (
     CONSTRAINT ck_sar_month_first CHECK (EXTRACT(DAY FROM base_month) = 1)
 );
 
+-- ETF 종목별 월말 종가(FR-DATA-02). S&P500도 종목 하나(SP500)다. 분배금은 반영하지 않는다(팀 결정)
+CREATE TABLE IF NOT EXISTS etf_monthly (
+    data_version_id  BIGINT        NOT NULL REFERENCES data_version(id),
+    ym               DATE          NOT NULL,
+    close_value      NUMERIC(14,4) NOT NULL,
+    PRIMARY KEY (data_version_id, ym),
+    CONSTRAINT ck_etf_close CHECK (close_value > 0)
+);
+
+-- 그 가격 버전의 종목 정보. 세율을 데이터 버전에 묶어 두어 나중에 바뀌어도 옛 계산을 그대로 다시 만든다(NFR-INT-02)
+CREATE TABLE IF NOT EXISTS etf_product_version (
+    data_version_id    BIGINT        PRIMARY KEY REFERENCES data_version(id),
+    product_code       VARCHAR(20)   NOT NULL,
+    display_name       VARCHAR(50)   NOT NULL,             -- 화면 이름. 상품명 대신 "코스피200 추종 ETF"(CP-06)
+    gain_tax_rate_pct  NUMERIC(6,3)  NOT NULL,             -- 매매차익 세율(%). 국내 주식형은 0
+    CONSTRAINT ck_epv_tax CHECK (gain_tax_rate_pct >= 0 AND gain_tax_rate_pct <= 100)
+);
+
+-- 옛 구조(#138 전). 읽지 않는다. 기존 로컬 DB를 보정할 때 원본으로만 쓰므로 새 DB에도 빈 채로 만든다
 CREATE TABLE IF NOT EXISTS sp500_monthly (
     data_version_id     BIGINT        NOT NULL REFERENCES data_version(id),
     ym                  DATE          NOT NULL,
@@ -112,7 +135,7 @@ CREATE TABLE IF NOT EXISTS calc_run (
     plan_version_id          BIGINT       NOT NULL REFERENCES plan_version(id) ON DELETE CASCADE,
     run_type                 VARCHAR(10)  NOT NULL,
     savings_rate_version_id  BIGINT       REFERENCES data_version(id),   -- NULL = 기본금리를 쓰지 않음
-    sp500_version_id         BIGINT       REFERENCES data_version(id),   -- NULL = ETF 비중 0%
+    sp500_version_id         BIGINT       REFERENCES data_version(id),   -- ETF 가격 버전(이름은 #138 전 그대로). NULL = ETF 비중 0%
     calc_param_version_id    BIGINT       NOT NULL REFERENCES data_version(id),
     engine_version           VARCHAR(20)  NOT NULL,
     created_at               TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -203,3 +226,31 @@ CREATE TABLE IF NOT EXISTS chat_message_citation (
     PRIMARY KEY (message_id, rank),
     CONSTRAINT uq_citation_chunk UNIQUE (message_id, chunk_id)
 );
+
+-- =========================================================
+-- 기존 로컬 DB 보정(#138, ETF 종목 확장). 새 DB에서는 아무것도 바꾸지 않는다.
+-- 마이그레이션 도구가 없어 서버가 뜰 때마다 이 파일을 실행하므로 몇 번을 실행해도 결과가 같게 쓴다.
+-- 옛 S&P500 버전(data_kind SP500)을 ETF 종목 SP500으로 바꾸고 가격을 etf_monthly로 옮긴다.
+-- data_version id는 그대로라 calc_run에 남은 옛 기록도 그대로 다시 계산된다.
+-- =========================================================
+ALTER TABLE data_version ADD COLUMN IF NOT EXISTS product_code VARCHAR(20);
+DROP INDEX IF EXISTS uq_data_version_active;
+ALTER TABLE data_version DROP CONSTRAINT IF EXISTS ck_data_kind;
+ALTER TABLE data_version DROP CONSTRAINT IF EXISTS ck_data_version_product;
+ALTER TABLE data_version DROP CONSTRAINT IF EXISTS uq_data_version_label;
+UPDATE data_version SET data_kind = 'ETF_PRICE', product_code = 'SP500' WHERE data_kind = 'SP500';
+ALTER TABLE data_version ADD CONSTRAINT ck_data_kind CHECK (data_kind IN ('SAVINGS_RATE','ETF_PRICE','CALC_PARAM'));
+ALTER TABLE data_version ADD CONSTRAINT ck_data_version_product
+    CHECK ((data_kind = 'ETF_PRICE') = (product_code IS NOT NULL));
+ALTER TABLE data_version ADD CONSTRAINT uq_data_version_label
+    UNIQUE NULLS NOT DISTINCT (data_kind, product_code, version_label);
+-- 종류별(ETF는 종목별) 활성 버전 1개
+CREATE UNIQUE INDEX IF NOT EXISTS uq_data_version_active_product ON data_version (data_kind, product_code)
+    NULLS NOT DISTINCT WHERE is_active;
+INSERT INTO etf_monthly (data_version_id, ym, close_value)
+    SELECT data_version_id, ym, close_value FROM sp500_monthly
+    ON CONFLICT (data_version_id, ym) DO NOTHING;
+INSERT INTO etf_product_version (data_version_id, product_code, display_name, gain_tax_rate_pct)
+    SELECT id, 'SP500', 'S&P500 추종 ETF', 15.4 FROM data_version
+    WHERE data_kind = 'ETF_PRICE' AND product_code = 'SP500'
+    ON CONFLICT (data_version_id) DO NOTHING;

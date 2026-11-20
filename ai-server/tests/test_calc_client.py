@@ -321,7 +321,7 @@ async def test_success_tool_result_contains_only_selected_fields(http, spring):
     assert sent["diff"] == body["diff"]
     assert sent["conditions"] == body["conditions"]
     for side in ("current", "changed"):
-        assert set(sent[side]) <= {"baselineScenario", "scenarios", "assumptions"}
+        assert set(sent[side]) <= {"status", "baselineScenario", "scenarios", "assumptions"}
         assert sent[side]["baselineScenario"] == body[side]["baselineScenario"]
         assert sent[side]["scenarios"] == [
             {"scenario": s["scenario"], "isAchieved": s["isAchieved"]} for s in body[side]["scenarios"]
@@ -398,7 +398,7 @@ async def test_tool_result_keys_when_carried_condition_is_dropped_add_only_exclu
     assert isinstance(sent["note"], str) and sent["note"]
     assert sent["display"] == body["display"] and sent["diff"] == body["diff"]
     for side in ("current", "changed"):
-        assert set(sent[side]) <= {"baselineScenario", "scenarios", "assumptions"}
+        assert set(sent[side]) <= {"status", "baselineScenario", "scenarios", "assumptions"}
 
     def keys(node: Any) -> set[str]:
         if isinstance(node, dict):

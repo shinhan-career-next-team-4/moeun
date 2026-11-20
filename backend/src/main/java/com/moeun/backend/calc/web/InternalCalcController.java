@@ -91,8 +91,9 @@ class InternalCalcController {
     }
 
     private static boolean hasAnyValue(ConditionOverride override) {
-        return override.monthlySavingAmount() != null || override.targetPeriodMonths() != null
-                || override.savingsRatioPct() != null || override.savingsRateInputPct() != null;
+        return override.goalAmount() != null || override.monthlySavingAmount() != null
+                || override.targetPeriodMonths() != null || override.savingsRatioPct() != null
+                || override.savingsRateInputPct() != null;
     }
 
     private static boolean isLong(JsonNode node) {

@@ -79,12 +79,35 @@ moeun:
         base-date: 2026-11-17
         source: 팀 결정(calc-spec 9절, 임시값 포함)
         file: classpath:seed/calc-param.csv
-      # S&P500은 레포에 없다(TBD-08). 각자 만든 로컬 파일을 읽고, 없으면 건너뛴다
-      - kind: SP500
+      # ETF 종목(#138). 한 종목 = 데이터 파일 하나 + 이 설정 한 묶음. 종목을 늘릴 때 묶음만 더한다
+      # 가격 파일은 이용 조건 때문에 레포에 없다(TBD-08). 각자 만든 로컬 파일을 읽고, 없으면 그 종목만 건너뛴다
+      # 화면 이름은 상품명 대신 추종 지수로 쓴다(CP-06). 세율은 매매차익 세율(%)이며 국내 주식형 ETF는 비과세라 0
+      - kind: ETF_PRICE
+        product-code: SP500                # 대표 상품
+        display-name: S&P500 추종 ETF
+        gain-tax-rate-pct: 15.4
         version-label: investing-2016-10-2026-10
         base-date: 2026-10-31
         source: Investing.com S&P500 월말 종가(달러 지수)
         file: ${MOEUN_SP500_FILE:file:data/seed/sp500-monthly.csv}
+        optional: true
+      - kind: ETF_PRICE
+        product-code: "069500"
+        display-name: 코스피200 추종 ETF
+        gain-tax-rate-pct: 0
+        version-label: investing-2016-10-2026-10
+        base-date: 2026-10-31
+        source: Investing.com 069500 월말 종가(원)
+        file: ${MOEUN_ETF_069500_FILE:file:data/seed/etf-069500-monthly.csv}
+        optional: true
+      - kind: ETF_PRICE
+        product-code: "133690"
+        display-name: 나스닥100 추종 ETF
+        gain-tax-rate-pct: 15.4
+        version-label: investing-2016-10-2026-10
+        base-date: 2026-10-31
+        source: Investing.com 133690 월말 종가(원)
+        file: ${MOEUN_ETF_133690_FILE:file:data/seed/etf-133690-monthly.csv}
         optional: true
 
 management:

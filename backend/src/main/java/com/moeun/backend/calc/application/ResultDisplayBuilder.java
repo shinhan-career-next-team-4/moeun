@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import com.moeun.backend.calc.Assumptions;
 import com.moeun.backend.calc.CalcInput;
 import com.moeun.backend.calc.CalcResult;
+import com.moeun.backend.calc.CalcStatus;
 import com.moeun.backend.calc.ScenarioResult;
 
 /**
@@ -46,9 +47,20 @@ public class ResultDisplayBuilder {
      * @return 키를 넣은 순서가 유지되는 맵
      */
     public Map<String, String> build(CalcInput input, CalcResult result, String resultPrefix, String conditionPrefix) {
+        return build(input, result, resultPrefix, conditionPrefix, false, true);
+    }
+
+    /**
+     * @param includeSideGoalAmount {@code conditions.<side>.goalAmount} 포함 여부(목표 금액이 바뀐 비교)
+     * @param includeUnprefixedGoalAmount 무접두어 {@code goalAmount} 포함 여부(단일 결과·목표 미변경 비교)
+     */
+    public Map<String, String> build(CalcInput input, CalcResult result, String resultPrefix, String conditionPrefix,
+            boolean includeSideGoalAmount, boolean includeUnprefixedGoalAmount) {
         boolean isSingleResult = resultPrefix.isEmpty();
         Map<String, String> display = new LinkedHashMap<>();
-        display.put("goalAmount", formatter.formatAmount(result.goalAmount()));
+        if (includeUnprefixedGoalAmount) {
+            display.put("goalAmount", formatter.formatAmount(result.goalAmount()));
+        }
         if (isSingleResult) {
             display.put("calcStartMonth", formatter.formatMonth(result.calcStartMonth()));
         }
@@ -58,7 +70,7 @@ public class ResultDisplayBuilder {
         for (ScenarioResult scenario : result.scenarios()) {
             putScenario(display, resultPrefix + scenario.scenario() + ".", scenario);
         }
-        putConditions(display, conditionPrefix, input, isSingleResult);
+        putConditions(display, conditionPrefix, input, result, isSingleResult, includeSideGoalAmount);
         if (isSingleResult) {
             putAssumptions(display, result.assumptions());
         }
@@ -76,8 +88,11 @@ public class ResultDisplayBuilder {
     }
 
     private void putConditions(Map<String, String> display, String prefix, CalcInput input,
-            boolean isSingleResult) {
-        if (isSingleResult) {
+            CalcResult result, boolean isSingleResult, boolean includeSideGoalAmount) {
+        if (includeSideGoalAmount) {
+            display.put(prefix + "goalAmount", formatter.formatAmount(result.goalAmount()));
+        }
+        if (isSingleResult || result.status() == CalcStatus.ALREADY_EXCEEDED) {
             display.put(prefix + "heldAssets", formatter.formatAmount(input.heldAssets()));
         }
         if (input.monthlySavingAmount() != null) {

@@ -14,5 +14,6 @@ moeun:
     change-paths:                       # 경로별로 바꿀 수 있는 항목. max-fields 0 = 제한 없음
       INPUT_EDIT:  { all-fields: true, max-fields: 0 }
       ALTERNATIVE: { fields: [MONTHLY_SAVING_AMOUNT, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT], max-fields: 1 }
-      COMPARE:     { fields: [MONTHLY_SAVING_AMOUNT, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT], max-fields: 4 }
-      CHAT:        { fields: [MONTHLY_SAVING_AMOUNT, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT], max-fields: 4 }
+      # CF12(D-090·D-092, D-040 대체): 1단계 목표 금액 추가(5필드), 보유 자산은 2단계. 목표 종류·기존 납입액 제외.
+      COMPARE:     { fields: [GOAL_AMOUNT, MONTHLY_SAVING_AMOUNT, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT], max-fields: 6 }
+      CHAT:        { fields: [GOAL_AMOUNT, MONTHLY_SAVING_AMOUNT, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT], max-fields: 6 }

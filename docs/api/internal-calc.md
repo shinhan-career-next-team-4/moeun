@@ -1,6 +1,6 @@
 # `/internal/calc` 계약 (ai-server ↔ Spring)
 
-> 최종본 (2026-11-16, moeun #10, 요구사항 NFR-INT-03·FR-AI-06·FR-AI-07·CP-02·CP-04, 결정 D-033·D-040·D-041·D-055·D-056·D-057·D-061).
+> 최종본 (2026-11-16, moeun #10, 요구사항 NFR-INT-03·FR-AI-06·FR-AI-07·CP-02·CP-04, 결정 D-033·D-040·D-041·D-055·D-056·D-057·D-061·D-090·D-092).
 > 협상 기록과 원문은 기획 repo project-workspace `docs/design/contracts/internal-calc.md`이며, 원문 이후 planContext 계약 최종본의 정정(G-11: C2-4 루트 타입·`/internal/calc` 한정 문구, 일반 금액 경계 표, 공유 `ResultDisplayBuilder`, 문구표 키 연결)을 반영했다. 이 문서가 구현 기준이며 `ai-server/README.md` "Spring과의 계약"은 이 문서의 요약이다.
 > 응답·오류 예시 JSON은 [`docs/api/examples/internal-calc/`](examples/internal-calc/)에 파일로 둔다. B팀 목(ai-server)과 A팀 REST Docs 테스트가 같은 파일을 기준으로 삼는다(부록 A).
 > **[전환기]** 표시는 담당 Issue가 머지되기 전까지만 허용하는 동작이다. **[D-055]·[D-056]·[D-057]**은 협상 쟁점이었다가 사람이 결정한 항목이다. 항목 ID(C2-x, C3-x)는 기획 repo 문서와 같다.
@@ -52,10 +52,11 @@
 
 - `baselineScenario`를 계획에서 읽는 이유: 원천이 한 곳이고 같은 `plan` 행이라 비용이 없다. 해커톤에서는 항상 AVG(FR-RES-09 Should)라 ai-server 동작은 바뀌지 않는다. ai-server는 지금 코드를 고치지 않아도 된다.
 
-`conditionChanges` 허용 키 (D-040, CP-07 — **4개뿐**):
+`conditionChanges` 허용 키 (D-090·D-092, CP-07 — **5개**):
 
 | 키 | JSON 타입 | 단위 | 대응 컬럼(`plan_version`) |
 |---|---|---|---|
+| `goalAmount` | integer | KRW | `goal_amount` |
 | `monthlySavingAmount` | integer | KRW | `monthly_saving_amount` |
 | `savingsRatioPct` | integer | PCT (적금 비중, 나머지 ETF) | `savings_ratio_pct` |
 | `savingsRateInputPct` | number | PCT (연, 세전) | `savings_rate_input_pct` |
@@ -70,12 +71,12 @@
 | 0 | 내부 키 | 없음·불일치 → `401 INVALID_INTERNAL_KEY` |
 | 1 | 본문 JSON 파싱, `memberId`가 정수인지(`isIntegralNumber()`, `7.5`·`"7"`은 실패), `conditionChanges`가 객체인지 | 실패 → `400 MALFORMED_REQUEST` |
 | 2 | 값이 `null`인 키를 먼저 지운다 | — |
-| 3 | 허용 4개 밖의 키(`goalAmount`, `heldAssets`, `existingMonthlyContribution`, 오타 키 등) | 하나라도 있으면 **요청 전체 거절** `422 FIELD_NOT_CHANGEABLE`. `errors`에는 허용 밖 키만 담는다 |
+| 3 | 허용 5개 밖의 키(`heldAssets`, `existingMonthlyContribution`, 오타 키 등) | 하나라도 있으면 **요청 전체 거절** `422 FIELD_NOT_CHANGEABLE`. `errors`에는 허용 밖 키만 담는다 |
 | 4 | 허용 키의 값이 JSON 숫자가 아님(문자열·불리언·객체·배열) | `400 MALFORMED_REQUEST` |
 | 5 | 남은 키가 0개 | `422 VALIDATION_FAILED`, `errors=[{field:"conditionChanges", reason:"REQUIRED"}]` |
 | 6 | 범위(`OUT_OF_RANGE`), 정수 아님(`NOT_INTEGER`, 예 `500000.5`), 소수 자릿수 초과(`TOO_MANY_DECIMALS`) | `422 VALIDATION_FAILED`. **걸린 키를 모두** `errors`에 담는다 |
 | 7 | 그 회원의 `plan` 행 없음 | `409 NO_PLAN` |
-| 8 | 현재 계획이 이미 목표 초과(보유 자산 ≥ 목표 금액, FR-RES-01) | `409 ALREADY_EXCEEDED` (`current`도 계산하지 않음) |
+| 8 | `current`와 `changed` 모두 이미 목표 초과(보유 자산 ≥ 각 목표 금액, FR-RES-01, D-092) | `409 ALREADY_EXCEEDED` (한쪽만 초과이면 `200` 비대칭 비교) |
 | 9 | 계산 | 성공 `200` / 서버 오류 `500 CALC_FAILED` |
 
 - 허용 키와 허용 밖 키가 섞여 와도 일부만 계산하지 않는다. 왜: 사용자가 말한 것과 다른 비교가 뜬다.
@@ -88,7 +89,7 @@
 | 필드 | 타입 | 뜻 |
 |---|---|---|
 | `calcRunId` | integer | 이번 계산의 `calc_run(run_type=CHAT)` id(C2-7). ai-server는 이 값을 `/chat` 응답의 `calcRunId`로 넘긴다. **ai-server가 반드시 쓰는 유일한 식별자** |
-| `conditions.current` / `conditions.changed` | object | 대화로 바꿀 수 있는 4개 조건의 **계산에 실제 쓴 값**(기본금리·기본비중이 채워진 뒤). 4개 키가 항상 모두 있다 |
+| `conditions.current` / `conditions.changed` | object | 대화로 바꿀 수 있는 5개 조건(`goalAmount` 포함)의 **계산에 실제 쓴 값**(기본금리·기본비중이 채워진 뒤). |
 | `current` / `changed` | object | C2-4 |
 | `diff` | object | C2-5 |
 | `display` | object | C2-6 |
@@ -119,7 +120,7 @@
 | `null` | 키를 빼지 않고 `null` | `"goalReachMonth": null` |
 
 필드 뜻:
-- `status`: **`/internal/calc` 응답 한정**으로 성공 응답에서는 항상 `CALCULATED`. 이미 초과면 409(C3-2)이고, 대화로 목표 금액·보유 자산을 바꿀 수 없으므로(D-040) `changed`도 `CALCULATED`다. 같은 `CalcResultView`를 쓰는 planContext의 `result`에는 `ALREADY_EXCEEDED`가 올 수 있다(`scenarios: []`). 그래서 ai-server가 두 계약에 같은 pydantic 모델을 쓰면 `status`를 `Literal['CALCULATED']`로 만들지 않는다.
+- `status`: `CALCULATED` 또는 `ALREADY_EXCEEDED`(D-092). 한쪽만 초과하고 다른 쪽은 계산되는 비대칭 비교에서는 초과한 쪽만 `ALREADY_EXCEEDED`(`scenarios: []`)가 온다.
 - `scenarios`: **항상 GOOD·AVG·BAD 순서**(엔진이 보장하고 테스트로 고정). ETF 포함이면 3개, **ETF 0%(`savingsRatioPct=100`)면 AVG 1개**. 비중 변경으로 `current`와 `changed`의 시나리오 수가 다를 수 있다.
 - `gapToGoal`: `afterTaxAsset - goalAmount`. 0 이상이면 달성(CP-01).
 - `goalReachMonth`: 기간 안에 처음 목표 이상이 되는 달, 없으면 `null`.
@@ -133,7 +134,7 @@
 | 필드 | 타입 | 뜻 |
 |---|---|---|
 | `baselineScenario` | string | 기준 차이를 볼 시나리오(**포인터만**). **항상 `byScenario`에 있는 시나리오다.** `changed.findBaselineResult()`로 고른 시나리오가 `byScenario`에 없으면 `AVG`(ETF 0%면 `AVG`) |
-| `byScenario[]` | array | **양쪽에 모두 있는 시나리오만**, GOOD·AVG·BAD 순서 |
+| `byScenario[]` | array | **양쪽에 모두 있는 시나리오만**, GOOD·AVG·BAD 순서. 한쪽이 `ALREADY_EXCEEDED`면 `[]` |
 | `byScenario[].scenario` | string | |
 | `byScenario[].afterTaxAssetDelta` | integer(KRW, 부호 있음) | `changed.afterTaxAsset − current.afterTaxAsset` |
 | `byScenario[].principalDelta` | integer(KRW, 부호 있음) | `changed.principal − current.principal`. "더 넣은 돈" |
@@ -141,7 +142,7 @@
 | `byScenario[].achievementChange` | `STAYS_ACHIEVED` / `STAYS_MISSED` / `MISS_TO_ACHIEVE` / `ACHIEVE_TO_MISS` | `isAchieved` 전후 |
 
 - 포인터 규칙을 적은 이유: `CalcResult.findBaselineResult()`는 기준 시나리오가 없으면 다른 시나리오로 폴백하므로, 그대로 쓰면 `byScenario`에 없는 이름이 나올 수 있다. #32 테스트로 "포인터는 항상 `byScenario`에 있음"을 고정한다.
-- `gapToGoalDelta`는 두지 않는다. 대화로 목표 금액을 바꿀 수 없어(D-040) 항상 `afterTaxAssetDelta`와 같다.
+- `comparable` 플래그와 `gapToGoalDelta`는 두지 않는다. 목표가 바뀔 때도 각 시나리오의 `gapToGoal`은 각자 자기 목표 기준이다.
 - 기간을 바꾸면 서로 다른 달의 자산을 비교한다. 이 값이 맞다(사용자는 "기한을 늘리면 그때 얼마"를 묻는다). 기간은 `display`의 `conditions.*.targetPeriodMonths`·`*.targetMonth`로 말한다.
 - **달성 시점의 차이(몇 개월 빨라짐)는 계약에 두지 않는다.** 모델은 `display`의 `current.<S>.goalReachMonth`·`changed.<S>.goalReachMonth`를 각각 인용할 수는 있지만 두 달 사이의 개월 수를 말하지 않는다(프롬프트 규칙). 왜: 한쪽이 `null`인 경우가 많아 뜻이 애매하고, 필요해지면 다음 버전에 필드로 더한다.
 - 시나리오 수가 다르면(비중 100 ↔ 그 밖) `byScenario`에는 AVG만 남는다. ai-server는 `changed.scenarios`와 그 `display`로 새 3구간을 설명한다.
@@ -154,7 +155,7 @@ CP-04 형식(`Formatter`)으로 Spring이 만든 문자열의 **평평한 맵**(
 
 | 키 | 형식 | 비고 |
 |---|---|---|
-| `goalAmount` | `약 N만원` | |
+| `goalAmount` / `conditions.<side>.goalAmount` | `약 N만원` | 목표가 바뀌면 `conditions.<side>.goalAmount`로 쪽별 분리, 바뀌지 않으면 `goalAmount` |
 | `current.targetMonth`, `changed.targetMonth` | `YYYY년 M월` | |
 | `<side>.<S>.afterTaxAsset`, `<side>.<S>.principal`, `<side>.<S>.afterTaxGain` | `약 N만원` | `<side>` = `current` \| `changed` |
 | `<side>.<S>.gapToGoal` | **[D-055 확정]** CP-04 그대로 `부호 + 약 N만원 + 달성/미달` (`-약 288만원 미달`, `+약 501만원 달성`) | |
@@ -244,21 +245,21 @@ Spring 내장 `ProblemDetail`(RFC 9457)에 확장 필드 `code`, `errors`를 더
 | HTTP | `code` | 언제 | `calc_run` | ai-server 동작 |
 |---|---|---|---|---|
 | 422 | `VALIDATION_FAILED` | C2-2 검사 순서 5·6 | 없음 | **모델에 `{code, errors}`만** 넘겨 `CLARIFY`로 되묻는다(D-033). `minDisplay`·`maxDisplay`를 인용한다. **같은 요청 안에서는 `recalculate`를 다시 부르지 않는다**(코드 가드. "1,000만원으로 계산해 볼게요" 같은 자동 보정 금지) |
-| 422 | `FIELD_NOT_CHANGEABLE` | 검사 순서 3. `errors[].reason = NOT_CHANGEABLE` | 없음 | **모델에 넘기지 않는다.** ai-server 코드가 분기해 문구표 고정 문장으로 답한다: "목표 금액은 입력 수정에서 바꿀 수 있어요. 대화로는 월 저축액·비중·적금 금리·기한을 바꿔 볼 수 있어요"(문구는 #18에서 확정). `messageType` = **[D-056 확정]** `ANSWER` |
+| 422 | `FIELD_NOT_CHANGEABLE` | 검사 순서 3. `errors[].reason = NOT_CHANGEABLE` | 없음 | **모델에 넘기지 않는다.** ai-server 코드가 분기해 문구표 고정 문장(`chat.unchangeableCondition`)으로 답한다: "목표 종류·기존 납입액은 여기서 바꿀 수 없어요. 보유 자산은 입력 수정에서 바꿀 수 있어요." `messageType` = **[D-056 확정]** `ANSWER` |
 | 409 | `NO_PLAN` | 검사 순서 7 | 없음 | 모델에 넘기지 않고 고정 문장 "먼저 목표와 조건을 입력해 계획을 만들어 주세요"(문구표 키 `chat.noPlan`, #18), `ANSWER` |
-| 409 | `ALREADY_EXCEEDED` | 검사 순서 8 | 없음 | 모델에 넘기지 않고 고정 문장(초과 사실 + "목표 금액은 입력 수정에서 바꿀 수 있어요", 문구표 키 `chat.alreadyExceeded`, #18), `ANSWER` |
+| 409 | `ALREADY_EXCEEDED` | 검사 순서 8 | 없음 | 모델에 넘기지 않고 고정 문장("이미 가진 자산이 목표 금액을 넘었어요. 대화로 목표 금액을 더 높게 바꿔 볼 수 있어요.", 문구표 키 `chat.alreadyExceeded`, D-092), `ANSWER` |
 | 400 | `MALFORMED_REQUEST` | 검사 순서 1·4 | 없음 | `AgentError("CALC_BAD_REQUEST")` → Spring `FAILED`(FR-AI-04). ai-server 버그라 되물어도 고칠 수 없다 |
 | 401 | `INVALID_INTERNAL_KEY` | 검사 순서 0 | 없음 | `AgentError("CALC_UNAUTHORIZED")` → `FAILED` |
 | 500 | `CALC_FAILED` | 엔진 예외, 기준 데이터 없음 등 | 없음(롤백) | `AgentError("CALC_FAILED")` → `FAILED` |
 
 - `chat.noPlan`·`chat.alreadyExceeded`는 planContext 경로(계획 없음, 초과 계획 EXPLAIN)도 **같은 키**를 쓴다. 두 경로의 사용자 문장이 글자까지 같다.
-- 목표 금액 변경은 두 겹으로 막는다: (1) ai-server 도구 스키마에 4개 키만 있고(#21), 프롬프트가 목표 금액 변경 의도에 위 고정 문장으로 답한다. (2) 그래도 들어오면 Spring이 `FIELD_NOT_CHANGEABLE`로 거절한다. **두 경로의 사용자 결과(같은 문장, 같은 `messageType`, 비교 없음)는 같아야 한다.**
-- `ALREADY_EXCEEDED`를 409로 둔 이유: 대화로 목표 금액·보유 자산을 못 바꾸므로 `changed`도 반드시 초과라 비교가 의미 없고, `current` 계산 전에 걸러 `diff`·`display` 분기가 사라진다. HTTP 숫자보다 `code`가 계약의 기준이다.
+- 보유 자산·목표 종류·기존 납입액 변경은 두 겹으로 막는다: (1) ai-server 도구 스키마에 5개 키만 있고(#21), 프롬프트가 변경 불가 조건 의도에 위 고정 문장으로 답한다. (2) 그래도 들어오면 Spring이 `FIELD_NOT_CHANGEABLE`로 거절한다. **두 경로의 사용자 결과(같은 문장, 같은 `messageType`, 비교 없음)는 같아야 한다.**
+- `ALREADY_EXCEEDED`를 409로 둔 이유: 양쪽(`current`·`changed`) 모두 초과이면 비교가 의미 없기 때문이다(D-092). 한쪽만 초과인 비대칭 비교는 `200`으로 내려준다. HTTP 숫자보다 `code`가 계약의 기준이다.
 - 이 문서가 확정하는 코드는 위 7개뿐이다.
 
 ### C3-3. 범위 수치의 출처 (수치는 임시)
 
-- 허용 범위는 **`backend/src/main/resources/config/rules.yml` › `input.fields.<FIELD>.{required,min,max,unit,scale}`** 한 곳에 두고 plan 모듈 `@ConfigurationProperties`로 읽는다. 대화 경로 허용 키는 `rules.yml › change-paths.CHAT.fields`(4개). 검사는 `ConditionValidator.validate(ChangePath.CHAT, values)`. `InputField` enum ↔ camelCase 키 매핑을 둔다.
+- 허용 범위는 **`backend/src/main/resources/config/rules.yml` › `input.fields.<FIELD>.{required,min,max,unit,scale}`** 한 곳에 두고 plan 모듈 `@ConfigurationProperties`로 읽는다. 대화 경로 허용 키는 `rules.yml › change-paths.CHAT.fields`(5개). 검사는 `ConditionValidator.validate(ChangePath.CHAT, values)`. `InputField` enum ↔ camelCase 키 매핑을 둔다.
 - 지금은 Spring 전용이다. `db/moved-to-code.md`의 "두 서버가 함께 읽는 `config/rules.yml`"은 이 위치로 고친다(ai-server는 오류 본문으로 받으므로 읽을 필요가 없다). 필요해지면 repo 루트로 옮긴다.
 - 오류 본문의 `min`·`max`·`unit`·`scale`은 **이 설정 값을 그대로** 내보낸다. **ai-server는 범위 수치를 하드코딩하지 않는다.**
 - 지금 쓸 값(**임시**, TBD-09·TBD-10 확정 시 `rules.yml`만 바꾼다):

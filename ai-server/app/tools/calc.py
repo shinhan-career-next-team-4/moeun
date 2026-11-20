@@ -116,7 +116,8 @@ def _check_display(body: dict[str, Any]) -> None:
 
 def _select_side(side: dict[str, Any]) -> dict[str, Any]:
     selected: dict[str, Any] = {
-        "scenarios": [{"scenario": s["scenario"], "isAchieved": s["isAchieved"]} for s in side["scenarios"]]
+        "status": side["status"],
+        "scenarios": [{"scenario": s["scenario"], "isAchieved": s["isAchieved"]} for s in side["scenarios"]],
     }
     if "baselineScenario" in side:
         selected["baselineScenario"] = side["baselineScenario"]

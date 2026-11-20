@@ -19,13 +19,14 @@ import tools.jackson.databind.JsonNode;
  */
 public final class ConditionChanges {
 
+    public static final String GOAL_AMOUNT = "goalAmount";
     public static final String MONTHLY_SAVING_AMOUNT = "monthlySavingAmount";
     public static final String TARGET_PERIOD_MONTHS = "targetPeriodMonths";
     public static final String SAVINGS_RATIO_PCT = "savingsRatioPct";
     public static final String SAVINGS_RATE_INPUT_PCT = "savingsRateInputPct";
-    /** 대화로 바꿀 수 있는 조건 4개. 이 밖의 키는 받지 않는다. */
-    public static final Set<String> CHANGEABLE_KEYS = Set.of(MONTHLY_SAVING_AMOUNT, TARGET_PERIOD_MONTHS,
-            SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT);
+    /** 대화로 바꿀 수 있는 조건 1단계 5개(D-090·D-092, CP-07). 이 밖의 키는 받지 않는다. */
+    public static final Set<String> CHANGEABLE_KEYS = Set.of(GOAL_AMOUNT, MONTHLY_SAVING_AMOUNT,
+            TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT);
 
     private ConditionChanges() {
     }
@@ -52,7 +53,7 @@ public final class ConditionChanges {
         return result;
     }
 
-    /** 허용 4개 밖의 키를 요청 순서로 돌려준다. */
+    /** 허용 5개 밖의 키를 요청 순서로 돌려준다. */
     public static List<String> unchangeableKeys(Map<String, JsonNode> changes) {
         return changes.keySet().stream().filter(key -> !CHANGEABLE_KEYS.contains(key)).toList();
     }
@@ -65,7 +66,7 @@ public final class ConditionChanges {
     /**
      * 허용 키의 값을 바꾼다. 부르는 쪽이 먼저 null을 빼고, 허용 밖 키와 숫자 아닌 값을 걸러야 한다.
      * <ul>
-     *     <li>정수 자리(월 저축액·기간·비중)에 소수가 있으면 잘라서 통과시키지 않고 null로 두고 그 키를 알린다</li>
+     *     <li>정수 자리(목표 금액·월 저축액·기간·비중)에 소수가 있으면 잘라서 통과시키지 않고 null로 두고 그 키를 알린다</li>
      *     <li>타입 범위를 넘는 정수는 경계값으로 넘기고 그 키를 알린다. 검증 경로는 범위 검사가 OUT_OF_RANGE로 알린다</li>
      *     <li>금리는 소수 그대로 둔다(자릿수 검사는 범위 검사가 한다)</li>
      * </ul>
@@ -73,6 +74,7 @@ public final class ConditionChanges {
     public static Conversion convert(Map<String, JsonNode> changes) {
         List<String> notInteger = new ArrayList<>();
         List<String> outOfTypeRange = new ArrayList<>();
+        Long goalAmount = null;
         Long monthlySavingAmount = null;
         Integer targetPeriodMonths = null;
         Integer savingsRatioPct = null;
@@ -81,6 +83,8 @@ public final class ConditionChanges {
             String key = entry.getKey();
             BigDecimal value = entry.getValue().decimalValue();
             switch (key) {
+                case GOAL_AMOUNT -> goalAmount = toInteger(key, value, Long.MIN_VALUE, Long.MAX_VALUE,
+                        notInteger, outOfTypeRange);
                 case MONTHLY_SAVING_AMOUNT -> monthlySavingAmount = toInteger(key, value, Long.MIN_VALUE,
                         Long.MAX_VALUE, notInteger, outOfTypeRange);
                 case TARGET_PERIOD_MONTHS -> targetPeriodMonths = toInt(key, value, notInteger, outOfTypeRange);
@@ -90,7 +94,7 @@ public final class ConditionChanges {
             }
         }
         return new Conversion(new ConditionOverride(monthlySavingAmount, targetPeriodMonths, savingsRatioPct,
-                savingsRateInputPct), List.copyOf(notInteger), List.copyOf(outOfTypeRange));
+                savingsRateInputPct, goalAmount, null), List.copyOf(notInteger), List.copyOf(outOfTypeRange));
     }
 
     private static Integer toInt(String key, BigDecimal value, List<String> notInteger, List<String> outOfTypeRange) {

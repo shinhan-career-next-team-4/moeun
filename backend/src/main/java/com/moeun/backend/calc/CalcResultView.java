@@ -7,7 +7,7 @@ import java.util.List;
  * 계산 결과의 응답 모양(계약 internal-calc C2-4). 도메인 {@link CalcResult}와 같고 시나리오에 월별 점이 없다.
  * <p>calc 루트의 공개 타입이다({@link ScenarioResultView} 참고). null 값도 키를 지우지 않는다.
  *
- * @param status 이 경로의 성공 응답에서는 늘 CALCULATED
+ * @param status CALCULATED 또는 ALREADY_EXCEEDED(비대칭 비교 시 한쪽이 초과일 수 있음, C2-4)
  * @param goalAmount 목표 금액
  * @param calcStartMonth 계산 시작월(현재 계획의 값)
  * @param targetMonth 목표월

@@ -94,7 +94,7 @@ public class CalcRunRecorder {
             dataVersionService.requireKind(versions.savingsRateVersionId(), DataKind.SAVINGS_RATE);
         }
         if (versions.sp500VersionId() != null) {
-            dataVersionService.requireKind(versions.sp500VersionId(), DataKind.SP500);
+            dataVersionService.requireKind(versions.sp500VersionId(), DataKind.ETF_PRICE);
         }
         dataVersionService.requireKind(versions.calcParamVersionId(), DataKind.CALC_PARAM);
     }

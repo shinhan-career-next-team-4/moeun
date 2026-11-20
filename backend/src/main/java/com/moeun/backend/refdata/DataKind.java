@@ -4,8 +4,8 @@ package com.moeun.backend.refdata;
 public enum DataKind {
     /** 은행연합회 전월 평균금리(FR-DATA-01). */
     SAVINGS_RATE,
-    /** S&P500 월별 과거 데이터(FR-DATA-02). */
-    SP500,
+    /** ETF 종목별 월말 종가(FR-DATA-02, #138). 버전마다 종목 코드가 있다. S&P500도 종목 하나다. */
+    ETF_PRICE,
     /** 세율·기본 비중·3구간 산정 기준 같은 계산 파라미터(CP-03). */
     CALC_PARAM
 }

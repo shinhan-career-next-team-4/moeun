@@ -1,7 +1,7 @@
 {
   "memberId": 7,
   "conditionChanges": {
-    "goalAmount": 100000000,
+    "goalType": "CAR",
     "monthlySavingAmount": 500000
   }
 }
