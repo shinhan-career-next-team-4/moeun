@@ -119,7 +119,7 @@ public class PlanContextProviderImpl implements PlanContextProvider, ChatCompari
             // 기능이 없어 /internal/calc 때와 같다. 그 기능이 생기면 대화 메시지에 저장한 값을 인자로 받아야 한다
             RecordedData data = loadRecordedData(owned.run());
             CompareConditionsUseCase.ComputedComparison computed = compareConditionsUseCase.computeComparison(
-                    owned.plan(), changes, data.params(), data.sp500(), data.defaultRate());
+                    owned.plan(), changes, data.params(), data.sp500(), data.changedEtf(), data.defaultRate());
             return new ChatComparisonView(owned.run().getPlanVersionId(), computed.comparison(), computed.display());
         });
     }
@@ -141,7 +141,10 @@ public class PlanContextProviderImpl implements PlanContextProvider, ChatCompari
                 ? null : referenceDataService.requireEtfSeries(run.getSp500VersionId());
         SavingsAvgRateData defaultRate = run.getSavingsRateVersionId() == null
                 ? null : referenceDataService.requireSavingsAvgRate(run.getSavingsRateVersionId());
-        return new RecordedData(params, sp500, defaultRate);
+        // CHAT 기록의 changed가 다른 종목이었으면 그 버전, 아니면 current와 같은 종목(#157)
+        EtfSeries changedEtf = run.getChangedEtfVersionId() == null
+                ? sp500 : referenceDataService.requireEtfSeries(run.getChangedEtfVersionId());
+        return new RecordedData(params, sp500, changedEtf, defaultRate);
     }
 
     private static PlanView withBaselineScenario(PlanView plan, Scenario baselineScenario) {
@@ -177,6 +180,7 @@ public class PlanContextProviderImpl implements PlanContextProvider, ChatCompari
     private record OwnedRun(CalcRun run, PlanView plan) {
     }
 
-    private record RecordedData(CalcParams params, EtfSeries sp500, SavingsAvgRateData defaultRate) {
+    private record RecordedData(CalcParams params, EtfSeries sp500, EtfSeries changedEtf,
+            SavingsAvgRateData defaultRate) {
     }
 }
