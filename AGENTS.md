@@ -11,6 +11,7 @@ Codex 등 AGENTS.md를 읽는 코딩 에이전트용 안내. **규칙의 원본�
 5. 커밋은 Conventional Commits, 끝에 `(#issue번호)`. PR은 `develop`으로, 본문에 `Closes #번호`.
 6. **머지하지 않는다.** `develop`·`main`에 직접 push하지 않는다. 강제 push·`reset --hard` 금지.
 7. 금액·수익률·기간 계산은 Spring 계산 엔진에서만 한다. "추천" 표현과 본문의 특정 ETF 상품명은 쓰지 않는다.
-8. 수용 기준이 모호하거나, 선행 Issue가 안 끝났거나, 다른 팀 코드를 고쳐야 하면 멈추고 Issue에 댓글로 이유를 남긴다.
+8. 미정 세부사항은 Issue·Figma·기존 계약과 코드에 근거해 정하고 PR에 가정을 남긴다. 미정이라는 이유만으로 멈추지 않는다. 실제로 진행을 막는 선행 작업, 확정 요구사항 충돌, 다른 팀 코드 변경은 루트 `CLAUDE.md`의 중단 규칙을 따른다.
+9. 화면 기능은 Figma → 프론트(필요하면 목) → API 명세 → 백엔드 순서로 진행한다. 기존 API 계약은 유지한다.
 
 상세 절차: `.claude/workflows/work-issue.md`. 사람용 가이드: `AI_GUIDE.md`.
