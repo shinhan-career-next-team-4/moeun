@@ -29,16 +29,20 @@ class ChatExplanationDocsTest extends ChatIntegrationTestSupport {
 
         MvcResult result = mockMvc.perform(post("/api/chat/explanations").cookie(cookie)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"calcRunId\":" + calcRun + "}"))
+                        .content("{\"calcRunId\":" + calcRun + ",\"retryOfMessageId\":null}"))
                 .andExpect(status().isAccepted())
                 .andDo(document("chat-request-explanation", resource(ResourceSnippetParameters.builder()
                         .tag("Chat").summary("설명 요청")
                         .description("내 계획의 계산 기록(PLAN)에 대한 AI 설명 대기 자리를 저장하고 202 {}로 답한다. "
                                 + "같은 calcRunId의 설명이 이미 대기 중이면 새 행 없이 202. 질문 답변 대기로 막지 않는다. "
+                                + "retryOfMessageId(내 설명의 id)를 보내면 '설명 다시 요청'(FR-AI-05)이고, 설명이 이미 "
+                                + "대기 중이면 새 행 없이 409 ANSWER_PENDING. "
                                 + "없는·남의·PLAN이 아닌 기록은 모두 404 NOT_FOUND, calcRunId가 정수가 아니거나 본문이 "
                                 + "객체가 아니면 400 MALFORMED_REQUEST.")
                         .requestFields(
-                                fieldWithPath("calcRunId").description("결과 화면이 그린 계산 기록(PLAN) id"))
+                                fieldWithPath("calcRunId").description("결과 화면이 그린 계산 기록(PLAN) id"),
+                                fieldWithPath("retryOfMessageId").optional().description(
+                                        "다시 요청의 원본 설명 메시지 id. 없거나 내 설명이 아니면 평소 요청으로 처리한다"))
                         .build())))
                 .andReturn();
 

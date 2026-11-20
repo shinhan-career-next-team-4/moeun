@@ -34,8 +34,9 @@ import tools.jackson.databind.json.JsonMapper;
 class ChatExplanationController {
 
     private static final String CALC_RUN_ID = "calcRunId";
+    private static final String RETRY_OF_MESSAGE_ID = "retryOfMessageId";
 
-    /** 무시하는 필드(retryOfMessageId 등)의 숫자 길이가 요청의 성공 여부를 가르지 않도록 숫자 길이 제한을 넓힌 읽기 전용 매퍼. */
+    /** 무시하는 필드나 읽지 못하는 retryOfMessageId의 숫자 길이가 요청의 성공 여부를 가르지 않도록 숫자 길이 제한을 넓힌 읽기 전용 매퍼. */
     private static final JsonMapper JSON = JsonMapper.builder(JsonFactory.builder()
             .streamReadConstraints(StreamReadConstraints.builder().maxNumberLength(100_000).build()).build()).build();
 
@@ -45,7 +46,7 @@ class ChatExplanationController {
         this.explanations = explanations;
     }
 
-    /** retryOfMessageId·memberId 같은 다른 필드는 읽지 않는다. 회원은 JWT로만 정한다. */
+    /** memberId 같은 다른 필드는 읽지 않는다. 회원은 JWT로만 정한다. */
     @PostMapping
     ResponseEntity<Map<String, Object>> request(@AuthenticationPrincipal Jwt jwt, HttpServletRequest request)
             throws IOException {
@@ -55,8 +56,9 @@ class ChatExplanationController {
             throw ExplanationRequestException.malformed();
         }
         requireJson(request.getHeader(HttpHeaders.CONTENT_TYPE));
-        long calcRunId = parseCalcRunId(body);
-        explanations.request(Long.parseLong(jwt.getSubject()), calcRunId);
+        JsonNode root = parseObject(body);
+        long calcRunId = parseCalcRunId(root);
+        explanations.request(Long.parseLong(jwt.getSubject()), calcRunId, retryOfMessageId(root));
         return ResponseEntity.accepted().contentType(MediaType.APPLICATION_JSON).body(Map.of());
     }
 
@@ -78,8 +80,7 @@ class ChatExplanationController {
         }
     }
 
-    /** 본문 전체가 객체 하나이고 calcRunId가 long 범위의 JSON 정수여야 한다(문자열·소수·범위 밖은 모두 400). */
-    private long parseCalcRunId(byte[] body) {
+    private JsonNode parseObject(byte[] body) {
         JsonNode root;
         try {
             root = JSON.readerFor(JsonNode.class).with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
@@ -87,10 +88,24 @@ class ChatExplanationController {
         } catch (JacksonException e) {
             throw ExplanationRequestException.malformed();
         }
-        JsonNode id = root == null || !root.isObject() ? null : root.get(CALC_RUN_ID);
+        if (root == null || !root.isObject()) {
+            throw ExplanationRequestException.malformed();
+        }
+        return root;
+    }
+
+    /** calcRunId는 long 범위의 JSON 정수여야 한다(문자열·소수·범위 밖은 모두 400). */
+    private long parseCalcRunId(JsonNode root) {
+        JsonNode id = root.get(CALC_RUN_ID);
         if (id == null || !id.isIntegralNumber() || !id.canConvertToLong()) {
             throw ExplanationRequestException.malformed();
         }
         return id.longValue();
+    }
+
+    /** long 범위의 JSON 정수만 다시 요청의 원본 id로 읽는다. 그 밖의 값은 없는 것으로 보고 요청을 실패시키지 않는다. */
+    private static Long retryOfMessageId(JsonNode root) {
+        JsonNode id = root.get(RETRY_OF_MESSAGE_ID);
+        return id != null && id.isIntegralNumber() && id.canConvertToLong() ? id.longValue() : null;
     }
 }
