@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type Ch
 import { api, planStore, polling } from "../../api";
 import { ApiError } from "../../api/errors";
 import { COPY, unitChar } from "./copy";
+import { Citations } from "./explanation/Citations";
+import { useExplanationRequest } from "./explanation/useExplanationRequest";
 import type { ChatDeps } from "./index";
 import type { ChatAccepted, ChatMessage } from "./types";
 import { useChatPollingInternal } from "./useChatPolling";
@@ -43,6 +45,7 @@ function Bubble({ message }: { message: ChatMessage }) {
       data-status={message.status}
     >
       {message.content}
+      {message.status === "COMPLETED" && message.citations.length > 0 && <Citations citations={message.citations} />}
     </div>
   );
 }
@@ -50,6 +53,7 @@ function Bubble({ message }: { message: ChatMessage }) {
 export function ChatWindow({ deps = defaultDeps }: { deps?: ChatDeps }) {
   const chat = useChatPollingInternal(deps);
   const { accepted, answerPendingElsewhere } = chat;
+  useExplanationRequest(deps, chat);
 
   // 공유 계획 store는 읽기만 한다. 초과 판단은 settledStatus 하나로 한다.
   const { planStore: store } = deps;
