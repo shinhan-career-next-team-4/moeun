@@ -126,6 +126,7 @@
 - `goalReachMonth`: 기간 안에 처음 목표 이상이 되는 달, 없으면 `null`.
 - `baselineScenario`: `plan.baseline_scenario`. `current`·`changed` 같은 값.
 - 소비자가 쓰지 않는 필드(무시해도 됨, **`/internal/calc` 한정**): `status`, `requiredMonthlySaving`(해커톤에서 항상 `null`, D-045), `dataVersions`, `assumptions.excludedItems`. planContext 계약은 `excludedItems`를 쓴다(ai-server가 문구표 문장으로 바꿔 모델에 넣음). 두 계약의 모델을 공유할 때 이 필드를 지우지 않는다.
+- **추가(#150)** `assumptions.etfProductCode`·`etfProductName`·`etfGainTaxRatePct`: 계산에 쓴 ETF 종목과 그 매매차익 세율(ETF 0%면 null). 지금은 소비자가 쓰지 않는다(무시해도 됨). 비교 응답 display에는 종목 키를 만들지 않는다. 공유 예시(`docs/api/examples`)에는 아직 넣지 않았다(프론트 목·ai-server 테스트가 같은 파일을 읽음, 합의 뒤 반영)
 
 ### C2-5. `diff`
 

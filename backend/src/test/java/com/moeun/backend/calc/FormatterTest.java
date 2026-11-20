@@ -137,4 +137,13 @@ class FormatterTest {
         assertThat(formatter.formatRatio(30)).isEqualTo(
                 COPY.get("template.ratio", Map.of("a", "30", "b", "70")));
     }
+
+    @Test
+    @DisplayName("ETF 종목 세율: 비과세(0%)면 이유를 붙이고, 과세면 세율만 쓴다(#150)")
+    void formatsEtfGainTaxRate() {
+        assertThat(formatter.formatEtfGainTaxRate(new BigDecimal("0.000")))
+                .isEqualTo("0%(" + COPY.get("tax.etfTaxFree") + ")")
+                .isEqualTo("0%(국내 주식형 ETF 매매차익 비과세)");
+        assertThat(formatter.formatEtfGainTaxRate(new BigDecimal("15.400"))).isEqualTo("15.4%");
+    }
 }

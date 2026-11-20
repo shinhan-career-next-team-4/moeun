@@ -47,8 +47,13 @@ record GoldenCase(String id, CalcInput input, CalcParams params, EtfSeries sp500
      * 적금만·초과 골든 케이스는 S&P500을 쓰지 않지만 엔진 입력에는 활성 데이터가 늘 들어가므로 같은 모양으로 채운다.
      */
     static EtfSeries createConstantReturnSeries(int returnCount, BigDecimal monthlyReturn) {
+        return createConstantReturnSeries(returnCount, monthlyReturn, SP500);
+    }
+
+    /** 종목(매매차익 세율)을 정해 만든다. 비과세 종목 골든 케이스(G10)가 쓴다. */
+    static EtfSeries createConstantReturnSeries(int returnCount, BigDecimal monthlyReturn, EtfProduct product) {
         DataVersionInfo version = new DataVersionInfo(TEST_SP500_VERSION_ID, DataKind.ETF_PRICE, "golden",
-                LocalDate.of(2026, 10, 31), "골든 케이스", SP500.code());
+                LocalDate.of(2026, 10, 31), "골든 케이스", product.code());
         BigDecimal growth = BigDecimal.ONE.add(monthlyReturn);
         List<EtfSeries.MonthlyClose> closes = new ArrayList<>();
         BigDecimal close = BigDecimal.valueOf(100);
@@ -56,7 +61,7 @@ record GoldenCase(String id, CalcInput input, CalcParams params, EtfSeries sp500
             closes.add(new EtfSeries.MonthlyClose(FIRST_CLOSE_MONTH.plusMonths(index), close));
             close = close.multiply(growth);
         }
-        return new EtfSeries(version, SP500, closes);
+        return new EtfSeries(version, product, closes);
     }
 
     /** 레포의 테스트용 가짜 S&P500 121개월(refdata/test-sp500-2016-10-to-2026-10.csv, 실제 값 아님). */
@@ -128,12 +133,17 @@ record GoldenCase(String id, CalcInput input, CalcParams params, EtfSeries sp500
                 in.get("savingsRatioPct").asInt(),
                 Scenario.valueOf(in.get("baselineScenario").asString()));
         BigDecimal taxRatePct = new BigDecimal(root.get("params").get("taxRatePct").asString());
-        // G8은 관측 수익률(120개 모두 같은 값)을 직접 정한다. 나머지는 쓰지 않으므로 기본 모양으로 채운다
+        // ETF 매매차익 세율은 종목 정보에서 온다(#150). 따로 적지 않은 케이스는 적금 이자 세율과 같다
+        JsonNode etfTax = root.get("params").get("etfGainTaxRatePct");
+        EtfProduct product = etfTax == null ? SP500
+                : new EtfProduct("TEST-ETF", "테스트 ETF", new BigDecimal(etfTax.asString()));
+        // G8·G10은 관측 수익률(120개 모두 같은 값)을 직접 정한다. 나머지는 쓰지 않으므로 기본 모양으로 채운다
         JsonNode observed = in.get("observedMonthlyReturns");
         EtfSeries sp500 = observed == null
-                ? createConstantReturnSeries(DEFAULT_OBSERVED_RETURN_COUNT, new BigDecimal(DEFAULT_MONTHLY_RETURN))
+                ? createConstantReturnSeries(DEFAULT_OBSERVED_RETURN_COUNT, new BigDecimal(DEFAULT_MONTHLY_RETURN),
+                        product)
                 : createConstantReturnSeries(observed.get("count").asInt(),
-                        new BigDecimal(observed.get("everyValue").asString()));
+                        new BigDecimal(observed.get("everyValue").asString()), product);
         return new GoldenCase(root.get("id").asString(), input, createParams(taxRatePct), sp500,
                 readExpected(root.get("expected")));
     }

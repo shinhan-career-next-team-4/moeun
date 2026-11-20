@@ -67,7 +67,10 @@
         "ETF_DISTRIBUTION",
         "HELD_ASSET_RETURN",
         "SAVINGS_REDEPOSIT"
-      ]
+      ],
+      "etfProductCode": "SP500",
+      "etfProductName": "S&P500 추종 ETF",
+      "etfGainTaxRatePct": 15.4
     },
     "dataVersions": {
       "savingsRateVersionId": 3,
@@ -129,7 +132,10 @@
         "ETF_DISTRIBUTION",
         "HELD_ASSET_RETURN",
         "SAVINGS_REDEPOSIT"
-      ]
+      ],
+      "etfProductCode": "SP500",
+      "etfProductName": "S&P500 추종 ETF",
+      "etfGainTaxRatePct": 15.4
     },
     "dataVersions": {
       "savingsRateVersionId": 3,

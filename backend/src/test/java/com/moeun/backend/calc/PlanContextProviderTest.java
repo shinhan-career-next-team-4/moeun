@@ -6,7 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -21,6 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.modulith.test.ApplicationModuleTest.BootstrapMode;
@@ -35,6 +38,7 @@ import com.moeun.backend.plan.PlanSaveResult;
 import com.moeun.backend.plan.PlanSaveService;
 import com.moeun.backend.refdata.DataKind;
 import com.moeun.backend.refdata.DataVersionInfo;
+import com.moeun.backend.refdata.EtfProduct;
 import com.moeun.backend.refdata.application.ReferenceDataLoader;
 import com.moeun.backend.refdata.application.VersionSpec;
 
@@ -312,5 +316,34 @@ class PlanContextProviderTest {
             jdbc.sql("UPDATE data_version SET is_active = false WHERE id = ?").param(newer.id()).update();
             jdbc.sql("UPDATE data_version SET is_active = true WHERE id = ?").param(recordedRateVersion).update();
         }
+    }
+
+    @Test
+    @DisplayName("비과세 종목(069500) 가격 버전으로 남은 PLAN 기록을 다시 계산하면 그 버전의 종목·세율 0%로 계산한다(#150)")
+    void rebuildsRecordWithItsEtfProductAndTaxRate() throws Exception {
+        PlanSaveResult saved = savePlan(memberId, 5_000_000L, 300_000L, null);
+        long calcRunId = latestPlanRunId(saved.planVersionId());
+        PlanContextView sp500 = provider.findForCalcRun(memberId, calcRunId, Scenario.AVG).orElseThrow();
+        // 같은 가짜 종가에 종목 정보만 비과세로 둔 가격 버전. 기록이 이 버전을 가리키게 바꾼다
+        DataVersionInfo kospi;
+        try (InputStream csv = new ClassPathResource(
+                "refdata/test-sp500-2016-10-to-2026-10.csv").getInputStream()) {
+            kospi = loader.loadEtf(new EtfProduct("069500", "코스피200 추종 ETF", BigDecimal.ZERO),
+                    new VersionSpec("test-kospi", LocalDate.of(2026, 10, 31), "테스트용 가짜 데이터"), csv)
+                    .orElseThrow();
+        }
+        jdbc.sql("UPDATE calc_run SET sp500_version_id = ? WHERE id = ?").param(kospi.id()).param(calcRunId).update();
+
+        PlanContextView taxFree = provider.findForCalcRun(memberId, calcRunId, Scenario.AVG).orElseThrow();
+
+        assertThat(taxFree.result().assumptions().etfProductCode()).isEqualTo("069500");
+        assertThat(taxFree.result().assumptions().etfGainTaxRatePct()).isEqualByComparingTo("0");
+        assertThat(taxFree.result().dataVersions().sp500VersionId()).isEqualTo(kospi.id());
+        assertThat(taxFree.display()).containsEntry("assumptions.etfGainTaxRatePct",
+                "0%(국내 주식형 ETF 매매차익 비과세)");
+        assertThat(taxFree.result().scenarios().get(1).afterTaxAsset())
+                .isGreaterThan(sp500.result().scenarios().get(1).afterTaxAsset());
+        // 그 뒤 활성 S&P500으로 다시 기록하지 않았는지(기록은 그대로)
+        assertThat(sp500.result().assumptions().etfProductCode()).isEqualTo("SP500");
     }
 }
