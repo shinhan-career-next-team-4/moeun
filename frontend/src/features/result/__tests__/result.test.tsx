@@ -122,4 +122,21 @@ describe("ResultPage (#49·#50, C12a-7)", () => {
       expect(screen.getByRole("status").textContent).toContain("조건 변경 비교 API");
     });
   });
+  // 목표 대비 가로 막대 연결(#146)
+  it("결과 요약에는 목표 대비 가로 막대가 있고 초과 안내 화면에는 없다", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
+    renderResult();
+
+    const summary = await screen.findByLabelText("결과 요약");
+    expect(screen.getByRole("img", { name: "목표 대비 예상 자산" })).toBeTruthy();
+    expect(summary.textContent).toContain("▲ 목표");
+    cleanup();
+
+    planStore.clear();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, exceededMock.responses[0].body)));
+    renderResult();
+
+    await screen.findByLabelText("목표 초과 안내");
+    expect(screen.queryByRole("img", { name: "목표 대비 예상 자산" })).toBeNull();
+  });
 });

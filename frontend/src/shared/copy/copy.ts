@@ -26,6 +26,8 @@ export const COPY = {
   "plan.changedElsewhere": "계획이 다른 곳에서 바뀌었어요. 다시 저장하면 입력한 값으로 바뀌어요",
   "undo.nothingToUndo": "이미 되돌렸어요",
   "undo.failed": "되돌리지 못했어요. 다시 시도해 주세요",
+  "result.goalBarZero": "0",
+  "result.goalBarLabel": "▲ 목표 {goalAmount}",
   "result.loadFailed": "결과를 불러오지 못했어요. 다시 시도해 주세요",
   "result.alreadyExceeded":
     "가진 자산 {heldAssets}이 목표 금액 {goalAmount}을 이미 넘었어요. 목표 금액은 입력 수정에서 바꿀 수 있어요",

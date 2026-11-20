@@ -183,6 +183,9 @@ undo:
   nothingToUndo: "이미 되돌렸어요"
   failed: "되돌리지 못했어요. 다시 시도해 주세요"
 result:
+  # 결과 요약의 목표 대비 가로 막대(와이어프레임 03). 금액은 서버 display 문자열이 들어간다
+  goalBarZero: "0"
+  goalBarLabel: "▲ 목표 {goalAmount}"
   loadFailed: "결과를 불러오지 못했어요. 다시 시도해 주세요"
   # 결과 화면용 초과 안내(FR-RES-01). 대화창용 chat.alreadyExceeded와 합치지 않는다
   alreadyExceeded: "가진 자산 {heldAssets}이 목표 금액 {goalAmount}을 이미 넘었어요. 목표 금액은 입력 수정에서 바꿀 수 있어요"

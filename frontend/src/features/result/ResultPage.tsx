@@ -8,6 +8,7 @@ import { AlternativeSection } from "../alternative";
 import { CompareSection, requestComparison, type ComparisonView, type ConditionChanges } from "../compare";
 import { AssumptionsSection } from "./AssumptionsSection";
 import { Disclaimer } from "./Disclaimer";
+import { GoalBar } from "./GoalBar";
 import { PlanConditionBar } from "./PlanConditionBar";
 import { ResultChart } from "./ResultChart";
 import { ScenarioCards } from "./ScenarioCards";
@@ -116,6 +117,13 @@ export function ResultPage() {
               <p className={`mt-1 text-sm font-medium ${baseline.isAchieved ? "text-success" : "text-danger"}`}>
                 {display[`${baselineResultScenario}.gapToGoal`]}
               </p>
+              {/* 목표 대비 가로 막대(#146). 라벨은 서버 display 문자열을 그대로 쓴다 */}
+              <GoalBar
+                afterTaxAsset={baseline.afterTaxAsset}
+                goalAmount={result.goalAmount}
+                goalAmountText={display["goalAmount"]}
+                isAchieved={baseline.isAchieved}
+              />
             </section>
           )}
           <ScenarioCards scenarios={result.scenarios} display={display} />
