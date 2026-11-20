@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -17,19 +19,28 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.modulith.test.ApplicationModuleTest.BootstrapMode;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import com.moeun.backend.calc.application.CalcRunRecorder;
 import com.moeun.backend.calc.application.CompareConditionsUseCase;
 import com.moeun.backend.calc.application.CompareConditionsUseCase.ComparisonResult;
 import com.moeun.backend.config.TestcontainersConfig;
 import com.moeun.backend.plan.ConditionOverride;
 import com.moeun.backend.plan.PlanSaveResult;
 import com.moeun.backend.plan.PlanSaveService;
+import com.moeun.backend.plan.PlanView;
+import com.moeun.backend.refdata.CalcParams;
 import com.moeun.backend.refdata.DataKind;
 import com.moeun.backend.refdata.DataVersionInfo;
+import com.moeun.backend.refdata.EtfProduct;
+import com.moeun.backend.refdata.EtfSeries;
+import com.moeun.backend.refdata.ReferenceDataService;
+import com.moeun.backend.refdata.SavingsAvgRateData;
 import com.moeun.backend.refdata.application.ReferenceDataLoader;
 import com.moeun.backend.refdata.application.VersionSpec;
 
@@ -47,6 +58,7 @@ class ChatComparisonQueryTest {
 
     private static final Duration EVENT_WAIT = Duration.ofSeconds(20);
     private static final JsonNodeFactory NODES = JsonNodeFactory.instance;
+    private static final String TAX_FREE_LABEL = "test-kospi-chat";
 
     @Autowired
     ChatComparisonQuery query;
@@ -62,6 +74,15 @@ class ChatComparisonQueryTest {
 
     @Autowired
     JdbcClient jdbc;
+
+    @Autowired
+    CalcRunRecorder calcRunRecorder;
+
+    @Autowired
+    TransactionTemplate transactions;
+
+    @Autowired
+    ReferenceDataService referenceDataService;
 
     long memberId;
 
@@ -217,5 +238,94 @@ class ChatComparisonQueryTest {
             assertThat(query.findChatRunPlanVersion(memberId, calcRunId)).isEmpty();
             assertThat(query.recompute(memberId, calcRunId, changes)).isEmpty();
         }
+    }
+
+    /**
+     * 같은 가짜 종가에 종목 정보만 비과세로 둔 069500 가격 버전의 id. 이 클래스의 여러 테스트와, 같은 컨텍스트(같은 DB)를
+     * 쓰는 다른 테스트 클래스(PlanContextProviderTest의 "test-kospi")가 함께 부르므로 라벨을 따로 두고, 이미 있으면 그
+     * 버전을 쓴다.
+     */
+    private long loadTaxFreeProduct() throws Exception {
+        try (InputStream csv = new ClassPathResource("refdata/test-sp500-2016-10-to-2026-10.csv").getInputStream()) {
+            return loader.loadEtf(new EtfProduct("069500", "코스피200 추종 ETF", BigDecimal.ZERO),
+                    new VersionSpec(TAX_FREE_LABEL, LocalDate.of(2026, 10, 31), "테스트용 가짜 데이터"), csv)
+                    .map(DataVersionInfo::id)
+                    .orElseGet(() -> jdbc.sql("SELECT id FROM data_version WHERE data_kind = 'ETF_PRICE' "
+                            + "AND product_code = '069500' AND version_label = ?").param(TAX_FREE_LABEL)
+                            .query(Long.class).single());
+        }
+    }
+
+    @Test
+    @DisplayName("같은 종목 비교는 calc_run(CHAT)에 changed 종목 버전을 따로 남기지 않는다(#157)")
+    void leavesChangedEtfVersionEmptyForSameProduct() {
+        savePlan(memberId, null, 300_000L);
+        long calcRunId = compareConditionsUseCase.compare(memberId,
+                new ConditionOverride(500_000L, null, null, null, null, null)).calcRunId();
+
+        assertThat(jdbc.sql("SELECT changed_etf_version_id IS NULL FROM calc_run WHERE id = ?").param(calcRunId)
+                .query(Boolean.class).single()).isTrue();
+    }
+
+    @Test
+    @DisplayName("changed 종목 버전이 남은 CHAT 기록을 다시 계산하면 changed만 그 종목·세율로 계산한다(#157)")
+    void recomputesChangedSideWithItsRecordedProduct() throws Exception {
+        savePlan(memberId, null, 300_000L);
+        ComparisonResult then = compareConditionsUseCase.compare(memberId,
+                new ConditionOverride(500_000L, null, null, null, null, null));
+        long kospi = loadTaxFreeProduct();
+        // 대화로 종목을 바꾸는 길이 아직 없어(D-040 대기) 기록을 직접 바꿔 "changed는 비과세 종목" 기록을 만든다
+        jdbc.sql("UPDATE calc_run SET changed_etf_version_id = ? WHERE id = ?").param(kospi)
+                .param(then.calcRunId()).update();
+
+        ChatComparisonView view = query.recompute(memberId, then.calcRunId(),
+                changes("monthlySavingAmount", NODES.numberNode(500_000))).orElseThrow();
+
+        assertThat(view.comparison().current()).isEqualTo(then.comparison().current());
+        assertThat(view.comparison().changed().assumptions().etfProductCode()).isEqualTo("069500");
+        assertThat(view.comparison().changed().dataVersions().sp500VersionId()).isEqualTo(kospi);
+        assertThat(view.comparison().changed().findBaselineResult().orElseThrow().afterTaxAsset())
+                .isGreaterThan(then.comparison().changed().findBaselineResult().orElseThrow().afterTaxAsset());
+    }
+
+    @Test
+    @DisplayName("두 종목 비교를 기록하면 changed 종목 버전이 저장되고, 그 기록만으로 다시 계산한 결과가 그때와 같다(#157)")
+    void recordsTwoProductComparisonAndRecomputesSame() throws Exception {
+        savePlan(memberId, null, 300_000L);
+        long kospi = loadTaxFreeProduct();
+        PlanView plan = planSaveService.findCurrent(memberId).orElseThrow();
+        CalcParams params = referenceDataService.findActiveCalcParams().orElseThrow();
+        EtfSeries sp500 = referenceDataService.findActiveEtfSeries("SP500").orElseThrow();
+        SavingsAvgRateData defaultRate = referenceDataService.findActiveSavingsAvgRate().orElseThrow();
+        ConditionOverride override = new ConditionOverride(500_000L, null, null, null, null, null);
+
+        // 대화 조건에 종목이 생기기 전이라(D-040 대기) /internal/calc와 같은 계산·기록 단계를 직접 부른다
+        CompareConditionsUseCase.ComputedComparison then = compareConditionsUseCase.computeComparison(plan, override,
+                params, sp500, referenceDataService.requireEtfSeries(kospi), defaultRate);
+        long calcRunId = transactions.execute(status -> calcRunRecorder.recordChatRun(plan.currentVersionId(),
+                then.versions(), then.changedEtfVersionId()));
+
+        assertThat(jdbc.sql("SELECT sp500_version_id, changed_etf_version_id FROM calc_run WHERE id = ?")
+                .param(calcRunId).query((row, number) -> new long[] {row.getLong(1), row.getLong(2)}).single())
+                .containsExactly(sp500.version().id(), kospi);
+        ChatComparisonView view = query.recompute(memberId, calcRunId,
+                changes("monthlySavingAmount", NODES.numberNode(500_000))).orElseThrow();
+        assertThat(view.comparison()).isEqualTo(then.comparison());
+        assertThat(view.display()).isEqualTo(then.display());
+    }
+
+    @Test
+    @DisplayName("기록할 때 changed 종목 버전의 데이터 종류를 확인한다(금리 버전 id를 넣으면 막힘)")
+    void rejectsWrongKindForChangedEtfVersion() {
+        PlanSaveResult saved = savePlan(memberId, null, 300_000L);
+        ComparisonResult then = compareConditionsUseCase.compare(memberId,
+                new ConditionOverride(500_000L, null, null, null, null, null));
+        long rateVersionId = then.comparison().current().dataVersions().savingsRateVersionId() == null
+                ? jdbc.sql("SELECT id FROM data_version WHERE data_kind = 'SAVINGS_RATE'").query(Long.class).single()
+                : then.comparison().current().dataVersions().savingsRateVersionId();
+
+        assertThatThrownBy(() -> transactions.execute(status -> calcRunRecorder.recordChatRun(saved.planVersionId(),
+                then.comparison().current().dataVersions(), rateVersionId)))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }
