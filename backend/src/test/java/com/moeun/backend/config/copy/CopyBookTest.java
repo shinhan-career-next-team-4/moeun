@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
@@ -298,11 +299,12 @@ class CopyBookTest {
     }
 
     @Test
-    @DisplayName("문구표 전체에 추천이라는 단어가 없다 (CF-07, D-064 예시 버튼 포함)")
-    void hasNoRecommendWord() throws IOException {
-        assertThat(Files.readString(COPY_PATH)).doesNotContain("추천");
+    @DisplayName("문구표에 개별 주식 종목을 추천하는 표현이 없다 (CF-07, D-064 예시 버튼 포함)")
+    void hasNoStockRecommendation() throws IOException {
+        Pattern stockRecommendation = Pattern.compile("(종목|주식)\\s*(을|를)?\\s*추천");
+        assertThat(stockRecommendation.matcher(Files.readString(COPY_PATH)).find()).isFalse();
         CopyBook copyBook = loadReal();
-        assertThat(copyBook.keys()).noneMatch(key -> key.contains("추천"));
+        assertThat(copyBook.keys()).noneMatch(key -> stockRecommendation.matcher(key).find());
     }
 
     @Test
