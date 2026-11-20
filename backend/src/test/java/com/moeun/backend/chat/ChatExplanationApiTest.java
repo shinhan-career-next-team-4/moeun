@@ -219,31 +219,85 @@ class ChatExplanationApiTest extends ChatIntegrationTestSupport {
         assertThat(answerEvents()).isEqualTo(1);
     }
 
-    /** 유효한 calcRunId와 함께 온 retryOfMessageId는 무시하고 평소대로 처리한다(결정 B1 A, FR-AI-05는 범위 밖). */
-    @Test
-    void retryOfMessageIdWithValidCalcRunIdIsIgnored() throws Exception {
-        long calcRun = planRunOf(memberId, "AVG");
-        long previous = insertExplanation(memberId, "COMPLETED", "앞 설명", calcRun, "AVG", Instant.now());
+    private long insertFailedExplanation(long member, long calcRun) {
+        return jdbc.sql("INSERT INTO chat_message (member_id, role, message_type, status, content, calc_run_id, "
+                        + "baseline_scenario) VALUES (?, 'ASSISTANT', 'FAILURE', 'FAILED', ?, ?, 'AVG') RETURNING id")
+                .params(member, "지난 실패 안내", calcRun).query(Long.class).single();
+    }
 
-        MvcResult result = explain(cookie, "{\"calcRunId\":" + calcRun + ",\"retryOfMessageId\":" + previous + "}")
+    private Object retryOf(long messageId) {
+        return jdbc.sql("SELECT retry_of_message_id FROM chat_message WHERE id = ?").param(messageId)
+                .query().singleRow().get("retry_of_message_id");
+    }
+
+    /** FR-AI-05: 실패한 설명을 가리키는 retryOfMessageId로 다시 요청하면 새 EXPLANATION이 PENDING으로 생기고 원본을 가리킨다. */
+    @Test
+    void retryOfFailedExplanationCreatesPendingExplanationLinkedToOriginal() throws Exception {
+        long calcRun = planRunOf(memberId, "AVG");
+        long failed = insertFailedExplanation(memberId, calcRun);
+        Map<String, Object> failedBefore = row(failed);
+
+        MvcResult result = explain(cookie, "{\"calcRunId\":" + calcRun + ",\"retryOfMessageId\":" + failed + "}")
                 .andExpect(status().isAccepted()).andReturn();
 
         assertEmptyObject(result);
         assertThat(countRows(memberId)).isEqualTo(2);
-        Map<String, Object> kept = row(previous);
-        assertThat(kept.get("status")).isEqualTo("COMPLETED");
-        assertThat(kept.get("message_type")).isEqualTo("EXPLANATION");
-        assertThat(kept.get("content")).isEqualTo("앞 설명");
+        assertThat(row(failed)).as("원본 실패 행은 그대로").isEqualTo(failedBefore);
         long fresh = pendingExplanationId(memberId, calcRun);
-        assertThat(fresh).isNotEqualTo(previous);
+        assertThat(fresh).isNotEqualTo(failed);
         Map<String, Object> saved = row(fresh);
         assertThat(saved.get("role")).isEqualTo("ASSISTANT");
+        assertThat(saved.get("message_type")).isEqualTo("EXPLANATION");
+        assertThat(saved.get("status")).isEqualTo("PENDING");
         assertThat(saved.get("baseline_scenario")).isEqualTo("AVG");
-        // 받지도 저장하지도 않는다: 새 대기 행의 retry_of_message_id는 비어 있다
-        assertThat(jdbc.sql("SELECT retry_of_message_id FROM chat_message WHERE id = ?").param(fresh)
-                .query().singleRow().get("retry_of_message_id")).isNull();
+        assertThat(retryOf(fresh)).isEqualTo(failed);
         assertThat(awaitAiRequests(1).get(0).get("messageId").asLong()).isEqualTo(fresh);
         assertThat(answerEvents()).isEqualTo(1);
+    }
+
+    /** 불만족 때의 다시 요청: 완료된 설명도 원본이 될 수 있다. */
+    @Test
+    void retryOfCompletedExplanationCreatesPendingExplanationLinkedToOriginal() throws Exception {
+        long calcRun = planRunOf(memberId, "AVG");
+        long previous = insertExplanation(memberId, "COMPLETED", "앞 설명", calcRun, "AVG", Instant.now());
+
+        explain(cookie, "{\"calcRunId\":" + calcRun + ",\"retryOfMessageId\":" + previous + "}")
+                .andExpect(status().isAccepted());
+
+        long fresh = pendingExplanationId(memberId, calcRun);
+        assertThat(fresh).isNotEqualTo(previous);
+        assertThat(retryOf(fresh)).isEqualTo(previous);
+        assertThat(row(previous).get("content")).isEqualTo("앞 설명");
+        assertThat(answerEvents()).isEqualTo(1);
+    }
+
+    /** FR-AI-05: 설명이 이미 PENDING이면 다시 요청은 409 ANSWER_PENDING이고 새 행·이벤트가 없다. */
+    @Test
+    void retryWhileExplanationPendingReturns409AnswerPending() throws Exception {
+        long calcRun = planRunOf(memberId, "AVG");
+        long failed = insertFailedExplanation(memberId, calcRun);
+        long pending = insertExplanation(memberId, "PENDING", null, calcRun, "AVG", Instant.now());
+
+        explain(cookie, "{\"calcRunId\":" + calcRun + ",\"retryOfMessageId\":" + failed + "}")
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ANSWER_PENDING"));
+
+        assertThat(countRows(memberId)).isEqualTo(2);
+        assertThat(pendingExplanationId(memberId, calcRun)).isEqualTo(pending);
+        assertThat(answerEvents()).isZero();
+        assertThat(AI.requests()).isEmpty();
+    }
+
+    /** 원본이 바로 그 PENDING 설명이어도 같다. */
+    @Test
+    void retryOfPendingExplanationReturns409AnswerPending() throws Exception {
+        long calcRun = planRunOf(memberId, "AVG");
+        long pending = insertExplanation(memberId, "PENDING", null, calcRun, "AVG", Instant.now());
+
+        explain(cookie, "{\"calcRunId\":" + calcRun + ",\"retryOfMessageId\":" + pending + "}")
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ANSWER_PENDING"));
+
+        assertThat(countRows(memberId)).isEqualTo(1);
+        assertThat(answerEvents()).isZero();
     }
 
     /**

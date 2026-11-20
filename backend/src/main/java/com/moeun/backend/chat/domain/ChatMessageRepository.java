@@ -39,11 +39,27 @@ public class ChatMessageRepository {
                 .param(memberId).query(Long.class).single();
     }
 
-    /** F-3: 설명 대기 행. 기준 시나리오는 요청 시점 값을 저장해 두고 리스너가 그 값으로 EXPLAIN을 보낸다. */
-    public long insertPendingExplanation(long memberId, long calcRunId, String baselineScenario) {
+    /**
+     * F-3: 설명 대기 행. 기준 시나리오는 요청 시점 값을 저장해 두고 리스너가 그 값으로 EXPLAIN을 보낸다.
+     * retryOfMessageId는 '설명 다시 요청'의 원본(FR-AI-05)이고 다시 요청이 아니면 null이다.
+     */
+    public long insertPendingExplanation(long memberId, long calcRunId, String baselineScenario,
+            Long retryOfMessageId) {
         return jdbc.sql("INSERT INTO chat_message (member_id, role, message_type, status, calc_run_id, "
-                        + "baseline_scenario) VALUES (?, 'ASSISTANT', 'EXPLANATION', 'PENDING', ?, ?) RETURNING id")
-                .params(memberId, calcRunId, baselineScenario).query(Long.class).single();
+                        + "baseline_scenario, retry_of_message_id) "
+                        + "VALUES (?, 'ASSISTANT', 'EXPLANATION', 'PENDING', ?, ?, ?) RETURNING id")
+                .params(memberId, calcRunId, baselineScenario, retryOfMessageId).query(Long.class).single();
+    }
+
+    /**
+     * 그 회원의 설명 행인지(FR-AI-05의 다시 요청 원본). 완료·대기 설명은 EXPLANATION이고, 실패한 설명은 계산 기록을
+     * 가진 FAILURE다(질문 답변은 실패해도 계산 기록이 없다). 없는·남의·설명이 아닌 행은 모두 false다.
+     */
+    public boolean existsExplanationOf(long id, long memberId) {
+        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM chat_message WHERE id = ? AND member_id = ? "
+                        + "AND role = 'ASSISTANT' AND calc_run_id IS NOT NULL "
+                        + "AND message_type IN ('EXPLANATION', 'FAILURE'))")
+                .params(id, memberId).query(Boolean.class).single();
     }
 
     /** 그 회원이 같은 기록으로 이미 요청한 설명이 PENDING인지. 동시 요청으로 여러 행일 수 있어 존재 여부만 본다. */
