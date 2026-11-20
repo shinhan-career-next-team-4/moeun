@@ -136,6 +136,7 @@ CREATE TABLE IF NOT EXISTS calc_run (
     run_type                 VARCHAR(10)  NOT NULL,
     savings_rate_version_id  BIGINT       REFERENCES data_version(id),   -- NULL = 기본금리를 쓰지 않음
     sp500_version_id         BIGINT       REFERENCES data_version(id),   -- ETF 가격 버전(이름은 #138 전 그대로). NULL = ETF 비중 0%
+    changed_etf_version_id   BIGINT       REFERENCES data_version(id),   -- CHAT만: changed가 다른 종목일 때 그 가격 버전(#157). NULL = 같은 종목
     calc_param_version_id    BIGINT       NOT NULL REFERENCES data_version(id),
     engine_version           VARCHAR(20)  NOT NULL,
     created_at               TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -247,6 +248,8 @@ ALTER TABLE data_version ADD CONSTRAINT uq_data_version_label
 -- 종류별(ETF는 종목별) 활성 버전 1개
 CREATE UNIQUE INDEX IF NOT EXISTS uq_data_version_active_product ON data_version (data_kind, product_code)
     NULLS NOT DISTINCT WHERE is_active;
+-- #157: 대화 비교의 changed 쪽이 다른 ETF 종목일 때 그 가격 버전
+ALTER TABLE calc_run ADD COLUMN IF NOT EXISTS changed_etf_version_id BIGINT REFERENCES data_version(id);
 INSERT INTO etf_monthly (data_version_id, ym, close_value)
     SELECT data_version_id, ym, close_value FROM sp500_monthly
     ON CONFLICT (data_version_id, ym) DO NOTHING;
