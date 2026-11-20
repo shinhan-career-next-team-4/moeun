@@ -6,7 +6,7 @@ import com.moeun.backend.calc.Scenario;
 
 /**
  * 리스너가 ai-server를 부르기 직전에 planContext를 얻는 chat 내부 포트(사람 결정 U-1).
- * 임시 구현은 항상 empty이고, #78 머지 뒤 calc.PlanContextProvider에 잇는 어댑터로 바꾼다.
+ * 구현은 calc.PlanContextProvider에 잇는 {@link PlanContextAdapter}다(#128).
  */
 public interface PlanContextPort {
 
