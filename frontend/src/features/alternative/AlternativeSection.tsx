@@ -1,0 +1,38 @@
+import { COPY } from "../../shared/copy/copy";
+import { AlternativeCard } from "./AlternativeCard";
+import type { AlternativeKey, AlternativeValuesByKey } from "./types";
+
+/** 카드 순서는 와이어프레임과 같다. 순서는 우열이 아니다(FR-ALT-02 머리글). */
+const CARD_ORDER: AlternativeKey[] = ["monthlySavingAmount", "targetPeriodMonths", "savingsRatioPct"];
+
+interface AlternativeSectionProps {
+  /** 기준 시나리오로 목표에 닿았는지(FR-ALT-01). 달성이면 대안 영역을 그리지 않는다 */
+  isAchieved: boolean;
+  /** 대안 산출 API(#66)가 준 display 문자열. 없으면 카드는 빈 카드다 */
+  values?: AlternativeValuesByKey;
+  onPeriodSubmit?: (months: number) => void;
+}
+
+/** 대안 영역(FR-ALT-01·02, 와이어프레임 03). 미달일 때만 보인다. */
+export function AlternativeSection({ isAchieved, values, onPeriodSubmit }: AlternativeSectionProps) {
+  if (isAchieved) return null;
+
+  return (
+    <section aria-label="대안" className="flex flex-col gap-3">
+      <div>
+        <h2 className="text-base font-semibold text-text">{COPY["alt.title"]}</h2>
+        <p className="mt-1 text-xs leading-relaxed text-text-muted">{COPY["alt.header"]}</p>
+      </div>
+      <ul className="grid gap-3 sm:grid-cols-3">
+        {CARD_ORDER.map((key) => (
+          <AlternativeCard
+            key={key}
+            alternativeKey={key}
+            values={values?.[key]}
+            onPeriodSubmit={key === "targetPeriodMonths" ? onPeriodSubmit : undefined}
+          />
+        ))}
+      </ul>
+    </section>
+  );
+}
