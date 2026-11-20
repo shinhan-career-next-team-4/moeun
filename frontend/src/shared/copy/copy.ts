@@ -1,7 +1,7 @@
 // copy/copy.ko.yml 값을 옮긴 상수. 테스트가 copy/copy.ko.yml과 비교해 어긋남을 잡는다.
 export const COPY = {
   disclaimer:
-    "이 서비스의 결과는 과거 데이터를 바탕으로 한 시뮬레이션이며 미래의 수익을 보장하지 않습니다. AI 설명은 참고용이며 계산 결과가 기준이에요.",
+    "본 결과는 입력하신 조건과 과거 데이터를 바탕으로 한 모의 계산이며, 실제 수령액이나 수익을 보장하지 않습니다. 특정 금융상품의 가입을 권유하지 않으며, 환율 변동은 반영하지 않았습니다. 투자 결정은 본인의 판단과 책임하에 이루어져야 합니다. AI 설명은 참고용이며 계산 결과가 기준이에요.",
   "tax.note":
     "세금은 일반 과세를 기준으로 가정했어요. 비과세·세금우대 상품, 금융소득, 세법이 바뀌면 달라질 수 있어요. 정확한 세금은 금융기관이나 세무 전문가에게 확인해 주세요.",
   "common.networkError": "네트워크 연결을 확인하고 다시 시도해 주세요",
@@ -26,6 +26,14 @@ export const COPY = {
   "plan.changedElsewhere": "계획이 다른 곳에서 바뀌었어요. 다시 저장하면 입력한 값으로 바뀌어요",
   "undo.nothingToUndo": "이미 되돌렸어요",
   "undo.failed": "되돌리지 못했어요. 다시 시도해 주세요",
+  "result.principalAndGain": "원금 {principal} + 이자·수익 {gain}(세후)",
+  "result.scenarioHeading": "ETF가 포함된 결과는 시기에 따라 달라요",
+  "result.scenarioMethodShort.CAGR": "기준 지수 S&P500 · 과거 데이터의 연평균 수익률로 세 구간을 나눠 계산 (가정 보기 참고)",
+  "result.scenarioMethodShort.ROLLING_DISTRIBUTION":
+    "기준 지수 S&P500 · 과거 10년 수익률로 1만 가지 경우를 계산해 세 구간 (가정 보기 참고)",
+  "result.chartLegendAvg": "평균",
+  "result.chartLegendBand": "좋았던 때~나빴던 때 범위",
+  "result.chartLegendGoal": "목표선",
   "result.loadFailed": "결과를 불러오지 못했어요. 다시 시도해 주세요",
   "result.alreadyExceeded":
     "가진 자산 {heldAssets}이 목표 금액 {goalAmount}을 이미 넘었어요. 대화로 목표 금액을 더 높게 바꿔 볼 수 있어요",

@@ -63,6 +63,14 @@ export function ResultPage() {
     ? result.scenarios.find((s) => s.scenario === baselineResultScenario)
     : undefined;
 
+  // W-03: 원금·수익 분해. 두 display 키가 모두 있을 때만 보여 준다(프론트가 숫자를 만들지 않는다).
+  const principal = baselineResultScenario ? display[`${baselineResultScenario}.principal`] : undefined;
+  const afterTaxGain = baselineResultScenario ? display[`${baselineResultScenario}.afterTaxGain`] : undefined;
+  const principalAndGain =
+    principal && afterTaxGain
+      ? COPY["result.principalAndGain"].replace("{principal}", principal).replace("{gain}", afterTaxGain)
+      : null;
+
   const exceededMessage = COPY["result.alreadyExceeded"]
     .replace("{heldAssets}", display["conditions.heldAssets"] ?? "")
     .replace("{goalAmount}", display["goalAmount"] ?? "");
@@ -89,9 +97,14 @@ export function ResultPage() {
               <p className={`mt-1 text-sm font-medium ${baseline.isAchieved ? "text-success" : "text-danger"}`}>
                 {display[`${baselineResultScenario}.gapToGoal`]}
               </p>
+              {principalAndGain && <p className="mt-2 text-sm text-text-muted">{principalAndGain}</p>}
             </section>
           )}
-          <ScenarioCards scenarios={result.scenarios} display={display} />
+          <ScenarioCards
+            scenarios={result.scenarios}
+            display={display}
+            scenarioMethod={result.assumptions.scenarioMethod}
+          />
           <ResultChart scenarios={result.scenarios} goalAmount={result.goalAmount} display={display} />
           {/* 대안 영역(#67). 기준 시나리오가 미달일 때만 보인다(FR-ALT-01) */}
           <AlternativeSection isAchieved={baseline?.isAchieved ?? false} />
