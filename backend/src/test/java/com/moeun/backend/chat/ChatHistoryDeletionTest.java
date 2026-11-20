@@ -192,7 +192,9 @@ class ChatHistoryDeletionTest extends ChatIntegrationTestSupport {
         long calcRun = insertCalcRun(memberId, "CHAT");
         long planVersion = jdbc.sql("SELECT plan_version_id FROM calc_run WHERE id = ?").param(calcRun)
                 .query(Long.class).single();
-        jdbc.sql("INSERT INTO plan (member_id, current_version_id, baseline_scenario) VALUES (?, ?, 'AVG')")
+        // 다른 테스트가 남긴 plan 행이 있을 수 있어 없을 때만 만들고, 만든 경우에만 치운다
+        int createdPlan = jdbc.sql("INSERT INTO plan (member_id, current_version_id, baseline_scenario) "
+                        + "VALUES (?, ?, 'AVG') ON CONFLICT (member_id) DO NOTHING")
                 .params(memberId, planVersion).update();
         jdbc.sql("INSERT INTO chat_message (member_id, role, message_type, status, content, calc_run_id, "
                         + "baseline_scenario) VALUES (?, 'ASSISTANT', 'EXPLANATION', 'COMPLETED', '설명', ?, 'AVG')")
@@ -210,7 +212,9 @@ class ChatHistoryDeletionTest extends ChatIntegrationTestSupport {
                     .query(Long.class).single()).isEqualTo(1);
         } finally {
             jdbc.sql("DELETE FROM chat_message").update();
-            jdbc.sql("DELETE FROM plan WHERE member_id = ?").param(memberId).update();
+            if (createdPlan == 1) {
+                jdbc.sql("DELETE FROM plan WHERE member_id = ?").param(memberId).update();
+            }
             jdbc.sql("DELETE FROM calc_run WHERE id = ?").param(calcRun).update();
             jdbc.sql("DELETE FROM plan_version WHERE id = ?").param(planVersion).update();
         }

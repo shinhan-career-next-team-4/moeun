@@ -41,7 +41,7 @@ class ChatHistoryDeletionRulesTest {
         int table = rules.indexOf("### 이벤트 목록");
 
         String rule = rules.substring(section, table);
-        assertThat(rule).contains("@ApplicationModuleListener로 한다");
+        assertThat(rule).contains("`@ApplicationModuleListener`로 한다");
         assertThat(rule.lines().filter(line -> line.contains("응답 전에 끝나야 하는 수신")
                 && line.contains("동기 `@EventListener`")).count()).as("예외 1줄").isEqualTo(1);
     }
