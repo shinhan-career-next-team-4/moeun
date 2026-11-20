@@ -19,6 +19,8 @@ import tools.jackson.databind.json.JsonMapper;
  * F-5 대화 비교 적용. chat이 맡는 검사 2~4(메시지·최신 여부·기준 버전)를 하고, 저장된 바꾼 조건을 키 변환 없이 plan의
  * {@link PlanApplyService}에 넘긴다. 조건 재검증·revision·기준 버전 일치 검사(5~10)와 저장은 plan 한 트랜잭션이 한다.
  * 이 서비스는 트랜잭션을 열지 않는다(읽기 3번 + plan 호출 1번이고, 경합은 plan의 조건부 UPDATE가 막는다).
+ * 검사 3과 plan 호출 사이에 새 비교가 저장되면 그 틈에는 이미 최신이 아닌 비교가 적용될 수 있다. 기준 버전·revision 검사는
+ * plan이 지키므로 계획 데이터는 어긋나지 않는다.
  */
 @Service
 public class ChatApplyService {
