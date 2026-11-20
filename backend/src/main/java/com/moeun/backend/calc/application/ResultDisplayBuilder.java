@@ -114,5 +114,12 @@ public class ResultDisplayBuilder {
             display.put(prefix + "sp500BaseDate", formatter.formatMonth(assumptions.sp500BaseDate()));
         }
         display.put(prefix + "taxRatePct", formatter.formatTaxRate(assumptions.taxRatePct()));
+        // ETF가 들어간 계산만 종목 이름과 종목 세율이 있다(#150)
+        if (assumptions.etfProductName() != null) {
+            display.put(prefix + "etfProductName", assumptions.etfProductName());
+        }
+        if (assumptions.etfGainTaxRatePct() != null) {
+            display.put(prefix + "etfGainTaxRatePct", formatter.formatEtfGainTaxRate(assumptions.etfGainTaxRatePct()));
+        }
     }
 }

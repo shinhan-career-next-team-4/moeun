@@ -24,6 +24,7 @@ import com.moeun.backend.calc.application.ResultDisplayBuilder;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * planContext 직렬화(계약 C1a-13 G-5b, C1a-7, C1a-9). 엔진을 돌리지 않고 계약 부록 A의 raw 값으로 만든 입력을
@@ -60,6 +61,14 @@ class PlanContextSerializationTest {
                 conditions.get("savingsRatioPct").asInt(), Scenario.valueOf(result.get("baselineScenario").asString()));
     }
 
+    private static String textOrNull(JsonNode node) {
+        return node == null || node.isNull() ? null : node.asString();
+    }
+
+    private static BigDecimal decimalOrNull(JsonNode node) {
+        return node == null || node.isNull() ? null : new BigDecimal(node.asString());
+    }
+
     private static CalcResult toResult(JsonNode result) {
         List<ScenarioResult> scenarios = new ArrayList<>();
         for (JsonNode scenario : result.get("scenarios")) {
@@ -80,7 +89,9 @@ class PlanContextSerializationTest {
                 assumptions.get("isDefaultSavingsRate").asBoolean(), toMonth(assumptions.get("savingsRateBaseMonth")),
                 assumptions.get("savingsRatioPct").asInt(), new BigDecimal(assumptions.get("taxRatePct").asString()),
                 method.isNull() ? null : ScenarioMethod.valueOf(method.asString()),
-                sp500Date.isNull() ? null : LocalDate.parse(sp500Date.asString()), excluded);
+                sp500Date.isNull() ? null : LocalDate.parse(sp500Date.asString()), excluded,
+                textOrNull(assumptions.get("etfProductCode")), textOrNull(assumptions.get("etfProductName")),
+                decimalOrNull(assumptions.get("etfGainTaxRatePct")));
         JsonNode versions = result.get("dataVersions");
         AppliedDataVersions dataVersions = new AppliedDataVersions(toLong(versions.get("savingsRateVersionId")),
                 toLong(versions.get("sp500VersionId")), versions.get("calcParamVersionId").asLong(),
@@ -97,6 +108,35 @@ class PlanContextSerializationTest {
         CalcResult calcResult = toResult(result);
         Map<String, String> display = builder.build(input, calcResult, "", "conditions.");
         return PlanContextView.of(fixture.get("calcRunId").asLong(), input, calcResult, display);
+    }
+
+    /**
+     * 종목 표시 키 2개(#150)는 Spring이 더하지만 아직 계약 표(C1a-6)·ai-server 허용 키에 없어 공유 fixture에 넣지 않았다
+     * (B팀 합의 뒤 옮김). 그래서 기대값은 fixture에 이 두 키를 더한 것이다.
+     */
+    static JsonNode withEtfDisplayKeys(JsonNode fixture) {
+        ObjectNode copy = (ObjectNode)fixture.deepCopy();
+        ObjectNode assumptions = (ObjectNode)copy.get("result").get("assumptions");
+        // 가정 필드 3개(#150)도 아직 공유 fixture에 없다(프론트 목·ai-server가 같은 파일을 읽음). 엔진처럼 ETF가 있으면 대표 상품
+        if (!assumptions.has("etfProductCode")) {
+            boolean hasEtf = !assumptions.get("scenarioMethod").isNull();
+            assumptions.put("etfProductCode", hasEtf ? "SP500" : null);
+            assumptions.put("etfProductName", hasEtf ? "S&P500 추종 ETF" : null);
+            if (hasEtf) {
+                assumptions.put("etfGainTaxRatePct", new BigDecimal("15.4"));
+            } else {
+                assumptions.putNull("etfGainTaxRatePct");
+            }
+        }
+        JsonNode name = assumptions.get("etfProductName");
+        if (name != null && !name.isNull()) {
+            ObjectNode display = (ObjectNode)copy.get("display");
+            display.put("assumptions.etfProductName", name.asString());
+            display.put("assumptions.etfGainTaxRatePct",
+                    new BigDecimal(assumptions.get("etfGainTaxRatePct").asString()).stripTrailingZeros().toPlainString()
+                            + "%");
+        }
+        return copy;
     }
 
     /** 숫자는 값으로 비교한다(15.4와 15.40을 같게 본다). 나머지는 키·순서(배열)·값이 모두 같아야 한다. */
@@ -132,7 +172,7 @@ class PlanContextSerializationTest {
         "plan-context-achieved", "plan-context-zero-held"})
     @DisplayName("계약 부록 A의 raw 값으로 만든 PlanContextView의 JSON이 fixture 전체와 같다(G-5b)")
     void matchesContractFixtures(String fixture) {
-        JsonNode expected = readFixture(fixture);
+        JsonNode expected = withEtfDisplayKeys(readFixture(fixture));
 
         JsonNode actual = JSON.valueToTree(toView(expected));
 
