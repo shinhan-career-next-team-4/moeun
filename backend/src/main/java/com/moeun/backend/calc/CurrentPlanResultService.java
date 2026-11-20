@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.moeun.backend.calc.application.CalcEngine;
 import com.moeun.backend.calc.application.CalcRunRecorder;
 import com.moeun.backend.calc.application.ConditionResolver;
+import com.moeun.backend.calc.application.EtfProductSelector;
 import com.moeun.backend.calc.application.ResultDisplayBuilder;
 import com.moeun.backend.plan.PlanSaveService;
 import com.moeun.backend.plan.PlanView;
@@ -62,7 +63,7 @@ public class CurrentPlanResultService {
             return Optional.empty();
         }
         PlanView plan = current.get();
-        ActiveData data = loadActiveData();
+        ActiveData data = loadActiveData(plan);
         ConditionResolver.ResolvedConditions resolved = conditionResolver.resolve(plan, data.defaultRate(),
                 data.params());
         CalcResult result = calcEngine.calculate(resolved, data.params(), data.sp500());
@@ -86,18 +87,20 @@ public class CurrentPlanResultService {
             return Optional.empty();
         }
         PlanView plan = current.get();
-        ActiveData data = loadActiveData();
+        ActiveData data = loadActiveData(plan);
         ConditionResolver.ResolvedConditions resolved = conditionResolver.resolve(plan, data.defaultRate(),
                 data.params());
         AppliedDataVersions versions = calcEngine.determineDataVersions(resolved, data.params(), data.sp500());
         return Optional.of(calcRunRecorder.recordPlanRunIfAbsent(memberId, plan.currentVersionId(), versions));
     }
 
-    private ActiveData loadActiveData() {
+    private ActiveData loadActiveData(PlanView plan) {
         CalcParams params = referenceDataService.findActiveCalcParams()
                 .orElseThrow(() -> new IllegalStateException("active calc params are not loaded"));
         // S&P500은 레포에 없어 각자 적재한다(A안). 없으면 ETF가 든 계획만 엔진이 이유를 담아 막는다
-        EtfSeries sp500 = referenceDataService.findRepresentativeEtfSeries().orElse(null);
+        // 계획의 ETF 종목(#150). 계획에 종목 칸이 생기기 전까지는 대표 상품이다
+        EtfSeries sp500 = referenceDataService.findActiveEtfSeries(EtfProductSelector.productCodeOf(plan))
+                .orElse(null);
         SavingsAvgRateData defaultRate = referenceDataService.findActiveSavingsAvgRate().orElse(null);
         return new ActiveData(params, sp500, defaultRate);
     }

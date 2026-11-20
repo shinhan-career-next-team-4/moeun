@@ -64,7 +64,9 @@ public class CompareConditionsUseCase {
         PlanView plan = planSaveService.findCurrent(memberId).orElseThrow(CalcRejectedException::noPlan);
         CalcParams params = referenceDataService.findActiveCalcParams()
                 .orElseThrow(() -> new IllegalStateException("active calc params are not loaded"));
-        EtfSeries sp500 = referenceDataService.findRepresentativeEtfSeries().orElse(null);
+        // 계획의 ETF 종목(#150). 대화로 종목을 바꾸는 비교는 후속(대화 조건에 종목 추가)에서 한다
+        EtfSeries sp500 = referenceDataService.findActiveEtfSeries(EtfProductSelector.productCodeOf(plan))
+                .orElse(null);
         SavingsAvgRateData defaultRate = referenceDataService.findActiveSavingsAvgRate().orElse(null);
 
         ComputedComparison computed = computeComparison(plan, changes, params, sp500, defaultRate);
