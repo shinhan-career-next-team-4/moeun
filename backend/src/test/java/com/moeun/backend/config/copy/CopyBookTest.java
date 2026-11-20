@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
@@ -298,13 +299,12 @@ class CopyBookTest {
     }
 
     @Test
-    @DisplayName("문구표에 개별 종목을 추천하는 표현이 없다 (CF-07, D-064 예시 버튼 포함)")
+    @DisplayName("문구표에 개별 주식 종목을 추천하는 표현이 없다 (CF-07, D-064 예시 버튼 포함)")
     void hasNoStockRecommendation() throws IOException {
-        // ai-server 쪽 같은 검사(#140)와 기준을 맞춘다. ETF 상품명·지수명과
-        // '기간·월 저축액 추천 채움'(D-084) 같은 일반 표현은 금지하지 않는다.
-        assertThat(Files.readString(COPY_PATH)).doesNotContainPattern("(종목|주식)\\s*(을|를)?\\s*추천");
+        Pattern stockRecommendation = Pattern.compile("(종목|주식)\\s*(을|를)?\\s*추천");
+        assertThat(stockRecommendation.matcher(Files.readString(COPY_PATH)).find()).isFalse();
         CopyBook copyBook = loadReal();
-        assertThat(copyBook.keys()).noneMatch(key -> key.contains("추천"));
+        assertThat(copyBook.keys()).noneMatch(key -> stockRecommendation.matcher(key).find());
     }
 
     @Test
