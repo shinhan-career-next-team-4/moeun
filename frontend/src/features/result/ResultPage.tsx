@@ -1,9 +1,11 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { planStore } from "../../api";
+import { api, planStore } from "../../api";
+import { resolveApiMode } from "../../api/client";
 import { ApiError } from "../../api/errors";
 import { COPY } from "../../shared/copy/copy";
 import { Button } from "../../shared/ui";
 import { AlternativeSection } from "../alternative";
+import { CompareSection, requestComparison, type ComparisonView, type ConditionChanges } from "../compare";
 import { AssumptionsSection } from "./AssumptionsSection";
 import { Disclaimer } from "./Disclaimer";
 import { PlanConditionBar } from "./PlanConditionBar";
@@ -18,6 +20,31 @@ const getSnapshot = () => planStore.getState();
 export function ResultPage() {
   const { view } = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const [loadError, setLoadError] = useState(false);
+  // 비교 영역(#65)은 프론트 상태만 쓴다. 적용 전까지 내 계획은 바뀌지 않는다(FR-CMP-02)
+  const [comparison, setComparison] = useState<ComparisonView | null>(null);
+  const [comparing, setComparing] = useState(false);
+  const [compareError, setCompareError] = useState<string | null>(null);
+
+  async function compare(changes: ConditionChanges) {
+    setComparing(true);
+    setCompareError(null);
+    const result = await requestComparison(
+      { mode: resolveApiMode(import.meta.env), request: (method, path) => api.request(method as "GET", path) },
+      changes,
+    );
+    setComparing(false);
+    if (result.ok) {
+      setComparison(result.view);
+      return;
+    }
+    setComparison(null);
+    setCompareError(result.message);
+  }
+
+  function resetComparison() {
+    setComparison(null);
+    setCompareError(null);
+  }
 
   function load(fresh = false) {
     setLoadError(false);
@@ -95,6 +122,15 @@ export function ResultPage() {
           <ResultChart scenarios={result.scenarios} goalAmount={result.goalAmount} display={display} />
           {/* 대안 영역(#67). 기준 시나리오가 미달일 때만 보인다(FR-ALT-01) */}
           <AlternativeSection isAchieved={baseline?.isAchieved ?? false} />
+          {/* 비교 영역(#65). 조건을 바꿔 현재 조건과 나란히 본다 */}
+          <CompareSection
+            currentDisplay={display}
+            comparison={comparison}
+            loading={comparing}
+            error={compareError}
+            onCompare={compare}
+            onReset={resetComparison}
+          />
         </>
       )}
 

@@ -108,4 +108,18 @@ describe("ResultPage (#49·#50, C12a-7)", () => {
     await screen.findByLabelText("결과 요약");
     expect(screen.queryByLabelText("대안")).toBeNull();
   });
+  // 비교 영역 연결(#65, FR-CMP-02)
+  it("결과 화면에 비교 영역이 있고 실서버 모드에서는 비교 대신 안내를 보여 준다", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
+    renderResult();
+
+    expect(await screen.findByLabelText("조건 변경 비교")).toBeTruthy();
+    fireEvent.click(screen.getByRole("checkbox", { name: "월 저축액" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "월 저축액" }), { target: { value: "150" } });
+    fireEvent.click(screen.getByRole("button", { name: "비교하기" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status").textContent).toContain("조건 변경 비교 API");
+    });
+  });
 });
