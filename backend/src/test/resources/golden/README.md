@@ -12,8 +12,10 @@
 | `g6-percentile-and-mean.json` | component | 하위 10%·산술평균·상위 90%(선형 보간) |
 | `g7-monthly-returns.json` | component | 월말 종가 → 한 달 수익률 |
 | `g8-bootstrap-constant-returns.json` | plan | 부트스트랩 전체. 수익률이 모두 같아 무작위와 관계없이 세 구간이 같다 |
+| `g9-etf-single-path-tax-free.json` | component | G5와 같은 경로, 비과세 종목(매매차익 세율 0%, #150) |
+| `g10-bootstrap-constant-returns-tax-free.json` | plan | G8과 같은 입력, 비과세 종목. 적금 이자 세율 15.4%는 그대로(#150) |
 
-- `plan`: `CalcInput`과 같은 입력, `CalcResult`와 같은 모양의 기대값. 금액은 원 단위 정수, 금리·세율은 문자열 소수(BigDecimal로 읽는다).
+- `plan`: `params.etfGainTaxRatePct`가 있으면 ETF 종목의 매매차익 세율이다(없으면 대표 상품 S&P500의 15.4%). `CalcInput`과 같은 입력, `CalcResult`와 같은 모양의 기대값. 금액은 원 단위 정수, 금리·세율은 문자열 소수(BigDecimal로 읽는다).
 - `component`: 엔진 안의 한 단계만 확인한다. 부트스트랩은 무작위 추출이라 실제 데이터의 3구간 값을 손으로 계산할 수 없어서, 손으로 계산할 수 있는 단계로 나눴다.
 - 실제 S&P500 데이터로 낸 3구간 값은 시드를 고정한 회귀 값으로 #27에서 따로 고정한다.
 - 기대값은 명세를 엔진과 별개로 옮긴 계산(BigDecimal, 유효숫자 34자리)으로 교차 검산했다.

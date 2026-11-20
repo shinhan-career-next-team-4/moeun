@@ -38,6 +38,22 @@ class EtfPathTest {
     }
 
     @Test
+    @DisplayName("골든 G9: 비과세 종목(세율 0%)이면 같은 경로의 세후 값이 세전 값과 같다 → 0 / 110,000 / 189,000 / 303,450원")
+    void matchesGoldenTaxFreePath() {
+        JsonNode golden = GoldenCase.readTree("g9-etf-single-path-tax-free.json");
+        JsonNode input = golden.get("input");
+        EtfPath goldenPath = new EtfPath(new BigDecimal(input.get("monthlyEtfAmount").asString()),
+                new BigDecimal(input.get("taxRatePct").asString()));
+        List<Long> expected = new ArrayList<>();
+        golden.get("expected").get("afterTaxValues").forEach(value -> expected.add(value.asLong()));
+
+        List<BigDecimal> values = goldenPath.afterTaxValues(GoldenCase.readDecimals(input.get("monthlyReturns")));
+
+        assertThat(values).extracting(value -> value.setScale(0, RoundingMode.HALF_UP).longValueExact())
+                .containsExactlyElementsOf(expected);
+    }
+
+    @Test
     @DisplayName("손실이면 세금이 없다(평가액 189,000 < 원금 200,000)")
     void chargesNoTaxOnLoss() {
         assertThat(path.afterTax(new BigDecimal("189000"), 2)).isEqualByComparingTo("189000");
