@@ -4,6 +4,7 @@ backend의 CopyBookTest가 같은 문장을 같은 키로 단언한다(Spring과
 음성 테스트는 문구표를 임시 디렉터리로 복사해 키를 지우거나 비운다.
 """
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -258,9 +259,13 @@ def test_code_keyed_sentences_are_not_blank(copy: Copy, key: str) -> None:
     assert copy.get(key).strip()
 
 
-def test_copy_has_no_recommend_word() -> None:
-    """CF-07, D-064. 문구표 파일 전체에 '추천'이 없다(질문 예시 버튼 포함)."""
-    assert "추천" not in COPY_PATH.read_text(encoding="utf-8")
+def test_copy_has_no_stock_recommendation() -> None:
+    """CF-07, D-064. 개별 주식 종목을 추천하는 표현만 금지한다(질문 예시 버튼 포함).
+
+    ETF 상품명·지수명 노출과 '기간·월 저축액 추천 채움' 같은 일반 표현은 허용한다.
+    """
+    text = COPY_PATH.read_text(encoding="utf-8")
+    assert re.search(r"(종목|주식)\s*(을|를)?\s*추천", text) is None
 
 
 @pytest.mark.parametrize("code", CONDITION_CODES)
