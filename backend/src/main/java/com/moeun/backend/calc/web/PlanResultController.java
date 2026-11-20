@@ -18,6 +18,7 @@ import com.moeun.backend.calc.CurrentPlanResultService;
 import com.moeun.backend.calc.application.SavePlanUseCase;
 import com.moeun.backend.plan.FieldError;
 import com.moeun.backend.plan.GoalType;
+import com.moeun.backend.plan.NoPlanException;
 import com.moeun.backend.plan.PlanInput;
 
 import tools.jackson.databind.JsonNode;

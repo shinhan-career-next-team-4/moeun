@@ -298,9 +298,11 @@ class CopyBookTest {
     }
 
     @Test
-    @DisplayName("문구표 전체에 추천이라는 단어가 없다 (CF-07, D-064 예시 버튼 포함)")
-    void hasNoRecommendWord() throws IOException {
-        assertThat(Files.readString(COPY_PATH)).doesNotContain("추천");
+    @DisplayName("문구표에 개별 종목을 추천하는 표현이 없다 (CF-07, D-064 예시 버튼 포함)")
+    void hasNoStockRecommendation() throws IOException {
+        // ai-server 쪽 같은 검사(#140)와 기준을 맞춘다. ETF 상품명·지수명과
+        // '기간·월 저축액 추천 채움'(D-084) 같은 일반 표현은 금지하지 않는다.
+        assertThat(Files.readString(COPY_PATH)).doesNotContainPattern("(종목|주식)\\s*(을|를)?\\s*추천");
         CopyBook copyBook = loadReal();
         assertThat(copyBook.keys()).noneMatch(key -> key.contains("추천"));
     }

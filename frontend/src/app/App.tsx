@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { ApiError } from "../api/errors";
-import { LoginPage } from "../features/auth";
+import { forgetDisplayName, LoginPage, readDisplayName } from "../features/auth";
 import { PlanInputPage } from "../features/input";
 import { ResultPage } from "../features/result";
 import { COPY } from "../shared/copy/copy";
@@ -14,11 +14,13 @@ function Layout() {
   const navigate = useNavigate();
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const isLogin = location.pathname === LOGIN_PATH;
+  const displayName = isLogin ? null : readDisplayName();
 
   async function handleLogout() {
     setLogoutError(null);
     try {
       await api.request("POST", "/api/auth/logout");
+      forgetDisplayName();
       navigate(LOGIN_PATH, { replace: true });
     } catch (caught) {
       if (caught instanceof ApiError && caught.code === "UNAUTHENTICATED") return;
@@ -34,9 +36,12 @@ function Layout() {
             모은
           </Link>
           {!isLogin && (
-            <Button variant="ghost" className="h-9 px-3" onClick={handleLogout}>
-              로그아웃
-            </Button>
+            <div className="flex items-center gap-3">
+              {displayName && <span className="text-sm text-text-muted">{displayName} 님</span>}
+              <Button variant="ghost" className="h-9 px-3" onClick={handleLogout}>
+                로그아웃
+              </Button>
+            </div>
           )}
         </div>
       </header>

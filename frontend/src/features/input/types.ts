@@ -6,6 +6,10 @@ export type GoalType = (typeof GOAL_TYPES)[number];
 export interface PlanForm {
   goalType: GoalType | null;
   goalAmount: string;
+  /** D-084: false면 화면이 목표 금액·보유 자산·월 저축액으로 기간을 추천해 채운다. */
+  periodKnown: boolean;
+  /** D-084: false면 화면이 목표 금액·보유 자산·기간으로 월 저축액을 추천해 채운다. */
+  savingKnown: boolean;
   periodYears: string;
   periodMonths: string;
   heldAssets: string;

@@ -30,7 +30,8 @@ SYSTEM_PROMPT = f"""\
 그대로 인용하고, 두 값을 빼거나 새 숫자를 만들지 않습니다.
 - 같은 턴에 <plan_context>의 display와 recalculate 결과가 함께 있으면 비교·차이는 도구 결과의 `current.`·`changed.`·`diff.` \
 접두어 키만 인용하고 <plan_context>의 `<S>.*` 키와 섞지 않습니다. 목표 금액이 바뀐 비교에서는 \
-`conditions.current.goalAmount`·`conditions.changed.goalAmount`를 각각 인용합니다(무접두어 `goalAmount`는 비교 응답에 없을 수 있습니다).
+`conditions.current.goalAmount`·`conditions.changed.goalAmount`를 각각 인용합니다\
+(무접두어 `goalAmount`는 비교 응답에 없을 수 있습니다).
 - recalculate가 VALIDATION_FAILED와 errors를 돌려주면 errors의 minDisplay·maxDisplay 문자열을 그대로 인용해 \
 가능한 범위를 알리고 다시 묻습니다(message_type=CLARIFY). 숫자를 직접 환산하지 않고, 값을 고쳐 다시 계산하지 않습니다. \
 minDisplay나 maxDisplay가 없으면 숫자 없이 "허용 범위를 벗어났어요"라고만 말하고 다시 묻습니다.
@@ -71,12 +72,14 @@ search_documents로 찾아 답합니다. 그 문구는 내 계획의 계산 결�
 - 답변 본문에는 특정 ETF의 상품명(운용사 브랜드가 붙은 이름)을 쓰지 않고 항상 "S&P500 추종 ETF"로만 씁니다. \
 검색 자료에 상품명이 있어도 본문에 옮기지 않습니다.
 - "추천해요", "추천합니다"처럼 특정 상품을 사라고 권하는 표현을 쓰지 않습니다. 추천하지 않는다는 말은 해도 됩니다.
-- 질문은 세 유형으로 가릅니다. 조건 변경(목표 금액, 월 저축액, 적금 비중, 적금 금리, 기한을 바꿔 보기)은 recalculate로 계산합니다. \
+- 질문은 세 유형으로 가릅니다. 조건 변경(목표 금액, 월 저축액, 적금 비중, 적금 금리, 기한을 바꿔 보기)은 \
+recalculate로 계산합니다. \
 설명(금융 개념, ETF, 계산 결과의 뜻)은 search_documents로 자료를 찾아 계산 없이 답합니다(message_type=ANSWER). \
 그 밖의 질문은 계산하지 않습니다.
 - 개별 주식, 코인, 부동산, 세금 신고 대행처럼 서비스가 다루지 않는 그 밖의 질문에는 recalculate를 부르지 않고 \
 message_type=OUT_OF_SCOPE로 끝냅니다. 안내 문장은 서버가 정해진 문구로 채웁니다.
-- 목표 종류·기존 납입액·보유 자산을 바꾸려는 발화는 그 밖의 질문이 아닙니다. 위 `## 숫자`의 전용 문구로 답하고 ANSWER로 끝냅니다.
+- 목표 종류·기존 납입액·보유 자산을 바꾸려는 발화는 그 밖의 질문이 아닙니다. \
+위 `## 숫자`의 전용 문구로 답하고 ANSWER로 끝냅니다.
 - 상품별 세제 혜택이나 절세 방법을 묻는 질문은 "{OUT_OF_SCOPE_TAX_COPY}"라고 한 글자도 바꾸지 말고 이 문구만 \
 답합니다(message_type=OUT_OF_SCOPE). 이 문구는 서버가 그대로 둡니다.
 

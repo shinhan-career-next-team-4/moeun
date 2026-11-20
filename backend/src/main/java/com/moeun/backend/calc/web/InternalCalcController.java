@@ -1,12 +1,9 @@
 package com.moeun.backend.calc.web;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.moeun.backend.calc.CalcRejectedException;
 import com.moeun.backend.calc.application.CompareConditionsUseCase;
+import com.moeun.backend.calc.application.ConditionChanges;
 import com.moeun.backend.plan.ChangePath;
 import com.moeun.backend.plan.ConditionOverride;
 import com.moeun.backend.plan.ConditionValidator;
@@ -32,14 +30,6 @@ class InternalCalcController {
 
     private static final String MEMBER_ID = "memberId";
     private static final String CONDITION_CHANGES = "conditionChanges";
-    private static final String GOAL_AMOUNT = "goalAmount";
-    private static final String MONTHLY_SAVING_AMOUNT = "monthlySavingAmount";
-    private static final String SAVINGS_RATIO_PCT = "savingsRatioPct";
-    private static final String SAVINGS_RATE_INPUT_PCT = "savingsRateInputPct";
-    private static final String TARGET_PERIOD_MONTHS = "targetPeriodMonths";
-    /** 대화로 바꿀 수 있는 조건 1단계 5개(D-090·D-092, CP-07). 이 밖의 키가 하나라도 있으면 요청 전체를 거절한다. */
-    private static final Set<String> CHANGEABLE_KEYS = Set.of(GOAL_AMOUNT, MONTHLY_SAVING_AMOUNT,
-            SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT, TARGET_PERIOD_MONTHS);
 
     private final ConditionValidator conditionValidator;
     private final CompareConditionsUseCase compareConditionsUseCase;
@@ -57,22 +47,16 @@ class InternalCalcController {
         }
         long memberId = body.get(MEMBER_ID).longValue();
         // 2. 값이 null인 키는 "바꾸지 않음"이라 먼저 지운다
-        Map<String, JsonNode> changes = new LinkedHashMap<>();
-        body.get(CONDITION_CHANGES).properties().forEach(entry -> {
-            if (!entry.getValue().isNull()) {
-                changes.put(entry.getKey(), entry.getValue());
-            }
-        });
+        Map<String, JsonNode> changes = ConditionChanges.withoutNulls(body.get(CONDITION_CHANGES));
         // 3. 허용 밖 키가 하나라도 있으면 일부만 계산하지 않고 전체를 거절한다(사용자가 말한 것과 다른 비교를 막음)
-        List<FieldError> notChangeable = changes.keySet().stream()
-                .filter(key -> !CHANGEABLE_KEYS.contains(key))
+        List<FieldError> notChangeable = ConditionChanges.unchangeableKeys(changes).stream()
                 .map(FieldError::notChangeable)
                 .toList();
         if (!notChangeable.isEmpty()) {
             throw CalcRejectedException.fieldNotChangeable(notChangeable);
         }
         // 4. 허용 키의 값은 JSON 숫자여야 한다(1e400처럼 유한한 수로 읽을 수 없는 값도 형식 오류)
-        if (changes.values().stream().anyMatch(value -> !isFiniteNumber(value))) {
+        if (!ConditionChanges.allFiniteNumbers(changes)) {
             throw new MalformedInternalCalcRequestException();
         }
         // 5. 바꿀 값이 하나도 없으면
@@ -85,22 +69,17 @@ class InternalCalcController {
         return InternalCalcResponse.from(result);
     }
 
+    /**
+     * 정수 자리의 소수는 잘라서 통과시키지 않고 NOT_INTEGER로 알린다. 타입 범위를 넘는 값은 경계값으로 넘어와 범위 검사가
+     * OUT_OF_RANGE로 알린다. 걸린 키를 모두, 요청에 적힌 순서로 담는다.
+     */
     private ConditionOverride validate(Map<String, JsonNode> changes) {
-        List<FieldError> errors = new ArrayList<>();
-        Long goalAmount = toInteger(changes, GOAL_AMOUNT, Long.MIN_VALUE, Long.MAX_VALUE, errors);
-        Long monthlySavingAmount = toInteger(changes, MONTHLY_SAVING_AMOUNT, Long.MIN_VALUE, Long.MAX_VALUE, errors);
-        Long savingsRatioPct = toInteger(changes, SAVINGS_RATIO_PCT, Integer.MIN_VALUE, Integer.MAX_VALUE, errors);
-        Long targetPeriodMonths = toInteger(changes, TARGET_PERIOD_MONTHS, Integer.MIN_VALUE, Integer.MAX_VALUE,
-                errors);
-        JsonNode rate = changes.get(SAVINGS_RATE_INPUT_PCT);
-        ConditionOverride override = new ConditionOverride(monthlySavingAmount,
-                targetPeriodMonths == null ? null : targetPeriodMonths.intValue(),
-                savingsRatioPct == null ? null : savingsRatioPct.intValue(),
-                rate == null ? null : rate.decimalValue(),
-                goalAmount, null);
-        boolean hasValidatableValue = goalAmount != null || monthlySavingAmount != null || savingsRatioPct != null
-                || targetPeriodMonths != null || rate != null;
-        if (hasValidatableValue) {
+        ConditionChanges.Conversion conversion = ConditionChanges.convert(changes);
+        List<FieldError> errors = new ArrayList<>(conversion.notIntegerKeys().stream()
+                .map(FieldError::notInteger)
+                .toList());
+        ConditionOverride override = conversion.override();
+        if (hasAnyValue(override)) {
             errors.addAll(conditionValidator.validate(ChangePath.CHAT, override));
         }
         if (!errors.isEmpty()) {
@@ -111,32 +90,10 @@ class InternalCalcController {
         return override;
     }
 
-    /**
-     * 정수 자리의 값을 꺼낸다. 소수가 있으면 NOT_INTEGER로 기록하고 null을 돌려준다(잘라서 통과시키지 않음).
-     * 표현 범위를 넘는 값은 경계값으로 넘겨 범위 검사가 OUT_OF_RANGE로 알리게 한다.
-     */
-    private static Long toInteger(Map<String, JsonNode> changes, String key, long min, long max,
-            List<FieldError> errors) {
-        JsonNode node = changes.get(key);
-        if (node == null) {
-            return null;
-        }
-        BigDecimal value = node.decimalValue();
-        if (value.stripTrailingZeros().scale() > 0) {
-            errors.add(FieldError.notInteger(key));
-            return null;
-        }
-        if (value.compareTo(BigDecimal.valueOf(max)) > 0) {
-            return max;
-        }
-        if (value.compareTo(BigDecimal.valueOf(min)) < 0) {
-            return min;
-        }
-        return value.longValueExact();
-    }
-
-    private static boolean isFiniteNumber(JsonNode node) {
-        return node.isNumber() && (!node.isFloatingPointNumber() || Double.isFinite(node.doubleValue()));
+    private static boolean hasAnyValue(ConditionOverride override) {
+        return override.goalAmount() != null || override.monthlySavingAmount() != null
+                || override.targetPeriodMonths() != null || override.savingsRatioPct() != null
+                || override.savingsRateInputPct() != null;
     }
 
     private static boolean isLong(JsonNode node) {

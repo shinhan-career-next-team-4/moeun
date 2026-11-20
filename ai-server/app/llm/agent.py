@@ -85,7 +85,8 @@ TOOLS: list[BetaToolParam] = [
         "name": "recalculate",
         "description": (
             "사용자의 현재 계획에서 일부 조건만 바꿔 Spring 계산 엔진으로 다시 계산한다. "
-            "바꿀 수 있는 조건은 목표 금액·월 저축액·적금 비중·적금 금리·기한 다섯 가지이고, 바꾸지 않는 조건은 null로 둔다. "
+            "바꿀 수 있는 조건은 목표 금액·월 저축액·적금 비중·적금 금리·기한 다섯 가지이고, "
+            "바꾸지 않는 조건은 null로 둔다. "
             "금액은 원 단위 정수, 기한은 개월 수."
         ),
         "strict": True,
@@ -199,7 +200,7 @@ _NUMBER = re.compile(rf"\d+(?:\.\d+)?|{_KO_NUMERAL}")
 _THOUSANDS_COMMA = re.compile(r"(?<=\d),(?=\d{3})")
 # "3년 6개월", "5년(60개월)", "60개월(5년)"은 기간 하나를 두 단위로 말한 것이다
 _PERIOD_COMPOUND = re.compile(r"\d+\s*년\s*\(?\s*\d+\s*개월\s*\)?|\d+\s*개월\s*\(?\s*\d+\s*년\s*\)?")
-_KO_DIGIT_VALUES = dict(zip("일이삼사오육칠팔구", range(1, 10)))
+_KO_DIGIT_VALUES = dict(zip("일이삼사오육칠팔구", range(1, 10), strict=True))
 _KO_UNIT_VALUES = {"십": 10, "백": 100, "천": 1000}
 _AMOUNT_EXPR = re.compile(
     rf"({_NUMBER.pattern})\s*(?:억\s*(?:({_NUMBER.pattern})\s*만\s*원?)?|만\s*원?|원)?"

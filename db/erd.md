@@ -486,9 +486,9 @@ VALUES ($current_version, 'PLAN', $rate_ver, $sp_ver, $param_ver, $engine);
 SELECT id, role, message_type, status, content, calc_run_id, baseline_scenario, condition_changes, retry_of_message_id, created_at
 FROM chat_message WHERE member_id = $user AND id < $before ORDER BY id DESC LIMIT 50;
 
--- (b) 폴링: 마지막으로 본 id 이후 새 메시지 + 아직 PENDING이던 메시지의 상태
-SELECT id, status, content FROM chat_message
-WHERE member_id = $user AND (id > $last_seen OR id = ANY($pending_ids));
+-- (b) 폴링: afterId 이후 새 메시지. 서버가 오래된 PENDING을 먼저 정리하므로 PENDING이던 메시지의 상태 변화도 같은 id 범위로 잡힌다
+SELECT id, role, message_type, status, content, created_at FROM chat_message
+WHERE member_id = $user AND id > $afterId ORDER BY id;
 
 -- (c) 출처 일괄 조회
 SELECT c.message_id, c.rank, d.title, d.source_url, o.name
@@ -499,7 +499,7 @@ JOIN source_org o ON o.id = d.source_org_id
 WHERE c.message_id = ANY($message_ids) ORDER BY c.message_id, c.rank;
 ```
 
-- `ix_chat_message_member (member_id, id)`가 (a)의 키셋과 (b)의 `id > $last_seen` 범위를 맡는다. `pending_ids`는 PK로 조회한다. 폴링 요청은 토큰을 재발급하지 않아 30분 비활동 판정에 영향을 주지 않는다.
+- `ix_chat_message_member (member_id, id)`가 (a)의 키셋과 (b)의 `id > $afterId` 범위를 맡는다. 폴링 요청은 토큰을 재발급하지 않아 30분 비활동 판정에 영향을 주지 않는다.
 - 재계산 결과 메시지를 다시 보여줄 때는 `calc_run` 기록, 그 계획 버전, `condition_changes`로 다시 계산한다. 대화창에는 AI가 쓴 `content`를 그대로 보여주므로 다시 계산하는 것은 그래프와 숫자 카드뿐이다.
 
 ### Q3. RAG 검색과 출처 검증 (FR-AI-03, FR-AI-10, NFR-INT-04)
