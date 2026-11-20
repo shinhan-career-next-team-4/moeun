@@ -30,8 +30,10 @@ import com.moeun.backend.plan.FieldError;
  *     <li>예상하지 못한 예외는 500 {@code CALC_FAILED}이고 detail에 내부 메시지를 싣지 않는다</li>
  * </ul>
  * 같은 검증 오류·예외가 다른 경로(입력 저장, 대화 적용)로 나갈 때는 이 처리가 섞이지 않고 공통 처리기가 맡는다(X-15).
+ * <p>plan 처리기 바로 다음 순서다. 이 처리기는 {@code Exception} 전체를 잡으므로, 같은 순서면 plan 예외가 여기서
+ * 400·500으로 바뀔 수 있다. plan 예외는 plan 처리기가 계약 코드 그대로 내보낸다.
  */
-@Order(Ordered.HIGHEST_PRECEDENCE)
+@Order(Ordered.HIGHEST_PRECEDENCE + 1)
 @RestControllerAdvice(assignableTypes = InternalCalcController.class)
 class InternalCalcExceptionHandler {
 
