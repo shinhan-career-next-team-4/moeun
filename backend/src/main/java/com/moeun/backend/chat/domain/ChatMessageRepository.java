@@ -39,6 +39,20 @@ public class ChatMessageRepository {
                 .param(memberId).query(Long.class).single();
     }
 
+    /** F-3: 설명 대기 행. 기준 시나리오는 요청 시점 값을 저장해 두고 리스너가 그 값으로 EXPLAIN을 보낸다. */
+    public long insertPendingExplanation(long memberId, long calcRunId, String baselineScenario) {
+        return jdbc.sql("INSERT INTO chat_message (member_id, role, message_type, status, calc_run_id, "
+                        + "baseline_scenario) VALUES (?, 'ASSISTANT', 'EXPLANATION', 'PENDING', ?, ?) RETURNING id")
+                .params(memberId, calcRunId, baselineScenario).query(Long.class).single();
+    }
+
+    /** 그 회원이 같은 기록으로 이미 요청한 설명이 PENDING인지. 동시 요청으로 여러 행일 수 있어 존재 여부만 본다. */
+    public boolean existsPendingExplanation(long memberId, long calcRunId) {
+        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM chat_message WHERE member_id = ? AND calc_run_id = ? "
+                        + "AND message_type = 'EXPLANATION' AND status = 'PENDING')")
+                .params(memberId, calcRunId).query(Boolean.class).single();
+    }
+
     public boolean existsPendingAnswer(long memberId) {
         return jdbc.sql("SELECT EXISTS (SELECT 1 FROM chat_message "
                         + "WHERE member_id = ? AND message_type = 'ANSWER' AND status = 'PENDING')")
