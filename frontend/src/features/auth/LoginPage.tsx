@@ -6,6 +6,7 @@ import { RESULT_PATH } from "../../app/routes";
 import { COPY } from "../../shared/copy/copy";
 import { Button, FieldError } from "../../shared/ui";
 import { formatFieldError, type ServerFieldError } from "../../shared/units/units";
+import { rememberDisplayName } from "./displayName";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -33,6 +34,7 @@ export function LoginPage() {
     setSubmitting(true);
     try {
       await api.request("POST", "/api/auth/login", { loginId: loginId.trim(), password });
+      rememberDisplayName(loginId.trim());
       setPassword("");
       const view = await planStore.loadPlan({ fresh: true });
       if (view !== null) {
