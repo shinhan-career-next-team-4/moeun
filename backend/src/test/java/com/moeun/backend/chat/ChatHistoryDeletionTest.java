@@ -2,6 +2,7 @@ package com.moeun.backend.chat;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -113,6 +114,18 @@ class ChatHistoryDeletionTest extends ChatIntegrationTestSupport {
         assertThat(countRows(memberId)).isZero();
         assertThat(countRows(otherMemberId)).isEqualTo(2);
         assertThat(citationCount()).as("남의 citation만 남는다").isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("실제 로그아웃 요청이 끝나면 그 회원의 대화가 이미 지워져 있다")
+    void realLogoutDeletesConversation() throws Exception {
+        storeConversation(memberId);
+        storeConversation(otherMemberId);
+
+        mockMvc.perform(post("/api/auth/logout").cookie(cookie)).andReturn();
+
+        assertThat(countRows(memberId)).isZero();
+        assertThat(countRows(otherMemberId)).isEqualTo(2);
     }
 
     // ---------- 동기 @EventListener ----------
@@ -243,6 +256,15 @@ class ChatHistoryDeletionTest extends ChatIntegrationTestSupport {
                 // 예외로 올라오는 것도 요청 실패다
             }
             assertThat(issued).as("삭제가 실패하면 로그인 쿠키가 발급되지 않는다").isNull();
+
+            int logoutStatus;
+            try {
+                logoutStatus = mockMvc.perform(post("/api/auth/logout").cookie(cookie)).andReturn().getResponse()
+                        .getStatus();
+            } catch (Exception expected) {
+                logoutStatus = 500;   // 예외로 올라오는 것도 요청 실패다
+            }
+            assertThat(logoutStatus).as("삭제가 실패하면 로그아웃 요청도 실패한다").isGreaterThanOrEqualTo(500);
         } finally {
             jdbc.sql("DROP TRIGGER IF EXISTS trg_fail_chat_delete ON chat_message").update();
             jdbc.sql("DROP FUNCTION IF EXISTS fail_chat_delete()").update();
