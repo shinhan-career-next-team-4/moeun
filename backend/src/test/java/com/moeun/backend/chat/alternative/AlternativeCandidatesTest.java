@@ -11,9 +11,8 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 
-import com.moeun.backend.calc.CalcResult;
+import com.moeun.backend.calc.CalcInput;
 import com.moeun.backend.calc.application.AlternativeCandidatePolicy;
-import com.moeun.backend.plan.PlanView;
 
 import tools.jackson.databind.JsonNode;
 
@@ -34,12 +33,12 @@ class AlternativeCandidatesTest extends AlternativeTestSupport {
         AlternativeCandidatePolicy stubPolicy() {
             return new AlternativeCandidatePolicy() {
                 @Override
-                public Optional<Long> monthlySavingAmount(PlanView plan, CalcResult current) {
+                public Optional<Long> monthlySavingAmount(CalcInput current) {
                     return Optional.of(STUB_MONTHLY);
                 }
 
                 @Override
-                public Optional<Integer> savingsRatioPct(PlanView plan, CalcResult current) {
+                public Optional<Integer> savingsRatioPct(CalcInput current) {
                     return Optional.of(STUB_RATIO);
                 }
             };

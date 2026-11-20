@@ -31,7 +31,7 @@ class AlternativeDocsTest extends AlternativeTestSupport {
                         .description("기준 시나리오로 목표에 못 미치는 내 현재 계획에 월 저축액·기한·비중을 하나씩 바꾼 대안 3개를 "
                                 + "돌려준다. 달성하거나 이미 목표를 넘은 계획은 hasAlternatives=false에 빈 목록(대안 없음). "
                                 + "targetPeriodMonths는 '기한을 늘리면'의 원하는 기간(개월)이고 없으면 그 카드는 빈 카드다. "
-                                + "월 저축액·비중의 후보값은 정책 확정 전(Q-089·Q-103)이라 아직 빈 카드로 나온다. "
+                                + "월 저축액은 현재의 +10%, 비중은 ETF 10%p 증가(적금 -10)이고 입력 범위를 벗어나면 빈 카드다. "
                                 + "기간이 1~360 밖이면 422 VALIDATION_FAILED, 계획이 없으면 409 NO_PLAN. 저장하지 않는다.")
                         .requestFields(
                                 fieldWithPath("targetPeriodMonths").optional().description("원하는 기간(개월). 1~360"))

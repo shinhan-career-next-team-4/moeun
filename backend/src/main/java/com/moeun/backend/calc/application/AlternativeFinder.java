@@ -12,6 +12,7 @@ import com.moeun.backend.calc.AlternativeKey;
 import com.moeun.backend.calc.AlternativeQuery;
 import com.moeun.backend.calc.AlternativeView;
 import com.moeun.backend.calc.AlternativeView.Alternative;
+import com.moeun.backend.calc.CalcInput;
 import com.moeun.backend.calc.CalcResult;
 import com.moeun.backend.calc.CalcStatus;
 import com.moeun.backend.calc.ScenarioResult;
@@ -67,14 +68,16 @@ class AlternativeFinder implements AlternativeQuery {
         EtfSeries etf = referenceDataService.findActiveEtfSeries(EtfProductSelector.productCodeOf(plan)).orElse(null);
         SavingsAvgRateData defaultRate = referenceDataService.findActiveSavingsAvgRate().orElse(null);
 
-        CalcResult current = calcEngine.calculate(conditionResolver.resolve(plan, defaultRate, params), params, etf);
+        ConditionResolver.ResolvedConditions resolved = conditionResolver.resolve(plan, defaultRate, params);
+        CalcInput input = resolved.input();
+        CalcResult current = calcEngine.calculate(resolved, params, etf);
         if (isAchieved(current)) {
             return AlternativeView.notNeeded();
         }
 
         List<Alternative> alternatives = new ArrayList<>();
         for (AlternativeKey key : AlternativeKey.values()) {
-            Optional<Number> value = candidateValue(key, plan, current, desiredTargetPeriodMonths);
+            Optional<Number> value = candidateValue(key, input, desiredTargetPeriodMonths);
             alternatives.add(value.map(changed -> compute(key, changed, plan, params, etf, defaultRate))
                     .orElseGet(() -> Alternative.empty(key)));
         }
@@ -99,11 +102,11 @@ class AlternativeFinder implements AlternativeQuery {
                 || current.findBaselineResult().map(ScenarioResult::isAchieved).orElse(false);
     }
 
-    private Optional<Number> candidateValue(AlternativeKey key, PlanView plan, CalcResult current, Integer months) {
+    private Optional<Number> candidateValue(AlternativeKey key, CalcInput input, Integer months) {
         return switch (key) {
-            case MONTHLY_SAVING_AMOUNT -> policy.monthlySavingAmount(plan, current).map(Number.class::cast);
+            case MONTHLY_SAVING_AMOUNT -> policy.monthlySavingAmount(input).map(Number.class::cast);
             case TARGET_PERIOD_MONTHS -> Optional.ofNullable(months).map(Number.class::cast);
-            case SAVINGS_RATIO_PCT -> policy.savingsRatioPct(plan, current).map(Number.class::cast);
+            case SAVINGS_RATIO_PCT -> policy.savingsRatioPct(input).map(Number.class::cast);
         };
     }
 

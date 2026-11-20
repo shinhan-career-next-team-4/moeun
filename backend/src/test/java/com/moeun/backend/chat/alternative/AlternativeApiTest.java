@@ -13,8 +13,8 @@ import org.springframework.http.MediaType;
 import tools.jackson.databind.JsonNode;
 
 /**
- * 대안 값 산출 {@code POST /api/alternatives}(#66, FR-ALT-01·03). 월 저축액·비중 후보값의 정책은 미확정(Q-089·Q-103)이라
- * 이 클래스는 정책 기본 구현(후보 없음)으로 돌고, 후보값이 있을 때의 응답은 {@link AlternativeCandidatesTest}가 본다.
+ * 대안 값 산출 {@code POST /api/alternatives}(#66, FR-ALT-01·03). 후보값은 운영 정책(월 저축액 +10%, 비중 10%p)으로 돌고,
+ * 정책이 값을 내지 않는 경우의 응답은 {@link AlternativeCandidatesTest}가 스텁 정책으로 본다.
  */
 class AlternativeApiTest extends AlternativeTestSupport {
 
@@ -40,23 +40,23 @@ class AlternativeApiTest extends AlternativeTestSupport {
     }
 
     @Test
-    @DisplayName("미달 계획에 기간을 주면 '기한을 늘리면'만 그 기간 하나만 바꾼 결과로 오고, 정책이 없는 월 저축액·비중 카드는 비어 있다")
-    void missingPlanWithoutCandidatePolicyFillsOnlyDeadlineCard() throws Exception {
+    @DisplayName("미달 계획이면 월 저축액은 현재의 +10%, 비중은 현재에서 10%p 낮춘(ETF 10%p 높인) 값 하나만 바꾼 카드로 온다")
+    void defaultPolicyRaisesMonthlySavingBy10PercentAndMovesRatioBy10Points() throws Exception {
         savePlan(MISSING_MONTHLY);
 
-        JsonNode response = read(requestAlternatives("{\"targetPeriodMonths\":48}").andExpect(status().isOk()));
+        JsonNode cards = read(requestAlternatives("{\"targetPeriodMonths\":48}").andExpect(status().isOk()))
+                .get("alternatives");
 
-        assertThat(response.get("hasAlternatives").asBoolean()).isTrue();
-        JsonNode cards = response.get("alternatives");
+        int currentRatio = cards.get(0).get("conditions").get("current").get("savingsRatioPct").asInt();
         assertThat(cards.size()).isEqualTo(3);
         assertThat(cards.get(0).get("key").asString()).isEqualTo("monthlySavingAmount");
-        assertThat(cards.get(0).get("changed").isNull()).isTrue();
+        assertThat(cards.get(0).get("changes").get("monthlySavingAmount").asLong()).isEqualTo(330_000L);
+        assertThat(cards.get(1).get("changes").get("targetPeriodMonths").asInt()).isEqualTo(48);
         assertThat(cards.get(2).get("key").asString()).isEqualTo("savingsRatioPct");
-        assertThat(cards.get(2).get("changed").isNull()).isTrue();
-        JsonNode deadline = cards.get(1);
-        assertThat(deadline.get("key").asString()).isEqualTo("targetPeriodMonths");
-        assertThat(deadline.get("changes").get("targetPeriodMonths").asInt()).isEqualTo(48);
-        assertThat(deadline.get("conditions").get("changed").get("targetPeriodMonths").asInt()).isEqualTo(48);
+        assertThat(cards.get(2).get("changes").get("savingsRatioPct").asInt()).isEqualTo(currentRatio - 10);
+        for (JsonNode card : cards) {
+            assertThat(card.get("changed").isNull()).isFalse();
+        }
     }
 
     @Test
