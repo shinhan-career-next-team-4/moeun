@@ -1,7 +1,5 @@
 package com.moeun.backend.chat.application;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -15,7 +13,6 @@ import com.moeun.backend.chat.domain.RecalcResultRow;
 import com.moeun.backend.plan.PlanSaveService;
 import com.moeun.backend.plan.PlanView;
 
-import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -45,7 +42,7 @@ public class ChatComparisonService {
     public ChatComparison find(long memberId, long messageId) {
         RecalcResultRow row = messages.findCompletedRecalcResult(messageId, memberId)
                 .orElseThrow(ComparisonNotFoundException::new);
-        Map<String, JsonNode> changes = parseChanges(row);
+        Map<String, JsonNode> changes = StoredConditionChanges.parse(json, row);
         ChatComparisonView view = comparisons.recompute(memberId, row.calcRunId(), changes)
                 .orElseThrow(() -> new IllegalStateException(
                         "RECALC_RESULT " + messageId + " does not point to the member's calc_run(CHAT)"));
@@ -59,21 +56,5 @@ public class ChatComparisonService {
                 .filter(latestId -> latestId == messageId).isPresent();
         return isLatest && plans.findCurrent(memberId).map(PlanView::currentVersionId)
                 .filter(currentVersionId -> currentVersionId == view.basePlanVersionId()).isPresent();
-    }
-
-    private Map<String, JsonNode> parseChanges(RecalcResultRow row) {
-        JsonNode root;
-        try {
-            root = json.readTree(row.conditionChangesJson());
-        } catch (JacksonException e) {
-            throw new IllegalStateException("condition_changes of message " + row.id() + " is not JSON", e);
-        }
-        if (root == null || !root.isObject()) {
-            throw new IllegalStateException("condition_changes of message " + row.id() + " is not an object");
-        }
-        Map<String, JsonNode> changes = new LinkedHashMap<>();
-        List<String> names = new ArrayList<>(root.propertyNames());
-        names.forEach(name -> changes.put(name, root.get(name)));
-        return changes;
     }
 }

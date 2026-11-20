@@ -6,7 +6,7 @@ import org.springframework.http.HttpStatus;
 
 import com.moeun.backend.chat.application.ChatRequestException;
 
-/** F-3 요청 형식 오류. 400 MALFORMED_REQUEST·405 METHOD_NOT_ALLOWED·415 UNSUPPORTED_MEDIA_TYPE, 모두 errors=[]. */
+/** F-3·F-5 요청 형식 오류. 400 MALFORMED_REQUEST·405 METHOD_NOT_ALLOWED·415 UNSUPPORTED_MEDIA_TYPE, 모두 errors=[]. */
 class ExplanationRequestException extends ChatRequestException {
 
     private ExplanationRequestException(HttpStatus status, String code) {
