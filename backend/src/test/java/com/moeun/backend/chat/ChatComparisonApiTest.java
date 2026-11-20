@@ -183,15 +183,22 @@ class ChatComparisonApiTest extends ChatComparisonTestSupport {
     void usesRecordedDataVersions() throws Exception {
         savePlan(memberId, null, 300_000L);
         Recalc recalc = recalc(memberId, monthly(500_000L), MONTHLY_500K);
-        loader.load(DataKind.SAVINGS_RATE, new VersionSpec("test-chat-later", LocalDate.of(2026, 11, 1), "테스트용 가짜 데이터"),
+        var then = recalc.then().comparison();
+        long recordedRateVersion = then.current().dataVersions().savingsRateVersionId();
+        var newer = loader.load(DataKind.SAVINGS_RATE,
+                new VersionSpec("test-chat-later", LocalDate.of(2026, 11, 1), "테스트용 가짜 데이터"),
                 new ByteArrayInputStream("base_month,avg_rate_pct\n2026-11,1.00\n".getBytes(StandardCharsets.UTF_8)))
                 .orElseThrow();
+        try {
+            JsonNode response = okBody(recalc.messageId());
 
-        JsonNode response = okBody(recalc.messageId());
-
-        var then = recalc.then().comparison();
-        assertThat(response.get("current")).isEqualTo(tree(CalcResultView.from(then.current())));
-        assertThat(response.get("changed")).isEqualTo(tree(CalcResultView.from(then.changed())));
+            assertThat(response.get("current")).isEqualTo(tree(CalcResultView.from(then.current())));
+            assertThat(response.get("changed")).isEqualTo(tree(CalcResultView.from(then.changed())));
+        } finally {
+            // 같은 컨텍스트를 쓰는 다른 테스트가 원래 활성 금리로 계산하도록 되돌린다
+            jdbc.sql("UPDATE data_version SET is_active = false WHERE id = ?").param(newer.id()).update();
+            jdbc.sql("UPDATE data_version SET is_active = true WHERE id = ?").param(recordedRateVersion).update();
+        }
     }
 
     @Test
