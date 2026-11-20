@@ -142,7 +142,24 @@ describe("비교 영역 (#65, FR-CMP-01~03)", () => {
 
     expect(screen.getByRole("status").textContent).toContain("조건 변경 비교 API");
   });
+  it("대안에서 넘어온 조건을 입력칸에 채운 채로 시작한다", () => {
+    render(
+      <CompareSection
+        currentDisplay={currentDisplay}
+        comparison={null}
+        initialChanges={{ monthlySavingAmount: 12100000, savingsRatioPct: 50 }}
+        onCompare={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+
+    expect((screen.getByRole("checkbox", { name: "월 저축액" }) as HTMLInputElement).checked).toBe(true);
+    expect((field("월 저축액") as HTMLInputElement).value).toBe("1210");
+    expect((field("적금") as HTMLInputElement).value).toBe("50");
+    expect((field("ETF") as HTMLInputElement).value).toBe("50");
+  });
 });
+
 
 describe("requestComparison (#65, #64 대기)", () => {
   it("목 모드에서는 비교 결과를 돌려준다", async () => {

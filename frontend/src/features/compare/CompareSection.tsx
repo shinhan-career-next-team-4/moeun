@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { COPY, type CopyMap } from "../../shared/copy/copy";
 import { Button, UnitInput } from "../../shared/ui";
-import { isBlank, manwonToWon, normalizeNumberInput } from "../../shared/units/units";
+import { isBlank, manwonToWon, normalizeNumberInput, wonToManwon } from "../../shared/units/units";
 import { CompareTable } from "./CompareTable";
 import type { ComparisonView, ConditionChanges, ConditionKey } from "./types";
 
@@ -22,6 +22,8 @@ interface CompareSectionProps {
   error?: string | null;
   onCompare(changes: ConditionChanges): void;
   onReset(): void;
+  /** 대안 카드의 '비교하기'가 채워 넣은 조건. 바뀌면 ResultPage가 key로 다시 그린다 */
+  initialChanges?: ConditionChanges;
 }
 
 type Inputs = Partial<Record<ConditionKey, string>>;
@@ -63,6 +65,23 @@ function toChanges(inputs: Inputs, ratio: RatioInput, useRatio: boolean): Condit
   return changes;
 }
 
+/** 넘겨받은 조건을 입력칸 문자열로 되돌린다. 단위 변환만 한다(C12a-5-6). */
+function toInputs(changes: ConditionChanges): Inputs {
+  const inputs: Inputs = {};
+  for (const { key } of PICKABLE) {
+    const value = changes[key];
+    if (value === undefined) continue;
+    inputs[key] = key === "goalAmount" || key === "monthlySavingAmount" ? wonToManwon(value) : String(value);
+  }
+  return inputs;
+}
+
+function toRatio(changes: ConditionChanges): RatioInput {
+  const savings = changes.savingsRatioPct;
+  if (savings === undefined) return { savings: "", etf: "" };
+  return { savings: String(savings), etf: String(100 - savings) };
+}
+
 /** 비중 직접 입력(①, W-13). 한쪽을 적으면 반대쪽은 사용자가 적는다(자동 보정은 Q-105 결정 대기) */
 function RatioInputs({ value, onChange }: { value: RatioInput; onChange: (next: RatioInput) => void }) {
   return (
@@ -97,11 +116,13 @@ export function CompareSection({
   error = null,
   onCompare,
   onReset,
+  initialChanges,
 }: CompareSectionProps) {
   const copy: CopyMap = COPY;
-  const [picked, setPicked] = useState<ConditionKey[]>([]);
-  const [inputs, setInputs] = useState<Inputs>({});
-  const [ratio, setRatio] = useState<RatioInput>({ savings: "", etf: "" });
+  const initial = initialChanges ?? {};
+  const [picked, setPicked] = useState<ConditionKey[]>(Object.keys(initial) as ConditionKey[]);
+  const [inputs, setInputs] = useState<Inputs>(() => toInputs(initial));
+  const [ratio, setRatio] = useState<RatioInput>(() => toRatio(initial));
   const [inputError, setInputError] = useState<string | null>(null);
   const useRatio = picked.includes("savingsRatioPct");
 

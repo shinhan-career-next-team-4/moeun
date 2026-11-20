@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { planStore } from "../../../api";
 import { INPUT_PATH, LOGIN_PATH, RESULT_PATH } from "../../../app/routes";
@@ -45,9 +45,10 @@ describe("ResultPage (#49·#50, C12a-7)", () => {
     expect(await screen.findByLabelText("내 계획 조건")).toBeTruthy();
     expect(screen.getByLabelText("결과 요약").textContent).toContain("약 1,712만원");
     expect(screen.getByLabelText("세 가지 경우 비교")).toBeTruthy();
-    expect(screen.getByText("좋은 경우")).toBeTruthy();
-    expect(screen.getByText("보통 경우")).toBeTruthy();
-    expect(screen.getByText("나쁜 경우")).toBeTruthy();
+    const scenarios = screen.getByLabelText("세 가지 경우 비교");
+    expect(scenarios.textContent).toContain("좋았던 때");
+    expect(scenarios.textContent).toContain("평균");
+    expect(scenarios.textContent).toContain("나빴던 때");
     expect(screen.getByRole("img", { name: "예상 자산 추이" })).toBeTruthy();
     expect(screen.getByLabelText("계산 가정").textContent).toContain("15.4%");
     expect(screen.getByText(/미래의 수익을 보장하지 않습니다/)).toBeTruthy();
@@ -64,14 +65,15 @@ describe("ResultPage (#49·#50, C12a-7)", () => {
     expect(screen.queryByRole("img", { name: "예상 자산 추이" })).toBeNull();
   });
 
-  it("ETF 0%면 보통 경우 1개 카드만 그린다", async () => {
+  it("ETF 0%면 평균 1개 카드만 그린다", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, etf0Mock.responses[0].body)));
     renderResult();
 
     await screen.findByLabelText("세 가지 경우 비교");
-    expect(screen.getByText("보통 경우")).toBeTruthy();
-    expect(screen.queryByText("좋은 경우")).toBeNull();
-    expect(screen.queryByText("나쁜 경우")).toBeNull();
+    const scenarios = screen.getByLabelText("세 가지 경우 비교");
+    expect(scenarios.textContent).toContain("평균");
+    expect(scenarios.textContent).not.toContain("좋았던 때");
+    expect(scenarios.textContent).not.toContain("나빴던 때");
   });
 
   it("500 오류면 loadFailed와 다시 시도 버튼을 표시하고 재시도로 복구한다", async () => {
@@ -116,7 +118,8 @@ describe("ResultPage (#49·#50, C12a-7)", () => {
     expect(await screen.findByLabelText("조건 변경 비교")).toBeTruthy();
     fireEvent.click(screen.getByRole("checkbox", { name: "월 저축액" }));
     fireEvent.change(screen.getByRole("textbox", { name: "월 저축액" }), { target: { value: "150" } });
-    fireEvent.click(screen.getByRole("button", { name: "비교하기" }));
+    const compareSection = screen.getByLabelText("조건 변경 비교");
+    fireEvent.click(within(compareSection).getByRole("button", { name: "비교하기" }));
 
     await waitFor(() => {
       expect(screen.getByRole("status").textContent).toContain("조건 변경 비교 API");

@@ -4,7 +4,8 @@ import { resolveApiMode } from "../../api/client";
 import { ApiError } from "../../api/errors";
 import { COPY } from "../../shared/copy/copy";
 import { Button } from "../../shared/ui";
-import { AlternativeSection } from "../alternative";
+import { AlternativeSection, demoAlternatives } from "../alternative";
+import type { AlternativeValues } from "../alternative/types";
 import { CompareSection, requestComparison, type ComparisonView, type ConditionChanges } from "../compare";
 import { AssumptionsSection } from "./AssumptionsSection";
 import { Disclaimer } from "./Disclaimer";
@@ -25,6 +26,8 @@ export function ResultPage() {
   const [comparison, setComparison] = useState<ComparisonView | null>(null);
   const [comparing, setComparing] = useState(false);
   const [compareError, setCompareError] = useState<string | null>(null);
+  // 대안 '비교하기'가 채워 넣는 조건. 바뀔 때마다 비교 영역을 다시 그린다
+  const [prefill, setPrefill] = useState<{ seq: number; changes: ConditionChanges } | null>(null);
 
   async function compare(changes: ConditionChanges) {
     setComparing(true);
@@ -45,6 +48,15 @@ export function ResultPage() {
   function resetComparison() {
     setComparison(null);
     setCompareError(null);
+    setPrefill(null);
+  }
+
+  /** 대안 카드의 '비교하기'. 비교 영역에 조건만 채우고 저장은 하지 않는다(FR-ALT-04, D-046) */
+  function prefillComparison(values: AlternativeValues) {
+    if (!values.changes) return;
+    setComparison(null);
+    setCompareError(null);
+    setPrefill((prev) => ({ seq: (prev?.seq ?? 0) + 1, changes: values.changes ?? {} }));
   }
 
   function load(fresh = false) {
@@ -129,9 +141,15 @@ export function ResultPage() {
           <ScenarioCards scenarios={result.scenarios} display={display} />
           <ResultChart scenarios={result.scenarios} goalAmount={result.goalAmount} display={display} />
           {/* 대안 영역(#67). 기준 시나리오가 미달일 때만 보인다(FR-ALT-01) */}
-          <AlternativeSection isAchieved={baseline?.isAchieved ?? false} />
+          <AlternativeSection
+            isAchieved={baseline?.isAchieved ?? false}
+            values={demoAlternatives(resolveApiMode(import.meta.env))}
+            onCompare={prefillComparison}
+          />
           {/* 비교 영역(#65). 조건을 바꿔 현재 조건과 나란히 본다 */}
           <CompareSection
+            key={prefill?.seq ?? 0}
+            initialChanges={prefill?.changes}
             currentDisplay={display}
             comparison={comparison}
             loading={comparing}

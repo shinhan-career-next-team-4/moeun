@@ -73,4 +73,44 @@ describe("대안 영역 (#67, FR-ALT-01·02)", () => {
     // 값이 온 카드만 채워지고 나머지 둘은 빈 카드다
     expect(screen.getAllByText("대안 값은 계산 서버에 연결하면 보여 드릴게요")).toHaveLength(2);
   });
+  it("서버가 변동이 커진다고 알려 준 카드에만 변동 경고가 붙는다(W-10)", () => {
+    render(
+      <AlternativeSection
+        isAchieved={false}
+        values={{
+          savingsRatioPct: { badAfterTaxAsset: "약 4,610만원 · 미달", volatilityWarning: true },
+          monthlySavingAmount: { badAfterTaxAsset: "약 4,856만원 · 미달" },
+        }}
+      />,
+    );
+
+    expect(screen.getAllByText("⚠ 변동 커짐")).toHaveLength(1);
+  });
+
+  it("비교하기를 누르면 그 대안의 조건을 넘긴다(FR-ALT-04)", () => {
+    const onCompare = vi.fn();
+    const values = { avgAfterTaxAsset: "약 5,017만원", changes: { monthlySavingAmount: 12100000 } };
+    render(<AlternativeSection isAchieved={false} values={{ monthlySavingAmount: values }} onCompare={onCompare} />);
+
+    const buttons = screen.getAllByRole("button", { name: "비교하기" }) as HTMLButtonElement[];
+    expect(buttons.filter((button) => !button.disabled)).toHaveLength(1);
+    fireEvent.click(buttons.filter((button) => !button.disabled)[0]);
+
+    expect(onCompare).toHaveBeenCalledWith(values);
+  });
+
+  it("내 계획으로 적용은 확인 흐름이 붙기 전까지 비활성이다(D-046)", () => {
+    render(<AlternativeSection isAchieved={false} />);
+
+    const apply = screen.getAllByRole("button", { name: "내 계획으로 적용" }) as HTMLButtonElement[];
+    expect(apply).toHaveLength(3);
+    expect(apply.every((button) => button.disabled)).toBe(true);
+  });
+
+  it("값이 없는 카드는 비교하기를 누를 수 없다", () => {
+    render(<AlternativeSection isAchieved={false} onCompare={vi.fn()} />);
+
+    const buttons = screen.getAllByRole("button", { name: "비교하기" }) as HTMLButtonElement[];
+    expect(buttons.every((button) => button.disabled)).toBe(true);
+  });
 });
