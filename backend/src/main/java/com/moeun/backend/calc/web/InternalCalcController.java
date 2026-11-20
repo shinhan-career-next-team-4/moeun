@@ -32,13 +32,14 @@ class InternalCalcController {
 
     private static final String MEMBER_ID = "memberId";
     private static final String CONDITION_CHANGES = "conditionChanges";
+    private static final String GOAL_AMOUNT = "goalAmount";
     private static final String MONTHLY_SAVING_AMOUNT = "monthlySavingAmount";
     private static final String SAVINGS_RATIO_PCT = "savingsRatioPct";
     private static final String SAVINGS_RATE_INPUT_PCT = "savingsRateInputPct";
     private static final String TARGET_PERIOD_MONTHS = "targetPeriodMonths";
-    /** 대화로 바꿀 수 있는 조건(D-040, CP-07). 이 밖의 키가 하나라도 있으면 요청 전체를 거절한다. */
-    private static final Set<String> CHANGEABLE_KEYS = Set.of(MONTHLY_SAVING_AMOUNT, SAVINGS_RATIO_PCT,
-            SAVINGS_RATE_INPUT_PCT, TARGET_PERIOD_MONTHS);
+    /** 대화로 바꿀 수 있는 조건 1단계 5개(D-090·D-092, CP-07). 이 밖의 키가 하나라도 있으면 요청 전체를 거절한다. */
+    private static final Set<String> CHANGEABLE_KEYS = Set.of(GOAL_AMOUNT, MONTHLY_SAVING_AMOUNT,
+            SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT, TARGET_PERIOD_MONTHS);
 
     private final ConditionValidator conditionValidator;
     private final CompareConditionsUseCase compareConditionsUseCase;
@@ -86,6 +87,7 @@ class InternalCalcController {
 
     private ConditionOverride validate(Map<String, JsonNode> changes) {
         List<FieldError> errors = new ArrayList<>();
+        Long goalAmount = toInteger(changes, GOAL_AMOUNT, Long.MIN_VALUE, Long.MAX_VALUE, errors);
         Long monthlySavingAmount = toInteger(changes, MONTHLY_SAVING_AMOUNT, Long.MIN_VALUE, Long.MAX_VALUE, errors);
         Long savingsRatioPct = toInteger(changes, SAVINGS_RATIO_PCT, Integer.MIN_VALUE, Integer.MAX_VALUE, errors);
         Long targetPeriodMonths = toInteger(changes, TARGET_PERIOD_MONTHS, Integer.MIN_VALUE, Integer.MAX_VALUE,
@@ -94,8 +96,9 @@ class InternalCalcController {
         ConditionOverride override = new ConditionOverride(monthlySavingAmount,
                 targetPeriodMonths == null ? null : targetPeriodMonths.intValue(),
                 savingsRatioPct == null ? null : savingsRatioPct.intValue(),
-                rate == null ? null : rate.decimalValue());
-        boolean hasValidatableValue = monthlySavingAmount != null || savingsRatioPct != null
+                rate == null ? null : rate.decimalValue(),
+                goalAmount, null);
+        boolean hasValidatableValue = goalAmount != null || monthlySavingAmount != null || savingsRatioPct != null
                 || targetPeriodMonths != null || rate != null;
         if (hasValidatableValue) {
             errors.addAll(conditionValidator.validate(ChangePath.CHAT, override));
