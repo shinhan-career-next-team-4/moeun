@@ -114,7 +114,7 @@ repo를 직접 읽지 못하는 AI는 규칙을 모르니까 아래를 맨 앞�
 - 서비스: 목표 기반 자산관리 AI Agent (3주 해커톤 MVP)
 - 스택: React / Spring Boot(계산 엔진, 모듈: auth·plan·refdata·calc·rag·chat) / FastAPI(AI 설명, RAG) / PostgreSQL + pgvector
 - 금액·수익률·기간 계산은 Spring 계산 엔진에서만. AI 서버·프론트에서 계산 금지
-- 화면·AI 응답에 "추천" 표현 금지(부정문은 허용), 본문에 특정 ETF 상품명 금지
+- 개별 주식 종목 추천 표현만 금지(ETF 추천과 특정 ETF 언급은 허용)
 - 고정 문구는 문구표에서 가져옴(하드코딩 금지)
 - 테스트를 먼저 쓰고, 그 테스트를 통과하는 코드를 쓴다
 

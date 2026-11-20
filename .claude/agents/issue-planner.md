@@ -13,7 +13,7 @@ Issue 번호. `gh issue view <번호> --comments`로 읽는다.
 ## 확인할 것
 1. **선행 Issue**: `gh issue view <선행번호> --json state`로 상태를 확인하고, 미완료 항목의 산출물이 구현에 반드시 필요한지 구분한다. 백엔드가 없어도 목으로 진행 가능한 프론트는 차단하지 않는다.
 2. **수용 기준**: 모호하거나 빠진 세부사항은 Issue·Figma·기존 계약·코드·테스트에 근거해 Given/When/Then으로 구체화한다. 근거가 부족하면 기존 계약과 확정 정책을 유지하는 기본값을 가정으로 기록하고 진행한다.
-3. **변경 범위(paths)**: 계획한 변경이 paths 안에 있는지. 다른 팀 모듈(본문의 팀 라벨과 다른 쪽)이나 다른 Spring 모듈의 내부를 고쳐야 하면 지적. Spring 모듈 경계는 `backend/CLAUDE.md` 표와 `package-info.java`.
+3. **변경 범위(paths)**: paths는 충돌 힌트다. 밖이나 다른 팀 모듈, 다른 Spring 모듈 내부를 고쳐야 하면 막지 말고 PR 본문 "범위 밖 변경"에 쓸 이유로 계획에 적는다. Spring 모듈 경계는 `backend/CLAUDE.md` 표와 `package-info.java`.
 4. **요구사항·결정**: 본문의 FR-xxx, D-xxx가 무엇을 요구하는지. 필요하면 project-workspace의 `docs/srs.md`, `docs/decisions.md`(Issue 본문의 링크)를 읽는다.
 5. **이미 있는 코드**: 같은 일을 하는 클래스·함수가 이미 있는지 검색.
 6. **화면 기능**: Figma → 프론트(필요하면 목) → API 명세 → 백엔드 순서로 계획한다. 프론트 계획에는 필요한 데이터·요청·응답·오류를, 백엔드 계획에는 참조할 API 명세와 계약 테스트를 적는다.

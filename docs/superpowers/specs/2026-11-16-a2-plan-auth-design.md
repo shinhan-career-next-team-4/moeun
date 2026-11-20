@@ -36,7 +36,7 @@ A-2는 이 흐름의 입구(로그인, 입력, 검증, 저장)와 계획 상태 
 ## 3. 제약
 
 - 백엔드: Java 21, Spring Boot 4.1, Spring Modulith. 모듈 `auth`, `plan`은 `allowedDependencies = {}`. 규칙은 `backend/.claude/rules/*.md`
-- 프론트: Next.js 16 App Router, React 19, TypeScript strict, Tailwind 4, Vitest. 규칙은 `frontend/CLAUDE.md`, `frontend/.claude/`
+- 프론트: Vite, React 19, TypeScript strict, Tailwind 4, Vitest. 규칙은 `frontend/CLAUDE.md`, `frontend/.claude/`
 - DB: `schema.sql`이 원본, `ddl-auto=validate`. 계산 결과는 저장하지 않는다(ADR-002)
 - 로컬 포트: 프론트 5173, 백엔드 8080. CORS 허용 Origin은 `CORS_ALLOWED_ORIGINS`
 - 클래스 이름은 `db/moved-to-code.md`를 따른다: `JwtTokenService`, `TokenRenewalFilter`, `@SkipRenewal`, `GoalType`, `InputField`, `ChangePath`, `ConditionValidator`, `PlanInputValidator`, `ConditionOverride`, 이벤트 `PlanChanged`

@@ -9,7 +9,7 @@ Issue 번호. `gh issue view <번호> --comments`로 읽는다.
 ## 확인할 것
 1. **선행 Issue**: 본문의 "선행"에 적힌 Issue가 모두 닫혔는지 `gh issue view <선행번호> --json state`로 확인.
 2. **수용 기준**: Given/When/Then이 테스트로 옮길 수 있을 만큼 구체적인지. 모호한 단어("적절히", "빠르게")가 있으면 지적.
-3. **변경 범위(paths)**: 계획한 변경이 paths 안에 있는지. 다른 팀 모듈(본문의 팀 라벨과 다른 쪽)이나 다른 Spring 모듈의 내부를 고쳐야 하면 지적. Spring 모듈 경계는 `backend/AGENTS.md` 표와 `package-info.java`.
+3. **변경 범위(paths)**: paths는 충돌 힌트다. 밖이나 다른 팀 모듈, 다른 Spring 모듈 내부를 고쳐야 하면 막지 말고 PR 본문 "범위 밖 변경"에 쓸 이유로 계획에 적는다. Spring 모듈 경계는 `backend/AGENTS.md` 표와 `package-info.java`.
 4. **요구사항·결정**: 본문의 FR-xxx, D-xxx가 무엇을 요구하는지. 필요하면 project-workspace의 `docs/srs.md`, `docs/decisions.md`(Issue 본문의 링크)를 읽는다.
 5. **이미 있는 코드**: 같은 일을 하는 클래스·함수가 이미 있는지 검색.
 
