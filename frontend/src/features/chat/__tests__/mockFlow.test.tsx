@@ -7,7 +7,7 @@ import { planView } from "../../../api/__tests__/helpers";
 import { resetMocks, useMock } from "../../../api/mock";
 import { LOGIN_PATH } from "../../../app/routes";
 import { ChatWindow } from "../index";
-import { copy, makeMockEnv } from "./helpers";
+import { copy, isF2Path, makeMockEnv } from "./helpers";
 
 beforeAll(async () => {
   await import("../../../api/mock"); // 첫 동적 import가 테스트 시간 안에 끝나도록 미리 읽는다
@@ -48,8 +48,9 @@ async function mountMock(pathname = "/result") {
 const bubble = (id: number) =>
   screen.queryAllByTestId("chat-message").find((el) => el.getAttribute("data-message-id") === String(id));
 const pendings = () => screen.queryAllByTestId("chat-pending");
+// F-2(복원·폴링)만 센다. #53 F-4(`/{id}/comparison`) GET은 넣지 않는다(#53 사용자 결정 4차 B1=A).
 const chatGets = (env: ReturnType<typeof makeMockEnv>) =>
-  env.requests.filter((r) => r.method === "GET" && r.path.startsWith("/api/chat/messages"));
+  env.requests.filter((r) => r.method === "GET" && isF2Path(r.path));
 
 describe("목 모드: 복원", () => {
   it("기본 목(get-messages.200-restore-empty)이면 빈 목록이고 폴링하지 않는다. 고지는 보인다", async () => {

@@ -4,10 +4,14 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { copy, FEATURE_DIR } from "./helpers";
 
+// #53 비교 카드(comparison/)는 계약상 store 쓰기(F-5 뒤 acceptRevision·loadPlan·acceptNoPlan)와 revision 구독을 맡으므로
+// 이 읽기 전용 검사에서 뺀다(사용자 결정 2026-11-20 B1=A). comparison/의 규칙은 comparison/__tests__/boundary.test.ts가 본다.
+const EXCLUDED_DIRS = new Set([path.join(FEATURE_DIR, "comparison")]);
+
 function walk(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) return entry.name === "__tests__" ? [] : walk(full);
+    if (entry.isDirectory()) return entry.name === "__tests__" || EXCLUDED_DIRS.has(full) ? [] : walk(full);
     return [full];
   });
 }

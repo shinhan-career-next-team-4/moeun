@@ -16,19 +16,23 @@ export interface ChatPollingInternal extends ChatPolling {
 
 const INITIAL: ChatPollingState = { messages: [], hasPending: false, answerPending: false, pollingFailed: false };
 
-export function useChatPollingInternal(deps: ChatDeps): ChatPollingInternal {
+/** onMessages는 폴링이 메시지를 내놓는 순간(렌더 전)에 불린다. 다른 상태 변화와의 실제 순서를 알아야 하는 구독자용이다. */
+export function useChatPollingInternal(deps: ChatDeps, onMessages?: (messages: ChatMessage[]) => void): ChatPollingInternal {
   const [state, setState] = useState<ChatPollingState>(INITIAL);
   const controllerRef = useRef<PollingController | null>(null);
 
   useEffect(() => {
-    const controller = createPollingController(deps, setState);
+    const controller = createPollingController(deps, (next) => {
+      onMessages?.(next.messages);
+      setState(next);
+    });
     controllerRef.current = controller;
     controller.begin(0); // 화면이 열리면 복원 호출을 한 번 보낸다
     return () => {
       controller.dispose();
       controllerRef.current = null;
     };
-  }, [deps]);
+  }, [deps, onMessages]);
 
   const resume = useCallback(() => controllerRef.current?.begin(POLL_INTERVAL_MS), []);
   const accepted = useCallback(
