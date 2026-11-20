@@ -166,4 +166,12 @@ public class ChatMessageRepository {
                     .params(rank++, chunkId, messageId, memberId).update();
         }
     }
+
+    /**
+     * 그 회원의 대화를 한 문장으로 전부 지운다(#46). 행을 하나씩 지우면 retry_of_message_id(NO ACTION)가 문장마다
+     * 검사되어 순서에 따라 실패하므로 일괄 DELETE다. chat_message_citation은 FK CASCADE로 함께 지워진다.
+     */
+    public int deleteAllOf(long memberId) {
+        return jdbc.sql("DELETE FROM chat_message WHERE member_id = ?").param(memberId).update();
+    }
 }
