@@ -353,13 +353,19 @@ class ChatApplyApiTest extends ChatComparisonTestSupport {
         for (long id : ids) {
             MvcResult result = apply(cookie, id, saved.revision()).andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.code").value("NOT_FOUND")).andReturn();
-            bodies.add(result.getResponse().getContentAsString());
+            bodies.add(withoutInstance(body(result)));
         }
 
         assertThat(bodies).allMatch(bodies.get(0)::equals);
         assertPlanUnchanged(memberId, saved);
         assertPlanUnchanged(otherMemberId, new PlanSaveResult(currentVersionId(otherMemberId),
                 revision(otherMemberId)));
+    }
+
+    /** instance는 요청 경로(id 포함)라 구분 대상이 아니다. 나머지(status·title·code·errors)가 같아야 id를 추측할 수 없다. */
+    private String withoutInstance(JsonNode problem) {
+        return problem.get("status") + "|" + problem.get("title") + "|" + problem.get("code") + "|"
+                + problem.get("errors");
     }
 
     @ParameterizedTest
