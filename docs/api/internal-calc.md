@@ -196,7 +196,7 @@ CP-04 형식(`Formatter`)으로 Spring이 만든 문자열의 **평평한 맵**(
 ### C2-7. 계산 기록
 
 - 성공한 요청 1건마다 `calc_run` **1행**을 INSERT한다: `plan_version_id` = 현재 계획 버전, `run_type = 'CHAT'`, 데이터 버전 3종과 `engine_version`. 그 `id`가 `calcRunId`.
-- `current`와 `changed`는 **같은 데이터 버전·같은 엔진 버전**으로 계산하고 그 버전을 이 행에 남긴다. `current`용 행은 따로 만들지 않는다. 왜: 차이가 조건 변경에서만 나오고, F-4(#44)가 이 행 + `chat_message.condition_changes`만으로 같은 결과를 다시 계산할 수 있다(ADR-002 결과 미저장).
+- `current`와 `changed`는 **같은 데이터 버전·같은 엔진 버전**으로 계산하고 그 버전을 이 행에 남긴다. **예외(#157, 제안: B팀 합의 대기)**: 두 쪽이 서로 다른 ETF 종목을 쓰면 `changed.dataVersions.sp500VersionId`는 changed 종목의 가격 버전이고, 이 행의 `changed_etf_version_id`에 따로 남긴다(JSON 키는 늘지 않음). 대화로 종목을 바꾸는 조건(D-040 개정 대기) 전에는 생기지 않는다. `current`용 행은 따로 만들지 않는다. 왜: 차이가 조건 변경에서만 나오고, F-4(#44)가 이 행 + `chat_message.condition_changes`만으로 같은 결과를 다시 계산할 수 있다(ADR-002 결과 미저장).
 - 해커톤에서는 활성 데이터 버전을 쓴다(D-045: D-038 범위 밖).
 - **실패하면 기록하지 않는다**: C3의 모든 오류에서 `calc_run`을 만들지 않는다(500은 롤백). 그래서 `calcRunId`가 없으면 `RECALC_RESULT`도 없다(D-033).
 - **[D-057]** 성공했지만 ai-server가 그 뒤 실패하거나 `OUT_OF_SCOPE`로 끝나면 `chat_message`가 참조하지 않는 CHAT 행이 남는다. **남기고 정리하지 않는다(D-057).** moeun ADR-002 §2-2 문장을 이에 맞게 고친다(후속 Issue).
