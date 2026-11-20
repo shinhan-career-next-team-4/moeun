@@ -1,10 +1,12 @@
 package com.moeun.backend.chat.domain;
 
 import java.time.OffsetDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -14,6 +16,10 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public class ChatMessageRepository {
+
+    private static final RowMapper<MessageRow> MESSAGE_ROW = (rs, row) -> new MessageRow(rs.getLong("id"),
+            rs.getString("role"), rs.getString("message_type"), rs.getString("status"), rs.getString("content"),
+            rs.getObject("created_at", OffsetDateTime.class));
 
     private final JdbcClient jdbc;
 
@@ -37,6 +43,28 @@ public class ChatMessageRepository {
         return jdbc.sql("SELECT EXISTS (SELECT 1 FROM chat_message "
                         + "WHERE member_id = ? AND message_type = 'ANSWER' AND status = 'PENDING')")
                 .param(memberId).query(Boolean.class).single();
+    }
+
+    /** 그 회원의 PENDING(질문·설명 모두)이 하나라도 있는지. 목록 밖의 오래된 id도 잡힌다. */
+    public boolean existsPending(long memberId) {
+        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM chat_message WHERE member_id = ? AND status = 'PENDING')")
+                .param(memberId).query(Boolean.class).single();
+    }
+
+    /** 복원: 최근 limit개를 id 오름차순으로(키셋 DESC LIMIT 뒤 뒤집기). */
+    public List<MessageRow> findLatest(long memberId, int limit) {
+        List<MessageRow> rows = jdbc.sql("SELECT id, role, message_type, status, content, created_at "
+                        + "FROM chat_message WHERE member_id = ? ORDER BY id DESC LIMIT ?")
+                .params(memberId, limit).query(MESSAGE_ROW).list();
+        Collections.reverse(rows);
+        return rows;
+    }
+
+    /** 폴링: afterId보다 큰 id의 자기 메시지 전부를 id 오름차순으로. */
+    public List<MessageRow> findAfter(long memberId, long afterId) {
+        return jdbc.sql("SELECT id, role, message_type, status, content, created_at "
+                        + "FROM chat_message WHERE member_id = ? AND id > ? ORDER BY id")
+                .params(memberId, afterId).query(MESSAGE_ROW).list();
     }
 
     /** 그 회원의 PENDING 중 createdBefore보다 먼저 만들어진 행을 FAILED로 바꾼다. 경계(같은 시각)는 건드리지 않는다. */
