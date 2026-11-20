@@ -89,4 +89,23 @@ describe("ResultPage (#49·#50, C12a-7)", () => {
       expect(screen.getByLabelText("결과 요약")).toBeTruthy();
     });
   });
+  // 대안 영역 연결(#67, FR-ALT-01)
+  it("기준 시나리오가 미달이면 대안 영역이 보이고 달성이면 보이지 않는다", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
+    renderResult();
+
+    expect(await screen.findByLabelText("대안")).toBeTruthy();
+    cleanup();
+
+    const achieved = structuredClone(planMock.responses[0].body) as {
+      result: { scenarios: { scenario: string; isAchieved: boolean }[] };
+    };
+    for (const scenario of achieved.result.scenarios) scenario.isAchieved = true;
+    planStore.clear();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, achieved)));
+    renderResult();
+
+    await screen.findByLabelText("결과 요약");
+    expect(screen.queryByLabelText("대안")).toBeNull();
+  });
 });
