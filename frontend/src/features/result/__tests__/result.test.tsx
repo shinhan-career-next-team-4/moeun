@@ -60,21 +60,126 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
         )
         renderResult()
 
-        expect(await screen.findByLabelText('내 계획 조건')).toBeTruthy()
-        expect(screen.getByLabelText('결과 요약').textContent).toContain(
-            '약 1,712만원',
-        )
-        expect(screen.getByLabelText('세 가지 경우 비교')).toBeTruthy()
-        const scenarios = screen.getByLabelText('세 가지 경우 비교')
-        expect(scenarios.textContent).toContain('좋았던 때')
-        expect(scenarios.textContent).toContain('평균')
-        expect(scenarios.textContent).toContain('나빴던 때')
-        expect(screen.getByRole('img', { name: '예상 자산 추이' })).toBeTruthy()
-        expect(screen.getByLabelText('계산 가정').textContent).toContain(
-            '15.4%',
-        )
-        expect(screen.getByText(/미래의 수익을 보장하지 않습니다/)).toBeTruthy()
-    })
+    expect(await screen.findByLabelText("내 계획 조건")).toBeTruthy();
+    expect(screen.getByLabelText("결과 요약").textContent).toContain("약 1,712만원");
+    expect(screen.getByLabelText("세 가지 경우 비교")).toBeTruthy();
+    const scenarios = screen.getByLabelText("세 가지 경우 비교");
+    expect(scenarios.textContent).toContain("좋았던 때");
+    expect(scenarios.textContent).toContain("평균");
+    expect(scenarios.textContent).toContain("나빴던 때");
+    expect(screen.getByRole("img", { name: "예상 자산 추이" })).toBeTruthy();
+    expect(screen.getByLabelText("계산 가정").textContent).toContain("15.4%");
+    expect(screen.getByText(/실제 수령액이나 수익을 보장하지 않습니다/)).toBeTruthy();
+  });
+
+  // 와이어프레임 03 반영(#136). 숫자는 모두 서버 display 문자열을 그대로 쓴다.
+  describe("와이어프레임 반영 (#136)", () => {
+    function withoutDisplayKeys(keys: string[]) {
+      const body = structuredClone(planMock.responses[0].body) as { display: Record<string, string> };
+      for (const key of keys) delete body.display[key];
+      return body;
+    }
+
+    it("(W-03) 요약 카드에 원금·이자 분해 한 줄이 display 문자열 그대로 보인다", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
+      renderResult();
+
+      const summary = await screen.findByLabelText("결과 요약");
+      expect(summary.textContent).toContain("원금 약 1,580만원 + 이자·수익 약 132만원(세후)");
+    });
+
+    it("(W-03 예외) principal·afterTaxGain display 키가 없으면 그 줄만 숨긴다", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(jsonResponse(200, withoutDisplayKeys(["AVG.principal", "AVG.afterTaxGain"]))),
+      );
+      renderResult();
+
+      const summary = await screen.findByLabelText("결과 요약");
+      expect(summary.textContent).toContain("약 1,712만원");
+      expect(summary.textContent).not.toContain("원금");
+    });
+
+    it("(W-04) 그래프에 범위 밴드와 범례 세 개가 보인다", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
+      renderResult();
+
+      const chart = await screen.findByLabelText("예상 자산 추이 그래프");
+      // 3구간 카드에도 '평균'이 있으므로 범례는 그래프 안에서 찾는다
+      expect(within(chart).getByText("평균")).toBeTruthy();
+      expect(within(chart).getByText("좋았던 때~나빴던 때 범위")).toBeTruthy();
+      expect(within(chart).getByText("목표선")).toBeTruthy();
+      // 밴드는 닫힌 path(Z)로 그린다
+      const filled = [...chart.querySelectorAll("path")].filter((node) => node.getAttribute("d")?.endsWith("Z"));
+      expect(filled.length).toBe(1);
+    });
+
+    it("(W-04 예외) GOOD·BAD monthlyPoints가 없으면 밴드 없이 평균선과 목표선만 그린다", async () => {
+      const body = structuredClone(planMock.responses[0].body) as {
+        result: { scenarios: { scenario: string; monthlyPoints: unknown[] }[] };
+      };
+      for (const scenario of body.result.scenarios) {
+        if (scenario.scenario !== "AVG") scenario.monthlyPoints = [];
+      }
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, body)));
+      renderResult();
+
+      const chart = await screen.findByLabelText("예상 자산 추이 그래프");
+      expect([...chart.querySelectorAll("path")].filter((n) => n.getAttribute("d")?.endsWith("Z")).length).toBe(0);
+      expect(within(chart).queryByText("좋았던 때~나빴던 때 범위")).toBeNull();
+      expect(within(chart).getByText("평균")).toBeTruthy();
+    });
+
+    it("(W-06) 3구간 머리글과 구간 산정 설명이 보인다", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
+      renderResult();
+
+      expect(await screen.findByText("ETF가 포함된 결과는 시기에 따라 달라요")).toBeTruthy();
+      // assumptions.scenarioMethod = ROLLING_DISTRIBUTION에 대응하는 짧은 문구표 문장
+      expect(screen.getByText(/기준 지수 S&P500 · 과거 10년 수익률로 1만 가지 경우를 계산해 세 구간/)).toBeTruthy();
+    });
+
+    it("(W-06 예외) scenarioMethod가 null이면 설명 줄만 숨긴다", async () => {
+      const body = structuredClone(planMock.responses[0].body) as {
+        result: { assumptions: { scenarioMethod: string | null } };
+      };
+      body.result.assumptions.scenarioMethod = null;
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, body)));
+      renderResult();
+
+      expect(await screen.findByText("ETF가 포함된 결과는 시기에 따라 달라요")).toBeTruthy();
+      expect(screen.queryByText(/기준 지수 S&P500/)).toBeNull();
+    });
+
+    it("(W-26) 가로축 양 끝은 display 값이고 중간 눈금은 1년 간격이다", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
+      renderResult();
+
+      const chart = await screen.findByLabelText("예상 자산 추이 그래프");
+      const labels = [...chart.querySelectorAll("text")].map((node) => node.textContent);
+      expect(labels).toContain("2026년 11월");
+      expect(labels).toContain("2029년 11월");
+      expect(labels).toContain("2027.11");
+      expect(labels).toContain("2028.11");
+    });
+
+    it("(W-19) 면책 문구에 다섯 가지가 모두 들어 있다", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
+      renderResult();
+
+      await screen.findByLabelText("내 계획 조건");
+      const text = document.body.textContent ?? "";
+      for (const phrase of [
+        "모의 계산",
+        "실제 수령액이나 수익을 보장하지 않습니다",
+        "특정 금융상품의 가입을 권유하지 않으며",
+        "환율 변동은 반영하지 않았습니다",
+        "본인의 판단과 책임",
+      ]) {
+        expect(text, phrase).toContain(phrase);
+      }
+    });
+  });
 
     it('ALREADY_EXCEEDED면 초과 안내만 표시하고 요약·3구간·그래프를 숨긴다', async () => {
         vi.stubGlobal(

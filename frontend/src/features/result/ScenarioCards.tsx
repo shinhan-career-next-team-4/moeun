@@ -6,10 +6,15 @@ const SCENARIO_ORDER: readonly ScenarioCode[] = ["GOOD", "AVG", "BAD"];
 interface ScenarioCardsProps {
   scenarios: ScenarioResult[];
   display: Record<string, string>;
+  /** 구간을 어떻게 나눴는지 가리키는 문구표 키(`result.scenarioMethodShort.<코드>`). 모르는 코드면 줄을 숨긴다. */
+  scenarioMethod: string | null;
 }
 
 /** 3구간 비교 카드(FR-RES-03, #50, C12a-7). */
-export function ScenarioCards({ scenarios, display }: ScenarioCardsProps) {
+export function ScenarioCards({ scenarios, display, scenarioMethod }: ScenarioCardsProps) {
+  const methodText = scenarioMethod
+    ? COPY[`result.scenarioMethodShort.${scenarioMethod}` as keyof typeof COPY]
+    : undefined;
   const byCode = new Map(scenarios.map((s) => [s.scenario, s]));
   const ordered = SCENARIO_ORDER.map((code) => byCode.get(code)).filter(
     (s): s is ScenarioResult => s !== undefined,
@@ -17,6 +22,10 @@ export function ScenarioCards({ scenarios, display }: ScenarioCardsProps) {
 
   return (
     <section aria-label="세 가지 경우 비교" className="flex flex-col gap-3">
+      <header className="flex flex-col gap-1">
+        <h2 className="text-base font-semibold text-text">{COPY["result.scenarioHeading"]}</h2>
+        {methodText && <p className="text-xs text-text-muted">{methodText}</p>}
+      </header>
       <div className="grid gap-4 sm:grid-cols-3">
         {ordered.map((item) => {
           const reachText = item.isAchieved
