@@ -46,6 +46,8 @@ class SchemaUpgradeTest {
     @BeforeEach
     void makeOldStructure() {
         jdbc.execute("TRUNCATE data_version RESTART IDENTITY CASCADE");
+        // #157 전 calc_run: changed 쪽 ETF 버전 칸 없음
+        jdbc.execute("ALTER TABLE calc_run DROP COLUMN IF EXISTS changed_etf_version_id");
         // #138 전 data_version: product_code 없음, 종류에 SP500, 종류별 활성 1개, (종류, 이름) 유일
         jdbc.execute("DROP INDEX IF EXISTS uq_data_version_active_product");
         jdbc.execute("ALTER TABLE data_version DROP CONSTRAINT IF EXISTS ck_data_kind");
@@ -91,6 +93,14 @@ class SchemaUpgradeTest {
         assertThat(referenceDataService.findActiveSavingsAvgRate()).isEmpty();   // 금리 행은 이 테스트에서 넣지 않음
         assertThat(jdbc.queryForObject("SELECT product_code IS NULL FROM data_version WHERE id = 2", Boolean.class))
                 .isTrue();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM information_schema.columns "
+                + "WHERE table_name = 'calc_run' AND column_name = 'changed_etf_version_id'", Integer.class))
+                .isEqualTo(1);
+        // 앱 기동 때와 여기서 스키마가 두 번 돌아도 data_version을 가리키는 FK는 하나다
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM information_schema.key_column_usage k "
+                + "JOIN information_schema.referential_constraints r ON r.constraint_name = k.constraint_name "
+                + "WHERE k.table_name = 'calc_run' AND k.column_name = 'changed_etf_version_id'", Integer.class))
+                .isEqualTo(1);
     }
 
     @Test

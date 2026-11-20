@@ -42,6 +42,9 @@ public class CalcRun {
 
     private Long sp500VersionId;
 
+    // CHAT만: changed 쪽이 current와 다른 ETF 종목일 때 그 가격 버전(#157). null = 같은 종목(또는 PLAN)
+    private Long changedEtfVersionId;
+
     @Column(nullable = false)
     private Long calcParamVersionId;
 
@@ -66,9 +69,16 @@ public class CalcRun {
         return new CalcRun(planVersionId, RunType.PLAN, versions);
     }
 
-    /** 대화 재계산 기록(run_type = CHAT). 요청마다 새 행이다(계약 C2-7). */
-    public static CalcRun createChatRun(long planVersionId, AppliedDataVersions versions) {
-        return new CalcRun(planVersionId, RunType.CHAT, versions);
+    /**
+     * 대화 재계산 기록(run_type = CHAT). 요청마다 새 행이다(계약 C2-7).
+     *
+     * @param versions current·changed에 함께 쓴 기준 데이터 버전(ETF는 ETF를 쓴 쪽 종목, 둘 다 썼으면 current 쪽)
+     * @param changedEtfVersionId changed가 다른 ETF 종목일 때 그 가격 버전(#157). 같은 종목이면 null
+     */
+    public static CalcRun createChatRun(long planVersionId, AppliedDataVersions versions, Long changedEtfVersionId) {
+        CalcRun run = new CalcRun(planVersionId, RunType.CHAT, versions);
+        run.changedEtfVersionId = changedEtfVersionId;
+        return run;
     }
 
     /** 이 기록이 같은 기준 데이터 버전과 엔진 버전으로 계산한 것인지. 다르면 같은 계획 버전이라도 새로 기록한다(G-18). */

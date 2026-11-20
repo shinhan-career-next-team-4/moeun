@@ -81,6 +81,7 @@ erDiagram
         varchar run_type "PLAN/CHAT"
         bigint savings_rate_version_id FK
         bigint sp500_version_id FK
+        bigint changed_etf_version_id FK
         bigint calc_param_version_id FK
         varchar engine_version
         timestamptz created_at
@@ -295,6 +296,7 @@ CREATE TABLE calc_run (
     run_type                 VARCHAR(10)  NOT NULL,
     savings_rate_version_id  BIGINT       REFERENCES data_version(id),   -- NULL = 기본금리를 쓰지 않음
     sp500_version_id         BIGINT       REFERENCES data_version(id),   -- ETF 가격 버전(이름은 #138 전 그대로). NULL = ETF 비중 0%
+    changed_etf_version_id   BIGINT       REFERENCES data_version(id),   -- CHAT만: changed가 다른 종목일 때(#157). NULL = 같은 종목
     calc_param_version_id    BIGINT       NOT NULL REFERENCES data_version(id),
     engine_version           VARCHAR(20)  NOT NULL,
     created_at               TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -454,7 +456,7 @@ CREATE TABLE chat_message_citation (
 | NFR-CMP-01 | — | 프론트 |
 | NFR-CMP-02 | — | 프론트 |
 | NFR-INT-01 | `calc_run.engine_version` | `CalcEngine`(Spring) |
-| NFR-INT-02 | `calc_run.savings_rate_version_id`, `sp500_version_id`, `calc_param_version_id`, `engine_version` | `DataVersionService.requireKind` |
+| NFR-INT-02 | `calc_run.savings_rate_version_id`, `sp500_version_id`, `changed_etf_version_id`, `calc_param_version_id`, `engine_version` | `DataVersionService.requireKind` |
 | NFR-INT-03 | `chat_message.calc_run_id` | FastAPI → Spring `POST /calc` |
 | NFR-INT-04 | `chunk_embedding.embedding` + 부분 HNSW `ix_chunk_embedding_hnsw` | `rag.embedding.*` 설정 |
 | NFR-PERF-01 | §4 인덱스 | 결과 캐시(앱 메모리), 로그 `*.latencyMs` |
