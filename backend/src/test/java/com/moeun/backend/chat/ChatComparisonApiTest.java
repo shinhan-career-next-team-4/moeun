@@ -58,6 +58,11 @@ class ChatComparisonApiTest extends ChatComparisonTestSupport {
         return body(comparison(cookie, messageId).andExpect(status().isOk()).andReturn());
     }
 
+    /** 응답과 같은 글자 경로로 만든 기대 트리. valueToTree는 BigDecimal 자릿수(2.840)를 남겨 파싱한 응답(2.84)과 달라진다. */
+    private JsonNode tree(Object value) {
+        return json.readTree(json.writeValueAsString(value));
+    }
+
     private Set<String> keys(JsonNode node) {
         Set<String> keys = new HashSet<>();
         node.propertyNames().forEach(keys::add);
@@ -146,14 +151,15 @@ class ChatComparisonApiTest extends ChatComparisonTestSupport {
         JsonNode response = okBody(recalc.messageId());
 
         var then = recalc.then().comparison();
-        assertThat(response.get("current")).isEqualTo(json.valueToTree(CalcResultView.from(then.current())));
-        assertThat(response.get("changed")).isEqualTo(json.valueToTree(CalcResultView.from(then.changed())));
-        assertThat(response.get("diff")).isEqualTo(json.valueToTree(then.diff()));
-        assertThat(response.get("display")).isEqualTo(json.valueToTree(recalc.then().display()));
+        assertThat(response.get("current")).isEqualTo(tree(CalcResultView.from(then.current())));
+        assertThat(response.get("changed")).isEqualTo(tree(CalcResultView.from(then.changed())));
+        assertThat(response.get("diff")).isEqualTo(tree(then.diff()));
+        assertThat(response.get("display")).isEqualTo(tree(recalc.then().display()));
     }
 
     @Test
-    @DisplayName("응답 모양: messageId·applicable·changedKeys·conditions·current·changed·diff·display만 있고 calcRunId·monthlyPoints는 없다")
+    @DisplayName("응답 모양: 8개 키(messageId·applicable·changedKeys·conditions·current·changed·diff·display)만 있고 "
+            + "calcRunId·monthlyPoints는 없다")
     void responseShape() throws Exception {
         savePlan(memberId, null, 300_000L);
         Recalc recalc = recalc(memberId, monthly(500_000L), MONTHLY_500K);
@@ -184,8 +190,8 @@ class ChatComparisonApiTest extends ChatComparisonTestSupport {
         JsonNode response = okBody(recalc.messageId());
 
         var then = recalc.then().comparison();
-        assertThat(response.get("current")).isEqualTo(json.valueToTree(CalcResultView.from(then.current())));
-        assertThat(response.get("changed")).isEqualTo(json.valueToTree(CalcResultView.from(then.changed())));
+        assertThat(response.get("current")).isEqualTo(tree(CalcResultView.from(then.current())));
+        assertThat(response.get("changed")).isEqualTo(tree(CalcResultView.from(then.changed())));
     }
 
     @Test
@@ -199,7 +205,7 @@ class ChatComparisonApiTest extends ChatComparisonTestSupport {
 
         assertThat(response.get("changed").get("scenarios")).hasSize(1);
         assertThat(response.get("changed").get("scenarios").get(0).get("scenario").asText()).isEqualTo("AVG");
-        assertThat(response.get("display")).isEqualTo(json.valueToTree(recalc.then().display()));
+        assertThat(response.get("display")).isEqualTo(tree(recalc.then().display()));
         response.get("display").propertyNames().forEach(key -> {
             if (key.startsWith("changed.")) {
                 assertThat(key.toLowerCase()).doesNotContain("good").doesNotContain("bad");
@@ -249,9 +255,9 @@ class ChatComparisonApiTest extends ChatComparisonTestSupport {
         assertThat(changedKeys).contains("goalAmount");
         assertThat(response.get("conditions").get("current").get("goalAmount").asLong()).isEqualTo(20_000_000L);
         assertThat(response.get("conditions").get("changed").get("goalAmount").asLong()).isEqualTo(30_000_000L);
-        assertThat(response.get("changed")).isEqualTo(json.valueToTree(
+        assertThat(response.get("changed")).isEqualTo(tree(
                 CalcResultView.from(recalc.then().comparison().changed())));
-        assertThat(response.get("display")).isEqualTo(json.valueToTree(recalc.then().display()));
+        assertThat(response.get("display")).isEqualTo(tree(recalc.then().display()));
     }
 
     @Test
@@ -265,7 +271,7 @@ class ChatComparisonApiTest extends ChatComparisonTestSupport {
 
         assertThat(response.get("conditions").get("changed").get("monthlySavingAmount").asLong())
                 .isEqualTo(50_000_000L);
-        assertThat(response.get("changed")).isEqualTo(json.valueToTree(
+        assertThat(response.get("changed")).isEqualTo(tree(
                 CalcResultView.from(recalc.then().comparison().changed())));
     }
 
@@ -321,6 +327,8 @@ class ChatComparisonApiTest extends ChatComparisonTestSupport {
             problems.add(body(result));
         }
 
+        // instance(요청 경로)만 id마다 다르다. 나머지는 구분되지 않아야 한다
+        problems.forEach(problem -> ((tools.jackson.databind.node.ObjectNode) problem).remove("instance"));
         for (JsonNode problem : problems) {
             assertThat(problem.get("code").asText()).isEqualTo("NOT_FOUND");
             assertThat(problem).isEqualTo(problems.get(0));

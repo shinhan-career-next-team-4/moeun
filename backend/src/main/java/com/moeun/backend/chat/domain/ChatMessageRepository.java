@@ -98,6 +98,23 @@ public class ChatMessageRepository {
                 .optional();
     }
 
+    /** F-4: 그 회원의 COMPLETED RECALC_RESULT 한 행. 없는·남의·다른 종류·COMPLETED가 아닌 행은 모두 빈 값이다. */
+    public Optional<RecalcResultRow> findCompletedRecalcResult(long id, long memberId) {
+        return jdbc.sql("SELECT id, calc_run_id, condition_changes::text AS condition_changes FROM chat_message "
+                        + "WHERE id = ? AND member_id = ? AND message_type = 'RECALC_RESULT' AND status = 'COMPLETED'")
+                .params(id, memberId)
+                .query((rs, row) -> new RecalcResultRow(rs.getLong("id"), rs.getLong("calc_run_id"),
+                        rs.getString("condition_changes")))
+                .optional();
+    }
+
+    /** F-4 applicable 판정 ①: 그 회원의 COMPLETED RECALC_RESULT 중 id가 가장 큰 행. */
+    public Optional<Long> findLatestCompletedRecalcResultId(long memberId) {
+        return jdbc.sql("SELECT max(id) FROM chat_message "
+                        + "WHERE member_id = ? AND message_type = 'RECALC_RESULT' AND status = 'COMPLETED'")
+                .param(memberId).query(Long.class).optional();
+    }
+
     /** beforeId보다 앞서 저장된 가장 최근 질문(답변 행 바로 앞에 저장된 USER 행). */
     public Optional<QuestionMessage> findLatestQuestionBefore(long memberId, long beforeId) {
         return jdbc.sql("SELECT id, content FROM chat_message "
