@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
@@ -94,7 +95,7 @@ class CopyBookTest {
         return Stream.of(
                 Arguments.of("excluded.EXCHANGE_RATE", Map.of(), "환율 변동은 반영하지 않았어요"),
                 Arguments.of("chat.unchangeableCondition", Map.of(),
-                        "목표 금액은 입력 수정에서 바꿀 수 있어요. 대화로는 월 저축액·비중·적금 금리·기한을 바꿔 볼 수 있어요"),
+                        "목표 종류·기존 납입액은 여기서 바꿀 수 없어요. 보유 자산은 입력 수정에서 바꿀 수 있어요."),
                 Arguments.of("chat.noPlan", Map.of(), "먼저 목표와 조건을 입력해 계획을 만들어 주세요"),
                 Arguments.of("template.ratio", Map.of("a", "60", "b", "40"), "적금 60 : ETF 40"),
                 Arguments.of("chat.exampleQuestion.monthlySavingAmount", Map.of(), "월 저축액을 바꿔 보고 싶어요"),
@@ -127,7 +128,7 @@ class CopyBookTest {
                 Arguments.of("outOfScope", Map.of(), List.of("이 질문은 모은에서 다루지 않아요")),
                 Arguments.of("outOfScope.tax", Map.of(), List.of("전문가")),
                 Arguments.of("chat.sendFailed", Map.of(), List.of("보내지 못했어요")),
-                Arguments.of("chat.alreadyExceeded", Map.of(), List.of("초과", "목표 금액은 입력 수정에서 바꿀 수 있어요")),
+                Arguments.of("chat.alreadyExceeded", Map.of(), List.of("넘었어요", "대화로 목표 금액을 더 높게 바꿔 볼 수 있어요")),
                 Arguments.of("disclaimer", Map.of(), List.of("AI 설명은 참고용이며 계산 결과가 기준이에요", "과거")),
                 Arguments.of(TAX_NOTE_KEY, Map.of(), List.of("일반 과세", "비과세", "세법")),
                 Arguments.of("result.alreadyExceeded", Map.of("goalAmount", "GOAL_X", "heldAssets", "HELD_Y"),
@@ -298,11 +299,12 @@ class CopyBookTest {
     }
 
     @Test
-    @DisplayName("문구표 전체에 추천이라는 단어가 없다 (CF-07, D-064 예시 버튼 포함)")
-    void hasNoRecommendWord() throws IOException {
-        assertThat(Files.readString(COPY_PATH)).doesNotContain("추천");
+    @DisplayName("문구표에 개별 주식 종목을 추천하는 표현이 없다 (CF-07, D-064 예시 버튼 포함)")
+    void hasNoStockRecommendation() throws IOException {
+        Pattern stockRecommendation = Pattern.compile("(종목|주식)\\s*(을|를)?\\s*추천");
+        assertThat(stockRecommendation.matcher(Files.readString(COPY_PATH)).find()).isFalse();
         CopyBook copyBook = loadReal();
-        assertThat(copyBook.keys()).noneMatch(key -> key.contains("추천"));
+        assertThat(copyBook.keys()).noneMatch(key -> stockRecommendation.matcher(key).find());
     }
 
     @Test

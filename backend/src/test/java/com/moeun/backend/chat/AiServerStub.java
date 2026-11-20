@@ -7,7 +7,10 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
@@ -21,7 +24,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 테스트용 ai-server. POST /chat 요청 본문을 기록하고 정해 둔 방식으로 답한다.
+ * 테스트용 ai-server. /chat 아래로 온 요청의 본문과 HTTP 메서드·경로·헤더를 기록하고 정해 둔 방식으로 답한다.
  * 기본은 "잡아 두기": 요청을 받은 뒤 {@link #release}가 불릴 때까지 답하지 않는다(PENDING 상태를 관찰하기 위해).
  */
 final class AiServerStub {
@@ -33,6 +36,7 @@ final class AiServerStub {
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private final List<JsonNode> requests = new CopyOnWriteArrayList<>();
+    private final List<Call> calls = new CopyOnWriteArrayList<>();
     private final AtomicInteger inFlight = new AtomicInteger();
     private volatile HttpServer server;
     private volatile int lastPort;
@@ -78,6 +82,7 @@ final class AiServerStub {
         held.complete(new Reply(500, "{\"error\":\"STUB_RESET\"}", Duration.ZERO, false));
         awaitIdle();
         requests.clear();
+        calls.clear();
         hold();
     }
 
@@ -90,6 +95,11 @@ final class AiServerStub {
 
     List<JsonNode> requests() {
         return List.copyOf(requests);
+    }
+
+    /** 받은 요청의 HTTP 메서드·경로(쿼리 제외)·헤더(이름 소문자). 본문을 읽기 전에 기록하므로 본문이 깨져도 남는다. */
+    List<Call> calls() {
+        return List.copyOf(calls);
     }
 
     /** 서버를 내려 연결이 거부되게 한다. */
@@ -132,6 +142,9 @@ final class AiServerStub {
 
     private void handle(HttpExchange exchange) throws IOException {
         inFlight.incrementAndGet();
+        Map<String, List<String>> headers = new HashMap<>();
+        exchange.getRequestHeaders().forEach((name, values) -> headers.put(name.toLowerCase(Locale.ROOT), values));
+        calls.add(new Call(exchange.getRequestMethod(), exchange.getRequestURI().getPath(), Map.copyOf(headers)));
         try {
             String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             requests.add(JSON.readTree(body));
@@ -162,6 +175,9 @@ final class AiServerStub {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    record Call(String method, String path, Map<String, List<String>> headers) {
     }
 
     private record Reply(int status, String body, Duration delay, boolean held) {

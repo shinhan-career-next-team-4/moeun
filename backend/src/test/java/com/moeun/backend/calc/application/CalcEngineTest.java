@@ -22,7 +22,9 @@ import com.moeun.backend.calc.Scenario;
 import com.moeun.backend.calc.ScenarioMethod;
 import com.moeun.backend.calc.ScenarioResult;
 import com.moeun.backend.refdata.CalcParams;
-import com.moeun.backend.refdata.Sp500Series;
+import com.moeun.backend.refdata.DataVersionInfo;
+import com.moeun.backend.refdata.EtfProduct;
+import com.moeun.backend.refdata.EtfSeries;
 
 /**
  * 계산 엔진(#26 적금, #27 ETF 3구간·판정·초과). 기대값은 docs/calc-spec.md를 손으로 계산한 골든 케이스다.
@@ -34,7 +36,7 @@ class CalcEngineTest {
     private static final int HALF_PCT = 50;
     private static final CalcParams PARAMS = GoldenCase.createParams(new BigDecimal("15.4"));
     /** 레포의 테스트용 가짜 S&P500 121개월(실제 값 아님). 실제 데이터는 이용 조건 때문에 레포에 없다. */
-    private static final Sp500Series SP500 = GoldenCase.readTestSp500Series();
+    private static final EtfSeries SP500 = GoldenCase.readTestEtfSeries();
 
     private final CalcEngine engine = new CalcEngine();
 
@@ -191,6 +193,74 @@ class CalcEngineTest {
         assertMatchesGolden("g8-bootstrap-constant-returns.json");
     }
 
+    /** 같은 가짜 시계열에 종목 정보만 바꾼 것. 시계열이 같으니 결과 차이는 ETF 차익 세금뿐이다. */
+    private static EtfSeries withProduct(EtfProduct product) {
+        return new EtfSeries(new DataVersionInfo(SP500.version().id(), SP500.version().dataKind(),
+                SP500.version().versionLabel(), SP500.version().baseDate(), SP500.version().source(), product.code()),
+                product, SP500.monthlyCloses());
+    }
+
+    @Test
+    @DisplayName("코스피200 추종 ETF(세율 0%)로 계산하면 같은 시계열의 S&P500(15.4%)보다 ETF 차익 세금만큼 크고, 가정에 종목이 남는다")
+    void usesProductTaxRate() {
+        EtfProduct kospi200 = new EtfProduct("069500", "코스피200 추종 ETF", BigDecimal.ZERO);
+        CalcInput input = createInput(30_000_000L, 36, 0L, HALF_PCT);
+
+        CalcResult taxed = engine.calculate(input, PARAMS, SP500);
+        CalcResult taxFree = engine.calculate(input, PARAMS, withProduct(kospi200));
+
+        for (int index = 0; index < taxed.scenarios().size(); index++) {
+            assertThat(taxFree.scenarios().get(index).principal()).isEqualTo(taxed.scenarios().get(index).principal());
+        }
+        // 가짜 시계열은 수익이 나는 경로라 보통 경우에 ETF 차익 세금이 있다. 비과세면 그만큼 커야 한다
+        assertThat(taxFree.findBaselineResult().orElseThrow().afterTaxAsset())
+                .isGreaterThan(taxed.findBaselineResult().orElseThrow().afterTaxAsset());
+        assertThat(taxFree.assumptions().etfProductCode()).isEqualTo("069500");
+        assertThat(taxFree.assumptions().etfProductName()).isEqualTo("코스피200 추종 ETF");
+        assertThat(taxFree.assumptions().etfGainTaxRatePct()).isEqualByComparingTo("0");
+        // 적금 이자 세율은 계산 파라미터 그대로다
+        assertThat(taxFree.assumptions().taxRatePct()).isEqualByComparingTo("15.4");
+    }
+
+    @Test
+    @DisplayName("나스닥100 추종 ETF(세율 15.4%)는 같은 시계열의 S&P500과 결과가 같고 가정의 종목만 다르다")
+    void keepsTaxedProductResult() {
+        EtfProduct nasdaq100 = new EtfProduct("133690", "나스닥100 추종 ETF", new BigDecimal("15.4"));
+        CalcInput input = createInput(30_000_000L, 36, 0L, HALF_PCT);
+
+        CalcResult sp500 = engine.calculate(input, PARAMS, SP500);
+        CalcResult nasdaq = engine.calculate(input, PARAMS, withProduct(nasdaq100));
+
+        assertThat(nasdaq.scenarios()).isEqualTo(sp500.scenarios());
+        assertThat(nasdaq.assumptions().etfProductName()).isEqualTo("나스닥100 추종 ETF");
+    }
+
+    @Test
+    @DisplayName("이미 목표를 넘은 계획은 시나리오를 계산하지 않아 가정에 종목 정보가 없다(null)")
+    void omitsProductWhenAlreadyExceeded() {
+        CalcResult result = engine.calculate(createInput(10_000_000L, 36, 20_000_000L, HALF_PCT), PARAMS, SP500);
+
+        assertThat(result.status()).isEqualTo(CalcStatus.ALREADY_EXCEEDED);
+        assertThat(result.assumptions().etfProductCode()).isNull();
+        assertThat(result.assumptions().etfGainTaxRatePct()).isNull();
+    }
+
+    @Test
+    @DisplayName("ETF 0%면 가정에 종목 정보가 없다(null)")
+    void omitsProductWithoutEtf() {
+        CalcResult result = engine.calculate(createSavingsOnlyInput(36, 0L), PARAMS, SP500);
+
+        assertThat(result.assumptions().etfProductCode()).isNull();
+        assertThat(result.assumptions().etfProductName()).isNull();
+        assertThat(result.assumptions().etfGainTaxRatePct()).isNull();
+    }
+
+    @Test
+    @DisplayName("골든 G10: 비과세 종목이면 ETF 차익 세금이 0이라 세 구간이 1,248,715원이다(적금 이자 세금은 그대로)")
+    void matchesGoldenTaxFreeEtf() {
+        assertMatchesGolden("g10-bootstrap-constant-returns-tax-free.json");
+    }
+
     @Test
     @DisplayName("ETF가 들어가면 시나리오는 항상 GOOD·AVG·BAD 순서이고 나쁨 ≤ 평균 ≤ 좋음이다")
     void returnsThreeScenariosInFixedOrderWithEtf() {
@@ -312,7 +382,7 @@ class CalcEngineTest {
     void rejectsSameInputsAsCalculateWhenDeterminingVersions() {
         ConditionResolver.ResolvedConditions withEtf = new ConditionResolver.ResolvedConditions(
                 createInput(30_000_000L, 36, 0L, HALF_PCT), false, null, null);
-        Sp500Series tooShort = GoldenCase.createConstantReturnSeries(10, new BigDecimal("0.01"));
+        EtfSeries tooShort = GoldenCase.createConstantReturnSeries(10, new BigDecimal("0.01"));
 
         assertThatIllegalArgumentException().isThrownBy(() -> engine.determineDataVersions(withEtf, PARAMS, null));
         assertThatIllegalArgumentException().isThrownBy(() -> engine.calculate(withEtf, PARAMS, null));
@@ -325,7 +395,7 @@ class CalcEngineTest {
     void requiresSp500OnlyForEtfPlans() {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> engine.calculate(createInput(30_000_000L, 36, 0L, HALF_PCT), PARAMS, null))
-                .withMessageContaining("S&P500");
+                .withMessageContaining("ETF price data");
         assertThat(engine.calculate(createSavingsOnlyInput(36, 0L), PARAMS, null).scenarios()).hasSize(1);
     }
 

@@ -104,6 +104,14 @@ public class Formatter {
         return ratePct.stripTrailingZeros().toPlainString() + "%";
     }
 
+    /**
+     * ETF 종목의 매매차익 세율(#150). 비과세(0%)면 이유를 붙인다: {@code 0%(국내 주식형 ETF 매매차익 비과세)}.
+     */
+    public String formatEtfGainTaxRate(BigDecimal ratePct) {
+        String rate = formatTaxRate(ratePct);
+        return ratePct.signum() == 0 ? rate + "(" + copy.get("tax.etfTaxFree") + ")" : rate;
+    }
+
     /** 비중. 이 형식 하나만 쓴다. */
     public String formatRatio(int savingsRatioPct) {
         return copy.get("template.ratio", Map.of(

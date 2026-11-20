@@ -3,7 +3,7 @@
 > 최종본 (2026-11-16, moeun #12). 요구사항 FR-AI-01·FR-AI-07·FR-PLAN-03·FR-PLAN-04·FR-AUTH-01·FR-AUTH-03·FR-INP-10·FR-INP-11, 결정 D-046·D-054·D-062·D-063·D-064·D-066·D-068·D-069·D-070·D-074·D-075·D-076.
 > 기획 repo project-workspace `docs/design/contracts/`의 최종본 두 개를 그대로 옮겼다. 절 2는 `frontend-api-plan.md`(#12-a), 절 3은 `frontend-api-chat.md`(#12-b)다. 협상 기록·후속 작업 표·코드 차이 표(본문 괄호의 `X-n`·`Y-n`·`H-n`·`J-n`)는 원문에 있다.
 > 오류 본문 형식 C3-1과 `/internal/calc`는 [`internal-calc.md`](internal-calc.md), planContext(C1a-x)는 기획 repo `plan-context.md`다.
-> 이 문서가 구현 기준이고 `frontend/src/mocks/`의 목 JSON 65개(대화 35 + 로그인·계획 30)와 같은 값이다. 각 절 머리말의 "최종본 보충"이 본문보다 우선한다.
+> 이 문서가 구현 기준이고 `frontend/src/mocks/`의 목 JSON 68개(대화 38 + 로그인·계획 30)와 같은 값이다. 각 절 머리말의 "최종본 보충"이 본문보다 우선한다.
 
 ## 1. 한눈에 보기
 
@@ -517,7 +517,7 @@ FR-PLAN-05·06, FR-RES-01~07, FR-INP-11, NFR-INT-02, D-010, D-062, D-072.
 | 3구간(FR-RES-03, #50) | `["GOOD","AVG","BAD"]` 고정 순서로 돌며 `result.scenarios`에 있는 것만 그린다. 칸마다 `display["<S>.afterTaxAsset"]`, `["<S>.gapToGoal"]`, 도달 시점은 `isAchieved`면 `display["<S>.goalReachMonth"]`, 아니면 문구표 `result.notReachedInPeriod`. 아래 고지 한 줄은 `result.scenarioNotice`(D-029) | 시나리오 수(1이면 ETF 0%), `isAchieved` |
 | 그래프(FR-RES-04, #50) | 목표선 라벨 `display["goalAmount"]`, 가로축 양 끝 `display["calcStartMonth"]`·`display["targetMonth"]`, 시나리오 최종값 라벨 `display["S.afterTaxAsset"]`. 세로축 눈금 숫자·툴팁·점별 월 라벨은 없다(R-5) | `monthlyPoints[].afterTaxAsset`(점 위치), `result.goalAmount`(목표선 높이) |
 | 초과 안내(FR-RES-01, #49) | **문구표 `result.alreadyExceeded`**(결과 화면용) 안에 `display["goalAmount"]`, `display["conditions.heldAssets"]`. 초과 금액 없음 | `view.status === "ALREADY_EXCEEDED"` → 요약·3구간·그래프·대안 숨김, F-3 안 부름(D-062) |
-| 가정 보기(FR-RES-06, #49) | `display["assumptions.taxRatePct"]` + 문구표 `tax.note`(D-067), `display["conditions.savingsRateInputPct"]`, `display["assumptions.savingsRateBaseMonth"]`·`["assumptions.sp500BaseDate"]`(없으면 줄 생략), 문구표 `excluded.<CODE>`, `scenarioMethod.<CODE>` | `result.assumptions.excludedItems`, `scenarioMethod`, `isDefaultSavingsRate` |
+| 가정 보기(FR-RES-06, #49) | `display["assumptions.taxRatePct"]` + 문구표 `tax.note`(D-067), **추가(#150, 프론트 합의 대기)** `display["assumptions.etfProductName"]`·`["assumptions.etfGainTaxRatePct"]`(ETF가 있을 때만), `display["conditions.savingsRateInputPct"]`, `display["assumptions.savingsRateBaseMonth"]`·`["assumptions.sp500BaseDate"]`(없으면 줄 생략), 문구표 `excluded.<CODE>`, `scenarioMethod.<CODE>` | `result.assumptions.excludedItems`, `scenarioMethod`, `isDefaultSavingsRate` |
 | 면책(FR-RES-07, #49) | 문구표 `disclaimer` | — |
 | 입력 수정 채우기(FR-INP-11, #51) | 입력칸 값: `plan.*` → C12a-5-6 (d)(e). 현재 비중 읽기 전용 한 줄: `input.currentRatioLabel` + `display["conditions.savingsRatioPct"]`. 재로그인 보유 자산 안내: `input.heldAssetsRecheck`(D-035) + `display["calcStartMonth"]` | `plan.savingsRateInputPct === null`이면 금리 칸 비움 |
 
@@ -1436,6 +1436,9 @@ config ──▶ (auth, plan, calc, chat: 보안 필터 등록·예외 처리. �
 | `get-comparison.200.json` (기본, `/1031`) | F-4 | 200 | internal-calc A-1 기반 전체 본문, `messageId: 1031`, `applicable: true` |
 | `get-comparison.200-not-applicable.json` (`/1027`) | F-4 | 200 | 같은 본문, `messageId: 1027`, `applicable: false` |
 | `get-comparison.200-etf0.json` (`/1033`) | F-4 | 200 | ETF 0%, 시나리오 AVG 1개, `messageId: 1033` |
+| `get-comparison.200-goal-changed.json` (`/1034`) | F-4 | 200 | 목표 금액 변경 비교(D-090), `conditions.current.goalAmount`·`conditions.changed.goalAmount` 분리, `messageId: 1034` |
+| `get-comparison.200-asymmetric-exceeded.json` (`/1035`) | F-4 | 200 | 현재 초과에서 목표 상향 비대칭 비교(D-092), `current.status=ALREADY_EXCEEDED`, `diff.byScenario=[]`, `messageId: 1035` |
+| `get-comparison.200-changed-exceeded.json` (`/1036`) | F-4 | 200 | 바꾼 조건 초과 비대칭 비교(D-092), `changed.status=ALREADY_EXCEEDED`, `diff.byScenario=[]`, `messageId: 1036` |
 | `get-comparison.400.json` | F-4 | 400 | `MALFORMED_REQUEST` |
 | `get-comparison.404.json` | F-4 | 404 | `NOT_FOUND` |
 | `get-comparison.500.json` | F-4 | 500 | `INTERNAL_ERROR`(재계산 실패) |
@@ -1444,12 +1447,12 @@ config ──▶ (auth, plan, calc, chat: 보안 필터 등록·예외 처리. �
 | `post-apply.409-stale.json` | F-5 | 409 | `STALE_COMPARISON` |
 | `post-apply.409-no-plan.json` | F-5 | 409 | `NO_PLAN` |
 | `post-apply.422-validation.json` | F-5 | 422 | C12b-9 예시(`min`·`max`·`unit`, display 키 없음) |
-| `post-apply.422-field-not-changeable.json` | F-5 | 422 | `FIELD_NOT_CHANGEABLE`, `errors: [{field: "goalAmount", reason: "FIELD_NOT_CHANGEABLE"}]` |
+| `post-apply.422-field-not-changeable.json` | F-5 | 422 | `FIELD_NOT_CHANGEABLE`, `errors: [{field: "goalType", reason: "NOT_CHANGEABLE"}]` |
 | `post-apply.404.json` | F-5 | 404 | `NOT_FOUND` |
 | `post-apply.500.json` | F-5 | 500 | `INTERNAL_ERROR` |
 | `common.401-unauthenticated.json` | 전부 | 401 | C12b-9 401 예시. 래퍼 공통 401 분기 테스트용 |
 
-- 총 **35개**. `post-explanations.seq-reuse`는 F-3 응답에 id가 없어 프론트에서 확인할 것이 없으므로 두지 않는다.
+- 총 **38개**. `post-explanations.seq-reuse`는 F-3 응답에 id가 없어 프론트에서 확인할 것이 없으므로 두지 않는다.
 - Issue #12 수용 기준 "정상, 422, 401, 409를 모두 받을 수 있다": F-1(202·422·409), F-2(200·401), F-5(200·409·422), 공통 401. 404·400·500도 있다.
 - `FIELD_NOT_CHANGEABLE`의 `errors[].reason` 값은 internal-calc C3-1의 해당 행을 따른다. 위 예시의 `reason` 문자열이 C3-1과 다르면 C3-1이 기준이다.
 

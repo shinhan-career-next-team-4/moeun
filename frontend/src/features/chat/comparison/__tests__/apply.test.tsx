@@ -660,11 +660,18 @@ describe("AC-15 적용 성공 뒤 순서 (C12b-7-3, C12a-6-5, FR-PLAN-04)", () =
     }
   });
 
-  it("④ 이 Issue는 F-3(POST /api/chat/explanations)을 부르지 않는다", async () => {
-    const { api } = await mountApply([{ revision: 13 }]);
+  it("④ F-3(POST /api/chat/explanations)은 #54가 view.calcRunId 변화로만 한 번씩 부른다(적용 코드는 직접 부르지 않는다)", async () => {
+    const { api, store } = await mountApply([{ revision: 13 }]);
+    const before = store.getState().view?.calcRunId;
     await clickApply();
     await tick(5000);
-    expect(api.calls.filter((c) => c.path.startsWith("/api/chat/explanations"))).toHaveLength(0);
+    const after = store.getState().view?.calcRunId;
+    expect(after).not.toBe(before);
+    // 처음 결과와 적용 뒤 다시 불러온 결과가 각각 한 번이다. 같은 calcRunId를 두 번 보내지 않는다.
+    expect(api.calls.filter((c) => c.path.startsWith("/api/chat/explanations")).map((c) => c.body)).toEqual([
+      { calcRunId: before },
+      { calcRunId: after },
+    ]);
     expect(globalFetchCalls.filter((c) => c.url.startsWith("/api/chat/explanations"))).toHaveLength(0);
   });
 });

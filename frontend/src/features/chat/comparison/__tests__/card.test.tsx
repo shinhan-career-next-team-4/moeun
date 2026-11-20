@@ -555,7 +555,8 @@ describe("AC-2 비교 결과가 뜬 뒤 적용 전에는 내 계획이 그대로
     expect(store.getState().revision).toBe(12);
     expect(planGets).toHaveLength(0);
     expect(api.f5Calls()).toHaveLength(0);
-    expect(api.calls.filter((c) => c.method !== "GET")).toHaveLength(0);
+    // F-3(설명 요청)은 #54가 결과가 보일 때 부르는 것이라 센 대상에서 뺀다. 적용(F-5)·되돌리기 같은 쓰기 호출이 없는지 본다.
+    expect(api.calls.filter((c) => c.method !== "GET" && !c.path.startsWith("/api/chat/explanations"))).toHaveLength(0);
   });
 });
 

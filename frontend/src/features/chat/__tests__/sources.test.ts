@@ -56,7 +56,9 @@ describe("AC-20 화면 코드 규칙 (frontend/README: 서버와는 api.request(
   it("공유 store의 쓰기 함수(acceptRevision·acceptPlanView·acceptNoPlan·clear·loadPlan)를 부르지 않는다: 대화창은 계획 상태를 읽기만 한다", () => {
     expect(sources.length).toBeGreaterThan(0);
     for (const { file, text } of all()) {
-      expect(text, file).not.toMatch(/\.(acceptRevision|acceptPlanView|acceptNoPlan|clear|loadPlan)\s*\(/);
+      expect(text, file).not.toMatch(/\.(acceptRevision|acceptPlanView|acceptNoPlan|clear)\s*\(/);
+      // #54 결정 U-1: F-3 404 뒤 결과 재조회(C12b-3a, C12a-6-5 표의 "F-3 `404` 뒤 #54")만 explanation/ 하위에서 loadPlan()을 부를 수 있다.
+      if (file.split(/[\\/]/)[0] !== "explanation") expect(text, file).not.toMatch(/\.loadPlan\s*\(/);
     }
   });
 });

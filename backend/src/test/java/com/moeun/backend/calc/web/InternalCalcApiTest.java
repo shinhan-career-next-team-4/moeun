@@ -237,14 +237,56 @@ class InternalCalcApiTest {
     }
 
     @Test
-    @DisplayName("보유 자산 ≥ 목표면 409 ALREADY_EXCEEDED이고 calc_run은 없다")
+    @DisplayName("초과 계획에서 목표를 안 바꾸거나 바꿔도 여전히 초과면 409 ALREADY_EXCEEDED이고 calc_run은 없다")
     void rejectsAlreadyExceededPlan() throws Exception {
         savePlan(25_000_000L);
 
         postCalc(request(changes("monthlySavingAmount", 500_000))).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("ALREADY_EXCEEDED"))
                 .andExpect(jsonPath("$.errors").isEmpty());
+        postCalc(request(changes("goalAmount", 24_000_000))).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ALREADY_EXCEEDED"));
         assertThat(countChatRuns()).isZero();
+    }
+
+    @Test
+    @DisplayName("초과 계획에서 목표 금액을 높여 초과를 벗어나면 200 비대칭 비교(current 초과, changed 계산)를 돌려준다")
+    void allowsAsymmetricComparisonWhenExceededPlanRaisesGoalAmount() throws Exception {
+        savePlan(25_000_000L);
+
+        JsonNode body = readBody(postCalc(request(changes("goalAmount", 40_000_000))).andExpect(status().isOk()));
+
+        assertThat(body.get("current").get("status").asString()).isEqualTo("ALREADY_EXCEEDED");
+        assertThat(body.get("current").get("scenarios")).isEmpty();
+        assertThat(body.get("changed").get("status").asString()).isEqualTo("CALCULATED");
+        assertThat(body.get("changed").get("scenarios")).hasSize(3);
+        assertThat(body.get("diff").get("byScenario")).isEmpty();
+        JsonNode display = body.get("display");
+        assertThat(display.has("goalAmount")).isFalse();
+        assertThat(display.get("conditions.current.goalAmount").asString()).isEqualTo("약 2,000만원");
+        assertThat(display.get("conditions.changed.goalAmount").asString()).isEqualTo("약 4,000만원");
+        assertThat(display.get("conditions.current.heldAssets").asString()).isEqualTo("약 2,500만원");
+        assertThat(display.has("conditions.changed.heldAssets")).isFalse();
+    }
+
+    @Test
+    @DisplayName("미달 계획에서 목표를 낮춰 changed만 초과가 되면 비대칭 비교와 changed.heldAssets를 내려준다")
+    void buildsAsymmetricComparisonWhenChangedBecomesExceeded() throws Exception {
+        savePlan(5_000_000L);
+
+        JsonNode body = readBody(postCalc(request(changes("goalAmount", 4_000_000))).andExpect(status().isOk()));
+
+        assertThat(body.get("current").get("status").asString()).isEqualTo("CALCULATED");
+        assertThat(body.get("current").get("scenarios")).hasSize(3);
+        assertThat(body.get("changed").get("status").asString()).isEqualTo("ALREADY_EXCEEDED");
+        assertThat(body.get("changed").get("scenarios")).isEmpty();
+        assertThat(body.get("diff").get("byScenario")).isEmpty();
+        JsonNode display = body.get("display");
+        assertThat(display.has("goalAmount")).isFalse();
+        assertThat(display.get("conditions.current.goalAmount").asString()).isEqualTo("약 2,000만원");
+        assertThat(display.get("conditions.changed.goalAmount").asString()).isEqualTo("약 400만원");
+        assertThat(display.has("conditions.current.heldAssets")).isFalse();
+        assertThat(display.get("conditions.changed.heldAssets").asString()).isEqualTo("약 500만원");
     }
 
     @Test
@@ -287,11 +329,11 @@ class InternalCalcApiTest {
     void rejectsWholeRequestWithUnchangeableKey() throws Exception {
         savePlan(5_000_000L);
 
-        postCalc(request(changes("goalAmount", 100_000_000, "monthlySavingAmount", 500_000)))
+        postCalc(request(changes("goalType", 1, "monthlySavingAmount", 500_000)))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("FIELD_NOT_CHANGEABLE"))
                 .andExpect(jsonPath("$.errors.length()").value(1))
-                .andExpect(jsonPath("$.errors[0].field").value("goalAmount"))
+                .andExpect(jsonPath("$.errors[0].field").value("goalType"))
                 .andExpect(jsonPath("$.errors[0].reason").value("NOT_CHANGEABLE"));
         assertThat(countChatRuns()).isZero();
     }
@@ -344,8 +386,8 @@ class InternalCalcApiTest {
     void followsContractCheckOrder() throws Exception {
         savePlan(5_000_000L);
 
-        postCalc(request(changes("goalAmount", null, "monthlySavingAmount", 500_000))).andExpect(status().isOk());
-        postCalc(request(changes("goalAmount", "x"))).andExpect(status().isUnprocessableEntity())
+        postCalc(request(changes("goalType", null, "monthlySavingAmount", 500_000))).andExpect(status().isOk());
+        postCalc(request(changes("goalType", "x"))).andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("FIELD_NOT_CHANGEABLE"));
         postCalc(request(changes("monthlySavingAmount", "x", "targetPeriodMonths", null)))
                 .andExpect(status().isBadRequest());

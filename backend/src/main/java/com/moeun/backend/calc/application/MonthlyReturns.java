@@ -5,7 +5,7 @@ import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.moeun.backend.refdata.Sp500Series.MonthlyClose;
+import com.moeun.backend.refdata.EtfSeries.MonthlyClose;
 
 /**
  * 월말 종가에서 한 달 수익률을 만든다(calc-spec 7-1): r(t) = 종가(t) ÷ 종가(t−1) − 1.

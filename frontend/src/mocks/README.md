@@ -30,6 +30,14 @@
 
 1. 요청 키는 메서드 + 경로(쿼리 제외)다. 예: `GET /api/chat/messages`, `POST /api/chat/messages/1031/apply`.
 2. 요청 키마다 기본 파일이 하나다(`(기본)` 표시, 계약 문서의 표 참고). 같은 키의 다른 파일은 개발·테스트 전용 `useMock(파일명)`으로 고른다. 화면 코드는 이 함수를 부르지 않는다.
+
+**개발 중 기본 파일 바꾸기**: `VITE_MOCK_FILES`에 쉼표로 파일 이름을 적으면 그 파일을 기본 대신 쓴다(계약 표의 기본 파일은 그대로다).
+
+```bash
+VITE_API_MODE=mock VITE_MOCK_FILES=get-plan.200.json npm run dev
+```
+
+대안 영역은 미달일 때만 보이므로(FR-ALT-01) 기본 `get-plan.seq-full-flow.json`의 세 번째 응답(세 구간 모두 달성)에서는 카드가 숨는다. 위처럼 `get-plan.200.json`(세 구간 모두 미달)을 고르면 바로 보인다.
 3. 고른 파일의 i번째 호출에 i번째 응답을 돌려주고, 배열 끝을 넘으면 마지막 응답을 반복한다. `status`·`headers`는 그대로 반영한다(4xx·5xx는 실제 `fetch`와 같은 오류 경로로).
 4. F-4 목은 `messageId`가 달라 경로만으로 구분된다: 정상 `1031`, 적용 불가 `1027`, ETF 0% `1033`. F-4 오류 목(400·404·500)은 `useMock`으로 고른다.
 

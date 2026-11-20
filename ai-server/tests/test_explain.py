@@ -341,7 +341,7 @@ PROMPT_RULES = {
     "규칙5 가정 문장 그대로": ["excludedNotes", "scenarioMethodNote"],
     "규칙6 연 수익률 숫자 금지": ["과거 데이터로 만든 구간", "수익을 약속하지 않", "주어지지 않은", "모른다"],
     "규칙8 세율은 display만": ["assumptions.taxRatePct", "세율"],
-    "규칙9 초과 계획": ["ALREADY_EXCEEDED", "초과 금액", "목표 금액은 입력 수정에서 바꿀 수 있어요"],
+    "규칙9 초과 계획": ["ALREADY_EXCEEDED", "초과 금액", "대화로 목표 금액을 더 높게 바꿔 볼 수 있어요"],
 }
 
 

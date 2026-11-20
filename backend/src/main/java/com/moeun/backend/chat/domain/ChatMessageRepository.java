@@ -39,6 +39,20 @@ public class ChatMessageRepository {
                 .param(memberId).query(Long.class).single();
     }
 
+    /** F-3: 설명 대기 행. 기준 시나리오는 요청 시점 값을 저장해 두고 리스너가 그 값으로 EXPLAIN을 보낸다. */
+    public long insertPendingExplanation(long memberId, long calcRunId, String baselineScenario) {
+        return jdbc.sql("INSERT INTO chat_message (member_id, role, message_type, status, calc_run_id, "
+                        + "baseline_scenario) VALUES (?, 'ASSISTANT', 'EXPLANATION', 'PENDING', ?, ?) RETURNING id")
+                .params(memberId, calcRunId, baselineScenario).query(Long.class).single();
+    }
+
+    /** 그 회원이 같은 기록으로 이미 요청한 설명이 PENDING인지. 동시 요청으로 여러 행일 수 있어 존재 여부만 본다. */
+    public boolean existsPendingExplanation(long memberId, long calcRunId) {
+        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM chat_message WHERE member_id = ? AND calc_run_id = ? "
+                        + "AND message_type = 'EXPLANATION' AND status = 'PENDING')")
+                .params(memberId, calcRunId).query(Boolean.class).single();
+    }
+
     public boolean existsPendingAnswer(long memberId) {
         return jdbc.sql("SELECT EXISTS (SELECT 1 FROM chat_message "
                         + "WHERE member_id = ? AND message_type = 'ANSWER' AND status = 'PENDING')")
@@ -82,6 +96,23 @@ public class ChatMessageRepository {
                         rs.getString("message_type"), rs.getObject("calc_run_id", Long.class),
                         rs.getString("baseline_scenario")))
                 .optional();
+    }
+
+    /** F-4: 그 회원의 COMPLETED RECALC_RESULT 한 행. 없는·남의·다른 종류·COMPLETED가 아닌 행은 모두 빈 값이다. */
+    public Optional<RecalcResultRow> findCompletedRecalcResult(long id, long memberId) {
+        return jdbc.sql("SELECT id, calc_run_id, condition_changes::text AS condition_changes FROM chat_message "
+                        + "WHERE id = ? AND member_id = ? AND message_type = 'RECALC_RESULT' AND status = 'COMPLETED'")
+                .params(id, memberId)
+                .query((rs, row) -> new RecalcResultRow(rs.getLong("id"), rs.getLong("calc_run_id"),
+                        rs.getString("condition_changes")))
+                .optional();
+    }
+
+    /** F-4 applicable 판정 ①: 그 회원의 COMPLETED RECALC_RESULT 중 id가 가장 큰 행. */
+    public Optional<Long> findLatestCompletedRecalcResultId(long memberId) {
+        return jdbc.sql("SELECT max(id) FROM chat_message "
+                        + "WHERE member_id = ? AND message_type = 'RECALC_RESULT' AND status = 'COMPLETED'")
+                .param(memberId).query(Long.class).optional();
     }
 
     /** beforeId보다 앞서 저장된 가장 최근 질문(답변 행 바로 앞에 저장된 USER 행). */
@@ -134,5 +165,13 @@ public class ChatMessageRepository {
                             + "SELECT id, ?, ? FROM chat_message WHERE id = ? AND member_id = ?")
                     .params(rank++, chunkId, messageId, memberId).update();
         }
+    }
+
+    /**
+     * 그 회원의 대화를 한 문장으로 전부 지운다(#46). 행을 하나씩 지우면 retry_of_message_id(NO ACTION)가 문장마다
+     * 검사되어 순서에 따라 실패하므로 일괄 DELETE다. chat_message_citation은 FK CASCADE로 함께 지워진다.
+     */
+    public int deleteAllOf(long memberId) {
+        return jdbc.sql("DELETE FROM chat_message WHERE member_id = ?").param(memberId).update();
     }
 }

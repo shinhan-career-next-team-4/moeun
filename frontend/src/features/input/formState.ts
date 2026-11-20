@@ -25,6 +25,8 @@ export function emptyForm(): PlanForm {
   return {
     goalType: null,
     goalAmount: "",
+    periodKnown: true,
+    savingKnown: true,
     periodYears: "",
     periodMonths: "",
     heldAssets: "0",
@@ -39,6 +41,8 @@ export function formFromPlan(plan: ResultPlanBody): PlanForm {
   return {
     goalType: plan.goalType as GoalType,
     goalAmount: wonToManwon(plan.goalAmount),
+    periodKnown: true,
+    savingKnown: true,
     periodYears: String(years),
     periodMonths: String(months),
     heldAssets: wonToManwon(plan.heldAssets),

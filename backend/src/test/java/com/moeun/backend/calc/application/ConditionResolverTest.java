@@ -37,7 +37,7 @@ class ConditionResolverTest {
             new DataVersionInfo(12L, DataKind.CALC_PARAM, "v1", LocalDate.of(2026, 11, 17), "팀 결정"),
             Map.of(CalcParamKey.TAX_RATE_PCT, new BigDecimal("15.4"),
                     CalcParamKey.DEFAULT_SAVINGS_RATIO_PCT, new BigDecimal("50")));
-    private static final ConditionOverride NO_CHANGE = new ConditionOverride(null, null, null, null);
+    private static final ConditionOverride NO_CHANGE = new ConditionOverride(null, null, null, null, null, null);
 
     private final ConditionResolver resolver = new ConditionResolver();
 
@@ -55,7 +55,7 @@ class ConditionResolverTest {
 
         ConditionResolver.ResolvedConditions current = resolver.resolve(plan, DEFAULT_RATE, PARAMS);
         ConditionResolver.ResolvedConditions changed = resolver.resolveChanged(plan,
-                new ConditionOverride(500_000L, 60, null, null), DEFAULT_RATE, PARAMS);
+                new ConditionOverride(500_000L, 60, null, null, null, null), DEFAULT_RATE, PARAMS);
 
         assertThat(current.input().calcStartMonth()).isEqualTo(YearMonth.of(2026, 3));
         assertThat(changed.input().calcStartMonth()).isEqualTo(YearMonth.of(2026, 3));
@@ -113,7 +113,7 @@ class ConditionResolverTest {
 
         ConditionResolver.ResolvedConditions current = resolver.resolve(plan, DEFAULT_RATE, PARAMS);
         ConditionResolver.ResolvedConditions changed = resolver.resolveChanged(plan,
-                new ConditionOverride(500_000L, null, null, null), DEFAULT_RATE, PARAMS);
+                new ConditionOverride(500_000L, null, null, null, null, null), DEFAULT_RATE, PARAMS);
 
         assertThat(changed.input().monthlySavingAmount()).isEqualTo(500_000L);
         assertThat(changed.input().savingsRatioPct()).isEqualTo(current.input().savingsRatioPct());
@@ -123,7 +123,7 @@ class ConditionResolverTest {
     @DisplayName("계획 비중이 기본값과 달라도(70) 월 저축액만 바꾸면 70이 유지된다")
     void keepsEnteredRatioWhenRatioIsNotChanged() {
         ConditionResolver.ResolvedConditions changed = resolver.resolveChanged(createPlan(null, 70),
-                new ConditionOverride(500_000L, null, null, null), DEFAULT_RATE, PARAMS);
+                new ConditionOverride(500_000L, null, null, null, null, null), DEFAULT_RATE, PARAMS);
 
         assertThat(changed.input().savingsRatioPct()).isEqualTo(70);
     }
@@ -144,7 +144,7 @@ class ConditionResolverTest {
         PlanView plan = createPlan(null, 60);
 
         ConditionResolver.ResolvedConditions changed = resolver.resolveChanged(plan,
-                new ConditionOverride(null, 48, 30, null), DEFAULT_RATE, PARAMS);
+                new ConditionOverride(null, 48, 30, null, null, null), DEFAULT_RATE, PARAMS);
 
         assertThat(changed.input().targetPeriodMonths()).isEqualTo(48);
         assertThat(changed.input().savingsRatioPct()).isEqualTo(30);
@@ -158,7 +158,7 @@ class ConditionResolverTest {
     @DisplayName("금리를 바꾸면 그 금리를 쓰고 기본금리가 아니다")
     void usesChangedSavingsRate() {
         ConditionResolver.ResolvedConditions changed = resolver.resolveChanged(createPlan(null, null),
-                new ConditionOverride(null, null, null, new BigDecimal("4.1")), DEFAULT_RATE, PARAMS);
+                new ConditionOverride(null, null, null, new BigDecimal("4.1"), null, null), DEFAULT_RATE, PARAMS);
 
         assertThat(changed.input().savingsRatePct()).isEqualByComparingTo("4.1");
         assertThat(changed.isDefaultSavingsRate()).isFalse();

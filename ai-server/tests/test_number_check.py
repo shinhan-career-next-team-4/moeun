@@ -522,13 +522,13 @@ async def test_general_explanation_without_numbers_passes_through_agent() -> Non
 
 async def test_brand_only_product_name_is_rejected_before_number_check() -> None:
     """(회귀 보호) 상품명 거부와 근거 없는 금액이 함께 있으면 FORBIDDEN_EXPRESSION이 먼저다 (U-5)"""
-    claude = FakeClaude([text_resp("ANSWER", "KODEX 200에 월 100만원 넣어 보세요.")])
+    claude = FakeClaude([text_resp("ANSWER", "KODEX 200에 월 100만원 넣어 보세요.")] * 2)   # 재시도(#98)도 같은 본문
     assert_code(await outcome(make_agent(claude), question("ETF 뭐 사요?")), "FORBIDDEN_EXPRESSION")
 
 
 async def test_recommendation_is_rejected_before_number_check() -> None:
     """(회귀 보호) 추천 표현과 근거 없는 금액이 함께 있으면 FORBIDDEN_EXPRESSION이 먼저다 (U-5)"""
-    claude = FakeClaude([text_resp("ANSWER", "월 100만원 적금을 추천해요.")])
+    claude = FakeClaude([text_resp("ANSWER", "월 100만원 적금을 추천해요.")] * 2)   # 재시도(#98)도 같은 본문
     assert_code(await outcome(make_agent(claude), question("뭐가 좋아요?")), "FORBIDDEN_EXPRESSION")
 
 

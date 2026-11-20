@@ -1,9 +1,12 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent } from "react";
 import { api, planStore, polling } from "../../api";
 import { ApiError } from "../../api/errors";
-import { ComparisonCard, ComparisonNotices, useComparison, useComparisonController } from "./comparison";
+import { ComparisonNotices, ComparisonResult, useComparison, useComparisonController, type ComparisonPlanStore } from "./comparison";
 import { COPY, unitChar } from "./copy";
+import { Citations } from "./explanation/Citations";
+import { useExplanationRequest } from "./explanation/useExplanationRequest";
 import type { ChatDeps } from "./index";
+import { Suggestions } from "./suggestions";
 import type { ChatAccepted, ChatMessage } from "./types";
 import { useChatPollingInternal } from "./useChatPolling";
 
@@ -44,6 +47,7 @@ function Bubble({ message }: { message: ChatMessage }) {
       data-status={message.status}
     >
       {message.content}
+      {message.status === "COMPLETED" && message.citations.length > 0 && <Citations citations={message.citations} />}
     </div>
   );
 }
@@ -54,9 +58,12 @@ export function ChatWindow({ deps: givenDeps = defaultDeps }: { deps?: ChatDeps 
     () => ({ api: givenDeps.api, polling: givenDeps.polling, planStore: givenDeps.planStore }),
     [givenDeps.api, givenDeps.polling, givenDeps.planStore],
   );
-  const comparisonController = useComparisonController(deps);
+  // ChatDeps.planStore는 develop 기준(읽기·재조회)이다. 적용 반영에 쓰는 acceptRevision·acceptNoPlan은 같은 공유 store 인스턴스가 가진다.
+  const comparisonDeps = useMemo(() => ({ api: deps.api, planStore: deps.planStore as ComparisonPlanStore }), [deps]);
+  const comparisonController = useComparisonController(comparisonDeps);
   const chat = useChatPollingInternal(deps, comparisonController.receive);
   const { accepted, answerPendingElsewhere } = chat;
+  useExplanationRequest(deps, chat);
 
   // 공유 계획 store는 읽기만 한다. 초과 판단은 settledStatus 하나로 한다.
   const { planStore: store } = deps;
@@ -84,21 +91,23 @@ export function ChatWindow({ deps: givenDeps = defaultDeps }: { deps?: ChatDeps 
   const answerBlocking = chat.answerPending && !chat.pollingFailed;
   const sendable = trimmed.length >= 1 && trimmed.length <= MAX_LENGTH && !sending && !answerBlocking;
 
-  async function send(): Promise<void> {
-    if (!sendable || sendingRef.current) return;
+  // example이 있으면 예시 버튼 문장을 그대로 보내고 입력창에 써 둔 글은 지우지 않는다.
+  async function send(example?: string): Promise<void> {
+    const body = example ?? trimmed;
+    if (sendingRef.current || sending || answerBlocking || body.length < 1 || body.length > MAX_LENGTH) return;
     sendingRef.current = true;
     setSending(true);
     setInputError(null);
     setToast(false);
     try {
-      const response = await deps.api.request<ChatAccepted>("POST", "/api/chat/messages", { text: trimmed });
+      const response = await deps.api.request<ChatAccepted>("POST", "/api/chat/messages", { text: body });
       if (!mountedRef.current) return;
       const createdAt = new Date().toISOString();
       accepted(
-        { id: response.userMessageId, role: "USER", messageType: "QUESTION", status: "COMPLETED", content: trimmed, citations: [], createdAt },
+        { id: response.userMessageId, role: "USER", messageType: "QUESTION", status: "COMPLETED", content: body, citations: [], createdAt },
         { id: response.assistantMessageId, role: "ASSISTANT", messageType: null, status: "PENDING", content: null, citations: [], createdAt },
       );
-      setText("");
+      if (example === undefined) setText("");
     } catch (error) {
       if (!mountedRef.current) return;
       const code = error instanceof ApiError ? error.code : null;
@@ -123,7 +132,7 @@ export function ChatWindow({ deps: givenDeps = defaultDeps }: { deps?: ChatDeps 
         {chat.messages.map((message) => (
           <Fragment key={message.id}>
             <Bubble message={message} />
-            <ComparisonCard comparison={comparison} message={message} />
+            <ComparisonResult comparison={comparison} message={message} />
           </Fragment>
         ))}
       </div>
@@ -134,6 +143,7 @@ export function ChatWindow({ deps: givenDeps = defaultDeps }: { deps?: ChatDeps 
           {RETRY_EXPLANATION_LABEL}
         </button>
       )}
+      <Suggestions disabled={sending || answerBlocking} onPick={(question) => void send(question)} />
       <textarea
         data-testid="chat-input"
         maxLength={MAX_LENGTH}

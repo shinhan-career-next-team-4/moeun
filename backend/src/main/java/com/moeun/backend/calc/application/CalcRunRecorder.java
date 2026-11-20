@@ -76,16 +76,21 @@ public class CalcRunRecorder {
      * 실패한 요청은 호출자 트랜잭션이 롤백해 행이 남지 않는다.
      *
      * @param planVersionId 비교의 기준인 현재 계획 버전
-     * @param versions current·changed에 함께 쓴 기준 데이터 버전과 엔진 버전
+     * @param versions current·changed에 함께 쓴 기준 데이터 버전과 엔진 버전(ETF는 ETF를 쓴 쪽 종목, 둘 다
+     *     썼으면 current 쪽)
+     * @param changedEtfVersionId changed가 다른 ETF 종목일 때 그 가격 버전(#157). 같은 종목이면 null
      * @return calc_run id(calcRunId)
      */
     @Transactional(propagation = Propagation.MANDATORY)
-    public long recordChatRun(long planVersionId, AppliedDataVersions versions) {
+    public long recordChatRun(long planVersionId, AppliedDataVersions versions, Long changedEtfVersionId) {
         if (TransactionSynchronizationManager.isCurrentTransactionReadOnly()) {
             throw new IllegalStateException("calc_run cannot be recorded in a read-only transaction");
         }
         requireKinds(versions);
-        return calcRunRepository.save(CalcRun.createChatRun(planVersionId, versions)).getId();
+        if (changedEtfVersionId != null) {
+            dataVersionService.requireKind(changedEtfVersionId, DataKind.ETF_PRICE);
+        }
+        return calcRunRepository.save(CalcRun.createChatRun(planVersionId, versions, changedEtfVersionId)).getId();
     }
 
     /** DB가 데이터 종류 일치를 막지 않으므로(ADR-002) 금리 자리에 지수 버전이 들어가지 않게 기록 전에 확인한다. */
@@ -94,7 +99,7 @@ public class CalcRunRecorder {
             dataVersionService.requireKind(versions.savingsRateVersionId(), DataKind.SAVINGS_RATE);
         }
         if (versions.sp500VersionId() != null) {
-            dataVersionService.requireKind(versions.sp500VersionId(), DataKind.SP500);
+            dataVersionService.requireKind(versions.sp500VersionId(), DataKind.ETF_PRICE);
         }
         dataVersionService.requireKind(versions.calcParamVersionId(), DataKind.CALC_PARAM);
     }

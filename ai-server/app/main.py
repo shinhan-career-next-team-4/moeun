@@ -60,7 +60,8 @@ async def _agent_error(_: Request, e: AgentError) -> JSONResponse:
 
 @app.exception_handler(anthropic.APIError)
 async def _llm_error(_: Request, e: anthropic.APIError) -> JSONResponse:
-    log.warning("llm call failed: %s", e)
+    # 오류 문자열에는 SDK가 되돌려 준 요청 본문(이전 답변 포함)이 섞일 수 있어 유형과 상태 코드만 남긴다.
+    log.warning("llm call failed: type=%s status=%s", type(e).__name__, getattr(e, "status_code", None))
     code = "LLM_RATE_LIMIT" if isinstance(e, anthropic.RateLimitError) else "LLM_UNAVAILABLE"
     return JSONResponse(status_code=502, content={"error": code})
 

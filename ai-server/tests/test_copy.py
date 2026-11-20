@@ -4,6 +4,7 @@ backend의 CopyBookTest가 같은 문장을 같은 키로 단언한다(Spring과
 음성 테스트는 문구표를 임시 디렉터리로 복사해 키를 지우거나 비운다.
 """
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +15,7 @@ from app.core.copy import Copy, CopyKeyError, load_copy
 
 COPY_PATH = Path(__file__).resolve().parents[2] / "copy" / "copy.ko.yml"
 
-CONDITION_CODES = ["monthlySavingAmount", "savingsRatioPct", "savingsRateInputPct", "targetPeriodMonths"]
+CONDITION_CODES = ["goalAmount", "monthlySavingAmount", "savingsRatioPct", "savingsRateInputPct", "targetPeriodMonths"]
 ERROR_CODES = [
     "VALIDATION_FAILED",
     "FIELD_NOT_CHANGEABLE",
@@ -37,6 +38,9 @@ FIXED_KEYS = [
     "chat.unchangeableCondition",
     "chat.noPlan",
     "chat.alreadyExceeded",
+    "chat.goalAmountChangedNote",
+    "chat.changedAlreadyExceeded",
+    "chat.cardAlreadyExceeded",
     "chat.failed",
     "chat.pollingFailed",
     "chat.sendFailed",
@@ -99,11 +103,13 @@ VERBATIM: list[tuple[str, dict[str, str], str]] = [
     (
         "chat.unchangeableCondition",
         {},
-        "목표 금액은 입력 수정에서 바꿀 수 있어요. 대화로는 월 저축액·비중·적금 금리·기한을 바꿔 볼 수 있어요",
+        "목표 종류·기존 납입액은 여기서 바꿀 수 없어요. 보유 자산은 입력 수정에서 바꿀 수 있어요.",
     ),
     ("chat.noPlan", {}, "먼저 목표와 조건을 입력해 계획을 만들어 주세요"),
     ("template.ratio", {"a": "60", "b": "40"}, "적금 60 : ETF 40"),
+    ("chat.exampleQuestion.goalAmount", {}, "목표 금액을 바꿔 보고 싶어요"),
     ("chat.exampleQuestion.monthlySavingAmount", {}, "월 저축액을 바꿔 보고 싶어요"),
+    ("condition.goalAmount", {}, "목표 금액"),
     ("condition.monthlySavingAmount", {}, "월 저축액"),
     ("condition.savingsRatioPct", {}, "저축 비중"),
     ("condition.savingsRateInputPct", {}, "적금 금리"),
@@ -132,7 +138,10 @@ FRAGMENTS: list[tuple[str, dict[str, str], list[str]]] = [
     ("outOfScope", {}, ["이 질문은 모은에서 다루지 않아요"]),
     ("outOfScope.tax", {}, ["전문가"]),
     ("chat.sendFailed", {}, ["보내지 못했어요"]),
-    ("chat.alreadyExceeded", {}, ["초과", "목표 금액은 입력 수정에서 바꿀 수 있어요"]),
+    ("chat.alreadyExceeded", {}, ["넘었어요", "대화로 목표 금액을 더 높게 바꿔 볼 수 있어요"]),
+    ("chat.goalAmountChangedNote", {"currentGoal": "A", "changedGoal": "B"}, ["A", "B"]),
+    ("chat.changedAlreadyExceeded", {}, ["이미 목표를 넘은 상태"]),
+    ("chat.cardAlreadyExceeded", {"heldAssets": "H", "goalAmount": "G"}, ["H", "G"]),
     ("disclaimer", {}, ["AI 설명은 참고용이며 계산 결과가 기준이에요", "과거"]),
     ("tax.note", {}, ["일반 과세", "비과세", "세법"]),
     ("result.alreadyExceeded", {"goalAmount": "GOAL_X", "heldAssets": "HELD_Y"}, ["GOAL_X", "HELD_Y"]),
@@ -258,9 +267,13 @@ def test_code_keyed_sentences_are_not_blank(copy: Copy, key: str) -> None:
     assert copy.get(key).strip()
 
 
-def test_copy_has_no_recommend_word() -> None:
-    """CF-07, D-064. 문구표 파일 전체에 '추천'이 없다(질문 예시 버튼 포함)."""
-    assert "추천" not in COPY_PATH.read_text(encoding="utf-8")
+def test_copy_has_no_stock_recommendation() -> None:
+    """CF-07, D-064. 개별 주식 종목을 추천하는 표현만 금지한다(질문 예시 버튼 포함).
+
+    ETF 상품명·지수명 노출과 '기간·월 저축액 추천 채움' 같은 일반 표현은 허용한다.
+    """
+    text = COPY_PATH.read_text(encoding="utf-8")
+    assert re.search(r"(종목|주식)\s*(을|를)?\s*추천", text) is None
 
 
 @pytest.mark.parametrize("code", CONDITION_CODES)

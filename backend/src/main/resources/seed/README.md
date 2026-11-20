@@ -6,7 +6,9 @@
 |---|---|---|---|---|
 | 적금 평균금리 | `seed/savings-avg-rate.csv` | 있음 | 은행연합회 적금 전월취급 평균금리, 12개월 정액적립식 단리 10개 은행 단순평균 **2.84%**(D-012, D-034, 아래 표) | 2026-10 |
 | 계산 파라미터 | `seed/calc-param.csv` | 있음 | 팀 결정(calc-spec 9절, 임시값 포함) | - |
-| S&P500 월말 종가 | `backend/data/seed/sp500-monthly.csv` | **없음(각자 준비)** | Investing.com S&P500 월별, 달러 지수(D-027) | 2026-10-31 |
+| ETF 월말 종가: S&P500 추종(대표) | `backend/data/seed/sp500-monthly.csv` | **없음(각자 준비)** | Investing.com S&P500 월별, 달러 지수(D-027) | 2026-10-31 |
+| ETF 월말 종가: 코스피200 추종 | `backend/data/seed/etf-069500-monthly.csv` | **없음(각자 준비)** | Investing.com 069500 월별, 원 | 2026-10-31 |
+| ETF 월말 종가: 나스닥100 추종 | `backend/data/seed/etf-133690-monthly.csv` | **없음(각자 준비)** | Investing.com 133690 월별, 원 | 2026-10-31 |
 
 ## 적금 평균금리 계산 근거
 
@@ -33,25 +35,48 @@
 
 값을 새로 받을 때는 같은 조건으로 다시 계산하고, `savings-avg-rate.csv`의 `base_month`와 `application.yml`의 `version-label`(`kfb-yyyy-MM`)·`source`를 함께 바꾼다.
 
-## S&P500 데이터 준비 (팀원마다 한 번)
+## ETF 종목 데이터 준비 (팀원마다 한 번, #138)
 
-S&P500 지수 데이터는 S&P Dow Jones Indices의 권리가 있어 공개 레포에 올리지 않는다(TBD-08, 팀 결정). 각자 받아서 로컬에만 둔다. 파일이 없으면 서버는 경고 로그(`refdata.missing`)만 남기고 S&P500 없이 뜬다. 이때는 ETF가 들어간 계산을 할 수 없다.
+3구간 계산에 쓰는 ETF 가격은 종목마다 데이터 파일 하나다. S&P500도 종목 하나(`SP500`, 대표 상품)다. 가격 데이터는 권리 문제로 공개 레포에 올리지 않는다(TBD-08, 팀 결정). 각자 받아서 `backend/data/seed/`에만 둔다. 파일이 없는 종목은 서버가 경고 로그(`refdata.missing`)만 남기고 그 종목 없이 뜬다. S&P500 파일이 없으면 ETF가 들어간 계산을 할 수 없다.
 
-1. 원본 받기: Investing.com(무료 회원 로그인 필요)의 **S&P 500 과거 데이터** 화면에서 시간 단위를 **월간**으로, 기간을 **2016-10-01 ~ 2026-10-31**(또는 그 이후)로 정하고 다운로드한다. 파일 이름은 `S&P 500 과거 데이터.csv`이고 머리줄은 `"날짜","종가",...`다.
+| 종목 코드 | 화면 이름 | 매매차익 세율 | Investing.com 화면 | 받은 파일 이름 | 변환 결과 |
+|---|---|---|---|---|---|
+| `SP500` | S&P500 추종 ETF | 15.4% | S&P 500 과거 데이터 | `S&P 500 과거 데이터.csv` | `sp500-monthly.csv` |
+| `069500` | 코스피200 추종 ETF | 0%(국내 주식형 비과세) | 069500 과거 데이터 | `069500 과거 데이터.csv` | `etf-069500-monthly.csv` |
+| `133690` | 나스닥100 추종 ETF | 15.4% | 133690 과거 데이터 | `133690 과거 데이터.csv` | `etf-133690-monthly.csv` |
+
+1. 원본 받기: Investing.com(무료 회원 로그인 필요)의 종목 **과거 데이터** 화면에서 시간 단위를 **월간**으로, 기간을 **2016-10-01 ~ 2026-10-31**(또는 그 이후)로 정하고 다운로드한다. 머리줄은 `"날짜","종가",...`다.
    - 한 번에 받을 수 있는 줄 수에 한계가 있는 것 같다. 받은 파일에 `2016- 10- 01` 줄이 있는지 확인한다.
-   - 2016-10 종가가 2,126.20, 2026-10 종가가 7,580.07이면 맞다(2026-10은 FRED와 같은 값).
-2. 변환하기(레포 루트에서):
+   - 맞는지 확인할 값: S&P500 2016-10 2,126.20 / 2026-10 7,580.07(FRED와 같음), 069500 2016-10 25,530 / 2026-10 90,800, 133690 2016-10 24,910 / 2026-10 170,475.
+2. 변환하기(레포 루트에서, 종목마다):
    ```bash
-   python3 backend/scripts/refdata/convert_sp500.py --input "$HOME/Downloads/S&P 500 과거 데이터.csv"
+   python3 backend/scripts/refdata/convert_etf_monthly.py --product SP500 --input "$HOME/Downloads/S&P 500 과거 데이터.csv"
+   python3 backend/scripts/refdata/convert_etf_monthly.py --product 069500 --input "$HOME/Downloads/069500 과거 데이터.csv"
+   python3 backend/scripts/refdata/convert_etf_monthly.py --product 133690 --input "$HOME/Downloads/133690 과거 데이터.csv"
    ```
-   - 2016-10 ~ 2026-10(121개월)의 월말 종가를 `backend/data/seed/sp500-monthly.csv`로 저장한다.
-   - 팀 모두 같은 기간을 써야 같은 데이터 버전이 된다. 기간을 바꾸려면 `--end-month`와 `application.yml`의 `version-label`·`base-date`를 함께 바꾼다.
+   - 2016-10 ~ 2026-10(121개월)의 월말 종가를 위 표의 변환 결과 이름으로 `backend/data/seed/`에 저장한다. 원본이 최근 날짜부터든 오래된 날짜부터든 상관없다.
+   - 팀 모두 같은 기간을 써야 같은 데이터 버전이 된다. 기간을 바꾸려면 `--end-month`와 `application.yml`의 그 종목 `version-label`·`base-date`를 함께 바꾼다.
    - 빠진 달이 있거나 아직 끝나지 않은 달을 고르면 변환이 실패한다. 파일에 진행 중인 달(예: 2026-11)이 있어도 `--end-month`까지만 남긴다.
-3. 서버를 띄운다. 로그에 `refdata.loaded kind=SP500`이 보이면 된다.
+   - 종가가 121개보다 적은 종목(상장한 지 10년이 안 된 종목)은 적재가 실패한다. 3구간 관측 기간이 120개월이라서다.
+3. 서버를 띄운다. 로그에 `refdata.loaded kind=ETF_PRICE product=<종목 코드>`가 보이면 된다.
 
-- 파일 위치를 바꾸려면 환경 변수 `MOEUN_SP500_FILE`(예: `file:/Users/me/sp500-monthly.csv`)을 쓴다. IDE에서 실행해 작업 폴더가 `backend/`가 아니면 이 값을 절대 경로로 준다.
+- 파일 위치를 바꾸려면 환경 변수를 쓴다: `MOEUN_SP500_FILE`, `MOEUN_ETF_069500_FILE`, `MOEUN_ETF_133690_FILE`(예: `file:/Users/me/etf-069500-monthly.csv`). IDE에서 실행해 작업 폴더가 `backend/`가 아니면 절대 경로로 준다.
 - `backend/data/`는 `.gitignore`에 있다. 이 폴더의 파일을 커밋하지 않는다.
 - Stooq는 S&P500 지수(`^SPX`)를 더 이상 제공하지 않는다(2026-11 확인). FRED(`observation_date,SP500`)는 지금 최근 약 1년치만 받아져서 시드로 쓸 수 없고 값 대조용으로 쓴다(2026-11-18 대조: 2025-12 ~ 2026-10 월말 종가 11개 모두 Investing.com 값과 같음). 변환 스크립트는 두 형식도 읽는다.
+
+### 종목 늘리기
+
+1. 위 1~2단계로 새 종목 파일을 만든다(10년치 이상, 월간).
+2. `application.yml`의 `moeun.refdata.seeds`에 묶음 하나를 더한다: `kind: ETF_PRICE`, `product-code`, `display-name`(상품명 대신 "OO 추종 ETF", CP-06), `gain-tax-rate-pct`(매매차익 세율), `version-label`, `base-date`, `source`, `file`, `optional: true`.
+3. 서버를 다시 띄운다. 코드는 바꾸지 않는다.
+
+세율이나 화면 이름을 바꿀 때는 그 종목의 `version-label`도 새로 정한다. 같은 버전 이름은 다시 적재하지 않아서(옛 계산 재현을 위해) 설정만 바꾸면 DB의 옛 값이 그대로 남는다.
+
+### 기존 로컬 DB
+
+#138 전 DB(S&P500 전용 구조)는 서버가 뜰 때 `db/schema.sql` 끝의 보정 구간이 자동으로 새 구조로 바꾼다. 옛 S&P500 버전은 같은 id로 종목 `SP500`이 되어 옛 계산 기록도 그대로 다시 계산된다. DB를 지울 필요가 없다.
+
+**보정은 되돌릴 수 없다.** 보정된 DB로 #138 전 코드(develop에 #138이 들어가기 전 브랜치)의 서버를 띄우면 기동이 실패한다(옛 스키마가 `SP500` 종류와 종류별 활성 1개를 전제함). 여러 브랜치를 오가며 같은 로컬 DB(`moeun`)를 쓴다면, #138 전 브랜치를 띄울 때는 `DB_URL`로 다른 DB를 쓰거나 그 브랜치를 develop 최신으로 갱신한다.
 
 ## 이용 조건 메모
 
@@ -60,5 +85,5 @@ S&P500 지수 데이터는 S&P Dow Jones Indices의 권리가 있어 공개 레�
 
 ## 테스트
 
-- 기준 데이터 테스트는 `src/test/resources/refdata/test-*.csv`(수식으로 만든 가짜 값)를 쓴다. 실제 S&P500 파일이 없어도 돈다.
+- 기준 데이터 테스트는 `src/test/resources/refdata/test-*.csv`(수식으로 만든 가짜 값)를 쓴다. 실제 ETF 가격 파일이 없어도 돈다.
 - 변환 스크립트 테스트: `python3 -m unittest discover -s backend/scripts/refdata`

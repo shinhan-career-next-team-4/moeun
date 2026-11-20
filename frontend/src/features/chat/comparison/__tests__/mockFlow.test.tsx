@@ -68,7 +68,8 @@ describe("AC-20 목 모드 시나리오", () => {
     await settle();
     await settle();
 
-    expect(env.requests.filter((r) => r.method === "POST")).toEqual([
+    // F-3(설명 요청)은 #54가 결과 변화로 부르므로 뺀다. 적용 요청은 1031에 한 번, expectedRevision 12다.
+    expect(env.requests.filter((r) => r.method === "POST" && !r.path.startsWith("/api/chat/explanations"))).toEqual([
       { method: "POST", path: "/api/chat/messages/1031/apply", body: { expectedRevision: 12 } },
     ]);
     expect(env.store.getState().revision).toBe(13);

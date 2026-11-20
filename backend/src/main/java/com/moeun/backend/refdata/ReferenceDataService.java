@@ -10,11 +10,12 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.moeun.backend.refdata.Sp500Series.MonthlyClose;
+import com.moeun.backend.refdata.EtfSeries.MonthlyClose;
 import com.moeun.backend.refdata.domain.CalcParam;
 import com.moeun.backend.refdata.domain.CalcParamRepository;
+import com.moeun.backend.refdata.domain.EtfMonthlyRepository;
+import com.moeun.backend.refdata.domain.EtfProductVersionRepository;
 import com.moeun.backend.refdata.domain.SavingsAvgRateRepository;
-import com.moeun.backend.refdata.domain.Sp500MonthlyRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -29,15 +30,31 @@ public class ReferenceDataService {
 
     private final DataVersionService dataVersionService;
     private final SavingsAvgRateRepository savingsAvgRateRepository;
-    private final Sp500MonthlyRepository sp500MonthlyRepository;
+    private final EtfMonthlyRepository etfMonthlyRepository;
+    private final EtfProductVersionRepository etfProductVersionRepository;
     private final CalcParamRepository calcParamRepository;
 
     public Optional<SavingsAvgRateData> findActiveSavingsAvgRate() {
         return dataVersionService.findActive(DataKind.SAVINGS_RATE).flatMap(this::findSavingsAvgRate);
     }
 
-    public Optional<Sp500Series> findActiveSp500Series() {
-        return dataVersionService.findActive(DataKind.SP500).map(this::toSp500Series);
+    /** 그 종목의 지금 활성인 월말 종가. 데이터를 적재하지 않은 종목이면 비어 있다. */
+    public Optional<EtfSeries> findActiveEtfSeries(String productCode) {
+        return dataVersionService.findActiveEtf(productCode).map(this::toEtfSeries);
+    }
+
+    /** 대표 상품(S&P500 추종 ETF)의 지금 활성인 월말 종가. 종목을 정하지 않은 계획은 이 종목으로 계산한다. */
+    public Optional<EtfSeries> findRepresentativeEtfSeries() {
+        return findActiveEtfSeries(EtfProduct.REPRESENTATIVE_CODE);
+    }
+
+    /**
+     * 지금 고를 수 있는 ETF 종목들(데이터가 적재된 종목, 종목 코드 순). 프론트·AI가 목록을 하드코딩하지 않게 이 목록을 쓴다.
+     */
+    public List<EtfProduct> findActiveEtfProducts() {
+        return dataVersionService.findActiveEtfVersions().stream()
+                .map(version -> requireProduct(version.id()))
+                .toList();
     }
 
     public Optional<CalcParams> findActiveCalcParams() {
@@ -58,16 +75,16 @@ public class ReferenceDataService {
     }
 
     /**
-     * 지정한 버전의 S&P500 월말 종가. 활성이 아니어도 꺼낸다(#78).
+     * 지정한 버전의 ETF 월말 종가와 그 버전의 종목 정보. 활성이 아니어도 꺼낸다(#78, #138).
      *
-     * @param dataVersionId calc_run에 기록된 S&P500 버전
-     * @throws IllegalArgumentException 버전이 없거나 S&P500 버전이 아닐 때
-     * @throws IllegalStateException 버전은 있는데 종가 행이 없을 때
+     * @param dataVersionId calc_run에 기록된 ETF 가격 버전
+     * @throws IllegalArgumentException 버전이 없거나 ETF 가격 버전이 아닐 때
+     * @throws IllegalStateException 버전은 있는데 종가 행이나 종목 정보가 없을 때
      */
-    public Sp500Series requireSp500Series(long dataVersionId) {
-        Sp500Series series = toSp500Series(dataVersionService.requireKind(dataVersionId, DataKind.SP500));
+    public EtfSeries requireEtfSeries(long dataVersionId) {
+        EtfSeries series = toEtfSeries(dataVersionService.requireKind(dataVersionId, DataKind.ETF_PRICE));
         if (series.monthlyCloses().isEmpty()) {
-            throw new IllegalStateException("sp500 rows are missing: " + dataVersionId);
+            throw new IllegalStateException("etf price rows are missing: " + dataVersionId);
         }
         return series;
     }
@@ -93,12 +110,22 @@ public class ReferenceDataService {
                         rate.getAvgRatePct()));
     }
 
-    private Sp500Series toSp500Series(DataVersionInfo version) {
+    private EtfSeries toEtfSeries(DataVersionInfo version) {
         List<MonthlyClose> monthlyCloses =
-                sp500MonthlyRepository.findByIdDataVersionIdOrderByIdYmAsc(version.id()).stream()
+                etfMonthlyRepository.findByIdDataVersionIdOrderByIdYmAsc(version.id()).stream()
                         .map(row -> new MonthlyClose(YearMonth.from(row.getId().ym()), row.getCloseValue()))
                         .toList();
-        return new Sp500Series(version, monthlyCloses);
+        EtfProduct product = requireProduct(version.id());
+        if (!product.code().equals(version.productCode())) {
+            throw new IllegalStateException("etf product code does not match its version: " + version.id());
+        }
+        return new EtfSeries(version, product, monthlyCloses);
+    }
+
+    private EtfProduct requireProduct(long dataVersionId) {
+        return etfProductVersionRepository.findById(dataVersionId)
+                .orElseThrow(() -> new IllegalStateException("etf product info is missing: " + dataVersionId))
+                .toProduct();
     }
 
     private CalcParams toCalcParams(DataVersionInfo version) {

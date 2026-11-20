@@ -53,6 +53,14 @@ class ResultDisplayBuilderTest {
                 conditions.get("savingsRatioPct").asInt(), Scenario.valueOf(result.get("baselineScenario").asString()));
     }
 
+    private static String textOrNull(JsonNode node) {
+        return node == null || node.isNull() ? null : node.asString();
+    }
+
+    private static BigDecimal decimalOrNull(JsonNode node) {
+        return node == null || node.isNull() ? null : new BigDecimal(node.asString());
+    }
+
     private static CalcResult toResult(JsonNode result) {
         List<ScenarioResult> scenarios = new ArrayList<>();
         for (JsonNode scenario : result.get("scenarios")) {
@@ -74,7 +82,9 @@ class ResultDisplayBuilderTest {
                 baseMonth.isNull() ? null : YearMonth.parse(baseMonth.asString()),
                 assumptions.get("savingsRatioPct").asInt(), new BigDecimal(assumptions.get("taxRatePct").asString()),
                 method.isNull() ? null : ScenarioMethod.valueOf(method.asString()),
-                sp500Date.isNull() ? null : LocalDate.parse(sp500Date.asString()), excluded);
+                sp500Date.isNull() ? null : LocalDate.parse(sp500Date.asString()), excluded,
+                textOrNull(assumptions.get("etfProductCode")), textOrNull(assumptions.get("etfProductName")),
+                decimalOrNull(assumptions.get("etfGainTaxRatePct")));
         JsonNode targetMonth = result.get("targetMonth");
         return new CalcResult(CalcStatus.valueOf(result.get("status").asString()), result.get("goalAmount").asLong(),
                 YearMonth.parse(result.get("calcStartMonth").asString()),
@@ -111,13 +121,14 @@ class ResultDisplayBuilderTest {
         "plan-context-achieved", "plan-context-zero-held"})
     @DisplayName("계약 부록 A의 raw 값으로 만든 결과의 display가 fixture와 글자까지 같다(G-5a)")
     void matchesContractFixtures(String fixture) {
-        JsonNode root = readFixture(fixture);
+        JsonNode root = PlanContextSerializationTest.withEtfDisplayKeys(readFixture(fixture));
         JsonNode result = root.get("result");
 
         Map<String, String> display = builder.build(toInput(root.get("conditions"), result), toResult(result),
                 "", "conditions.");
 
-        assertThat(display).containsExactlyInAnyOrderEntriesOf(toMap(root.get("display")));
+        assertThat(display).containsExactlyInAnyOrderEntriesOf(
+                toMap(root.get("display")));
     }
 
     @Test
@@ -226,5 +237,37 @@ class ResultDisplayBuilderTest {
             assertThat(display.get(scenario.scenario() + ".gapToGoal")).endsWith(label);
         }
         assertThat(display).containsEntry("GOOD.gapToGoal", "0원 달성").containsEntry("AVG.gapToGoal", "-1만원 미만 미달");
+    }
+
+    @Test
+    @DisplayName("ETF 종목이 있으면 가정 보기에 종목 이름과 종목 세율이 나오고, 비과세는 이유가 붙는다(#150)")
+    void showsEtfProductAndTaxRate() {
+        Assumptions assumptions = new Assumptions(new BigDecimal("2.84"), true, YearMonth.of(2026, 10), 50,
+                new BigDecimal("15.4"), ScenarioMethod.ROLLING_DISTRIBUTION, LocalDate.of(2026, 10, 31), List.of(),
+                "069500", "코스피200 추종 ETF", BigDecimal.ZERO);
+        CalcResult result = new CalcResult(CalcStatus.CALCULATED, 20_000_000L, START, START.plusMonths(36),
+                Scenario.AVG, List.of(createScenario(Scenario.AVG, 17_000_000L, false, null)), null, assumptions,
+                new AppliedDataVersions(1L, 2L, 3L, "test"));
+
+        Map<String, String> display = builder.build(createInput(), result, "", "conditions.");
+
+        assertThat(display).containsEntry("assumptions.etfProductName", "코스피200 추종 ETF")
+                .containsEntry("assumptions.etfGainTaxRatePct", "0%(국내 주식형 ETF 매매차익 비과세)")
+                .containsEntry("assumptions.taxRatePct", "15.4%");
+    }
+
+    @Test
+    @DisplayName("비교 응답(접두어가 있는 결과)에는 종목 표시 키를 만들지 않는다")
+    void omitsEtfKeysForComparison() {
+        Assumptions assumptions = new Assumptions(new BigDecimal("2.84"), false, null, 50, new BigDecimal("15.4"),
+                ScenarioMethod.ROLLING_DISTRIBUTION, LocalDate.of(2026, 10, 31), List.of(), "SP500", "S&P500 추종 ETF",
+                new BigDecimal("15.4"));
+        CalcResult result = new CalcResult(CalcStatus.CALCULATED, 20_000_000L, START, START.plusMonths(36),
+                Scenario.AVG, List.of(createScenario(Scenario.AVG, 17_000_000L, false, null)), null, assumptions,
+                new AppliedDataVersions(1L, 2L, 3L, "test"));
+
+        Map<String, String> display = builder.build(createInput(), result, "current.", "conditions.current.");
+
+        assertThat(display.keySet()).noneMatch(key -> key.contains("etf"));
     }
 }

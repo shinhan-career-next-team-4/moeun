@@ -89,6 +89,10 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
     environment 'JWT_SECRET', 'test-only-jwt-secret-not-for-any-real-env-000'   // 테스트 전용 서명 키
+    // 테스트는 개발자 로컬의 ETF 가격 파일(backend/data/seed, git 제외)을 읽지 않는다. 같은 입력 → 같은 결과
+    // S&P500은 테스트마다 MOEUN_SP500_FILE로 레포의 가짜 파일을 준다. 새 종목은 필요한 테스트만 따로 준다
+    environment 'MOEUN_ETF_069500_FILE', 'file:build/no-local-etf-069500.csv'
+    environment 'MOEUN_ETF_133690_FILE', 'file:build/no-local-etf-133690.csv'
 }
 
 checkstyle {

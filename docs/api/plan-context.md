@@ -1,6 +1,6 @@
 # `planContext` 계약 (Spring → ai-server `POST /chat`)
 
-> 최종본 (2026-11-16, moeun #11, 요구사항 FR-AI-01·02·04·06·09·10, FR-RES-01·06, NFR-INT-01·03, CP-04·05, 결정 D-027·D-030·D-040·D-041·D-045·D-055·D-058~D-062·D-065·D-067·D-071·D-073).
+> 최종본 (2026-11-16, moeun #11, 요구사항 FR-AI-01·02·04·06·09·10, FR-RES-01·06, NFR-INT-01·03, CP-04·05, 결정 D-027·D-030·D-040·D-041·D-045·D-055·D-058~D-062·D-065·D-067·D-071·D-073·D-090·D-092).
 > 협상 기록과 원문은 기획 repo project-workspace `docs/design/contracts/plan-context.md`(합의 55항목, 쟁점 X-1~X-4 → D-059~D-062)다. 이 문서가 구현 기준이며 `ai-server/README.md` "planContext" 절은 이 문서의 요약이다.
 > 예시 JSON은 [`docs/api/examples/plan-context/`](examples/plan-context/)에 파일로 둔다. Spring 테스트와 ai-server 테스트가 같은 파일을 읽는다(C1a-13).
 > **[D-059]~[D-062]**는 협상 쟁점이었다가 사람이 결정한 항목이다. 항목 ID(C1a-x)는 기획 repo 문서와 같다. `/internal/calc` 계약은 [`internal-calc.md`](internal-calc.md)다.
@@ -99,9 +99,12 @@
 | `isDefaultSavingsRate` | boolean | 예 | — | 기본금리 사용 여부 판단용 |
 | `savingsRateBaseMonth` | `"YYYY-MM"` \| null | 아니오 | `assumptions.savingsRateBaseMonth` | null이면 display 키 없음 |
 | `savingsRatioPct` | integer | 아니오 | (`conditions.savingsRatioPct`) | |
-| `taxRatePct` | number | 아니오 | **[D-060]** `assumptions.taxRatePct` | raw는 모델에 넘기지 않는다 |
+| `taxRatePct` | number | 아니오 | **[D-060]** `assumptions.taxRatePct` | raw는 모델에 넘기지 않는다. **#150부터 적금 이자 세율**(ETF 차익은 `etfGainTaxRatePct`). 규칙 8·세금 응답 보장의 기준을 종목 세율까지 넓히는 일은 B팀 합의 대기 |
 | `scenarioMethod` | `CAGR` \| `ROLLING_DISTRIBUTION` \| null | **코드는 아니오. 문구로 바꿔서 넘김** | — | ai-server가 문구표 `scenarioMethod.<CODE>` 문장으로 바꿔 `scenarioMethodNote`로 넣는다. null(ETF 0%)이면 넣지 않음 |
-| `sp500BaseDate` | `"YYYY-MM-DD"` \| null | 아니오 | `assumptions.sp500BaseDate` | null이면 display 키 없음 |
+| `sp500BaseDate` | `"YYYY-MM-DD"` \| null | 아니오 | `assumptions.sp500BaseDate` | null이면 display 키 없음. 이름은 그대로지만 값은 계산에 쓴 ETF 종목 데이터의 기준일(#138) |
+| `etfProductCode` | string \| null | 아니오 | — | **추가(#150)** 계산에 쓴 ETF 종목 코드. ETF 0%면 null |
+| `etfProductName` | string \| null | 아니오 | `assumptions.etfProductName`(합의 대기) | **추가(#150)** 종목 화면 이름("코스피200 추종 ETF", CP-06). ETF 0%면 null |
+| `etfGainTaxRatePct` | number \| null | 아니오 | `assumptions.etfGainTaxRatePct`(합의 대기) | **추가(#150)** 종목 매매차익 세율. 국내 주식형 0. `taxRatePct`는 적금 이자 세율이 된다 |
 | `excludedItems` | string[] | **코드는 아니오. 문구로 바꿔서 넘김** | — | ai-server가 문구표 `excluded.<CODE>` 문장 배열로 바꿔 `excludedNotes`로 넣는다 |
 
 **반영하지 않은 항목·3구간 산정 방식 문장**
@@ -132,6 +135,8 @@
 | `assumptions.savingsRateBaseMonth` | `YYYY년 M월`. null이면 키 없음 | **추가** |
 | `assumptions.sp500BaseDate` | `YYYY년 M월`(일은 버림). null이면 키 없음 | **추가** |
 | `assumptions.taxRatePct` | **[D-060]** `N.N%`, 끝 0 제거(`15.4`·`15.40` → `15.4%`) | 새 형식 |
+| `assumptions.etfProductName` | 종목 화면 이름 그대로. ETF 0%면 키 없음 | **추가(#150), B팀 합의 대기**: Spring은 만들지만 아직 허용 패턴·요구 키에 없어 ai-server가 버린다 |
+| `assumptions.etfGainTaxRatePct` | `N.N%`. 비과세면 `0%(국내 주식형 ETF 매매차익 비과세)`(문구표 `tax.etfTaxFree`). ETF 0%면 키 없음 | **추가(#150), B팀 합의 대기** |
 
 `<S>` = `GOOD` \| `AVG` \| `BAD`(시나리오 이름). 실제로 있는 시나리오만 키를 만든다.
 
@@ -261,14 +266,14 @@
 | 4 | 비교·차이는 `recalculate` 결과의 접두어 키(`current.`/`changed.`/`diff.`)만 인용하고 planContext의 `<S>.*`와 섞지 않는다 | #23 |
 | 5 | 반영하지 않은 항목·3구간 산정 방식은 `excludedNotes`·`scenarioMethodNote` 문장을 그대로 쓴다 | #35 |
 | 6 | 구체적인 연 수익률은 말하지 않는다. "과거 데이터로 만든 구간이며 수익을 약속하지 않는다"고만 답한다. 주어지지 않은 정보는 모른다고 한다 | #35 |
-| 7 | **[D-059]** 대화로 바꿀 수 있는 네 조건(월 저축액·비중·적금 금리·기한)을 "더/덜/늘리면/줄이면"처럼 상대 표현으로 바꾸면 **계산하지 않고** `CLARIFY`로 바꿀 값을 절대값으로 되묻는다(지금 값은 display로 인용 가능). 되물을 때 예시 금액·금리를 지어내지 않는다(지금 값은 display 인용만) | #21 |
+| 7 | **[D-059·D-092]** 대화로 바꿀 수 있는 다섯 조건(목표 금액·월 저축액·비중·적금 금리·기한)을 "더/덜/늘리면/줄이면"처럼 상대 표현으로 바꾸면 **계산하지 않고** `CLARIFY`로 바꿀 값을 절대값으로 되묻는다(지금 값은 display로 인용 가능). 되물을 때 예시 금액·금리를 지어내지 않는다(지금 값은 display 인용만) | #21 |
 | 8 | **[D-060]** 세율은 `assumptions.taxRatePct` display만 인용한다. [D-067] 세율을 말할 때는 `taxNote`를 함께 쓰고 "~로 가정했어요"로 말한다 | #35 |
-| 9 | `status=ALREADY_EXCEEDED`이면 초과 사실과 "목표 금액은 입력 수정에서 바꿀 수 있어요"만 말하고 초과 금액은 말하지 않는다 | #35 |
+| 9 | (쪽별 적용) `status=ALREADY_EXCEEDED`인 쪽은 초과 사실만 말하고 초과 금액·비교 문장을 만들지 않는다. 409 초과 안내는 "대화로 목표 금액을 더 높게 바꿔 볼 수 있어요"를 안내한다(D-092) | #35 |
 
 - `afterTaxGain`이 `-`로 시작할 때 "손실로 말한다" 같은 해석 규칙은 넣지 않는다(규칙이 늘어남). 음수 형식은 #28 Formatter 테스트로 고정한다.
 - 모델이 실제로 규칙을 지키는지는 FakeClaude로 검증되지 않는다. **소량 수동 평가 목록 3~5건**(예: A-1에서 "목표까지 얼마나 모자라요?" → `-약 288만원 미달`을 인용하는지)을 실행하고 결과를 #35 PR 본문에 적는다.
 - `prompts.py`는 #21·#22·#23·#35·#38이 같이 고친다. **#21 → #22 → #23 → #35 순서**로 처리한다.
-- `SYSTEM_PROMPT`를 D-040 "대화로 바꿀 수 있는 조건 4개"로 고치는 일은 #21의 기존 범위다.
+- `SYSTEM_PROMPT`의 대화 변경 가능 조건은 D-090·D-092에 따라 **5개**(목표 금액 추가, 1단계)로 갱신한다(#21).
 
 ### 세금 응답 보장 (D-067, D-073)
 
@@ -329,7 +334,7 @@ public record PlanContextView(long calcRunId, ConditionsView conditions, CalcRes
 |---|---|---|
 | 저장된 계획이 없음 | `null` | QUESTION: 숫자 없이 답한다. 계산·설명 요청이면 문구표 `chat.noPlan`. EXPLAIN: 400(C1a-8 검사 2) |
 | ETF 0% | `scenarios`에 AVG 1개, `annualReturnPct`·`scenarioMethod`·`sp500BaseDate`·`dataVersions.sp500VersionId` = `null`, display에 `AVG.*`만 | 3구간을 말하지 않는다. `scenarioMethodNote` 없음. `plan-context-etf0.json` |
-| 이미 목표 초과 | `scenarios: []`, display는 `goalAmount`, `calcStartMonth`, `targetMonth`, `conditions.*`, `assumptions.*` | EXPLAIN: LLM 없이 `chat.alreadyExceeded`(C1a-8 검사 4). QUESTION: 모델에 주되 초과 금액은 말하지 않는다(프롬프트 규칙 2·9). 대화 재계산은 `/internal/calc`의 `ALREADY_EXCEEDED` 고정 문장이고 비교·적용이 없다(D-071). `plan-context-exceeded.json` |
+| 이미 목표 초과 | `scenarios: []`, display는 `goalAmount`, `calcStartMonth`, `targetMonth`, `conditions.*`, `assumptions.*` | EXPLAIN: LLM 없이 `chat.alreadyExceeded`(C1a-8 검사 4). QUESTION: 모델에 주되 초과 금액은 말하지 않는다(프롬프트 규칙 2·9). 대화 재계산은 목표를 바꾸지 않거나 여전히 초과일 때만 `409 ALREADY_EXCEEDED`이고, 목표를 올려 초과를 벗어나면 `200` 비대칭 비교다(D-092). `plan-context-exceeded.json` |
 | 목표 기간 안에 도달 못 함(`isAchieved=false`) | raw `goalReachMonth`는 null 또는 "중간에 처음 닿은 달". **어느 경우든 display 키 없음** | "기간 안에 도달하지 않아요" |
 
 - 초과 계획에서도 `conditions.heldAssets` display를 남긴다(사용자가 입력한 값이고 화면 조건 바에도 있다). 초과 금액 차단은 프롬프트 규칙 2·9가 맡는다.
@@ -338,7 +343,7 @@ public record PlanContextView(long calcRunId, ConditionsView conditions, CalcRes
 | 키 | 쓰는 곳 | 문장(확정은 #18) |
 |---|---|---|
 | `chat.noPlan` | 계획 없음, `/internal/calc` `NO_PLAN`(C3-2)과 같은 문장 | "먼저 목표와 조건을 입력해 계획을 만들어 주세요" |
-| `chat.alreadyExceeded` | 초과 EXPLAIN, `/internal/calc` `ALREADY_EXCEEDED`(C3-2)와 같은 문장 | 초과 사실 + "목표 금액은 입력 수정에서 바꿀 수 있어요" |
+| `chat.alreadyExceeded` | 초과 EXPLAIN, `/internal/calc` `409 ALREADY_EXCEEDED`(C3-2)와 같은 문장 | "이미 가진 자산이 목표 금액을 넘었어요. 대화로 목표 금액을 더 높게 바꿔 볼 수 있어요." |
 | `excluded.<CODE>` | `ExcludedItem` 5개(`ETF_TOTAL_EXPENSE`, `EXCHANGE_RATE`, `ETF_DISTRIBUTION`, `HELD_ASSET_RETURN`, `SAVINGS_REDEPOSIT`). `excluded.EXCHANGE_RATE` = "환율 변동은 반영하지 않았어요"(D-027) | 나머지 4개는 #18 |
 | `scenarioMethod.<CODE>` | `CAGR`, `ROLLING_DISTRIBUTION` 2개 | TBD-01 결과에 따름. **결정 전에도 임시 문장을 넣는다**(빈 값 금지) |
 | `tax.note` | [D-067] 모델 입력 `taxNote`, 가정 보기 | 일반 과세 기준 가정, 비과세·세금우대 상품·금융소득·세법 변경 시 달라질 수 있음, 정확한 세금은 금융기관·세무 전문가 확인(#18) |

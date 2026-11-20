@@ -16,7 +16,7 @@
 ## 기술 스택
 
 - **Language**: TypeScript (strict mode)
-- **Framework**: React 18+, Next.js (App Router)
+- **Framework**: React 19 (Vite)
       <!-- * **상태 관리**: Zustand (클라이언트), TanStack Query (서버 상태) -->
       <!-- * **디자인 시스템**: TDS (Toss Design System) 패턴, shadcn/ui -->
       <!-- * **유틸리티**: es-toolkit, overlay-kit, es-hangul -->

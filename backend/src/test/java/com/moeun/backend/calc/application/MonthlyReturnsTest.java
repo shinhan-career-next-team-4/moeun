@@ -11,7 +11,7 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.moeun.backend.refdata.Sp500Series.MonthlyClose;
+import com.moeun.backend.refdata.EtfSeries.MonthlyClose;
 
 import tools.jackson.databind.JsonNode;
 
