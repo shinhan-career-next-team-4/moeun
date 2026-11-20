@@ -11,25 +11,21 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** 버전별 S&P500 월 종가 한 건. */
+/** 버전별 ETF 종목 월말 종가 한 건. 어느 종목인지는 버전({@code data_version.product_code})이 정한다. */
 @Entity
-@Table(name = "sp500_monthly")
+@Table(name = "etf_monthly")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Sp500Monthly {
+public class EtfMonthly {
 
     @EmbeddedId
-    private Sp500MonthlyId id;
+    private EtfMonthlyId id;
 
     @Column(nullable = false, precision = 14, scale = 4)
     private BigDecimal closeValue;
 
-    // 분배금 제외 지수로 계산하기로 해서 지금은 채우지 않는다(TBD-02)
-    @Column(precision = 18, scale = 6)
-    private BigDecimal totalReturnIndex;
-
-    public Sp500Monthly(Long dataVersionId, LocalDate ym, BigDecimal closeValue) {
-        this.id = new Sp500MonthlyId(dataVersionId, ym);
+    public EtfMonthly(Long dataVersionId, LocalDate ym, BigDecimal closeValue) {
+        this.id = new EtfMonthlyId(dataVersionId, ym);
         this.closeValue = closeValue;
     }
 }

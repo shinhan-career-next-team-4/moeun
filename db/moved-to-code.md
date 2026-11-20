@@ -49,7 +49,7 @@
 | `calc_run.point_count`, `monthly_principal` | `CalcEngine` 결과 시계열 | FR-RES-04 |
 | `calc_run.required_monthly_saving` | `CalcEngine.requiredMonthlySaving(input)` | FR-RES-08 |
 | `calc_run` 행 중 `run_type='COMPARE'` | 저장하지 않음. 비교는 요청마다 계산 | FR-CMP-01, FR-CMP-02 |
-| `data_version.*` 종류 확인용 `data_kind` 생성 컬럼 (`savings_avg_rate`, `sp500_monthly`, `calc_param`, `calc_run.*_kind`) | `DataVersionService.requireKind(id, kind)`로 적재·기록 시 검사 | NFR-INT-02 |
+| `data_version.*` 종류 확인용 `data_kind` 생성 컬럼 (`savings_avg_rate`, `etf_monthly`, `calc_param`, `calc_run.*_kind`) | `DataVersionService.requireKind(id, kind)`로 적재·기록 시 검사 | NFR-INT-02 |
 | `rag_document.org_type` (복사값) | `source_org.org_type` 조인 | FR-AI-03 |
 | `rag_document.license_status` | 적재 스크립트 `RagIngestor`가 이용 허락된 문서만 넣음. 허락 목록은 `rag.allowlist` | FR-AI-10 |
 | `rag_chunk.token_count` | 청크를 나눌 때 토크나이저로 계산. 적재 로그 | NFR-INT-04 |

@@ -8,6 +8,7 @@ import static org.mockito.Mockito.doThrow;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 
@@ -27,9 +28,10 @@ import com.moeun.backend.refdata.CalcParams;
 import com.moeun.backend.refdata.DataKind;
 import com.moeun.backend.refdata.DataVersionInfo;
 import com.moeun.backend.refdata.DataVersionService;
+import com.moeun.backend.refdata.EtfProduct;
+import com.moeun.backend.refdata.EtfSeries;
 import com.moeun.backend.refdata.ReferenceDataService;
 import com.moeun.backend.refdata.SavingsAvgRateData;
-import com.moeun.backend.refdata.Sp500Series;
 import com.moeun.backend.refdata.domain.DataVersionRepository;
 
 // TestcontainersConfig가 config 패키지에 있어서, config 모듈을 함께 포함하지 않으면 DB 컨테이너 빈이 걸러진다
@@ -37,6 +39,7 @@ import com.moeun.backend.refdata.domain.DataVersionRepository;
 @Import(TestcontainersConfig.class)
 class ReferenceDataLoaderTest {
 
+    private static final EtfProduct SP500_PRODUCT = new EtfProduct("SP500", "S&P500 추종 ETF", new BigDecimal("15.4"));
     private static final String RATE_HEADER = "base_month,avg_rate_pct\n";
     private static final VersionSpec SP500_SPEC =
             new VersionSpec("test-2025-12", LocalDate.of(2025, 12, 31), "테스트용 가짜 데이터");
@@ -71,9 +74,9 @@ class ReferenceDataLoaderTest {
     @Test
     @DisplayName("S&P500 파일을 적재하면 그 버전이 활성이 되고 월 순서로 조회된다")
     void loadsSp500AndActivates() throws IOException {
-        DataVersionInfo version = loadTestFile(DataKind.SP500, SP500_SPEC, "refdata/test-sp500-monthly.csv");
+        DataVersionInfo version = loadTestFile(DataKind.ETF_PRICE, SP500_SPEC, "refdata/test-sp500-monthly.csv");
 
-        Sp500Series series = referenceDataService.findActiveSp500Series().orElseThrow();
+        EtfSeries series = referenceDataService.findRepresentativeEtfSeries().orElseThrow();
         assertThat(series.version()).isEqualTo(version);
         assertThat(series.version().baseDate()).isEqualTo(LocalDate.of(2025, 12, 31));
         assertThat(series.monthlyCloses()).hasSize(132);
@@ -101,9 +104,9 @@ class ReferenceDataLoaderTest {
     @Test
     @DisplayName("아무것도 적재하지 않았으면 활성 데이터가 없다")
     void hasNoActiveDataBeforeLoading() {
-        assertThat(dataVersionService.findActive(DataKind.SP500)).isEmpty();
+        assertThat(dataVersionService.findActiveEtf("SP500")).isEmpty();
         assertThat(referenceDataService.findActiveSavingsAvgRate()).isEmpty();
-        assertThat(referenceDataService.findActiveSp500Series()).isEmpty();
+        assertThat(referenceDataService.findRepresentativeEtfSeries()).isEmpty();
         assertThat(referenceDataService.findActiveCalcParams()).isEmpty();
     }
 
@@ -162,7 +165,7 @@ class ReferenceDataLoaderTest {
     @Test
     @DisplayName("파일이 규칙에 맞지 않으면 아무것도 저장하지 않는다")
     void savesNothingWhenFileIsInvalid() {
-        assertThatThrownBy(() -> loader.load(DataKind.SP500, SP500_SPEC,
+        assertThatThrownBy(() -> loader.loadEtf(SP500_PRODUCT, SP500_SPEC,
                 toStream(CsvFixtures.createSp500Csv(YearMonth.of(2016, 1), 120))))
                 .isInstanceOf(ReferenceDataLoadException.class);
         assertThatThrownBy(() -> loader.load(DataKind.CALC_PARAM, PARAM_SPEC,
@@ -190,8 +193,8 @@ class ReferenceDataLoaderTest {
 
         assertThat(dataVersionService.requireKind(rate.id(), DataKind.SAVINGS_RATE)).isEqualTo(rate);
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> dataVersionService.requireKind(rate.id(), DataKind.SP500))
-                .withMessageContaining("expected SP500");
+                .isThrownBy(() -> dataVersionService.requireKind(rate.id(), DataKind.ETF_PRICE))
+                .withMessageContaining("expected ETF_PRICE");
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> dataVersionService.requireKind(rate.id() + 1000, DataKind.SAVINGS_RATE))
                 .withMessageContaining("not found");
@@ -203,7 +206,8 @@ class ReferenceDataLoaderTest {
 
     private DataVersionInfo loadTestFile(DataKind kind, VersionSpec spec, String classpathFile) throws IOException {
         try (InputStream csv = new ClassPathResource(classpathFile).getInputStream()) {
-            return loader.load(kind, spec, csv).orElseThrow();
+            return (kind == DataKind.ETF_PRICE ? loader.loadEtf(SP500_PRODUCT, spec, csv)
+                    : loader.load(kind, spec, csv)).orElseThrow();
         }
     }
 

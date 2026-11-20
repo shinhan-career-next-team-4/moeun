@@ -15,9 +15,9 @@ import com.moeun.backend.plan.ConditionOverride;
 import com.moeun.backend.plan.PlanSaveService;
 import com.moeun.backend.plan.PlanView;
 import com.moeun.backend.refdata.CalcParams;
+import com.moeun.backend.refdata.EtfSeries;
 import com.moeun.backend.refdata.ReferenceDataService;
 import com.moeun.backend.refdata.SavingsAvgRateData;
-import com.moeun.backend.refdata.Sp500Series;
 
 /**
  * 대화 재계산 유스케이스(계약 internal-calc C2-2 검사 순서 7~9, C2-7, C2-8).
@@ -64,7 +64,7 @@ public class CompareConditionsUseCase {
         PlanView plan = planSaveService.findCurrent(memberId).orElseThrow(CalcRejectedException::noPlan);
         CalcParams params = referenceDataService.findActiveCalcParams()
                 .orElseThrow(() -> new IllegalStateException("active calc params are not loaded"));
-        Sp500Series sp500 = referenceDataService.findActiveSp500Series().orElse(null);
+        EtfSeries sp500 = referenceDataService.findRepresentativeEtfSeries().orElse(null);
         SavingsAvgRateData defaultRate = referenceDataService.findActiveSavingsAvgRate().orElse(null);
 
         ComputedComparison computed = computeComparison(plan, changes, params, sp500, defaultRate);
@@ -84,7 +84,7 @@ public class CompareConditionsUseCase {
      * @throws CalcRejectedException 이미 목표 초과(409 ALREADY_EXCEEDED)
      */
     public ComputedComparison computeComparison(PlanView plan, ConditionOverride changes, CalcParams params,
-            Sp500Series sp500, SavingsAvgRateData defaultRate) {
+            EtfSeries sp500, SavingsAvgRateData defaultRate) {
         ConditionResolver.ResolvedConditions current = conditionResolver.resolve(plan, defaultRate, params);
         if (current.input().hasExceededGoal()) {
             // 대화로 목표·보유 자산을 바꿀 수 없어 changed도 초과다. current도 계산하지 않는다(C3-2)

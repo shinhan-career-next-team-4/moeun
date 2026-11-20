@@ -16,7 +16,7 @@
 
 저장 기준은 세 가지다.
 1. 사용자가 만든 원본 데이터: `member`, `plan_version`, `plan`, `chat_message`
-2. 외부에서 가져온 시점 데이터: `data_version`, `savings_avg_rate`, `sp500_monthly`, `calc_param`, `source_org`, `rag_document`, `rag_chunk`, `chunk_embedding`
+2. 외부에서 가져온 시점 데이터: `data_version`, `savings_avg_rate`, `etf_monthly`, `etf_product_version`, `calc_param`, `source_org`, `rag_document`, `rag_chunk`, `chunk_embedding`
 3. 다른 테이블이 참조해야 하는 최소 기록: `calc_run`, `chat_message_citation`
 
 - 삭제한 테이블 11개: `user_session`, `input_field`, `change_path`, `change_path_field`, `goal_type`, `calc_param_key`, `embedding_model`, `plan_application`, `calc_run_override`, `calc_scenario_result`, `calc_alternative`
@@ -36,7 +36,8 @@ erDiagram
     plan_version ||--o{ calc_run : "계산 기록"
     data_version ||--o{ calc_run : "금리/지수/파라미터 버전"
     data_version ||--o| savings_avg_rate : "금리"
-    data_version ||--o{ sp500_monthly : "지수"
+    data_version ||--o{ etf_monthly : "종목 월말 종가"
+    data_version ||--o| etf_product_version : "종목 정보"
     data_version ||--o{ calc_param : "파라미터"
     calc_run ||--o{ chat_message : "설명·재계산 대상"
     chat_message ||--o{ chat_message : "다시 요청(retry_of)"
@@ -98,11 +99,16 @@ erDiagram
         date base_month
         numeric avg_rate_pct
     }
-    sp500_monthly {
+    etf_monthly {
         bigint data_version_id PK,FK
         date ym PK
         numeric close_value
-        numeric total_return_index
+    }
+    etf_product_version {
+        bigint data_version_id PK,FK
+        varchar product_code
+        varchar display_name
+        numeric gain_tax_rate_pct
     }
     calc_param {
         bigint data_version_id PK,FK
@@ -193,15 +199,19 @@ CREATE TABLE member (
 CREATE TABLE data_version (
     id             BIGSERIAL    PRIMARY KEY,
     data_kind      VARCHAR(20)  NOT NULL,
+    product_code   VARCHAR(20),                           -- ETF_PRICE만 종목 코드
     version_label  VARCHAR(50)  NOT NULL,
     base_date      DATE         NOT NULL,
     source         VARCHAR(100) NOT NULL,
     is_active      BOOLEAN      NOT NULL DEFAULT FALSE,
     loaded_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    CONSTRAINT ck_data_kind CHECK (data_kind IN ('SAVINGS_RATE','SP500','CALC_PARAM')),
-    CONSTRAINT uq_data_version_label UNIQUE (data_kind, version_label)
+    CONSTRAINT ck_data_kind CHECK (data_kind IN ('SAVINGS_RATE','ETF_PRICE','CALC_PARAM')),
+    CONSTRAINT ck_data_version_product CHECK ((data_kind = 'ETF_PRICE') = (product_code IS NOT NULL)),
+    CONSTRAINT uq_data_version_label UNIQUE NULLS NOT DISTINCT (data_kind, product_code, version_label)
 );
-CREATE UNIQUE INDEX uq_data_version_active ON data_version (data_kind) WHERE is_active;  -- 종류별 활성 버전 1개
+-- 종류별(ETF는 종목별) 활성 버전 1개
+CREATE UNIQUE INDEX uq_data_version_active_product ON data_version (data_kind, product_code)
+    NULLS NOT DISTINCT WHERE is_active;
 
 CREATE TABLE savings_avg_rate (
     data_version_id  BIGINT       PRIMARY KEY REFERENCES data_version(id),
@@ -211,13 +221,20 @@ CREATE TABLE savings_avg_rate (
     CONSTRAINT ck_sar_month_first CHECK (EXTRACT(DAY FROM base_month) = 1)
 );
 
-CREATE TABLE sp500_monthly (
-    data_version_id     BIGINT        NOT NULL REFERENCES data_version(id),
-    ym                  DATE          NOT NULL,
-    close_value         NUMERIC(14,4) NOT NULL,
-    total_return_index  NUMERIC(18,6),
+CREATE TABLE etf_monthly (
+    data_version_id  BIGINT        NOT NULL REFERENCES data_version(id),
+    ym               DATE          NOT NULL,
+    close_value      NUMERIC(14,4) NOT NULL,
     PRIMARY KEY (data_version_id, ym),
-    CONSTRAINT ck_sp500_close CHECK (close_value > 0)
+    CONSTRAINT ck_etf_close CHECK (close_value > 0)
+);
+
+CREATE TABLE etf_product_version (
+    data_version_id    BIGINT        PRIMARY KEY REFERENCES data_version(id),
+    product_code       VARCHAR(20)   NOT NULL,
+    display_name       VARCHAR(50)   NOT NULL,
+    gain_tax_rate_pct  NUMERIC(6,3)  NOT NULL,
+    CONSTRAINT ck_epv_tax CHECK (gain_tax_rate_pct >= 0 AND gain_tax_rate_pct <= 100)
 );
 
 CREATE TABLE calc_param (
@@ -277,7 +294,7 @@ CREATE TABLE calc_run (
     plan_version_id          BIGINT       NOT NULL REFERENCES plan_version(id) ON DELETE CASCADE,
     run_type                 VARCHAR(10)  NOT NULL,
     savings_rate_version_id  BIGINT       REFERENCES data_version(id),   -- NULL = 기본금리를 쓰지 않음
-    sp500_version_id         BIGINT       REFERENCES data_version(id),   -- NULL = ETF 비중 0%
+    sp500_version_id         BIGINT       REFERENCES data_version(id),   -- ETF 가격 버전(이름은 #138 전 그대로). NULL = ETF 비중 0%
     calc_param_version_id    BIGINT       NOT NULL REFERENCES data_version(id),
     engine_version           VARCHAR(20)  NOT NULL,
     created_at               TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -380,10 +397,10 @@ CREATE TABLE chat_message_citation (
 |---|---|---|
 | CP-01 | `plan_version`(내 계획·조건 항목·보유 자산), `plan.baseline_scenario`(기준 시나리오) | `CalcEngine` 결과(3구간·평균·세후 예상 자산·목표 대비·달성/미달·도달 시점, 0원 = 달성) |
 | CP-02 | `plan_version` 단순 CHECK(음수 금지, 비중 0~100) | `InputField` + `rules.yml › input.fields`, `ConditionValidator` |
-| CP-03 | `calc_param`, `savings_avg_rate`, `sp500_monthly`, `plan_version.calc_start_month`, `calc_run.*_version_id` | `ConditionResolver`, `CalcParamKey` |
+| CP-03 | `calc_param`, `savings_avg_rate`, `etf_monthly`, `etf_product_version`, `plan_version.calc_start_month`, `calc_run.*_version_id` | `ConditionResolver`, `CalcParamKey` |
 | CP-04 | 금액 BIGINT, 기간 개월 INT, 비중 정수 % | `Formatter` |
 | CP-05 | — | `copy/copy.ko.yml` |
-| CP-06 | 상품·종목 테이블 없음 | `rules.yml › change-paths`(상품 선택 없음), 문구표·프롬프트 |
+| CP-06 | `etf_product_version.display_name`은 상품명 대신 추종 지수 이름(#138). 개별 상품을 고르거나 권하는 테이블은 없음 | `rules.yml › change-paths`, 문구표·프롬프트 |
 | CP-07 | — | `ChangePath` + `rules.yml › change-paths.<PATH>.{fields,max-fields}`, `ConditionValidator` |
 | FR-AI-01 | `chat_message.status`(PENDING→COMPLETED), `ix_chat_message_pending` | 비동기 호출 |
 | FR-AI-02 | `chat_message.calc_run_id` → `calc_run`(계획 버전 + 데이터 버전 + engine_version), `chat_message.baseline_scenario` | `CalcEngine` 재계산(결정적) |
@@ -406,7 +423,7 @@ CREATE TABLE chat_message_citation (
 | FR-CMP-02 | — | 요청 본문 `ConditionOverride`, `ConditionValidator(COMPARE)` |
 | FR-CMP-03 | — | 프론트 상태 초기화 |
 | FR-DATA-01 | `data_version(SAVINGS_RATE)`, `savings_avg_rate` | |
-| FR-DATA-02 | `data_version(SP500)`, `sp500_monthly` | |
+| FR-DATA-02 | `data_version(ETF_PRICE, product_code)`, `etf_monthly`, `etf_product_version` | |
 | FR-INP-01 | `plan_version.goal_type_code` | enum `GoalType` |
 | FR-INP-02 | `plan_version.goal_custom_name` | `GoalType.CUSTOM`, `PlanInputValidator` |
 | FR-INP-03 | `plan_version.goal_amount NOT NULL > 0` | |
@@ -468,7 +485,7 @@ LEFT JOIN LATERAL (
 WHERE p.member_id = $user;                       -- 0행이면 빈 입력 화면 (FR-PLAN-06)
 
 -- (b) 현재 활성 기준 데이터 버전 (3행)
-SELECT data_kind, id FROM data_version WHERE is_active;
+SELECT data_kind, product_code, id FROM data_version WHERE is_active;
 
 -- (c) 최신 기록의 버전이 (b)나 현재 engine_version과 다르면 최신 데이터로 다시 계산하고 기록 (FR-PLAN-05)
 INSERT INTO calc_run (plan_version_id, run_type, savings_rate_version_id, sp500_version_id, calc_param_version_id, engine_version)
@@ -476,8 +493,8 @@ VALUES ($current_version, 'PLAN', $rate_ver, $sp_ver, $param_ver, $engine);
 ```
 
 - `plan`은 PK, `plan_version`도 PK로 조회한다. `ix_calc_run_latest (plan_version_id, run_type, created_at DESC)`로 최신 기록 1행을 인덱스 첫 항목에서 바로 읽는다.
-- `uq_data_version_active`(부분 UNIQUE)는 종류별 1행을 보장하고, (b)는 최대 3행이다.
-- 결과 값은 `CalcEngine`이 기록된 버전의 `savings_avg_rate`·`sp500_monthly`·`calc_param`을 PK 범위로 읽어 계산한다. 같은 버전 조합의 기준 데이터는 앱 메모리에 캐시한다. 기준 데이터는 불변이라 캐시를 무효화할 필요가 없다.
+- `uq_data_version_active_product`(부분 UNIQUE)는 종류별(ETF는 종목별) 1행을 보장하고, (b)는 최대 2 + ETF 종목 수만큼이다.
+- 결과 값은 `CalcEngine`이 기록된 버전의 `savings_avg_rate`·`etf_monthly`(+`etf_product_version`)·`calc_param`을 PK 범위로 읽어 계산한다. 같은 버전 조합의 기준 데이터는 앱 메모리에 캐시한다. 기준 데이터는 불변이라 캐시를 무효화할 필요가 없다.
 
 ### Q2. 대화 복원과 폴링 (FR-AI-01/04/05/07)
 
@@ -639,7 +656,7 @@ COMMIT;                                                      -- calc_run(PLAN)�
 | 계획 저장 → PLAN·CHAT 실행 기록 → 재계산 메시지 | 성공, 최신 PLAN 실행 조회 정상 |
 | `run_type='COMPARE'` INSERT | `ck_cr_run_type` 위반으로 거부 |
 | `condition_changes` 없는 RECALC_RESULT | `ck_cm_recalc` 위반으로 거부 |
-| 같은 종류의 활성 버전 2개 | `uq_data_version_active` 위반으로 거부 |
+| 같은 종류(ETF는 같은 종목)의 활성 버전 2개 | `uq_data_version_active_product` 위반으로 거부 |
 | `previous_version_id = current_version_id` | `ck_plan_prev_diff` 위반으로 거부 |
 | 사용자 삭제 | 계획·버전·계산 기록·대화 CASCADE, 잔여 0행 |
 | 요구사항 추적 | SRS 68건 모두 §3에 있고, '코드' 열의 항목은 `moved-to-code.md`에 같은 REQ-ID가 있다 (스크립트로 확인) |

@@ -21,7 +21,8 @@ import com.moeun.backend.refdata.CalcParamKey;
 import com.moeun.backend.refdata.CalcParams;
 import com.moeun.backend.refdata.DataKind;
 import com.moeun.backend.refdata.DataVersionInfo;
-import com.moeun.backend.refdata.Sp500Series;
+import com.moeun.backend.refdata.EtfProduct;
+import com.moeun.backend.refdata.EtfSeries;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -30,11 +31,13 @@ import tools.jackson.databind.json.JsonMapper;
  * test/resources/golden의 손계산 골든 케이스(plan 종류)를 읽는다.
  * 금액은 원 단위 정수, 금리·세율은 문자열 소수라서 BigDecimal로 읽는다(golden/README.md).
  */
-record GoldenCase(String id, CalcInput input, CalcParams params, Sp500Series sp500, Expected expected) {
+record GoldenCase(String id, CalcInput input, CalcParams params, EtfSeries sp500, Expected expected) {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final long TEST_PARAM_VERSION_ID = 1L;
     private static final long TEST_SP500_VERSION_ID = 2L;
+    /** 골든 케이스의 대표 종목(S&P500 추종, 세율 15.4%). 종목별 세율은 엔진 Issue(②)에서 쓴다. */
+    static final EtfProduct SP500 = new EtfProduct("SP500", "S&P500 추종 ETF", new BigDecimal("15.4"));
     private static final YearMonth FIRST_CLOSE_MONTH = YearMonth.of(2016, 10);
     private static final int DEFAULT_OBSERVED_RETURN_COUNT = 120;
     private static final String DEFAULT_MONTHLY_RETURN = "0.01";
@@ -43,24 +46,24 @@ record GoldenCase(String id, CalcInput input, CalcParams params, Sp500Series sp5
      * 같은 한 달 수익률이 이어지는 종가. 종가(t) = 100 × (1 + r)^t라서 수익률이 정확히 r로 되돌아온다.
      * 적금만·초과 골든 케이스는 S&P500을 쓰지 않지만 엔진 입력에는 활성 데이터가 늘 들어가므로 같은 모양으로 채운다.
      */
-    static Sp500Series createConstantReturnSeries(int returnCount, BigDecimal monthlyReturn) {
-        DataVersionInfo version = new DataVersionInfo(TEST_SP500_VERSION_ID, DataKind.SP500, "golden",
-                LocalDate.of(2026, 10, 31), "골든 케이스");
+    static EtfSeries createConstantReturnSeries(int returnCount, BigDecimal monthlyReturn) {
+        DataVersionInfo version = new DataVersionInfo(TEST_SP500_VERSION_ID, DataKind.ETF_PRICE, "golden",
+                LocalDate.of(2026, 10, 31), "골든 케이스", SP500.code());
         BigDecimal growth = BigDecimal.ONE.add(monthlyReturn);
-        List<Sp500Series.MonthlyClose> closes = new ArrayList<>();
+        List<EtfSeries.MonthlyClose> closes = new ArrayList<>();
         BigDecimal close = BigDecimal.valueOf(100);
         for (int index = 0; index <= returnCount; index++) {
-            closes.add(new Sp500Series.MonthlyClose(FIRST_CLOSE_MONTH.plusMonths(index), close));
+            closes.add(new EtfSeries.MonthlyClose(FIRST_CLOSE_MONTH.plusMonths(index), close));
             close = close.multiply(growth);
         }
-        return new Sp500Series(version, closes);
+        return new EtfSeries(version, SP500, closes);
     }
 
     /** 레포의 테스트용 가짜 S&P500 121개월(refdata/test-sp500-2016-10-to-2026-10.csv, 실제 값 아님). */
-    static Sp500Series readTestSp500Series() {
-        DataVersionInfo version = new DataVersionInfo(TEST_SP500_VERSION_ID, DataKind.SP500, "test-sp500",
-                LocalDate.of(2026, 10, 31), "테스트용 가짜 데이터");
-        List<Sp500Series.MonthlyClose> closes = new ArrayList<>();
+    static EtfSeries readTestEtfSeries() {
+        DataVersionInfo version = new DataVersionInfo(TEST_SP500_VERSION_ID, DataKind.ETF_PRICE, "test-sp500",
+                LocalDate.of(2026, 10, 31), "테스트용 가짜 데이터", SP500.code());
+        List<EtfSeries.MonthlyClose> closes = new ArrayList<>();
         try (InputStream in = new ClassPathResource("refdata/test-sp500-2016-10-to-2026-10.csv").getInputStream()) {
             String text = new String(in.readAllBytes(), StandardCharsets.UTF_8);
             for (String line : text.split("\n")) {
@@ -69,12 +72,12 @@ record GoldenCase(String id, CalcInput input, CalcParams params, Sp500Series sp5
                     continue;
                 }
                 String[] cells = row.split(",");
-                closes.add(new Sp500Series.MonthlyClose(YearMonth.parse(cells[0]), new BigDecimal(cells[1])));
+                closes.add(new EtfSeries.MonthlyClose(YearMonth.parse(cells[0]), new BigDecimal(cells[1])));
             }
         } catch (IOException exception) {
             throw new UncheckedIOException("cannot read test S&P500 series", exception);
         }
-        return new Sp500Series(version, closes);
+        return new EtfSeries(version, SP500, closes);
     }
 
     /** 계산 파라미터 한 벌. 세율은 케이스마다 받고 나머지는 seed/calc-param.csv와 같은 값이다. */
@@ -127,7 +130,7 @@ record GoldenCase(String id, CalcInput input, CalcParams params, Sp500Series sp5
         BigDecimal taxRatePct = new BigDecimal(root.get("params").get("taxRatePct").asString());
         // G8은 관측 수익률(120개 모두 같은 값)을 직접 정한다. 나머지는 쓰지 않으므로 기본 모양으로 채운다
         JsonNode observed = in.get("observedMonthlyReturns");
-        Sp500Series sp500 = observed == null
+        EtfSeries sp500 = observed == null
                 ? createConstantReturnSeries(DEFAULT_OBSERVED_RETURN_COUNT, new BigDecimal(DEFAULT_MONTHLY_RETURN))
                 : createConstantReturnSeries(observed.get("count").asInt(),
                         new BigDecimal(observed.get("everyValue").asString()));

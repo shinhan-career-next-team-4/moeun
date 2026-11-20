@@ -1,15 +1,18 @@
-"""S&P500 원본 CSV를 서버 시드 형식(ym,close_value)으로 바꾼다.
+"""ETF 종목(S&P500 포함) 원본 CSV를 서버 시드 형식(ym,close_value)으로 바꾼다(#138).
 
-S&P500 지수 데이터는 이용 조건(TBD-08) 때문에 레포에 올리지 않는다. 각자 원본을 받아 이 스크립트로 바꾼 뒤
-backend/data/seed/sp500-monthly.csv에 두면 서버가 뜰 때 적재한다. 받는 방법은 src/main/resources/seed/README.md.
+가격 데이터는 이용 조건(TBD-08) 때문에 레포에 올리지 않는다. 각자 원본을 받아 이 스크립트로 바꾼 뒤
+backend/data/seed/에 두면 서버가 뜰 때 적재한다. 받는 방법은 src/main/resources/seed/README.md.
+결과 파일 이름은 종목 코드로 정한다: SP500은 sp500-monthly.csv, 그 밖은 etf-<종목 코드>-monthly.csv.
 
 지원하는 원본
-- Investing.com 한국어 월별·일별: "날짜","종가",... (날짜 "2016- 10- 01", 숫자 "2,126.20", 최근 날짜부터)
+- Investing.com 한국어 월별·일별: "날짜","종가",... (날짜 "2016- 10- 01", 숫자 "2,126.20", 최근 날짜부터 또는 오래된 날짜부터)
 - Stooq 일별·월별: Date,Open,High,Low,Close,Volume
 - FRED 일별: observation_date,SP500 (빈 값은 "." 또는 빈칸)
 어느 원본이든 달마다 가장 늦은 날짜의 종가를 그 달 값으로 쓴다(월별 파일은 한 달에 한 줄이라 그 줄이 쓰인다).
 
-사용: python3 backend/scripts/refdata/convert_sp500.py --input "$HOME/Downloads/S&P 500 과거 데이터.csv"
+사용(레포 루트에서):
+  python3 backend/scripts/refdata/convert_etf_monthly.py --product SP500 --input "$HOME/Downloads/S&P 500 과거 데이터.csv"
+  python3 backend/scripts/refdata/convert_etf_monthly.py --product 069500 --input "$HOME/Downloads/069500 과거 데이터.csv"
 """
 import argparse
 import csv
@@ -21,8 +24,9 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 DEFAULT_END_MONTH = "2026-10"
 # 관측 기간 120개월의 한 달 수익률을 만들려면 종가가 121개 필요하다(calc-spec 7-1)
 DEFAULT_MONTHS = 121
-DEFAULT_OUTPUT = os.path.join(os.path.dirname(__file__), "..", "..", "data", "seed", "sp500-monthly.csv")
-MAX_DECIMAL_PLACES = Decimal("0.0001")  # sp500_monthly.close_value NUMERIC(14,4)
+DEFAULT_PRODUCT = "SP500"
+SEED_FOLDER = os.path.join(os.path.dirname(__file__), "..", "..", "data", "seed")
+MAX_DECIMAL_PLACES = Decimal("0.0001")  # etf_monthly.close_value NUMERIC(14,4)
 
 
 class ConversionError(Exception):
@@ -68,6 +72,12 @@ def read_month_end_closes(path):
     return source, {month: close for month, (_, close) in latest.items()}
 
 
+def default_output(product):
+    """application.yml의 기본 파일 위치와 같다. S&P500은 #138 전 이름을 그대로 쓴다."""
+    name = "sp500-monthly.csv" if product == DEFAULT_PRODUCT else f"etf-{product}-monthly.csv"
+    return os.path.join(SEED_FOLDER, name)
+
+
 def list_months(end_month, count):
     year, month = map(int, end_month.split("-"))
     months = []
@@ -85,7 +95,7 @@ def format_close(close):
     return format(close.normalize(), "f")
 
 
-def convert(input_path, output_path, end_month, months, today):
+def convert(input_path, output_path, end_month, months, today, product=DEFAULT_PRODUCT):
     # 진행 중인 달의 값은 월말 종가가 아니라서 받지 않는다
     if end_month >= today.strftime("%Y-%m"):
         raise ConversionError(end_month + " is not finished yet")
@@ -96,7 +106,7 @@ def convert(input_path, output_path, end_month, months, today):
         raise ConversionError("missing months: " + ", ".join(missing))
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as file:
-        file.write("# S&P500 지수 월말 종가(달러, 가격 지수). 이용 조건 때문에 레포에 올리지 않는다(TBD-08).\n")
+        file.write(f"# {product} 월말 종가(분배금 제외). 이용 조건 때문에 레포에 올리지 않는다(TBD-08).\n")
         file.write(f"# 원본: {source}, 변환일: {today.isoformat()}, 기간: {wanted[0]} ~ {wanted[-1]}\n")
         file.write("ym,close_value\n")
         for month in wanted:
@@ -104,18 +114,20 @@ def convert(input_path, output_path, end_month, months, today):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="S&P500 원본 CSV → 시드 CSV(ym,close_value)")
+    parser = argparse.ArgumentParser(description="ETF 종목 원본 CSV → 시드 CSV(ym,close_value)")
     parser.add_argument("--input", required=True, help="받은 원본 CSV 경로(Investing.com, Stooq, FRED)")
-    parser.add_argument("--output", default=DEFAULT_OUTPUT, help="결과 경로(기본: backend/data/seed/sp500-monthly.csv)")
+    parser.add_argument("--product", default=DEFAULT_PRODUCT, help="종목 코드(application.yml의 product-code). 기본 SP500")
+    parser.add_argument("--output", help="결과 경로(기본: backend/data/seed/의 종목별 파일)")
     parser.add_argument("--end-month", default=DEFAULT_END_MONTH, help="마지막 달(yyyy-MM). 팀 모두 같은 값을 써야 같은 데이터가 된다")
     parser.add_argument("--months", type=int, default=DEFAULT_MONTHS, help="남길 개월 수")
     args = parser.parse_args()
     try:
-        convert(args.input, args.output, args.end_month, args.months, datetime.date.today())
+        output = args.output or default_output(args.product)
+        convert(args.input, output, args.end_month, args.months, datetime.date.today(), args.product)
     except ConversionError as error:
         print("변환 실패: " + str(error), file=sys.stderr)
         return 1
-    print("저장: " + os.path.abspath(args.output))
+    print("저장: " + os.path.abspath(output))
     return 0
 
 

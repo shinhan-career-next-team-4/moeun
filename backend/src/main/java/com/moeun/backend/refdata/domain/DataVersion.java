@@ -33,6 +33,10 @@ public class DataVersion {
     @Column(nullable = false, length = 20)
     private DataKind dataKind;
 
+    // ETF_PRICE만 종목 코드가 있다
+    @Column(length = 20)
+    private String productCode;
+
     @Column(nullable = false, length = 50)
     private String versionLabel;
 
@@ -49,8 +53,10 @@ public class DataVersion {
     @Column(nullable = false, insertable = false, updatable = false)
     private Instant loadedAt;
 
-    private DataVersion(DataKind dataKind, String versionLabel, LocalDate baseDate, String source) {
+    private DataVersion(DataKind dataKind, String productCode, String versionLabel, LocalDate baseDate,
+            String source) {
         this.dataKind = dataKind;
+        this.productCode = productCode;
         this.versionLabel = versionLabel;
         this.baseDate = baseDate;
         this.source = source;
@@ -60,7 +66,16 @@ public class DataVersion {
     /** 새 버전은 꺼진 채로 만든다. 데이터 행을 다 넣은 뒤에 켜야 반쯤 들어간 버전이 쓰이지 않는다. */
     public static DataVersion createInactive(DataKind dataKind, String versionLabel, LocalDate baseDate,
             String source) {
-        return new DataVersion(dataKind, versionLabel, baseDate, source);
+        if (dataKind == DataKind.ETF_PRICE) {
+            throw new IllegalArgumentException("ETF price version needs a product code");
+        }
+        return new DataVersion(dataKind, null, versionLabel, baseDate, source);
+    }
+
+    /** ETF 종목 가격 버전. 꺼진 채로 만든다. */
+    public static DataVersion createInactiveEtf(String productCode, String versionLabel, LocalDate baseDate,
+            String source) {
+        return new DataVersion(DataKind.ETF_PRICE, productCode, versionLabel, baseDate, source);
     }
 
     public void activate() {
@@ -72,6 +87,6 @@ public class DataVersion {
     }
 
     public DataVersionInfo toInfo() {
-        return new DataVersionInfo(id, dataKind, versionLabel, baseDate, source);
+        return new DataVersionInfo(id, dataKind, versionLabel, baseDate, source, productCode);
     }
 }

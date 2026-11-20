@@ -13,13 +13,15 @@ import org.springframework.transaction.annotation.Transactional;
 import com.moeun.backend.refdata.CalcParamKey;
 import com.moeun.backend.refdata.DataKind;
 import com.moeun.backend.refdata.DataVersionInfo;
-import com.moeun.backend.refdata.Sp500Series.MonthlyClose;
+import com.moeun.backend.refdata.EtfProduct;
+import com.moeun.backend.refdata.EtfSeries.MonthlyClose;
 import com.moeun.backend.refdata.application.SavingsRateCsvParser.SavingsRate;
 import com.moeun.backend.refdata.domain.CalcParam;
 import com.moeun.backend.refdata.domain.DataVersion;
 import com.moeun.backend.refdata.domain.DataVersionRepository;
+import com.moeun.backend.refdata.domain.EtfMonthly;
+import com.moeun.backend.refdata.domain.EtfProductVersion;
 import com.moeun.backend.refdata.domain.SavingsAvgRate;
-import com.moeun.backend.refdata.domain.Sp500Monthly;
 
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -43,27 +45,45 @@ public class ReferenceDataLoader {
      */
     @Transactional
     public Optional<DataVersionInfo> load(DataKind dataKind, VersionSpec spec, InputStream csv) {
+        if (dataKind == DataKind.ETF_PRICE) {
+            throw new IllegalArgumentException("ETF price needs product info, use loadEtf");
+        }
         if (dataVersionRepository.existsByDataKindAndVersionLabel(dataKind, spec.versionLabel())) {
             return Optional.empty();
         }
         DataVersion version = switch (dataKind) {
-            case SP500 -> saveSp500(spec, Sp500CsvParser.parse(csv));
             case SAVINGS_RATE -> saveSavingsRate(spec, SavingsRateCsvParser.parse(csv));
             case CALC_PARAM -> saveCalcParams(spec, CalcParamCsvParser.parse(csv));
+            case ETF_PRICE -> throw new IllegalStateException("unreachable");
         };
         switchActiveVersion(version);
         return Optional.of(version.toInfo());
     }
 
-    private DataVersion saveSp500(VersionSpec spec, List<MonthlyClose> monthlyCloses) {
-        YearMonth lastMonth = monthlyCloses.get(monthlyCloses.size() - 1).month();
-        requireBaseDateIn(spec, lastMonth);
-        DataVersion version = createVersion(DataKind.SP500, spec);
+    /**
+     * ETF 종목 하나의 월말 종가를 새 버전으로 적재하고 그 종목의 활성 버전으로 켠다. 다른 종목의 활성 버전은 그대로다.
+     * 종목 정보(화면 이름, 매매차익 세율)를 같은 버전에 함께 저장한다.
+     *
+     * @return 새로 만든 버전. 그 종목에 같은 이름의 버전이 이미 있으면 비어 있다
+     * @throws ReferenceDataLoadException 파일 내용이 규칙에 맞지 않을 때(종가 121개 미만, 빠진 달 등)
+     */
+    @Transactional
+    public Optional<DataVersionInfo> loadEtf(EtfProduct product, VersionSpec spec, InputStream csv) {
+        if (dataVersionRepository.existsByDataKindAndProductCodeAndVersionLabel(DataKind.ETF_PRICE, product.code(),
+                spec.versionLabel())) {
+            return Optional.empty();
+        }
+        List<MonthlyClose> monthlyCloses = EtfPriceCsvParser.parse(csv);
+        requireBaseDateIn(spec, monthlyCloses.get(monthlyCloses.size() - 1).month());
+        DataVersion version = dataVersionRepository.save(DataVersion.createInactiveEtf(product.code(),
+                spec.versionLabel(), spec.baseDate(), spec.source()));
+        entityManager.persist(new EtfProductVersion(version.getId(), product));
         for (MonthlyClose monthlyClose : monthlyCloses) {
-            entityManager.persist(new Sp500Monthly(version.getId(), monthlyClose.month().atDay(1),
+            entityManager.persist(new EtfMonthly(version.getId(), monthlyClose.month().atDay(1),
                     monthlyClose.closeValue()));
         }
-        return version;
+        switchActiveVersion(version);
+        return Optional.of(version.toInfo());
     }
 
     private DataVersion saveSavingsRate(VersionSpec spec, SavingsRate savingsRate) {
@@ -94,9 +114,12 @@ public class ReferenceDataLoader {
     }
 
     private void switchActiveVersion(DataVersion newVersion) {
-        dataVersionRepository.findByDataKindAndIsActiveTrue(newVersion.getDataKind())
-                .ifPresent(DataVersion::deactivate);
-        // 종류별 활성 1개 인덱스(uq_data_version_active) 때문에 끄는 UPDATE가 켜는 UPDATE보다 먼저 나가야 한다
+        Optional<DataVersion> current = newVersion.getDataKind() == DataKind.ETF_PRICE
+                ? dataVersionRepository.findByDataKindAndProductCodeAndIsActiveTrue(DataKind.ETF_PRICE,
+                        newVersion.getProductCode())
+                : dataVersionRepository.findByDataKindAndIsActiveTrue(newVersion.getDataKind());
+        current.ifPresent(DataVersion::deactivate);
+        // 활성 1개 인덱스(uq_data_version_active_product) 때문에 끄는 UPDATE가 켜는 UPDATE보다 먼저 나가야 한다
         dataVersionRepository.flush();
         newVersion.activate();
     }
