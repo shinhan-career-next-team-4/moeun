@@ -1,10 +1,8 @@
 package com.moeun.backend.calc.application;
 
-import java.math.BigDecimal;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,13 +41,6 @@ public class PlanContextProviderImpl implements PlanContextProvider, ChatCompari
 
     private static final String NO_PREFIX = "";
     private static final String CONDITIONS_PREFIX = "conditions.";
-
-    private static final String MONTHLY_SAVING_AMOUNT = "monthlySavingAmount";
-    private static final String TARGET_PERIOD_MONTHS = "targetPeriodMonths";
-    private static final String SAVINGS_RATIO_PCT = "savingsRatioPct";
-    private static final String SAVINGS_RATE_INPUT_PCT = "savingsRateInputPct";
-    private static final Set<String> CHANGEABLE_KEYS = Set.of(MONTHLY_SAVING_AMOUNT, TARGET_PERIOD_MONTHS,
-            SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT);
 
     private final CalcRunRepository calcRunRepository;
     private final PlanSaveService planSaveService;
@@ -162,48 +153,25 @@ public class PlanContextProviderImpl implements PlanContextProvider, ChatCompari
 
     /**
      * 저장된 대화의 바꾼 조건을 타입만 바꾼다. 범위는 검사하지 않는다(C12b-6). null 값은 바꾸지 않은 것으로 본다.
+     * 변환은 {@code /internal/calc}와 같은 {@link ConditionChanges}를 쓰고, 맞지 않는 값은 모두 예외로 낸다.
      *
-     * @throws IllegalArgumentException 허용 4개 밖의 키, 숫자가 아닌 값, 정수 자리의 소수
+     * @throws IllegalArgumentException 허용 4개 밖의 키, 숫자가 아닌 값, 정수 자리의 소수, 타입 범위를 넘는 정수
      */
-    private static ConditionOverride toOverride(Map<String, JsonNode> changes) {
-        for (Map.Entry<String, JsonNode> entry : changes.entrySet()) {
-            if (!CHANGEABLE_KEYS.contains(entry.getKey())) {
-                throw new IllegalArgumentException("condition is not changeable: " + entry.getKey());
-            }
-            JsonNode value = entry.getValue();
-            if (value != null && !value.isNull() && !value.isNumber()) {
-                throw new IllegalArgumentException("condition value is not a number: " + entry.getKey());
-            }
+    private static ConditionOverride toOverride(Map<String, JsonNode> conditionChanges) {
+        Map<String, JsonNode> changes = ConditionChanges.withoutNulls(conditionChanges);
+        if (!ConditionChanges.unchangeableKeys(changes).isEmpty()) {
+            throw new IllegalArgumentException("condition is not changeable: "
+                    + ConditionChanges.unchangeableKeys(changes));
         }
-        BigDecimal monthlySavingAmount = toDecimal(changes, MONTHLY_SAVING_AMOUNT);
-        BigDecimal targetPeriodMonths = toDecimal(changes, TARGET_PERIOD_MONTHS);
-        BigDecimal savingsRatioPct = toDecimal(changes, SAVINGS_RATIO_PCT);
-        return new ConditionOverride(
-                monthlySavingAmount == null ? null : exactLong(monthlySavingAmount, MONTHLY_SAVING_AMOUNT),
-                targetPeriodMonths == null ? null : exactInt(targetPeriodMonths, TARGET_PERIOD_MONTHS),
-                savingsRatioPct == null ? null : exactInt(savingsRatioPct, SAVINGS_RATIO_PCT),
-                toDecimal(changes, SAVINGS_RATE_INPUT_PCT));
-    }
-
-    private static BigDecimal toDecimal(Map<String, JsonNode> changes, String key) {
-        JsonNode value = changes.get(key);
-        return value == null || value.isNull() ? null : value.decimalValue();
-    }
-
-    private static long exactLong(BigDecimal value, String key) {
-        try {
-            return value.longValueExact();
-        } catch (ArithmeticException exception) {
-            throw new IllegalArgumentException("condition value is not an integer: " + key, exception);
+        if (!ConditionChanges.allFiniteNumbers(changes)) {
+            throw new IllegalArgumentException("condition value is not a number");
         }
-    }
-
-    private static int exactInt(BigDecimal value, String key) {
-        try {
-            return value.intValueExact();
-        } catch (ArithmeticException exception) {
-            throw new IllegalArgumentException("condition value is not an integer: " + key, exception);
+        ConditionChanges.Conversion conversion = ConditionChanges.convert(changes);
+        if (!conversion.isExact()) {
+            throw new IllegalArgumentException("condition value cannot be converted: "
+                    + conversion.notIntegerKeys() + conversion.outOfTypeRangeKeys());
         }
+        return conversion.override();
     }
 
     private record OwnedRun(CalcRun run, PlanView plan) {
