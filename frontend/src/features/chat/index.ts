@@ -7,5 +7,6 @@ export interface ChatDeps {
 }
 
 export { ChatWindow } from "./ChatWindow";
+export { ComparisonCard } from "./ComparisonCard";
 export { useChatPolling } from "./useChatPolling";
-export type { ChatMessage } from "./types";
+export type { ChatMessage, ComparisonView } from "./types";

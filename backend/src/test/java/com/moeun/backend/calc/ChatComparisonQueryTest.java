@@ -110,7 +110,7 @@ class ChatComparisonQueryTest {
     void recomputesSameComparisonAsInternalCalc() {
         PlanSaveResult saved = savePlan(memberId, null, 300_000L);
         ComparisonResult then = compareConditionsUseCase.compare(memberId,
-                new ConditionOverride(500_000L, null, null, null));
+                new ConditionOverride(500_000L, null, null, null, null, null));
 
         ChatComparisonView view = query.recompute(memberId, then.calcRunId(),
                 changes("monthlySavingAmount", NODES.numberNode(500_000))).orElseThrow();
@@ -125,7 +125,7 @@ class ChatComparisonQueryTest {
     void usesRecordedPlanVersionAfterPlanChanged() {
         PlanSaveResult first = savePlan(memberId, null, 300_000L);
         ComparisonResult then = compareConditionsUseCase.compare(memberId,
-                new ConditionOverride(null, 24, null, null));
+                new ConditionOverride(null, 24, null, null, null, null));
         savePlan(memberId, first.revision(), 400_000L);
 
         ChatComparisonView view = query.recompute(memberId, then.calcRunId(),
@@ -141,7 +141,7 @@ class ChatComparisonQueryTest {
     void usesRecordedDataVersionsAfterActiveVersionChanged() {
         savePlan(memberId, null, 300_000L);
         ComparisonResult then = compareConditionsUseCase.compare(memberId,
-                new ConditionOverride(500_000L, null, null, null));
+                new ConditionOverride(500_000L, null, null, null, null, null));
         long recordedRateVersion = then.comparison().current().dataVersions().savingsRateVersionId();
         DataVersionInfo newer = loader.load(DataKind.SAVINGS_RATE,
                 new VersionSpec("test-later", LocalDate.of(2026, 11, 1), "테스트용 가짜 데이터"),
@@ -166,7 +166,7 @@ class ChatComparisonQueryTest {
     void recomputesOutOfRangeValueWithoutValidation() {
         savePlan(memberId, null, 300_000L);
         ComparisonResult then = compareConditionsUseCase.compare(memberId,
-                new ConditionOverride(500_000L, null, null, null));
+                new ConditionOverride(500_000L, null, null, null, null, null));
 
         ChatComparisonView view = query.recompute(memberId, then.calcRunId(),
                 changes("monthlySavingAmount", NODES.numberNode(12_000_000L))).orElseThrow();
@@ -175,17 +175,17 @@ class ChatComparisonQueryTest {
     }
 
     @Test
-    @DisplayName("타입을 바꿀 수 없는 값·허용 4개 밖의 키·정수 자리의 소수면 예외다")
+    @DisplayName("타입을 바꿀 수 없는 값·허용 5개 밖의 키·정수 자리의 소수면 예외다")
     void rejectsUnconvertibleChanges() {
         savePlan(memberId, null, 300_000L);
         long calcRunId = compareConditionsUseCase.compare(memberId,
-                new ConditionOverride(500_000L, null, null, null)).calcRunId();
+                new ConditionOverride(500_000L, null, null, null, null, null)).calcRunId();
 
         assertThatThrownBy(() -> query.recompute(memberId, calcRunId,
                 changes("monthlySavingAmount", NODES.stringNode("abc"))))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> query.recompute(memberId, calcRunId,
-                changes("goalAmount", NODES.numberNode(30_000_000L))))
+                changes("heldAssets", NODES.numberNode(10_000_000L))))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> query.recompute(memberId, calcRunId,
                 changes("targetPeriodMonths", NODES.numberNode(new java.math.BigDecimal("24.5")))))
@@ -197,7 +197,7 @@ class ChatComparisonQueryTest {
     void findsChatRunPlanVersion() {
         PlanSaveResult saved = savePlan(memberId, null, 300_000L);
         long calcRunId = compareConditionsUseCase.compare(memberId,
-                new ConditionOverride(500_000L, null, null, null)).calcRunId();
+                new ConditionOverride(500_000L, null, null, null, null, null)).calcRunId();
 
         assertThat(query.findChatRunPlanVersion(memberId, calcRunId)).contains(saved.planVersionId());
     }
@@ -210,7 +210,7 @@ class ChatComparisonQueryTest {
         long otherMember = createMember("chat-compare-other");
         savePlan(otherMember, null, 300_000L);
         long othersChatRunId = compareConditionsUseCase.compare(otherMember,
-                new ConditionOverride(500_000L, null, null, null)).calcRunId();
+                new ConditionOverride(500_000L, null, null, null, null, null)).calcRunId();
         Map<String, JsonNode> changes = changes("monthlySavingAmount", NODES.numberNode(500_000));
 
         for (long calcRunId : new long[] {999_999L, othersChatRunId, planRunId}) {

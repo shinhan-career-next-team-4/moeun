@@ -109,7 +109,8 @@ class PlanContextProviderTest {
     }
 
     private long createChatRun() {
-        return compareConditionsUseCase.compare(memberId, new ConditionOverride(500_000L, null, null, null))
+        return compareConditionsUseCase
+                .compare(memberId, new ConditionOverride(500_000L, null, null, null, null, null))
                 .calcRunId();
     }
 

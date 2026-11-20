@@ -155,7 +155,7 @@ public class PlanContextProviderImpl implements PlanContextProvider, ChatCompari
      * 저장된 대화의 바꾼 조건을 타입만 바꾼다. 범위는 검사하지 않는다(C12b-6). null 값은 바꾸지 않은 것으로 본다.
      * 변환은 {@code /internal/calc}와 같은 {@link ConditionChanges}를 쓰고, 맞지 않는 값은 모두 예외로 낸다.
      *
-     * @throws IllegalArgumentException 허용 4개 밖의 키, 숫자가 아닌 값, 정수 자리의 소수, 타입 범위를 넘는 정수
+     * @throws IllegalArgumentException 허용 5개 밖의 키, 숫자가 아닌 값, 정수 자리의 소수, 타입 범위를 넘는 정수
      */
     private static ConditionOverride toOverride(Map<String, JsonNode> conditionChanges) {
         Map<String, JsonNode> changes = ConditionChanges.withoutNulls(conditionChanges);

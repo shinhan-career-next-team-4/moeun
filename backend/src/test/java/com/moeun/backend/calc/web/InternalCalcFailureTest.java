@@ -4,6 +4,7 @@ import static com.moeun.backend.plan.application.PlanInputBuilder.valid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -81,8 +82,9 @@ class InternalCalcFailureTest {
     @Test
     @DisplayName("기록 뒤 display에서 예외가 나면 500 CALC_FAILED, detail에 내부 메시지가 없고 calc_run(CHAT)이 롤백된다")
     void returnsCalcFailedAndRollsBack() throws Exception {
+        // 비교는 목표 금액 포함 여부를 넘기는 6인자 build를 쓴다(T-12)
         doThrow(new IllegalStateException(INTERNAL_FAILURE)).when(displayBuilder)
-                .build(any(), any(), eq("changed."), any());
+                .build(any(), any(), eq("changed."), any(), anyBoolean(), anyBoolean());
 
         String body = mockMvc.perform(post("/internal/calc").header(InternalCalcApiTest.KEY_HEADER,
                                 InternalCalcApiTest.KEY).contentType(MediaType.APPLICATION_JSON)

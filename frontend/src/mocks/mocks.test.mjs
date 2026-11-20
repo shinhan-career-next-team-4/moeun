@@ -33,6 +33,9 @@ const CHAT_FILES = [
   "get-comparison.200.json",
   "get-comparison.200-not-applicable.json",
   "get-comparison.200-etf0.json",
+  "get-comparison.200-goal-changed.json",
+  "get-comparison.200-asymmetric-exceeded.json",
+  "get-comparison.200-changed-exceeded.json",
   "get-comparison.400.json",
   "get-comparison.404.json",
   "get-comparison.500.json",
@@ -104,14 +107,14 @@ function allFiles() {
 
 // ---------------------------------------------------------------- 파일 목록
 
-test("목 파일 개수: chat 35, auth 6, plan 24", () => {
+test("목 파일 개수: chat 38, auth 6, plan 24", () => {
   for (const [dir, names] of Object.entries(DIRS)) {
     const actual = fs.existsSync(path.join(here, dir))
       ? fs.readdirSync(path.join(here, dir)).filter((f) => f.endsWith(".json")).sort()
       : [];
     assert.deepEqual(actual, [...names].sort(), `${dir}/ 파일 목록이 계약 표와 다르다`);
   }
-  assert.equal(CHAT_FILES.length, 35);
+  assert.equal(CHAT_FILES.length, 38);
   assert.equal(AUTH_FILES.length + PLAN_FILES.length, 30);
 });
 
@@ -263,7 +266,7 @@ test("422 예시의 errors[]: min·max·unit은 있고 minDisplay·maxDisplay는
 
 test("FIELD_NOT_CHANGEABLE의 reason은 internal-calc C3-1을 따라 NOT_CHANGEABLE이다", () => {
   assert.deepEqual(body("chat", "post-apply.422-field-not-changeable.json").errors, [
-    { field: "goalAmount", reason: "NOT_CHANGEABLE" },
+    { field: "goalType", reason: "NOT_CHANGEABLE" },
   ]);
 });
 
