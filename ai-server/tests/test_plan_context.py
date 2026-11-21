@@ -38,12 +38,13 @@ MESSAGE_ID = 5_550_123
 DISPLAY_PATTERN = (
     r"(goalAmount|calcStartMonth|targetMonth|(GOOD|AVG|BAD)\.(afterTaxAsset|principal|afterTaxGain|gapToGoal|goalReachMonth)"
     r"|conditions\.(heldAssets|monthlySavingAmount|targetPeriodMonths|savingsRatioPct|savingsRateInputPct)"
-    r"|assumptions\.(savingsRateBaseMonth|sp500BaseDate|taxRatePct))"
+    r"|assumptions\.(savingsRateBaseMonth|sp500BaseDate|taxRatePct|etfProductName|etfGainTaxRatePct))"
 )
 
 PLAN_FIXTURES = [
     "plan-context-basic.json",
     "plan-context-etf0.json",
+    "plan-context-etf-tax-free.json",
     "plan-context-exceeded.json",
     "plan-context-achieved.json",
     "plan-context-zero-held.json",

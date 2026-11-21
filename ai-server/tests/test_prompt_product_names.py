@@ -7,10 +7,16 @@
 from app.llm.assemble import replace_product_names
 from app.llm.prompts import SYSTEM_PROMPT
 
-EVIDENCE_RULE = "- 본문에는 상품명 대신 'S&P500 추종 ETF'라고 씁니다. 자료에 상품명이 있어도 본문에 옮기지 않습니다."
+# #155: 계획의 종목은 표시값으로, 그 밖의 ETF는 허용 표현(ALLOWED_ETF_NAMES)으로 쓴다
+ALLOWED = "'코스피200 추종 ETF', 'S&P500 추종 ETF', '나스닥 추종 ETF'"
+EVIDENCE_RULE = (
+    "- 본문에는 상품명 대신 계획의 종목은 display의 종목 이름 값으로, "
+    f"그 밖의 ETF는 {ALLOWED} 중 하나로 씁니다. 자료에 상품명이 있어도 본문에 옮기지 않습니다."
+)
 SCOPE_RULE = (
-    '- 답변 본문에는 특정 ETF의 상품명(운용사 브랜드가 붙은 이름)을 쓰지 않고 항상 "S&P500 추종 ETF"로만 씁니다. '
-    "검색 자료에 상품명이 있어도 본문에 옮기지 않습니다."
+    "- 답변 본문에는 특정 ETF의 상품명(운용사 브랜드가 붙은 이름)을 쓰지 않습니다. "
+    "계획의 종목은 display의 종목 이름 값으로, "
+    f"그 밖의 ETF는 {ALLOWED} 중 하나로만 씁니다. 검색 자료에 상품명이 있어도 본문에 옮기지 않습니다."
 )
 
 

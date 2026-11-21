@@ -53,6 +53,9 @@
       "savingsRateBaseMonth": "2026-10",
       "savingsRatioPct": 50,
       "taxRatePct": 15.4,
+      "etfProductCode": "SP500",
+      "etfProductName": "S&P500 추종 ETF",
+      "etfGainTaxRatePct": 15.4,
       "scenarioMethod": "ROLLING_DISTRIBUTION",
       "sp500BaseDate": "2026-10-31",
       "excludedItems": ["ETF_TOTAL_EXPENSE", "EXCHANGE_RATE", "ETF_DISTRIBUTION", "HELD_ASSET_RETURN", "SAVINGS_REDEPOSIT"]
@@ -87,6 +90,8 @@
     "conditions.savingsRateInputPct": "연 3.12%",
     "assumptions.savingsRateBaseMonth": "2026년 10월",
     "assumptions.sp500BaseDate": "2026년 10월",
-    "assumptions.taxRatePct": "15.4%"
+    "assumptions.taxRatePct": "15.4%",
+    "assumptions.etfProductName": "S&P500 추종 ETF",
+    "assumptions.etfGainTaxRatePct": "15.4%"
   }
 }

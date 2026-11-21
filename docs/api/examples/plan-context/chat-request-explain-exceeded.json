@@ -29,6 +29,9 @@
         "savingsRateBaseMonth": "2026-10",
         "savingsRatioPct": 50,
         "taxRatePct": 15.4,
+        "etfProductCode": null,
+        "etfProductName": null,
+        "etfGainTaxRatePct": null,
         "scenarioMethod": "ROLLING_DISTRIBUTION",
         "sp500BaseDate": "2026-10-31",
         "excludedItems": ["ETF_TOTAL_EXPENSE", "EXCHANGE_RATE", "ETF_DISTRIBUTION", "HELD_ASSET_RETURN", "SAVINGS_REDEPOSIT"]

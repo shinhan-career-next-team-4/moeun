@@ -99,12 +99,12 @@
 | `isDefaultSavingsRate` | boolean | 예 | — | 기본금리 사용 여부 판단용 |
 | `savingsRateBaseMonth` | `"YYYY-MM"` \| null | 아니오 | `assumptions.savingsRateBaseMonth` | null이면 display 키 없음 |
 | `savingsRatioPct` | integer | 아니오 | (`conditions.savingsRatioPct`) | |
-| `taxRatePct` | number | 아니오 | **[D-060]** `assumptions.taxRatePct` | raw는 모델에 넘기지 않는다. **#150부터 적금 이자 세율**(ETF 차익은 `etfGainTaxRatePct`). 규칙 8·세금 응답 보장의 기준을 종목 세율까지 넓히는 일은 B팀 합의 대기 |
+| `taxRatePct` | number | 아니오 | **[D-060]** `assumptions.taxRatePct` | raw는 모델에 넘기지 않는다. **#150부터 적금 이자 세율**(ETF 차익은 `etfGainTaxRatePct`). 규칙 8·세금 응답 보장은 ETF 차익 세율(`etfGainTaxRatePct`)과 적금 이자 세율(`taxRatePct`)을 각자의 표시값으로 인용한다 |
 | `scenarioMethod` | `CAGR` \| `ROLLING_DISTRIBUTION` \| null | **코드는 아니오. 문구로 바꿔서 넘김** | — | ai-server가 문구표 `scenarioMethod.<CODE>` 문장으로 바꿔 `scenarioMethodNote`로 넣는다. null(ETF 0%)이면 넣지 않음 |
 | `sp500BaseDate` | `"YYYY-MM-DD"` \| null | 아니오 | `assumptions.sp500BaseDate` | null이면 display 키 없음. 이름은 그대로지만 값은 계산에 쓴 ETF 종목 데이터의 기준일(#138) |
 | `etfProductCode` | string \| null | 아니오 | — | **추가(#150)** 계산에 쓴 ETF 종목 코드. ETF 0%면 null |
-| `etfProductName` | string \| null | 아니오 | `assumptions.etfProductName`(합의 대기) | **추가(#150)** 종목 화면 이름("코스피200 추종 ETF", CP-06). ETF 0%면 null |
-| `etfGainTaxRatePct` | number \| null | 아니오 | `assumptions.etfGainTaxRatePct`(합의 대기) | **추가(#150)** 종목 매매차익 세율. 국내 주식형 0. `taxRatePct`는 적금 이자 세율이 된다 |
+| `etfProductName` | string \| null | 아니오 | `assumptions.etfProductName`(선택 키) | **추가(#150)** 종목 화면 이름("코스피200 추종 ETF", CP-06). ETF 0%면 null |
+| `etfGainTaxRatePct` | number \| null | 아니오 | `assumptions.etfGainTaxRatePct`(선택 키) | **추가(#150)** 종목 매매차익 세율. 국내 주식형 0. `taxRatePct`는 적금 이자 세율이 된다. raw 0이면 비과세 종목이라 ai-server가 `tax.note` 대신 `tax.noteEtfTaxFree`를 붙인다(모델에는 넘기지 않음) |
 | `excludedItems` | string[] | **코드는 아니오. 문구로 바꿔서 넘김** | — | ai-server가 문구표 `excluded.<CODE>` 문장 배열로 바꿔 `excludedNotes`로 넣는다 |
 
 **반영하지 않은 항목·3구간 산정 방식 문장**
@@ -135,8 +135,8 @@
 | `assumptions.savingsRateBaseMonth` | `YYYY년 M월`. null이면 키 없음 | **추가** |
 | `assumptions.sp500BaseDate` | `YYYY년 M월`(일은 버림). null이면 키 없음 | **추가** |
 | `assumptions.taxRatePct` | **[D-060]** `N.N%`, 끝 0 제거(`15.4`·`15.40` → `15.4%`) | 새 형식 |
-| `assumptions.etfProductName` | 종목 화면 이름 그대로. ETF 0%면 키 없음 | **추가(#150), B팀 합의 대기**: Spring은 만들지만 아직 허용 패턴·요구 키에 없어 ai-server가 버린다 |
-| `assumptions.etfGainTaxRatePct` | `N.N%`. 비과세면 `0%(국내 주식형 ETF 매매차익 비과세)`(문구표 `tax.etfTaxFree`). ETF 0%면 키 없음 | **추가(#150), B팀 합의 대기** |
+| `assumptions.etfProductName` | 종목 화면 이름 그대로. ETF 0%면 키 없음 | **추가(#150), 확정(#155)**: 선택 키. 허용 패턴에 들어 있고 요구 키는 아니다 |
+| `assumptions.etfGainTaxRatePct` | `N.N%`. 비과세면 `0%(국내 주식형 ETF 매매차익 비과세)`(문구표 `tax.etfTaxFree`). ETF 0%면 키 없음 | **추가(#150), 확정(#155)**: 선택 키. 허용 패턴에 들어 있고 요구 키는 아니다 |
 
 `<S>` = `GOOD` \| `AVG` \| `BAD`(시나리오 이름). 실제로 있는 시나리오만 키를 만든다.
 
@@ -205,7 +205,7 @@
 - **display 필터**: `display`는 `dict[str, Any]`로 받고, **키가 허용 패턴에 맞고 값이 문자열인 항목만** 남긴다. 나머지는 조용히 버린다. 값 내용 필터는 두지 않는다.
 - 허용 패턴(ai-server 상수 하나, `re.fullmatch`):
   ```
-  (goalAmount|calcStartMonth|targetMonth|(GOOD|AVG|BAD)\.(afterTaxAsset|principal|afterTaxGain|gapToGoal|goalReachMonth)|conditions\.(heldAssets|monthlySavingAmount|targetPeriodMonths|savingsRatioPct|savingsRateInputPct)|assumptions\.(savingsRateBaseMonth|sp500BaseDate|taxRatePct))
+  (goalAmount|calcStartMonth|targetMonth|(GOOD|AVG|BAD)\.(afterTaxAsset|principal|afterTaxGain|gapToGoal|goalReachMonth)|conditions\.(heldAssets|monthlySavingAmount|targetPeriodMonths|savingsRatioPct|savingsRateInputPct)|assumptions\.(savingsRateBaseMonth|sp500BaseDate|taxRatePct|etfProductName|etfGainTaxRatePct))
   ```
   테스트: `AVG.afterTaxAsset` 통과, `loginId`·`current.AVG.afterTaxAsset`(비교 키) 차단.
 
@@ -250,7 +250,7 @@
 | `result.assumptions.excludedItems` | 코드 대신 `excludedNotes`(문구표 문장 배열) |
 | `result.assumptions`의 그 밖 | 아니오 |
 | `display` | 필터를 통과한 항목만 |
-| **[D-067]** 문구표 `tax.note` | `taxNote`로 넣는다(`excludedNotes`처럼 ai-server가 문구표에서 붙임, Spring 변경 없음) |
+| **[D-067]** 문구표 `tax.note`·`tax.noteEtfTaxFree` | **모델에 넣지 않는다.** 모델은 세율 표시값만 인용하고, 서버 코드가 답을 만든 뒤 계획에 맞는 단서를 붙인다(아래 "세금 응답 보장"). 이전 assistant 답에 붙어 있던 두 단서도 모델 입력에서 지운다 |
 
 - 직렬화: 키는 camelCase(`by_alias=True`), `json.dumps(..., ensure_ascii=False)`.
 - **테스트 기대값은 `json.loads`한 dict 비교**로 한다. 키 순서·공백은 계약하지 않는다.
@@ -267,7 +267,7 @@
 | 5 | 반영하지 않은 항목·3구간 산정 방식은 `excludedNotes`·`scenarioMethodNote` 문장을 그대로 쓴다 | #35 |
 | 6 | 구체적인 연 수익률은 말하지 않는다. "과거 데이터로 만든 구간이며 수익을 약속하지 않는다"고만 답한다. 주어지지 않은 정보는 모른다고 한다 | #35 |
 | 7 | **[D-059·D-092]** 대화로 바꿀 수 있는 다섯 조건(목표 금액·월 저축액·비중·적금 금리·기한)을 "더/덜/늘리면/줄이면"처럼 상대 표현으로 바꾸면 **계산하지 않고** `CLARIFY`로 바꿀 값을 절대값으로 되묻는다(지금 값은 display로 인용 가능). 되물을 때 예시 금액·금리를 지어내지 않는다(지금 값은 display 인용만) | #21 |
-| 8 | **[D-060]** 세율은 `assumptions.taxRatePct` display만 인용한다. [D-067] 세율을 말할 때는 `taxNote`를 함께 쓰고 "~로 가정했어요"로 말한다 | #35 |
+| 8 | **[D-060]** ETF 차익 세율은 `assumptions.etfGainTaxRatePct`, 적금 이자 세율은 `assumptions.taxRatePct` display만 인용한다. 종목을 말할 때는 `assumptions.etfProductName` display만 쓰고 상품명을 지어내지 않는다. ETF 0% 계획은 두 ETF 키가 없으므로 종목·ETF 차익 세율을 말하지 않고 종목은 생략한다. [D-067] 세금 단서 문장은 모델이 쓰지 않아도 되고, 서버가 붙인다(세금 응답 보장) | #35 |
 | 9 | (쪽별 적용) `status=ALREADY_EXCEEDED`인 쪽은 초과 사실만 말하고 초과 금액·비교 문장을 만들지 않는다. 409 초과 안내는 "대화로 목표 금액을 더 높게 바꿔 볼 수 있어요"를 안내한다(D-092) | #35 |
 
 - `afterTaxGain`이 `-`로 시작할 때 "손실로 말한다" 같은 해석 규칙은 넣지 않는다(규칙이 늘어남). 음수 형식은 #28 Formatter 테스트로 고정한다.
@@ -277,7 +277,10 @@
 
 ### 세금 응답 보장 (D-067, D-073)
 
-- 응답에 `assumptions.taxRatePct` 표시값이 있으면 ai-server가 `tax.note`를 글자 그대로 덧붙인다(모델이 이미 넣었으면 중복하지 않는다). 모델 위반을 실패로 처리하지 않는다. → #35, #18
+- 응답에 `assumptions.taxRatePct` 또는 `assumptions.etfGainTaxRatePct` 표시값이 **독립된 숫자**로 들어 있으면 ai-server가 단서 하나를 글자 그대로 덧붙인다. 독립된 숫자는 표시값 전체가 본문에 있고, 바로 앞 글자가 숫자(전각 `０-９` 등 유니코드 십진수 포함)·소수점·쉼표(`.`, `,`, `．`, `，`)가 아니고, 바로 뒤 글자가 숫자·쉼표(`,`, `，`)가 아니며 소수점(`.`, `．`) 뒤에 숫자가 이어지지도 않는 경우다(전각 숫자도 숫자로 본다. 두 세율 키에 같이 쓰므로 문장 끝 `15.4%.`는 인용이고 `15.4%,`·`15.4%.5`는 인용이 아니다). 단서 문장은 문장 사이 공백과 줄바꿈을 같은 것으로 보고 찾는다. `10%(국내 주식형 ETF 매매차익 비과세)`는 비과세 표시값 `0%(…)`의 인용이 아니고(앞이 숫자인 부분 일치), `115.4%`·`１15.4%`도 `15.4%`의 인용이 아니다(#155 사용자 결정 5·11·15). raw `result.assumptions.etfGainTaxRatePct`가 0(비과세 종목)이면 `tax.noteEtfTaxFree`, 아니면(15.4·null·없음) `tax.note`다. 맞는 단서가 이미 답에 있으면 붙이지 않고, 모델이 여러 번 썼으면 첫 번째만 남긴다(중복 방지, D-073). 인용한 답에 모델이 계획과 다른 단서를 썼으면(비과세 계획에 `tax.note`, 과세·ETF 미사용 계획에 `tax.noteEtfTaxFree`) 지우고 맞는 단서로 한 번 교체한다(사용자 결정 3: 비과세 계획에 일반 과세 안내가 남는 모순을 막는다). 어떤 세율 표시값도 독립된 숫자로 인용하지 않은 답에는 아무 단서도 붙이지 않는다. 이때 모델이 쓴 `tax.noteEtfTaxFree`는 모든 계획에서, 비과세 계획의 `tax.note`는 지우고, 비과세가 아닌 계획의 `tax.note`는 지금처럼 둔다(계획과 다른 단서를 남기지 않는다, 정정 11). 빈 표시값은 세율 인용으로 보지 않는다. 모델 위반을 실패로 처리하지 않는다. → #35, #18
+- **ETF 0% 계획의 종목 생략(#155 사용자 결정 14·18, CP-06)**: 표시 키 `assumptions.etfProductName`이 없는 계획(ETF 0%)은 종목·상품명·ETF 차익 세율을 말하지 않는다. ETF 0% 계획의 답에 브랜드 상품명이나 허용 ETF 표현이 있으면 모델을 다시 부르지 않고(재시도 없음) 기존 `FORBIDDEN_EXPRESSION` 거부로 끝난다. 답의 일부만 고쳐 내보내지 않는다. 어떤 교정 지시에도 이 계획의 종목으로 ETF를 제시하지 않는다. planContext가 없는 일반 ETF 질문은 기존 D-028 보정을 그대로 쓴다.
+- **보정 뒤 빈 본문은 거부(#155 사용자 결정 18)**: 단서 보정 등으로 최종 본문이 비거나 공백뿐이면 HTTP 200 응답을 내지 않고, 재시도 없이 `FORBIDDEN_EXPRESSION`으로 끝난다(모든 계획 공통). 예: ETF 0% 계획에서 모델 답 전체가 `tax.noteEtfTaxFree`이면 거부된다.
+- **허용 ETF 집합과 대체 예 허용(#155 사용자 결정 13, 수정 전 CP-06·D-028과 다름)**: 본문에 써도 되는 ETF 표현은 `ALLOWED_ETF_NAMES`(`assemble.py` 상수 하나)의 `코스피200 추종 ETF`·`S&P500 추종 ETF`·`나스닥 추종 ETF` 세 가지다. 수정 전 CP-06·D-028은 'S&P500 추종 ETF' 하나만 허용했지만, 표시값이 있는 계획의 상품명 교정 지시는 "계획의 종목은 '<표시값>'"과 그 밖의 ETF 대체 예(허용 집합의 다른 표현)를 구분해 제시한다. 이 세 표현(상수에 더한 표현 포함)은 상품명 검사에 걸리지 않는다. 다만 표시값이 있는 계획에서 "계획"이나 "이 종목"·"해당 종목"처럼 계획 종목을 가리키는 말이 든 문장이 계획 종목의 표시값 없이 다른 허용 ETF 표현만 쓰면 계획 종목을 바꿔 말한 것이므로 상품명 사유로 거부·재시도한다. 다른 ETF를 따로 설명하는 문장은 허용한다. 추천 활용형 검사("추천해요" 등)는 그대로이고 추천 기능은 만들지 않는다.
 - 상품별 세제 혜택·개인 세금 계산·절세 방법 질문은 FR-AI-09 범위 밖이다. `OUT_OF_SCOPE` + 문구표 `outOfScope.tax`로 답한다(전문가 확인 안내). 같은 `tax.note`를 가정 보기(FR-RES-06)에도 쓴다.
 
 ## C1a-9. 키 표기 camelCase
@@ -346,7 +349,7 @@ public record PlanContextView(long calcRunId, ConditionsView conditions, CalcRes
 | `chat.alreadyExceeded` | 초과 EXPLAIN, `/internal/calc` `409 ALREADY_EXCEEDED`(C3-2)와 같은 문장 | "이미 가진 자산이 목표 금액을 넘었어요. 대화로 목표 금액을 더 높게 바꿔 볼 수 있어요." |
 | `excluded.<CODE>` | `ExcludedItem` 5개(`ETF_TOTAL_EXPENSE`, `EXCHANGE_RATE`, `ETF_DISTRIBUTION`, `HELD_ASSET_RETURN`, `SAVINGS_REDEPOSIT`). `excluded.EXCHANGE_RATE` = "환율 변동은 반영하지 않았어요"(D-027) | 나머지 4개는 #18 |
 | `scenarioMethod.<CODE>` | `CAGR`, `ROLLING_DISTRIBUTION` 2개 | TBD-01 결과에 따름. **결정 전에도 임시 문장을 넣는다**(빈 값 금지) |
-| `tax.note` | [D-067] 모델 입력 `taxNote`, 가정 보기 | 일반 과세 기준 가정, 비과세·세금우대 상품·금융소득·세법 변경 시 달라질 수 있음, 정확한 세금은 금융기관·세무 전문가 확인(#18) |
+| `tax.note` | [D-067] 세율을 말한 답 끝에 서버가 붙이는 단서(비과세 종목이면 `tax.noteEtfTaxFree`), 가정 보기 | 일반 과세 기준 가정, 비과세·세금우대 상품·금융소득·세법 변경 시 달라질 수 있음, 정확한 세금은 금융기관·세무 전문가 확인(#18) |
 | `outOfScope.tax` | [D-073] 범위 밖 세금 질문의 `OUT_OF_SCOPE` 응답 | #18 문구표에 이미 있음 |
 
   왜 C3-2와 같은 키인가: 같은 상황(계획 없음·초과)에 경로마다 다른 문장이 나오지 않게 한다.
@@ -365,7 +368,7 @@ public record PlanContextView(long calcRunId, ConditionsView conditions, CalcRes
 - **파일 두 종류의 쓰임**
   - `plan-context-*.json`: **`planContext` 객체만** 담는다. ai-server 테스트는 헬퍼 `make_request(plan_context, mode, calc_run_id)`(테스트 코드, #35)로 `ChatRequest`에 감싸 쓴다.
   - `chat-request-*.json`: **`ChatRequest` 전체**를 담는다(줄임 없음). 그대로 `/chat` 요청 본문으로 쓴다.
-  - `model-input-basic.json`: `plan-context-basic.json`의 모델 입력 기대값. **`excludedNotes`·`scenarioMethodNote` 두 키는 파일에 넣지 않는다.** 테스트가 문구표(`COPY`)에서 `[COPY[f"excluded.{c}"] for c in excludedItems]`, `COPY[f"scenarioMethod.{m}"]`로 두 키를 만들어 기대값 dict의 `result.assumptions`에 덧붙인 뒤 비교한다. 왜: 자리표시자 문자열을 파일에 두면 `json.loads` 비교가 항상 실패하고 사람이 "진짜 값인가" 헷갈린다. `excluded.EXCHANGE_RATE`는 D-027 문장으로 고정이고 별도 단언 1건으로 확인한다. [D-067] 문구표 `tax.note`를 넣는 `taxNote`도 파일에 넣지 않고 테스트가 `COPY["tax.note"]`로 채운다. **`taxNote`가 모델 입력의 어느 위치(`result.assumptions` 안인지 최상위인지)에 들어가는지는 이 계약이 정하지 않았다. #35가 정하고 이 문서를 고친다.**
+  - `model-input-basic.json`: `plan-context-basic.json`의 모델 입력 기대값. **`excludedNotes`·`scenarioMethodNote` 두 키는 파일에 넣지 않는다.** 테스트가 문구표(`COPY`)에서 `[COPY[f"excluded.{c}"] for c in excludedItems]`, `COPY[f"scenarioMethod.{m}"]`로 두 키를 만들어 기대값 dict의 `result.assumptions`에 덧붙인 뒤 비교한다. 왜: 자리표시자 문자열을 파일에 두면 `json.loads` 비교가 항상 실패하고 사람이 "진짜 값인가" 헷갈린다. `excluded.EXCHANGE_RATE`는 D-027 문장으로 고정이고 별도 단언 1건으로 확인한다. [D-067] 세금 단서는 모델 입력에 없으므로 이 파일에도 없다. 단서는 답을 만든 뒤 서버가 붙이며 테스트가 문구표 `tax.note`·`tax.noteEtfTaxFree`로 확인한다.
 - **G-5는 둘로 나뉜다**(엔진을 돌리지 않는 단위 테스트):
   - **G-5a(빌더, #28)**: 손으로 만든 `CalcInput`/`CalcResult` → `ResultDisplayBuilder`(접두어 `""`, `"conditions."`) 결과 = fixture의 `display` 객체. 요구 키 불변식, `goalReachMonth` 방출 규칙(미달 BAD 1건), 라벨-`isAchieved` 일치.
   - **G-5b(`PlanContextProvider` Issue, G-7)**: 같은 입력 → `PlanContextView` 직렬화 결과 = fixture 전체. `memberId` 키 없음, `isAchieved`·`isDefaultSavingsRate` 키 이름.
@@ -376,6 +379,7 @@ public record PlanContextView(long calcRunId, ConditionsView conditions, CalcRes
 |---|---|---|---|---|
 | `plan-context-basic.json` | 기본, 3구간 모두 미달 | 예 | 예 | — |
 | `plan-context-etf0.json` | ETF 0% | 예 | 예 | — |
+| `plan-context-etf-tax-free.json` | 비과세 종목(069500, raw `etfGainTaxRatePct` 0) | 아니오(ai-server 전용) | 예 | 답에 세율 표시값이 있으면 `tax.noteEtfTaxFree`만 붙는다 |
 | `plan-context-exceeded.json` | 이미 초과 | 예 | 예 | — |
 | `plan-context-achieved.json` | 달성·미달 섞임, `goalReachMonth` 있음 | 예 | 예 | `<S>.goalReachMonth` 키 패턴 통과 |
 | `plan-context-zero-held.json` | `heldAssets=0`, 1만원 미만 이득 | 예 | 예 | `conditions.heldAssets: "0원"`, `AVG.afterTaxGain: "1만원 미만"`(D-061) |
