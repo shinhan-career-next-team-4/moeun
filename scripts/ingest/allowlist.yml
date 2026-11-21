@@ -13,3 +13,14 @@ sources:
     org_type: ASSET_MANAGER
     doc_type: DISCLOSURE
     content_sha256: aed2675d4f27aed3a1e0f2d27648d8a0594a76b46e35da2b28621b2fdbe1cbda
+  # 코스피200·나스닥100 추종 ETF 공시(Issue #181). 백엔드 ETF 종목(069500, 133690)의 설명 근거
+  - url: https://www.samsungfund.com/upload/invest/2ETF01-A.pdf
+    org: 삼성자산운용
+    org_type: ASSET_MANAGER
+    doc_type: DISCLOSURE
+    content_sha256: d4f18b830e73e79e91cb29992ffd41b220dd16cbc8808716e7e3c9dc408081e6
+  - url: https://investments.miraeasset.com/tigeretf/upload/etf/20260528095823000271.pdf
+    org: 미래에셋자산운용
+    org_type: ASSET_MANAGER
+    doc_type: DISCLOSURE
+    content_sha256: a82366c8be6d99a65f5f69ff4d64e2edcbe974b281eab3bcb6ca67943a6b7e98
