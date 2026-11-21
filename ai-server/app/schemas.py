@@ -72,6 +72,7 @@ class PlanAssumptions(ApiModel):
     scenario_method: str | None      # 키는 필수, ETF 0%면 null
     excluded_items: list[str] | None   # 키는 필수, 값은 null 가능
     etf_gain_tax_rate_pct: Decimal | None = None   # 비과세 판정(0)에만 쓴다. 모델 입력에는 넣지 않는다
+    etf_product_code: str | None = None   # 계산에 쓴 ETF 종목 코드(#150). 검색 종목 필터에만 쓴다. 모델 입력에는 넣지 않는다
 
 
 class PlanResult(ApiModel):

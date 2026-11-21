@@ -218,8 +218,16 @@ class RecordingRetriever:
         ]
 
 
-def plan_with_product(name: str | None) -> dict[str, Any]:
+_NO_CODE: Any = object()   # etfProductCode 키를 빼 구버전 요청을 흉내 낸다(표시 이름 폴백 경로)
+
+
+def plan_with_product(name: str | None, code: Any = _NO_CODE) -> dict[str, Any]:
     plan = json.loads((PLAN_DIR / "plan-context-basic.json").read_text(encoding="utf-8"))
+    assumptions = plan["result"]["assumptions"]
+    if code is _NO_CODE:
+        assumptions.pop("etfProductCode", None)
+    else:
+        assumptions["etfProductCode"] = code
     if name is None:
         plan["display"].pop("assumptions.etfProductName", None)
     else:
@@ -334,3 +342,61 @@ async def test_filtered_turn_does_not_add_other_product_chunk_for_org_coverage()
     resp = await agent.run(req)
 
     assert resp.citation_chunk_ids == [21]   # 22(다른 종목, 다른 운용사)가 보충되지 않는다
+
+
+# ---------------------------------------------------------------------------
+# 4. 계획의 종목 코드(result.assumptions.etfProductCode)를 표시 이름보다 먼저 읽는다(#186)
+# ---------------------------------------------------------------------------
+
+
+async def test_plan_product_code_wins_over_display_name():
+    """AC1: etfProductCode가 있으면 표시 이름 키워드와 무관하게 그 코드로 건다(문구가 바뀌어도 필터가 유지된다)."""
+    retriever = await run_search(
+        {**BASE_INPUT, "etf_codes": ["PLAN"]}, plan_with_product("KOSPI 200 추종 펀드", code="069500")
+    )
+
+    assert retriever.calls == [{"etf_codes": ["069500"]}]
+
+
+async def test_plan_product_code_beats_a_conflicting_display_name():
+    retriever = await run_search(
+        {**BASE_INPUT, "etf_codes": ["PLAN"]}, plan_with_product("코스피200 추종 ETF", code="133690")
+    )
+
+    assert retriever.calls == [{"etf_codes": ["133690"]}]
+
+
+async def test_missing_plan_product_code_falls_back_to_display_name():
+    """AC2: 구버전 요청(필드 없음)은 지금처럼 표시 이름 키워드로 읽는다."""
+    retriever = await run_search({**BASE_INPUT, "etf_codes": ["PLAN"]}, plan_with_product("나스닥100 추종 ETF"))
+
+    assert retriever.calls == [{"etf_codes": ["133690"]}]
+
+
+async def test_null_plan_product_code_means_no_etf_and_no_filter():
+    """AC3: ETF 비중 0%(코드·이름 모두 null)면 PLAN이어도 필터 없이 검색한다."""
+    retriever = await run_search({**BASE_INPUT, "etf_codes": ["PLAN"]}, plan_with_product(None, code=None))
+
+    assert retriever.calls == [{}]
+
+
+async def test_unknown_plan_product_code_is_not_trusted_and_not_filtered():
+    """AC4(예외): 모르는 코드는 문서 코드로 믿지 않는다. 표시 이름으로 되돌아가지도 않고 필터 없이 검색한다."""
+    retriever = await run_search(
+        {**BASE_INPUT, "etf_codes": ["PLAN"]}, plan_with_product("나스닥100 추종 ETF", code="XXXX")
+    )
+
+    assert retriever.calls == [{}]
+
+
+@pytest.mark.parametrize("name", ["plan-context-basic.json", "plan-context-etf-tax-free.json"])
+def test_plan_assumptions_parse_product_code_and_keep_it_out_of_model_input(name):
+    """AC5·6: 선택 필드로 읽고(예시 JSON 파싱 통과), 모델 입력에는 넣지 않는다."""
+    from app.llm.agent import plan_model_input
+    from app.schemas import PlanContext
+
+    raw = json.loads((PLAN_DIR / name).read_text(encoding="utf-8"))
+    plan = PlanContext.model_validate(raw)
+
+    assert plan.result.assumptions.etf_product_code == raw["result"]["assumptions"]["etfProductCode"]
+    assert "etfProductCode" not in json.dumps(plan_model_input(plan), ensure_ascii=False)
