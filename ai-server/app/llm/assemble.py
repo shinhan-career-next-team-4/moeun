@@ -12,6 +12,11 @@ ALLOWED_ETF_NAMES = ("코스피200 추종 ETF", GENERIC_ETF_NAME, "나스닥 추
 _RECOMMENDATION_WORDS = re.compile(r"추천|권[유장하해합]|매수|사세요|사라고|담아\s*보세요|담으세요")
 
 
+# 본문에 display 키 이름(diff.AVG.afterTaxAssetDelta, current.AVG.afterTaxAsset, AVG.gapToGoal 등)이 그대로 나오면
+# 사용자에게 내부 이름이 보인다(NFR-USA-01, #57). 키는 값(문자열)만 인용하고 이름은 쓰지 않는다
+_DISPLAY_KEY = re.compile(r"\b(?:current|changed|diff|conditions|assumptions)\.[A-Za-z]|\b(?:GOOD|AVG|BAD)\.[A-Za-z]")
+
+
 class ForbiddenExpression(Exception):
     """본문에 나가면 안 되는 표현이 있다. 호출자가 AgentError로 바꿔 올린다."""
 
@@ -41,6 +46,11 @@ def _sentences(content: str) -> list[tuple[str, str]]:
     """(문장, 뒤따르는 구분 공백) 목록. 이어 붙이면 원문이 된다."""
     parts = _SENTENCE_BREAK.split(content)
     return list(zip(parts[0::2], [*parts[1::2], ""], strict=True))
+
+
+def check_display_keys(content: str) -> None:
+    if _DISPLAY_KEY.search(content):
+        raise ForbiddenExpression("internal_key")
 
 
 def names_etf(content: str) -> bool:
