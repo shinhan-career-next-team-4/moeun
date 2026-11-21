@@ -78,13 +78,13 @@ _CLAUSE = re.compile(r"[.!?,\n]|(?<=[가-힣])(?:고|며|면서|지만)\s")
 # 목적어 조사(을·를·은·는·만·도)와 목적어가 아님을 보이는 그 밖의 조사
 _OBJECT_PARTICLE = re.compile(r"(?:을|를|은|는|만|도)$")
 _OTHER_PARTICLE = re.compile(r"(?:이|가|로|에|의|와|과|서)$")
-# 사유 낱말 바로 뒤에 오면 걸린 표현을 가리키는 말("추천 표현", "상품명이라는 말")
+# 사유 낱말 바로 뒤에 오면 걸린 표현을 가리키는 말("추천 표현", "종목이라는 말")
 TARGET_NOUNS = ("표현", "문장", "문구", "말", "낱말", "단어")
 
 
 def _object_before(text: str) -> tuple[str, str]:
     """동사 앞 text에서 목적어와 그 앞 낱말을 찾는다. 바로 앞이 조사 없는 명사면 그것("표현 없이", "표현 대신"),
-    아니면 뒤에서부터 목적어 조사가 붙은 첫 낱말이다("상품명을 'S&P500 추종 ETF'로 바꿔" → 상품명)."""
+    아니면 뒤에서부터 목적어 조사가 붙은 첫 낱말이다("추천을 '일반 설명'으로 바꿔" → 추천)."""
     tokens = [t.strip("'\"\u2018\u2019\u201c\u201d") for t in text.split()]
     if tokens and not (_OBJECT_PARTICLE.search(tokens[-1]) or _OTHER_PARTICLE.search(tokens[-1])):
         return tokens[-1], tokens[-2] if len(tokens) > 1 else ""

@@ -6,7 +6,7 @@
   search_documents 결과 문자열, 이전 요청의 값은 근거가 아니다.
 - 대조: 아라비아 숫자로 시작하는 금액(원·만원·억)과 N년·N개월·N달, 'N년 M월' 날짜 토큰이 근거 문자열 안에
   토큰 경계로 그대로 있어야 한다. "약"·부호 생략은 허용, 단위 환산은 하지 않는다. 한글 수사 금액은 보지 않는다(U-3, U-4).
-- 순서: 상품명·추천 검사(FORBIDDEN_EXPRESSION)가 먼저다(U-5). OUT_OF_SCOPE 본문은 대조하지 않는다(U-6).
+- 순서: 개별 종목 추천 검사(FORBIDDEN_EXPRESSION)가 먼저다(U-5). OUT_OF_SCOPE 본문은 대조하지 않는다(U-6).
 
 check_numbers 단위 테스트와 공개 진입점 ChatAgent.run 테스트를 함께 둔다. 네트워크 없이 fake만 쓴다.
 """
