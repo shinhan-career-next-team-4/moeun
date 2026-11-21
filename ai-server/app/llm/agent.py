@@ -27,6 +27,7 @@ from app.llm.assemble import (
     GENERIC_ETF_NAME,
     ForbiddenExpression,
     StockRecommendationJudge,
+    check_display_keys,
     check_plan_etf_claims,
     check_stock_recommendation,
     names_etf,
@@ -398,6 +399,12 @@ def _correction(reason: str, etf_name: str | None) -> str:
             "방금 쓴 답변은 개별 주식 종목을 추천하는 표현이 있어 거부됐습니다. "
             "같은 자료로 답변을 새로 쓰되 종목 추천 표현을 빼거나 "
             "종목을 추천하지 않는 표현으로 바꾸고, 새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
+        )
+    if reason == "internal_key":
+        return (
+            "방금 쓴 답변은 내부 표시 키 이름(diff., current., changed., conditions., assumptions., GOOD./AVG./BAD. 로 "
+            "시작하는 이름)이 그대로 있어 거부됐습니다. 같은 자료로 답변을 새로 쓰되 키 이름은 쓰지 말고 그 값(문자열)만 "
+            "자연스러운 문장으로 말하고, 새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
         )
     # 계획 종목이 S&P500이 아니면 계획의 종목은 표시값으로, 그 밖의 ETF는 허용 표현으로 쓰게 한다(#155, P-9).
     # 종목 표시값이 없는 ETF 0% 계획은 상품명이 나오면 재시도 없이 거부하므로 이 지시를 쓰지 않는다
@@ -913,6 +920,7 @@ def _checked_body(req: ChatRequest, content: str) -> str:
     """계획 종목 표기 검사(#155). ETF 상품명은 허용(CF-07)이라 바꾸지 않는다. 개별 종목 추천은 이미 run·_retry가
     assemble 앞에서 거른다(_check_body). 거부할 표현이면 _ForbiddenAnswer를 올린다."""
     try:
+        check_display_keys(content)
         if _plan_without_etf(req):
             # ETF 0% 계획의 종목 언급은 재시도도 문장 삭제도 없이 기존 거부로 끝낸다(#155, P-4)
             if names_etf(content):
