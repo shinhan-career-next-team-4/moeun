@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 import numpy as np
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
@@ -16,6 +18,7 @@ JOIN source_org o   ON o.id = d.source_org_id
 WHERE e.is_active AND e.model_code = %(model)s AND d.is_active
   AND (%(doc_type)s::text IS NULL OR d.doc_type = %(doc_type)s)
   AND (%(exclude_orgs)s::text[] IS NULL OR o.name <> ALL(%(exclude_orgs)s::text[]))
+  AND (%(etf_codes)s::text[] IS NULL OR d.etf_code = ANY(%(etf_codes)s::text[]))
 ORDER BY e.embedding <=> %(q)s
 LIMIT %(limit)s
 """
@@ -40,10 +43,21 @@ class Retriever:
         self._embedder = embedder
         self._top_k = top_k
 
-    async def search(self, query: str, doc_type: DocType | None = None, top_k: int | None = None) -> list[RetrievedChunk]:
+    async def search(
+        self,
+        query: str,
+        doc_type: DocType | None = None,
+        top_k: int | None = None,
+        etf_codes: Sequence[str] | None = None,
+    ) -> list[RetrievedChunk]:
         k = top_k or self._top_k
         [vec] = await self._embedder.embed([query])
-        rows = await self._fetch(vec, doc_type, k * 4)
+        codes = list(etf_codes) if etf_codes else None
+        rows = await self._fetch(vec, doc_type, k * 4, etf_codes=codes)
+        if codes is not None:
+            # 종목을 지정한 검색은 그 종목 문서 안에서만 거리순으로 준다. 종목마다 운용사가 1곳일 수 있어
+            # 운용사 2곳(FR-AI-03)은 종목 지정이 없는 일반 검색에만 적용한다(#183)
+            return rows[:k]
         if doc_type != DocType.DISCLOSURE or k < 2:
             # 운용사 2곳은 결과가 2개 이상일 때만 가능하다. top_k=1은 최인접 chunk를 그대로 돌려준다
             return rows[:k]
@@ -55,7 +69,12 @@ class Retriever:
         return diversify_orgs(rows, k)
 
     async def _fetch(
-        self, vec: np.ndarray, doc_type: DocType | None, limit: int, exclude_orgs: list[str] | None = None
+        self,
+        vec: np.ndarray,
+        doc_type: DocType | None,
+        limit: int,
+        exclude_orgs: list[str] | None = None,
+        etf_codes: list[str] | None = None,
     ) -> list[RetrievedChunk]:
         async with self._pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
             await cur.execute(
@@ -66,6 +85,7 @@ class Retriever:
                     "doc_type": doc_type,
                     "limit": limit,
                     "exclude_orgs": exclude_orgs,
+                    "etf_codes": etf_codes,
                 },
             )
             return [RetrievedChunk(**r) for r in await cur.fetchall()]

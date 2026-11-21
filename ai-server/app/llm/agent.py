@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
@@ -33,6 +33,7 @@ from app.llm.assemble import (
 )
 from app.llm.number_check import NumberMismatch, check_numbers
 from app.llm.prompts import EXPLAIN_INSTRUCTION, STOCK_JUDGE_PROMPT, SYSTEM_PROMPT
+from app.rag.etf_codes import PRODUCT_DOC_CODES, doc_codes_for, product_from_display_name
 from app.schemas import (
     ChatMode,
     ChatRequest,
@@ -90,7 +91,11 @@ class Calculator(Protocol):
 
 class DocumentSearch(Protocol):
     async def search(
-        self, query: str, doc_type: DocType | None = None, top_k: int | None = None
+        self,
+        query: str,
+        doc_type: DocType | None = None,
+        top_k: int | None = None,
+        etf_codes: Sequence[str] | None = None,
     ) -> list[RetrievedChunk]: ...
 
 
@@ -132,8 +137,13 @@ TOOLS: list[BetaToolParam] = [
             "properties": {
                 "query": {"type": "string", "description": "찾을 내용(한국어 문장)"},
                 "doc_type": {"type": "string", "enum": ["EDU", "DISCLOSURE", "ANY"]},
+                "etf_codes": _nullable(
+                    "array",
+                    items={"type": "string", "enum": list(PRODUCT_DOC_CODES)},
+                    description="질문이 특정 ETF를 가리킬 때만 그 종목 코드. 종목이 없는 일반 질문이면 null",
+                ),
             },
-            "required": ["query", "doc_type"],
+            "required": ["query", "doc_type", "etf_codes"],
             "additionalProperties": False,
         },
     },
@@ -350,6 +360,16 @@ ETF_NAME_KEY = "assumptions.etfProductName"
 def _plan_etf_name(req: ChatRequest) -> str | None:
     """계획이 쓴 종목의 표시값. 없으면 None이고 일반 표현은 'S&P500 추종 ETF'다(#155, CP-06)."""
     return (req.plan_context.display.get(ETF_NAME_KEY) or None) if req.plan_context else None
+
+
+def _search_etf_codes(req: ChatRequest, asked: object) -> list[str]:
+    """검색을 좁힐 문서 etf_code. 질문에서 모델이 정한 종목이 계획의 종목보다 우선이고(검증한 코드만),
+    없으면 계획의 종목, 둘 다 없으면 빈 목록(필터 없음)이다(#183)."""
+    products = [p for p in asked if isinstance(p, str)] if isinstance(asked, list) else []
+    codes = doc_codes_for(products)
+    if codes:
+        return codes
+    return doc_codes_for(list(filter(None, [product_from_display_name(_plan_etf_name(req))])))
 
 
 def _plan_without_etf(req: ChatRequest) -> bool:
@@ -631,9 +651,17 @@ class ChatAgent:
 
     async def _search_documents(self, turn: _Turn, args: dict[str, Any]) -> str:
         doc_type = None if args["doc_type"] == "ANY" else DocType(args["doc_type"])
-        chunks = await self._retriever.search(args["query"], doc_type)
+        etf_codes = _search_etf_codes(turn.req, args.get("etf_codes"))
+        if etf_codes:
+            chunks = await self._retriever.search(args["query"], doc_type, etf_codes=etf_codes)
+        else:
+            chunks = await self._retriever.search(args["query"], doc_type)
         turn.retrieved_ids.extend(c.chunk_id for c in chunks)
-        turn.disclosure_orgs.update({c.chunk_id: c.org_name for c in chunks if c.doc_type == DocType.DISCLOSURE})
+        if not etf_codes:
+            # 종목을 지정한 검색은 운용사 1곳일 수 있어 운용사 2곳 보충(_cover_orgs) 대상이 아니다(#183)
+            turn.disclosure_orgs.update(
+                {c.chunk_id: c.org_name for c in chunks if c.doc_type == DocType.DISCLOSURE}
+            )
         payload = [c.model_dump(by_alias=False, exclude={"distance"}) for c in chunks]
         return json.dumps(payload, ensure_ascii=False)
 

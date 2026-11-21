@@ -15,7 +15,9 @@ TAX_SENTENCE = COPY.get("outOfScope.tax")
 
 
 class OneChunkRetriever:
-    async def search(self, query: str, doc_type: DocType | None = None, top_k: int | None = None) -> list[RetrievedChunk]:
+    async def search(
+        self, query: str, doc_type: DocType | None = None, top_k: int | None = None, etf_codes: object = None
+    ) -> list[RetrievedChunk]:
         return [
             RetrievedChunk(
                 chunk_id=101, content="본문", title="제목", source_url="https://example.com", doc_type=DocType.EDU,

@@ -70,7 +70,7 @@ class FakeRetriever:
         self.chunks = chunks or []
         self.queries: list[str] = []
 
-    async def search(self, query, doc_type: DocType | None = None, top_k=None) -> list[RetrievedChunk]:
+    async def search(self, query, doc_type: DocType | None = None, top_k=None, etf_codes=None) -> list[RetrievedChunk]:
         self.queries.append(query)
         return self.chunks
 

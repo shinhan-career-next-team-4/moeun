@@ -220,14 +220,17 @@ class RecordingRetriever:
 
 def plan_with_product(name: str | None) -> dict[str, Any]:
     plan = json.loads((PLAN_DIR / "plan-context-basic.json").read_text(encoding="utf-8"))
-    if name is not None:
+    if name is None:
+        plan["display"].pop("assumptions.etfProductName", None)
+    else:
         plan["display"]["assumptions.etfProductName"] = name
     return plan
 
 
 async def run_search(tool_input: dict[str, Any], plan: dict[str, Any] | None) -> RecordingRetriever:
     retriever = RecordingRetriever()
-    claude = FakeClaude([tool_resp(tool_input), text_resp({"message_type": "ANSWER", "content": "설명", "citation_chunk_ids": [11]})])
+    answer = {"message_type": "ANSWER", "content": "설명", "citation_chunk_ids": [11]}
+    claude = FakeClaude([tool_resp(tool_input), text_resp(answer)])
     agent = ChatAgent(claude, FakeCalc(), retriever, model="claude-opus-5-5", effort="medium", max_rounds=4)
     req = ChatRequest(memberId=1, messageId=9, mode="QUESTION", text="이 ETF 위험이 뭐야?", baselineScenario="AVG",
                       planContext=plan)
