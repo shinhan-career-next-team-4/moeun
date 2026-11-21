@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RAG 근거 자료(공시 투자설명서 2건)를 내려받아 적재한다. 몇 번 돌려도 중복 행이 생기지 않는다.
+# RAG 근거 자료(공시 투자설명서 4건: S&P500 2건, 코스피200·나스닥100 각 1건)를 내려받아 적재한다. 몇 번 돌려도 중복 행이 생기지 않는다.
 # 허락 목록(scripts/ingest/allowlist.yml)에 없는 자료는 moeun-ingest가 거부한다. 근거: docs/rag-sources.md
 # URL이나 PDF 내용이 바뀌면(새 개정본) 다시 승인받고 scripts/ingest/allowlist.yml의 URL·content_sha256도 바꾼다(아니면 게이트가 거부한다)
 # DB 선택: DATABASE_URL 환경변수가 .env보다 우선한다. 점검은 공용 DB 대신 임시 DB로 한다(예: DATABASE_URL=postgresql://moeun:moeun@localhost:5432/moeun_ragcheck scripts/ingest/ingest.sh)
@@ -11,6 +11,8 @@ mkdir -p docs/raw
 
 KODEX_URL=https://www.samsungfund.com/upload/invest/2ETFE4-A.pdf
 TIGER_URL=https://investments.miraeasset.com/tigeretf/upload/etf/20261008090949000003.pdf
+KODEX200_URL=https://www.samsungfund.com/upload/invest/2ETF01-A.pdf
+TIGER_NASDAQ100_URL=https://investments.miraeasset.com/tigeretf/upload/etf/20260528095823000271.pdf
 
 # 받다가 끊긴 파일이 남지 않게 임시 파일로 받아 옮긴다(덜 받은 PDF가 새 개정본으로 적재되는 것을 막는다)
 fetch() {
@@ -18,6 +20,8 @@ fetch() {
 }
 fetch "$KODEX_URL" docs/raw/kodex-sp500-prospectus.pdf
 fetch "$TIGER_URL" docs/raw/tiger-sp500-prospectus.pdf
+fetch "$KODEX200_URL" docs/raw/kodex200-prospectus.pdf
+fetch "$TIGER_NASDAQ100_URL" docs/raw/tiger-nasdaq100-prospectus.pdf
 
 uv run moeun-ingest --file docs/raw/kodex-sp500-prospectus.pdf --doc-type DISCLOSURE \
   --org "삼성자산운용" --org-type ASSET_MANAGER --title "KODEX 미국S&P500 투자설명서" \
@@ -25,3 +29,9 @@ uv run moeun-ingest --file docs/raw/kodex-sp500-prospectus.pdf --doc-type DISCLO
 uv run moeun-ingest --file docs/raw/tiger-sp500-prospectus.pdf --doc-type DISCLOSURE \
   --org "미래에셋자산운용" --org-type ASSET_MANAGER --title "TIGER 미국S&P500 투자설명서" \
   --url "$TIGER_URL" --etf-code 360750 --published-at 2026-10-01
+uv run moeun-ingest --file docs/raw/kodex200-prospectus.pdf --doc-type DISCLOSURE \
+  --org "삼성자산운용" --org-type ASSET_MANAGER --title "KODEX 200 투자설명서" \
+  --url "$KODEX200_URL" --etf-code 069500 --published-at 2026-09-11
+uv run moeun-ingest --file docs/raw/tiger-nasdaq100-prospectus.pdf --doc-type DISCLOSURE \
+  --org "미래에셋자산운용" --org-type ASSET_MANAGER --title "TIGER 미국나스닥100 투자설명서" \
+  --url "$TIGER_NASDAQ100_URL" --etf-code 133690 --published-at 2026-05-21
