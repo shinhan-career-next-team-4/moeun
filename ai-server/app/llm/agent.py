@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
@@ -33,6 +33,7 @@ from app.llm.assemble import (
 )
 from app.llm.number_check import NumberMismatch, check_numbers
 from app.llm.prompts import EXPLAIN_INSTRUCTION, STOCK_JUDGE_PROMPT, SYSTEM_PROMPT
+from app.rag.etf_codes import PRODUCT_DOC_CODES, doc_codes_for, product_from_display_name
 from app.schemas import (
     ChatMode,
     ChatRequest,
@@ -90,7 +91,11 @@ class Calculator(Protocol):
 
 class DocumentSearch(Protocol):
     async def search(
-        self, query: str, doc_type: DocType | None = None, top_k: int | None = None
+        self,
+        query: str,
+        doc_type: DocType | None = None,
+        top_k: int | None = None,
+        etf_codes: Sequence[str] | None = None,
     ) -> list[RetrievedChunk]: ...
 
 
@@ -132,8 +137,13 @@ TOOLS: list[BetaToolParam] = [
             "properties": {
                 "query": {"type": "string", "description": "찾을 내용(한국어 문장)"},
                 "doc_type": {"type": "string", "enum": ["EDU", "DISCLOSURE", "ANY"]},
+                "etf_codes": _nullable(
+                    "array",
+                    items={"type": "string", "enum": list(PRODUCT_DOC_CODES)},
+                    description="질문이 특정 ETF를 가리킬 때만 그 종목 코드. 종목이 없는 일반 질문이면 null",
+                ),
             },
-            "required": ["query", "doc_type"],
+            "required": ["query", "doc_type", "etf_codes"],
             "additionalProperties": False,
         },
     },
@@ -352,6 +362,20 @@ def _plan_etf_name(req: ChatRequest) -> str | None:
     return (req.plan_context.display.get(ETF_NAME_KEY) or None) if req.plan_context else None
 
 
+PLAN_PRODUCT = "PLAN"   # 모델이 "내 계획의 ETF"를 가리킬 때 쓰는 표시. 코드는 서버가 계획에서 읽는다
+
+
+def _search_etf_codes(req: ChatRequest, doc_type: DocType | None, asked: object) -> list[str]:
+    """검색을 좁힐 문서 etf_code(#183). 공시 검색에서 모델이 종목을 가리킨 경우에만 걸고, 아니면 빈 목록(필터 없음)이다.
+    교육자료는 etf_code 없이 적재돼 필터를 걸면 근거가 0건이 되므로 공시(DISCLOSURE)에만 건다. 모델이 쓴 코드는
+    enum에 있는 것만 받고, 질문이 계획의 종목을 가리키면(PLAN) 코드는 계획의 표시 이름에서 서버가 읽는다."""
+    if doc_type != DocType.DISCLOSURE or not isinstance(asked, list):
+        return []
+    plan_product = product_from_display_name(_plan_etf_name(req))
+    products = [plan_product if p == PLAN_PRODUCT else p for p in asked if isinstance(p, str)]
+    return doc_codes_for([p for p in products if p])
+
+
 def _plan_without_etf(req: ChatRequest) -> bool:
     """planContext는 있지만 종목 표시값이 없다(ETF 0%). planContext가 없는 일반 질문과 구분한다(#155, P-3·P-4)."""
     return req.plan_context is not None and _plan_etf_name(req) is None
@@ -391,6 +415,7 @@ class _Turn:
     condition_changes: dict[str, Any] | None = None
     retrieved_ids: list[int] = field(default_factory=list)
     disclosure_orgs: dict[int, str] = field(default_factory=dict)   # 검색된 공시 chunk_id -> 운용사, 검색 순서
+    product_filtered: bool = False   # 종목 필터 검색을 했다. 운용사 보충으로 다른 종목 chunk를 더하지 않는다(#183)
     validation_failed: bool = False   # 이번 요청에서 VALIDATION_FAILED를 받았다. 다시 계산하지 않는다
     fixed_copy_key: str | None = None   # 문구표 고정 문장으로 끝내는 거절을 받았다
     goal_changed_note_params: tuple[str, str] | None = None
@@ -631,9 +656,19 @@ class ChatAgent:
 
     async def _search_documents(self, turn: _Turn, args: dict[str, Any]) -> str:
         doc_type = None if args["doc_type"] == "ANY" else DocType(args["doc_type"])
-        chunks = await self._retriever.search(args["query"], doc_type)
+        etf_codes = _search_etf_codes(turn.req, doc_type, args.get("etf_codes"))
+        if etf_codes:
+            chunks = await self._retriever.search(args["query"], doc_type, etf_codes=etf_codes)
+        else:
+            chunks = await self._retriever.search(args["query"], doc_type)
         turn.retrieved_ids.extend(c.chunk_id for c in chunks)
-        turn.disclosure_orgs.update({c.chunk_id: c.org_name for c in chunks if c.doc_type == DocType.DISCLOSURE})
+        if etf_codes:
+            turn.product_filtered = True
+        else:
+            # 종목을 지정한 검색은 운용사 1곳일 수 있어 운용사 2곳 보충(_cover_orgs) 대상이 아니다(#183)
+            turn.disclosure_orgs.update(
+                {c.chunk_id: c.org_name for c in chunks if c.doc_type == DocType.DISCLOSURE}
+            )
         payload = [c.model_dump(by_alias=False, exclude={"distance"}) for c in chunks]
         return json.dumps(payload, ensure_ascii=False)
 
@@ -824,6 +859,8 @@ def with_tax_note(req: ChatRequest, content: str) -> str:
 def _cover_orgs(turn: _Turn, citations: list[int], min_orgs: int = 2) -> list[int]:
     """공시 인용이 한 운용사뿐이면 이번 검색 결과에서 가장 앞선 다른 운용사 chunk 하나를 더한다(FR-AI-03).
     검색 결과에 다른 운용사가 없으면 그대로 둔다."""
+    if turn.product_filtered:
+        return citations
     orgs = turn.disclosure_orgs
     cited = [i for i in citations if i in orgs]
     cited_orgs = {orgs[i] for i in cited}
