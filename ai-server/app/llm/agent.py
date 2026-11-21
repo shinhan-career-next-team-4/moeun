@@ -22,9 +22,9 @@ from pydantic import BaseModel, ValidationError
 
 from app.core.config import Effort
 from app.core.copy import load_copy
-from app.llm.assemble import ForbiddenExpression, check_recommendation, replace_product_names
+from app.llm.assemble import ForbiddenExpression, StockRecommendationJudge, check_stock_recommendation
 from app.llm.number_check import NumberMismatch, check_numbers
-from app.llm.prompts import EXPLAIN_INSTRUCTION, SYSTEM_PROMPT
+from app.llm.prompts import EXPLAIN_INSTRUCTION, STOCK_JUDGE_PROMPT, SYSTEM_PROMPT
 from app.schemas import (
     ChatMode,
     ChatRequest,
@@ -336,13 +336,10 @@ class _ForbiddenAnswer(AgentError):
 
 # 재시도 때 모델에게 붙이는 교정 지시. 걸린 표현을 빼거나 바꾸라고만 하고 본문은 다시 적지 않는다(P-2, P-7)
 _CORRECTIONS = {
-    "recommendation": (
-        "방금 쓴 답변은 '추천' 표현이 있어 거부됐습니다. 같은 자료로 답변을 새로 쓰되 추천 표현을 빼거나 "
-        "추천하지 않는 표현으로 바꾸고, 새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
-    ),
-    "product_name": (
-        "방금 쓴 답변은 지수를 알 수 없는 상품명이 있어 거부됐습니다. 같은 자료로 답변을 새로 쓰되 상품명을 빼거나 "
-        "'S&P500 추종 ETF' 같은 일반 표현으로 바꾸고, 새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
+    "stock_recommendation": (
+        "방금 쓴 답변은 개별 주식 종목을 추천하는 표현이 있어 거부됐습니다. "
+        "같은 자료로 답변을 새로 쓰되 종목 추천 표현을 빼거나 "
+        "종목을 추천하지 않는 표현으로 바꾸고, 새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
     ),
 }
 
@@ -371,6 +368,25 @@ class _Turn:
 ToolHandler = Callable[[_Turn, dict[str, Any]], Awaitable[str]]
 
 
+class LlmStockJudge:
+    """본문이 개별 주식 종목을 추천하는지 모델에게 묻는다(CF-07). 정확히 'false'일 때만 통과시키고,
+    true·빈 응답·형식 밖 응답은 모두 종목 추천으로 본다(거부 쪽으로 기운다)."""
+
+    def __init__(self, client: AsyncAnthropic, model: str):
+        self._client = client
+        self._model = model
+
+    async def recommends_individual_stock(self, text: str) -> bool:
+        resp = await self._client.beta.messages.create(
+            model=self._model,
+            max_tokens=16,
+            system=STOCK_JUDGE_PROMPT,
+            messages=[BetaUserMessageParam(role="user", content=f"<answer>{text}</answer>")],
+        )
+        verdict = "".join(b.text for b in resp.content if isinstance(b, BetaTextBlock))
+        return verdict.strip().lower() != "false"
+
+
 class ChatAgent:
     def __init__(
         self,
@@ -381,8 +397,10 @@ class ChatAgent:
         model: str,
         effort: Effort,
         max_rounds: int,
+        stock_judge: StockRecommendationJudge | None = None,
     ):
         self._client = client
+        self._stock_judge = stock_judge or LlmStockJudge(client, model)
         # 교정 재시도 호출은 SDK 자동 재전송을 끈다. 재전송되면 사실상 세 번째 호출이 된다(P-10, AC-6).
         # 테스트 대역은 with_options가 없어 실제 SDK 클라이언트일 때만 사본을 만든다
         self._retry_client = client.with_options(max_retries=0) if isinstance(client, AsyncAnthropic) else client
@@ -432,6 +450,7 @@ class ChatAgent:
                 case _:
                     final = _parse_final(resp)
                     try:
+                        await self._check_body(final)
                         return assemble(turn, final)
                     except _ForbiddenAnswer as e:
                         # 금지 표현이면 이미 실행한 도구 결과를 그대로 두고 모델만 한 번 다시 부른다(M-4 후속)
@@ -454,6 +473,16 @@ class ChatAgent:
             **extra,
         )
 
+    async def _check_body(self, final: FinalAnswer) -> None:
+        """M-4, CF-07: 개별 주식 종목 추천이면 거부한다. 범위 밖 답은 서버 문구로 바뀌므로 보지 않는다.
+        숫자 대조(assemble)보다 먼저 해야 거부 사유가 숫자 불일치에 가려지지 않는다(U-5)."""
+        if final.message_type == "OUT_OF_SCOPE":
+            return
+        try:
+            await check_stock_recommendation(final.content, self._stock_judge)
+        except ForbiddenExpression as e:
+            raise _ForbiddenAnswer(str(e)) from e
+
     async def _retry(self, turn: _Turn, messages: list[BetaMessageParam], reason: str) -> ChatResponse:
         """교정 지시를 붙여 모델을 한 번만 다시 부른다. 도구는 실행하지 않고 첫 호출과 같은 분기·보정을 거친다(P-4, P-6).
         거부된 첫 답은 요청에 싣지 않는다. SDK DEBUG 로그가 요청 JSON 전체를 남기기 때문이다(P-7, D-1)."""
@@ -472,6 +501,7 @@ class ChatAgent:
                 raise AgentError("FORBIDDEN_EXPRESSION", "tool_use on retry")   # PD-009. 도구를 실행하지 않는다
         final = _parse_final(retry)
         try:
+            await self._check_body(final)
             return assemble(turn, final)
         except _ForbiddenAnswer as e:
             log.warning("forbidden expression: reason=%s attempt=2 message_id=%s", e.reason, req.message_id)
@@ -742,13 +772,9 @@ def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
         tax_copy = load_copy().get("outOfScope.tax")
         content = tax_copy if tax_copy in final.content else out_of_scope_content()
     else:
+        body = final.content   # 종목 추천 검사는 run·_retry가 assemble 앞에서 한다(_check_body)
         try:
-            body = replace_product_names(final.content)   # M-4, D-028
-            check_recommendation(body)
-        except ForbiddenExpression as e:
-            raise _ForbiddenAnswer(str(e)) from e
-        try:
-            check_numbers(body, _number_evidence(turn))   # PR-04. 상품명·추천 검사 뒤, 바뀐 본문을 대조한다
+            check_numbers(body, _number_evidence(turn))   # PR-04. 종목 추천 검사 뒤에 본문을 대조한다
         except NumberMismatch:
             raise AgentError("NUMBER_MISMATCH") from None   # 불일치 토큰이 본문 전체일 수 있어 detail을 뺀다(P-7)
         content = with_tax_note(req, body)
