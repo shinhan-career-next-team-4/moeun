@@ -62,3 +62,12 @@ async def test_etf0_plan_answer_listing_etf_names_is_still_rejected_once():
 
     assert error.code == "FORBIDDEN_EXPRESSION"
     assert len(claude.calls) == 1
+
+
+def test_system_prompt_does_not_tell_model_to_deny_etf_products_or_recommendations():
+    """ETF 추천·상품명은 허용이라, 모델이 '상품 이름은 쓸 수 없다/상품을 추천하지 않는다'고 말하게 두지 않는다(#168)"""
+    rule = etf0_rule()
+    assert "쓸 수 없다" in rule
+    scope = next(b for b in SYSTEM_PROMPT.split("\n- ") if b.startswith("개별 주식 종목 추천 금지"))
+    assert "개별 종목을 추천하지 않는다는 말은 해도 됩니다" in scope   # 개별 종목 한정
+    assert "ETF" in scope and "쓸 수 없다" in scope
