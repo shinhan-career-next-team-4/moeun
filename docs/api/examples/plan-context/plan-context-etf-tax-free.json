@@ -1,0 +1,103 @@
+{
+  "calcRunId": 540,
+  "conditions": {
+    "goalAmount": 20000000,
+    "heldAssets": 5000000,
+    "monthlySavingAmount": 300000,
+    "targetPeriodMonths": 36,
+    "savingsRatioPct": 50,
+    "savingsRateInputPct": 3.12
+  },
+  "result": {
+    "status": "CALCULATED",
+    "goalAmount": 20000000,
+    "calcStartMonth": "2026-11",
+    "targetMonth": "2029-11",
+    "baselineScenario": "AVG",
+    "scenarios": [
+      {
+        "scenario": "GOOD",
+        "annualReturnPct": 14.2,
+        "afterTaxAsset": 18450000,
+        "principal": 15800000,
+        "afterTaxGain": 2650000,
+        "gapToGoal": -1550000,
+        "isAchieved": false,
+        "goalReachMonth": null
+      },
+      {
+        "scenario": "AVG",
+        "annualReturnPct": 9.8,
+        "afterTaxAsset": 17120000,
+        "principal": 15800000,
+        "afterTaxGain": 1320000,
+        "gapToGoal": -2880000,
+        "isAchieved": false,
+        "goalReachMonth": null
+      },
+      {
+        "scenario": "BAD",
+        "annualReturnPct": 1.1,
+        "afterTaxAsset": 15980000,
+        "principal": 15800000,
+        "afterTaxGain": 180000,
+        "gapToGoal": -4020000,
+        "isAchieved": false,
+        "goalReachMonth": null
+      }
+    ],
+    "requiredMonthlySaving": null,
+    "assumptions": {
+      "savingsRatePct": 3.12,
+      "isDefaultSavingsRate": true,
+      "savingsRateBaseMonth": "2026-10",
+      "savingsRatioPct": 50,
+      "taxRatePct": 15.4,
+      "etfProductCode": "069500",
+      "etfProductName": "코스피200 추종 ETF",
+      "etfGainTaxRatePct": 0,
+      "scenarioMethod": "ROLLING_DISTRIBUTION",
+      "sp500BaseDate": "2026-10-31",
+      "excludedItems": [
+        "ETF_TOTAL_EXPENSE",
+        "EXCHANGE_RATE",
+        "ETF_DISTRIBUTION",
+        "HELD_ASSET_RETURN",
+        "SAVINGS_REDEPOSIT"
+      ]
+    },
+    "dataVersions": {
+      "savingsRateVersionId": 3,
+      "sp500VersionId": 5,
+      "calcParamVersionId": 2,
+      "engineVersion": "1.0.0"
+    }
+  },
+  "display": {
+    "goalAmount": "약 2,000만원",
+    "calcStartMonth": "2026년 11월",
+    "targetMonth": "2029년 11월",
+    "GOOD.afterTaxAsset": "약 1,845만원",
+    "GOOD.principal": "약 1,580만원",
+    "GOOD.afterTaxGain": "약 265만원",
+    "GOOD.gapToGoal": "-약 155만원 미달",
+    "AVG.afterTaxAsset": "약 1,712만원",
+    "AVG.principal": "약 1,580만원",
+    "AVG.afterTaxGain": "약 132만원",
+    "AVG.gapToGoal": "-약 288만원 미달",
+    "BAD.afterTaxAsset": "약 1,598만원",
+    "BAD.principal": "약 1,580만원",
+    "BAD.afterTaxGain": "약 18만원",
+    "BAD.gapToGoal": "-약 402만원 미달",
+    "conditions.heldAssets": "약 500만원",
+    "conditions.monthlySavingAmount": "약 30만원",
+    "conditions.targetPeriodMonths": "3년 0개월",
+    "conditions.savingsRatioPct": "적금 50 : ETF 50",
+    "conditions.savingsRateInputPct": "연 3.12%",
+    "assumptions.savingsRateBaseMonth": "2026년 10월",
+    "assumptions.sp500BaseDate": "2026년 10월",
+    "assumptions.taxRatePct": "15.4%",
+    "assumptions.etfProductName": "코스피200 추종 ETF",
+    "assumptions.etfGainTaxRatePct": "0%(국내 주식형 ETF 매매차익 비과세)"
+  }
+}

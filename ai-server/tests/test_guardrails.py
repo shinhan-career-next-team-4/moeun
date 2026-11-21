@@ -292,11 +292,10 @@ def test_system_prompt_forbids_only_individual_stock_recommendation():
 
 
 def test_system_prompt_no_longer_requires_generic_name_instead_of_product_name():
-    """상품명 대신 'S&P500 추종 ETF'로만 쓰라는 규칙이 없다(상품명 허용). 'S&P500 추종 ETF'라는 표현 자체는 남아도 된다"""
+    """상품명 대신 'S&P500 추종 ETF'로만 쓰라는 규칙, 상품명을 본문에 옮기지 말라는 규칙이 없다(상품명 허용)"""
     assert "상품명 대신" not in SYSTEM_PROMPT
-    assert "상품명을 쓰지 않고" not in SYSTEM_PROMPT
+    assert "상품명을 쓰지 않" not in SYSTEM_PROMPT
     assert "본문에 옮기지 않습니다" not in SYSTEM_PROMPT
-    assert GENERIC in SYSTEM_PROMPT
 
 
 def test_system_prompt_does_not_contain_concrete_product_names():

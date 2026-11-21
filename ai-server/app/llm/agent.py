@@ -22,7 +22,15 @@ from pydantic import BaseModel, ValidationError
 
 from app.core.config import Effort
 from app.core.copy import load_copy
-from app.llm.assemble import ForbiddenExpression, StockRecommendationJudge, check_stock_recommendation
+from app.llm.assemble import (
+    ALLOWED_ETF_NAMES,
+    GENERIC_ETF_NAME,
+    ForbiddenExpression,
+    StockRecommendationJudge,
+    check_plan_etf_claims,
+    check_stock_recommendation,
+    names_etf,
+)
 from app.llm.number_check import NumberMismatch, check_numbers
 from app.llm.prompts import EXPLAIN_INSTRUCTION, STOCK_JUDGE_PROMPT, SYSTEM_PROMPT
 from app.schemas import (
@@ -178,6 +186,7 @@ _CALCULATED_DISPLAY_KEYS = (
 _SCENARIO_DISPLAY_KEYS = ("afterTaxAsset", "principal", "afterTaxGain", "gapToGoal")
 _EXCEEDED_DISPLAY_KEYS = ("goalAmount", "conditions.heldAssets")
 TAX_RATE_KEY = "assumptions.taxRatePct"
+ETF_TAX_RATE_KEY = "assumptions.etfGainTaxRatePct"
 
 # 도구 실패로 보고 모델에게 is_error 결과로 돌려줄 예외. 그 밖의 예외는 요청 실패로 올린다
 _TOOL_ERRORS = (CalcError, ValidationError, KeyError, ValueError, RuntimeError)
@@ -329,19 +338,44 @@ class AgentError(Exception):
 class _ForbiddenAnswer(AgentError):
     """본문 검사(M-4)에 걸린 답. run이 사유로 재시도 여부를 정한다. 최종 거부 코드는 FORBIDDEN_EXPRESSION이다."""
 
-    def __init__(self, reason: str):
+    def __init__(self, reason: str, *, retry: bool = True):
         super().__init__("FORBIDDEN_EXPRESSION", reason)
         self.reason = reason
+        self.retry = retry   # 재시도해도 고칠 수 없는 답이면 False
 
 
-# 재시도 때 모델에게 붙이는 교정 지시. 걸린 표현을 빼거나 바꾸라고만 하고 본문은 다시 적지 않는다(P-2, P-7)
-_CORRECTIONS = {
-    "stock_recommendation": (
-        "방금 쓴 답변은 개별 주식 종목을 추천하는 표현이 있어 거부됐습니다. "
-        "같은 자료로 답변을 새로 쓰되 종목 추천 표현을 빼거나 "
-        "종목을 추천하지 않는 표현으로 바꾸고, 새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
-    ),
-}
+ETF_NAME_KEY = "assumptions.etfProductName"
+
+
+def _plan_etf_name(req: ChatRequest) -> str | None:
+    """계획이 쓴 종목의 표시값. 없으면 None이고 일반 표현은 'S&P500 추종 ETF'다(#155, CP-06)."""
+    return (req.plan_context.display.get(ETF_NAME_KEY) or None) if req.plan_context else None
+
+
+def _plan_without_etf(req: ChatRequest) -> bool:
+    """planContext는 있지만 종목 표시값이 없다(ETF 0%). planContext가 없는 일반 질문과 구분한다(#155, P-3·P-4)."""
+    return req.plan_context is not None and _plan_etf_name(req) is None
+
+
+def _correction(reason: str, etf_name: str | None) -> str:
+    """재시도 때 모델에게 붙이는 교정 지시. 걸린 표현을 빼거나 바꾸라고만 하고 본문은 다시 적지 않는다(P-2, P-7)."""
+    if reason == "stock_recommendation":
+        return (
+            "방금 쓴 답변은 개별 주식 종목을 추천하는 표현이 있어 거부됐습니다. "
+            "같은 자료로 답변을 새로 쓰되 종목 추천 표현을 빼거나 "
+            "종목을 추천하지 않는 표현으로 바꾸고, 새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
+        )
+    # 계획 종목이 S&P500이 아니면 계획의 종목은 표시값으로, 그 밖의 ETF는 허용 표현으로 쓰게 한다(#155, P-9).
+    # 종목 표시값이 없는 ETF 0% 계획은 상품명이 나오면 재시도 없이 거부하므로 이 지시를 쓰지 않는다
+    if etf_name not in (None, GENERIC_ETF_NAME):
+        others = ", ".join(f"'{name}'" for name in ALLOWED_ETF_NAMES if name != etf_name)
+        generic = f"계획의 종목은 '{etf_name}', 그 밖의 ETF는 {others}"
+    else:
+        generic = f"'{GENERIC_ETF_NAME}'"
+    return (
+        "방금 쓴 답변은 지수를 알 수 없는 상품명이 있어 거부됐습니다. 같은 자료로 답변을 새로 쓰되 상품명을 빼거나 "
+        f"{generic} 같은 일반 표현으로 바꾸고, 새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
+    )
 
 
 # 재시도 응답이 refusal일 때 assemble에 넘기는 서버 입력. 모델 본문·인용이 없다
@@ -468,6 +502,9 @@ class ChatAgent:
                         return assemble(turn, final)
                     except _ForbiddenAnswer as e:
                         # 금지 표현이면 이미 실행한 도구 결과를 그대로 두고 모델만 한 번 다시 부른다(M-4 후속)
+                        if not e.retry:
+                            log.warning("forbidden expression: reason=%s attempt=1 message_id=%s", e.reason, req.message_id)
+                            raise
                         log.info("forbidden expression: reason=%s attempt=1 message_id=%s", e.reason, req.message_id)
                         return await self._retry(turn, messages, e.reason)
 
@@ -501,7 +538,8 @@ class ChatAgent:
         """교정 지시를 붙여 모델을 한 번만 다시 부른다. 도구는 실행하지 않고 첫 호출과 같은 분기·보정을 거친다(P-4, P-6).
         거부된 첫 답은 요청에 싣지 않는다. SDK DEBUG 로그가 요청 JSON 전체를 남기기 때문이다(P-7, D-1)."""
         req = turn.req
-        retry_messages = [*messages, BetaUserMessageParam(role="user", content=_CORRECTIONS[reason])]
+        correction = _correction(reason, _plan_etf_name(req))
+        retry_messages = [*messages, BetaUserMessageParam(role="user", content=correction)]
         # tool_choice none은 이 호출에만 준다(요청 지역)
         retry = await self._create(retry_messages, client=self._retry_client, tool_choice={"type": "none"})
         match retry.stop_reason:
@@ -704,12 +742,15 @@ def build_messages(req: ChatRequest) -> list[BetaMessageParam]:
         f"<request>{body}</request>"
     )
 
-    note = load_copy().get("tax.note")
+    copy = load_copy()
+    notes = (copy.get("tax.note"), copy.get("tax.noteEtfTaxFree"))
     turns: list[tuple[Literal["user", "assistant"], str]] = []
     for role, content in [*((h.role, h.content) for h in req.history), ("user", current)]:
         if role == "assistant":
             # 코드가 붙인 세금 단서는 모델 입력에 다시 넣지 않는다(D-067, D-073)
-            content = content.replace(note, "").strip()
+            for note in notes:
+                content = _note_pattern(note).sub("", content)
+            content = content.strip()
             if not turns or not content:
                 continue
         if turns and turns[-1][0] == role:
@@ -724,13 +765,60 @@ def build_messages(req: ChatRequest) -> list[BetaMessageParam]:
     ]
 
 
+def _note_pattern(note: str) -> re.Pattern[str]:
+    """문구표 단서를 찾는 패턴. 모델이 문장 사이 공백을 줄바꿈 등으로 바꿔 써도 같은 단서로 본다."""
+    return re.compile(r"\s+".join(re.escape(token) for token in note.split()))
+
+
+_NOTE_GAP = "\x00"   # 세금 단서를 빼고 본문을 볼 때 양옆을 끊는 글자. 숫자·소수점이 아니라 인용 경계로 작동한다
+
+
+def _quotes_rate(content: str, rate: str) -> bool:
+    """세율 표시값 전체가 독립된 숫자로 들어 있다. 바로 앞 글자가 숫자(전각 포함)·소수점·쉼표면 다른 숫자의 일부다.
+    바로 뒤 글자가 숫자·쉼표여도 그렇고, 소수점은 뒤에 숫자가 이어질 때만 그렇다. 문장 끝 `15.4%.`는 인용이다(#155 P-5)."""
+    return re.search(rf"(?<![\d.,\uff0e\uff0c]){re.escape(rate)}(?!\d|[,\uff0c]|[.\uff0e]\d)", content) is not None
+
+
 def with_tax_note(req: ChatRequest, content: str) -> str:
-    """답이 계획의 세율 표시값을 말했으면 세금 단서를 끝에 붙인다(D-067, D-073). 코드가 붙이므로 모델 입력에는 없다."""
-    rate = req.plan_context.display.get(TAX_RATE_KEY) if req.plan_context else None
-    note = load_copy().get("tax.note")
-    if rate is None or rate not in content or note in content:
+    """답이 계획의 세율 표시값을 독립된 숫자로 말했으면 계획에 맞는 세금 단서 하나를 끝에 붙인다(D-067, D-073).
+    비과세 종목(raw etfGainTaxRatePct가 0)이면 tax.noteEtfTaxFree, 아니면 tax.note다.
+    모델이 계획과 다른 단서를 썼으면 지우고 맞는 단서로 바꾼다. 세율을 말하지 않은 답에는 단서를 붙이지 않고,
+    계획과 다른 단서(모든 계획의 tax.noteEtfTaxFree, 비과세 계획의 tax.note)는 지우기만 한다(#155 P-2·P-6).
+    단서는 문장 사이 공백·줄바꿈이 달라도 같은 단서로 찾는다. 코드가 붙이므로 모델 입력에는 없다."""
+    if req.plan_context is None:
         return content
-    return f"{content}\n\n{note}"
+    display = req.plan_context.display
+    # 빈 표시값은 어떤 답에도 들어 있으므로 세율 인용으로 보지 않는다
+    rates = [rate for k in (TAX_RATE_KEY, ETF_TAX_RATE_KEY) if (rate := display.get(k))]
+    copy = load_copy()
+    note, note_free = copy.get("tax.note"), copy.get("tax.noteEtfTaxFree")
+    tax_free = req.plan_context.result.assumptions.etf_gain_tax_rate_pct == 0
+    right, wrong = (note_free, note) if tax_free else (note, note_free)
+    right_re, wrong_re = _note_pattern(right), _note_pattern(wrong)
+
+    def quotes(text: str) -> bool:
+        return any(_quotes_rate(text, rate) for rate in rates)
+
+    # 단서 문장 안의 숫자를 세율 인용으로 오해하지 않도록 단서를 뺀 본문으로 판정한다.
+    # 단서 자리에 구분자를 둬서 양옆 글자가 하나의 표시값으로 이어지지 않게 한다
+    bare = _note_pattern(note_free).sub(_NOTE_GAP, _note_pattern(note).sub(_NOTE_GAP, content))
+    if not quotes(bare):
+        drop = [_note_pattern(note_free), _note_pattern(note)] if tax_free else [_note_pattern(note_free)]
+        stripped = content
+        for pattern in drop:
+            stripped = pattern.sub("", stripped)
+        if quotes(stripped):
+            # 단서를 지우자 양옆이 이어져 세율 표시값이 새로 생기면 한 칸을 띄워 이어지지 않게 한다
+            stripped = content
+            for pattern in drop:
+                stripped = pattern.sub(" ", stripped)
+        return content if stripped == content else stripped.rstrip()
+    content = wrong_re.sub("", content).rstrip()
+    first = right_re.search(content)
+    if first is None:
+        return f"{content}\n\n{right}"
+    # 맞는 단서를 모델이 여러 번 썼으면 첫 번째만 글자 그대로 남긴다
+    return f"{content[:first.start()]}{right}{right_re.sub('', content[first.end():])}".rstrip()
 
 
 def _cover_orgs(turn: _Turn, citations: list[int], min_orgs: int = 2) -> list[int]:
@@ -759,6 +847,36 @@ def _number_evidence(turn: _Turn) -> list[str]:
     return [*plan_display, *turn.number_evidence, *([req.text] if req.text else [])]
 
 
+def _check_numbers(turn: _Turn, body: str) -> None:
+    try:
+        check_numbers(body, _number_evidence(turn))
+    except NumberMismatch:
+        raise AgentError("NUMBER_MISMATCH") from None   # 불일치 토큰이 본문 전체일 수 있어 detail을 뺀다(P-7)
+
+
+def _mask_notes(content: str) -> str:
+    """세금 단서 자리를 구분자로 바꾼다. 단서 문장의 글자는 보지 않고 양옆이 이어지지도 않는다."""
+    copy = load_copy()
+    for key in ("tax.noteEtfTaxFree", "tax.note"):
+        content = _note_pattern(copy.get(key)).sub(_NOTE_GAP, content)
+    return content
+
+
+def _checked_body(req: ChatRequest, content: str) -> str:
+    """계획 종목 표기 검사(#155). ETF 상품명은 허용(CF-07)이라 바꾸지 않는다. 개별 종목 추천은 이미 run·_retry가
+    assemble 앞에서 거른다(_check_body). 거부할 표현이면 _ForbiddenAnswer를 올린다."""
+    try:
+        if _plan_without_etf(req):
+            # ETF 0% 계획의 종목 언급은 재시도도 문장 삭제도 없이 기존 거부로 끝낸다(#155, P-4)
+            if names_etf(content):
+                raise _ForbiddenAnswer("product_name", retry=False)
+        else:
+            check_plan_etf_claims(content, _plan_etf_name(req))   # 계획 종목을 다른 ETF로 바꿔 말하면 거부(#155)
+    except ForbiddenExpression as e:
+        raise _ForbiddenAnswer(str(e)) from e
+    return content
+
+
 def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
     """DB CHECK(ck_cm_recalc/explain/out_of_scope)를 만족하도록 모델 출력을 서버 사실로 보정한다."""
     req = turn.req
@@ -783,15 +901,20 @@ def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
     # 범위 밖 안내는 모델 문장이 아니라 문구표 문장이다. ANSWER(목표 금액 안내 등)에는 번지지 않는다
     # 상품별 세제·절세 질문은 전용 문구(outOfScope.tax)를 그대로 둔다(D-073). 그 밖의 범위 밖 답은 기본 안내로 바꾼다
     if message_type == "OUT_OF_SCOPE":
+        # ETF 0% 계획은 범위 밖 답이라도 ETF 종목을 언급하면 같은 거부로 끝낸다(#155, P-4)
+        if _plan_without_etf(req) and names_etf(final.content):
+            raise _ForbiddenAnswer("product_name", retry=False)
         tax_copy = load_copy().get("outOfScope.tax")
         content = tax_copy if tax_copy in final.content else out_of_scope_content()
     else:
-        body = final.content   # 종목 추천 검사는 run·_retry가 assemble 앞에서 한다(_check_body)
-        try:
-            check_numbers(body, _number_evidence(turn))   # PR-04. 종목 추천 검사 뒤에 본문을 대조한다
-        except NumberMismatch:
-            raise AgentError("NUMBER_MISMATCH") from None   # 불일치 토큰이 본문 전체일 수 있어 detail을 뺀다(P-7)
-        content = with_tax_note(req, body)
+        body = _checked_body(req, final.content)
+        _check_numbers(turn, body)   # PR-04. 종목 추천·계획 종목 검사 뒤에 본문을 대조한다
+        # 단서를 지우면 양옆 글자가 이어져 종목명·숫자가 새로 생길 수 있어 보정한 본문을 다시 검사한다(#155).
+        # 숫자는 단서 자리를 끊고 본다. 단서 안의 숫자는 본문 숫자가 아니다
+        content = _checked_body(req, with_tax_note(req, body))
+        _check_numbers(turn, _mask_notes(content))
+        if not content.strip():
+            raise _ForbiddenAnswer("empty_body", retry=False)   # 단서 보정 뒤 본문이 비면 정상 응답이 아니다(#155, P-10)
         copy = load_copy()
         if turn.goal_changed_note_params is not None:
             note = copy.get(
