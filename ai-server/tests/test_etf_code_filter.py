@@ -235,14 +235,18 @@ def plan_with_product(name: str | None, code: Any = _NO_CODE) -> dict[str, Any]:
     return plan
 
 
+GENERAL_TEXT = "ETF 위험이 뭐야?"   # 계획의 ETF를 가리키는 말("내 ETF", "이 ETF")이 없는 일반 질문
+
+
 async def run_search(
-    tool_input: dict[str, Any], plan: dict[str, Any] | None, answer_ids: list[int] | None = None
+    tool_input: dict[str, Any], plan: dict[str, Any] | None, answer_ids: list[int] | None = None,
+    text: str = GENERAL_TEXT,
 ) -> RecordingRetriever:
     retriever = RecordingRetriever()
     answer = {"message_type": "ANSWER", "content": "설명", "citation_chunk_ids": answer_ids or [11]}
     claude = FakeClaude([tool_resp(tool_input), text_resp(answer)])
     agent = ChatAgent(claude, FakeCalc(), retriever, model="claude-opus-5-5", effort="medium", max_rounds=4)
-    req = ChatRequest(memberId=1, messageId=9, mode="QUESTION", text="이 ETF 위험이 뭐야?", baselineScenario="AVG",
+    req = ChatRequest(memberId=1, messageId=9, mode="QUESTION", text=text, baselineScenario="AVG",
                       planContext=plan)
     await agent.run(req)
     return retriever
@@ -400,3 +404,46 @@ def test_plan_assumptions_parse_product_code_and_keep_it_out_of_model_input(name
 
     assert plan.result.assumptions.etf_product_code == raw["result"]["assumptions"]["etfProductCode"]
     assert "etfProductCode" not in json.dumps(plan_model_input(plan), ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# 5. 모델이 PLAN을 빼먹어도 발화가 내 계획의 ETF를 가리키면 서버가 계획 종목으로 좁힌다(#189)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("text", ["내 ETF는 어떤 위험이 있어?", "이 ETF 환율 때문에 손해 볼 수 있어?", "지금 ETF 수수료가 얼마야?",
+                                  "내 계획의 ETF 세금은?"])
+async def test_my_etf_wording_filters_by_plan_product_even_if_model_omits_plan(text):
+    """실제 LLM 점검에서 "내 ETF" 질문을 모델이 가끔 종목 없이 검색해 다른 종목 문서를 인용했다.
+    발화가 계획의 ETF를 가리키면 모델이 null을 내도 서버가 계획의 종목으로 건다."""
+    plan = plan_with_product("코스피200 추종 ETF", code="069500")
+    retriever = await run_search({**BASE_INPUT, "etf_codes": None}, plan, text=text)
+
+    assert retriever.calls == [{"etf_codes": ["069500"]}]
+
+
+@pytest.mark.parametrize("text", ["ETF 위험이 뭐야?", "ETF는 예금과 뭐가 달라?", "내가 모르는 ETF 용어가 있어"])
+async def test_general_wording_is_still_not_filtered(text):
+    """AC2: 계획의 ETF를 가리키지 않는 일반 질문은 계획에 종목이 있어도 필터 없이 검색한다."""
+    plan = plan_with_product("코스피200 추종 ETF", code="069500")
+    retriever = await run_search({**BASE_INPUT, "etf_codes": None}, plan, text=text)
+
+    assert retriever.calls == [{}]
+
+
+async def test_model_named_product_wins_over_my_etf_wording():
+    """모델이 종목을 직접 정했으면(비교 질문 등) 발화의 "내 ETF"로 덮어쓰지 않는다."""
+    retriever = await run_search(
+        {**BASE_INPUT, "etf_codes": ["133690"]}, plan_with_product("코스피200 추종 ETF", code="069500"),
+        text="내 ETF 말고 나스닥100은 위험이 어때?",
+    )
+
+    assert retriever.calls == [{"etf_codes": ["133690"]}]
+
+
+async def test_my_etf_wording_without_plan_product_is_not_filtered():
+    """계획이 없거나 ETF 0% 계획이면 "내 ETF"라고 해도 필터를 걸 종목이 없다."""
+    for plan in (None, plan_with_product(None, code=None)):
+        retriever = await run_search({**BASE_INPUT, "etf_codes": None}, plan, text="내 ETF는 어떤 위험이 있어?")
+
+        assert retriever.calls == [{}]
