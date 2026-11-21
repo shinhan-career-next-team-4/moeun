@@ -65,6 +65,6 @@ uv run moeun-ingest --file docs/raw/tiger-sp500-prospectus.pdf --doc-type DISCLO
 ## 승인
 - 승인은 문서 내용에 고정된다. 허락 목록(`scripts/ingest/allowlist.yml`)이 URL과 함께 본문 `content_sha256`을 적으므로, 같은 URL의 새 개정본은 다시 승인받고 해시를 갱신해야 적재된다.
 - [x] 팀 승인(이용 허락 "간주" 판단 포함): 승인자 팀(작업자 Jin-hyuck이 Issue #39에서 전달) / 일자 2026-11-17
-- [ ] 3·4번(코스피200·나스닥100, Issue #181) 팀 승인: 이 PR 승인으로 갈음 / 일자 ____
+- [x] 3·4번(코스피200·나스닥100, Issue #181) 이용 허락("간주" 판단 포함): 승인자 Jin-hyuck(PR #182 작업자가 결정) / 일자 2026-11-21
 - [ ] (선택) 두 운용사의 이용 문의 답변 기록
 - [ ] (선택) 운용사 사이트 대신 투자설명서에 적힌 공식 열람처(DART)를 출처 URL로 쓸지 결정. DART의 이용 조건은 따로 확인해야 한다
