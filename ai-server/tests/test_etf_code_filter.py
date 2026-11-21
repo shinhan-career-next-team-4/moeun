@@ -411,8 +411,15 @@ def test_plan_assumptions_parse_product_code_and_keep_it_out_of_model_input(name
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("text", ["내 ETF는 어떤 위험이 있어?", "이 ETF 환율 때문에 손해 볼 수 있어?", "지금 ETF 수수료가 얼마야?",
-                                  "내 계획의 ETF 세금은?"])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "내 ETF는 어떤 위험이 있어?",
+        "이 ETF 환율 때문에 손해 볼 수 있어?",
+        "지금 ETF 수수료가 얼마야?",
+        "내 계획의 ETF 세금은?",
+    ],
+)
 async def test_my_etf_wording_filters_by_plan_product_even_if_model_omits_plan(text):
     """실제 LLM 점검에서 "내 ETF" 질문을 모델이 가끔 종목 없이 검색해 다른 종목 문서를 인용했다.
     발화가 계획의 ETF를 가리키면 모델이 null을 내도 서버가 계획의 종목으로 건다."""
