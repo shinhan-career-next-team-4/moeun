@@ -362,16 +362,26 @@ def _plan_etf_name(req: ChatRequest) -> str | None:
     return (req.plan_context.display.get(ETF_NAME_KEY) or None) if req.plan_context else None
 
 
+def _plan_product(req: ChatRequest) -> str | None:
+    """계획의 종목 코드. Spring이 준 etfProductCode를 우선하고(모르는 코드는 doc_codes_for가 버려 필터가 없다),
+    없을 때(구버전 요청·ETF 0%)만 표시 이름의 키워드로 읽는다(#186)."""
+    if req.plan_context is None:
+        return None
+    code = req.plan_context.result.assumptions.etf_product_code
+    return code if code is not None else product_from_display_name(_plan_etf_name(req))
+
+
 PLAN_PRODUCT = "PLAN"   # 모델이 "내 계획의 ETF"를 가리킬 때 쓰는 표시. 코드는 서버가 계획에서 읽는다
 
 
 def _search_etf_codes(req: ChatRequest, doc_type: DocType | None, asked: object) -> list[str]:
     """검색을 좁힐 문서 etf_code(#183). 공시 검색에서 모델이 종목을 가리킨 경우에만 걸고, 아니면 빈 목록(필터 없음)이다.
     교육자료는 etf_code 없이 적재돼 필터를 걸면 근거가 0건이 되므로 공시(DISCLOSURE)에만 건다. 모델이 쓴 코드는
-    enum에 있는 것만 받고, 질문이 계획의 종목을 가리키면(PLAN) 코드는 계획의 표시 이름에서 서버가 읽는다."""
+    enum에 있는 것만 받고, 질문이 계획의 종목을 가리키면(PLAN) 코드는 계획의 etfProductCode(없으면 표시 이름)에서
+    서버가 읽는다."""
     if doc_type != DocType.DISCLOSURE or not isinstance(asked, list):
         return []
-    plan_product = product_from_display_name(_plan_etf_name(req))
+    plan_product = _plan_product(req)
     products = [plan_product if p == PLAN_PRODUCT else p for p in asked if isinstance(p, str)]
     return doc_codes_for([p for p in products if p])
 
