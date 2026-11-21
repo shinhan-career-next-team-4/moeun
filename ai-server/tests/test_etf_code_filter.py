@@ -135,7 +135,7 @@ async def test_etf_code_without_documents_returns_empty():
     got = await retriever.search("없는 종목 위험", DocType.DISCLOSURE, etf_codes=["999999"])
 
     assert got == []
-    assert len(pool.executed) == 1
+    assert [params["etf_codes"] for _, params in pool.executed] == [["999999"]]
 
 
 # ---------------------------------------------------------------------------
@@ -227,9 +227,11 @@ def plan_with_product(name: str | None) -> dict[str, Any]:
     return plan
 
 
-async def run_search(tool_input: dict[str, Any], plan: dict[str, Any] | None) -> RecordingRetriever:
+async def run_search(
+    tool_input: dict[str, Any], plan: dict[str, Any] | None, answer_ids: list[int] | None = None
+) -> RecordingRetriever:
     retriever = RecordingRetriever()
-    answer = {"message_type": "ANSWER", "content": "설명", "citation_chunk_ids": [11]}
+    answer = {"message_type": "ANSWER", "content": "설명", "citation_chunk_ids": answer_ids or [11]}
     claude = FakeClaude([tool_resp(tool_input), text_resp(answer)])
     agent = ChatAgent(claude, FakeCalc(), retriever, model="claude-opus-5-5", effort="medium", max_rounds=4)
     req = ChatRequest(memberId=1, messageId=9, mode="QUESTION", text="이 ETF 위험이 뭐야?", baselineScenario="AVG",
@@ -241,11 +243,28 @@ async def run_search(tool_input: dict[str, Any], plan: dict[str, Any] | None) ->
 BASE_INPUT = {"query": "ETF 위험", "doc_type": "DISCLOSURE"}
 
 
-async def test_plan_product_is_used_when_model_names_no_product():
-    """AC1·결정2: 모델이 종목을 안 정하면 계획의 종목(표시 이름)으로 건다."""
-    retriever = await run_search({**BASE_INPUT, "etf_codes": None}, plan_with_product("코스피200 추종 ETF"))
+async def test_plan_product_is_used_only_when_model_points_at_my_etf():
+    """결정2: 질문이 내 계획의 ETF를 가리키면(PLAN) 계획의 종목으로 건다. 코드는 서버가 계획에서 읽는다."""
+    retriever = await run_search({**BASE_INPUT, "etf_codes": ["PLAN"]}, plan_with_product("코스피200 추종 ETF"))
 
     assert retriever.calls == [{"etf_codes": ["069500"]}]
+
+
+async def test_general_question_is_not_filtered_even_when_plan_has_a_product():
+    """AC2: 계획에 종목이 있어도 종목을 가리키지 않는 일반 질문(null)은 필터 없이 기존대로 검색한다."""
+    retriever = await run_search({**BASE_INPUT, "etf_codes": None}, plan_with_product("코스피200 추종 ETF"))
+
+    assert retriever.calls == [{}]
+
+
+@pytest.mark.parametrize("doc_type", ["EDU", "ANY"])
+async def test_non_disclosure_search_is_never_filtered_by_product(doc_type):
+    """교육자료는 etf_code 없이 적재된다. 필터를 걸면 개념 질문의 근거가 0건이 되므로 공시 검색에만 건다."""
+    tool_input = {"query": "복리가 뭐야", "doc_type": doc_type, "etf_codes": ["PLAN", "069500"]}
+
+    retriever = await run_search(tool_input, plan_with_product("코스피200 추종 ETF"))
+
+    assert retriever.calls == [{}]
 
 
 async def test_question_product_wins_over_plan_product():
@@ -264,23 +283,54 @@ async def test_comparison_question_filters_both_products():
     assert retriever.calls == [{"etf_codes": ["069500", "133690"]}]
 
 
-async def test_sp500_plan_product_expands_to_both_issuer_documents():
+async def test_sp500_product_expands_to_both_issuer_documents():
     """백엔드 코드 SP500은 문서 etf_code 두 개(KODEX, TIGER)로 펼쳐진다."""
-    retriever = await run_search({**BASE_INPUT, "etf_codes": None}, plan_with_product("S&P500 추종 ETF"))
+    retriever = await run_search({**BASE_INPUT, "etf_codes": ["PLAN"]}, plan_with_product("S&P500 추종 ETF"))
 
     assert retriever.calls == [{"etf_codes": ["379800", "360750"]}]
 
 
-@pytest.mark.parametrize("plan", [None, "no-product"])
-async def test_general_question_without_any_product_is_not_filtered(plan):
-    """AC2: 종목을 알 수 없는 일반 질문은 필터 없이(기존 호출 그대로) 검색한다."""
-    retriever = await run_search(BASE_INPUT, None if plan is None else plan_with_product(None))
+async def test_plan_pointer_without_a_plan_product_is_not_filtered():
+    """PLAN이라고 했지만 계획이 없거나 종목을 알 수 없으면 필터 없이 검색한다."""
+    for plan in (None, plan_with_product(None)):
+        retriever = await run_search({**BASE_INPUT, "etf_codes": ["PLAN"]}, plan)
+
+        assert retriever.calls == [{}]
+
+
+async def test_unknown_model_product_is_ignored_not_trusted():
+    """모델이 정한 코드는 검증한다. 모르는 코드는 버려 필터가 걸리지 않는다."""
+    retriever = await run_search({**BASE_INPUT, "etf_codes": ["XXXX"]}, plan_with_product("나스닥100 추종 ETF"))
 
     assert retriever.calls == [{}]
 
 
-async def test_unknown_model_product_is_ignored_not_trusted():
-    """모델이 정한 코드는 검증한다. 모르는 코드는 버리고 계획의 종목으로 돌아간다."""
-    retriever = await run_search({**BASE_INPUT, "etf_codes": ["XXXX"]}, plan_with_product("나스닥100 추종 ETF"))
+class MixedRetriever:
+    """필터 검색과 필터 없는 검색을 한 요청에서 모두 받는 fake. 필터 없는 쪽은 운용사 둘을 돌려준다."""
 
-    assert retriever.calls == [{"etf_codes": ["133690"]}]
+    async def search(self, query: str, doc_type: DocType | None = None, top_k: int | None = None, **kw: Any):
+        if kw.get("etf_codes"):
+            return [RetrievedChunk(chunk_id=11, content="코스피200", title="KODEX 200", source_url="u1",
+                                   doc_type=DocType.DISCLOSURE, org_name="삼성", distance=0.1)]
+        return [
+            RetrievedChunk(chunk_id=21, content="일반", title="KODEX S&P", source_url="u2",
+                           doc_type=DocType.DISCLOSURE, org_name="삼성", distance=0.1),
+            RetrievedChunk(chunk_id=22, content="나스닥", title="TIGER 나스닥100", source_url="u3",
+                           doc_type=DocType.DISCLOSURE, org_name="미래에셋", distance=0.2),
+        ]
+
+
+async def test_filtered_turn_does_not_add_other_product_chunk_for_org_coverage():
+    """한 요청에서 종목 필터 검색을 했으면 운용사 2곳 보충(_cover_orgs)으로 다른 종목 청크를 더하지 않는다."""
+    answer = {"message_type": "ANSWER", "content": "설명", "citation_chunk_ids": [21]}
+    claude = FakeClaude([
+        tool_resp({**BASE_INPUT, "etf_codes": ["069500"]}),
+        tool_resp({**BASE_INPUT, "etf_codes": None}),
+        text_resp(answer),
+    ])
+    agent = ChatAgent(claude, FakeCalc(), MixedRetriever(), model="claude-opus-5-5", effort="medium", max_rounds=4)
+    req = ChatRequest(memberId=1, messageId=9, mode="QUESTION", text="코스피200 위험이 뭐야?", baselineScenario="AVG")
+
+    resp = await agent.run(req)
+
+    assert resp.citation_chunk_ids == [21]   # 22(다른 종목, 다른 운용사)가 보충되지 않는다
