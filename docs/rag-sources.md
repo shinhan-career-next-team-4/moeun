@@ -11,12 +11,14 @@ Issue #24 (T-016) · 요구사항 FR-AI-03, FR-AI-10, NFR-INT-04 · 결정 TBD-0
 - 자료를 repo에 넣지 않는다. PDF는 `ai-server/docs/raw/`(git 제외)에 받아 둔다.
 
 ## 선정 목록
-서로 다른 운용사의 공시 2건이다(FR-AI-03 "운용사 2곳 이상"). D-007의 후보(KODEX S&P, TIGER S&P)와 같다.
+서로 다른 운용사의 공시다(FR-AI-03 "운용사 2곳 이상"). 1·2는 D-007의 후보(KODEX S&P, TIGER S&P)와 같고, 3·4는 백엔드 ETF 종목(069500, 133690)의 설명 근거로 Issue #181에서 더했다.
 
 | # | 구분 | 기관(운용사) | 자료 | URL | 이용 허락 상태 | 적재 |
 |---|---|---|---|---|---|---|
 | 1 | DISCLOSURE | 삼성자산운용 | KODEX 미국S&P500 투자설명서(종목코드 379800) | https://www.samsungfund.com/upload/invest/2ETFE4-A.pdf | 허용(간주): 법정 공시. 사이트 무단 사용·DB화 금지 고지가 있어 팀 승인 필요 | 대상(팀 승인 후) |
 | 2 | DISCLOSURE | 미래에셋자산운용 | TIGER 미국S&P500 투자설명서(종목코드 360750) | https://investments.miraeasset.com/tigeretf/upload/etf/20261008090949000003.pdf | 허용(간주): 법정 공시. 사이트 무단 사용·DB화 금지 고지가 있어 팀 승인 필요 | 대상(팀 승인 후) |
+| 3 | DISCLOSURE | 삼성자산운용 | KODEX 200 투자설명서(종목코드 069500, 작성 기준일 2026-09-11) | https://www.samsungfund.com/upload/invest/2ETF01-A.pdf | 허용(간주): 1·2와 같음. Issue #181, 팀 승인 필요 | 대상(팀 승인 후) |
+| 4 | DISCLOSURE | 미래에셋자산운용 | TIGER 미국나스닥100 투자설명서(종목코드 133690, 작성 기준일 2026-05-21) | https://investments.miraeasset.com/tigeretf/upload/etf/20260528095823000271.pdf | 허용(간주): 1·2와 같음. Issue #181, 팀 승인 필요 | 대상(팀 승인 후) |
 
 URL을 찾은 곳(2026-11-16에 둘 다 HTTP 200, `application/pdf` 확인):
 - 1: 상품 페이지 https://www.samsungfund.com/etf/product/view.do?id=2ETFE4 의 "투자설명서" 링크. 상품 ID가 `2ETFE4`다.
@@ -63,5 +65,6 @@ uv run moeun-ingest --file docs/raw/tiger-sp500-prospectus.pdf --doc-type DISCLO
 ## 승인
 - 승인은 문서 내용에 고정된다. 허락 목록(`scripts/ingest/allowlist.yml`)이 URL과 함께 본문 `content_sha256`을 적으므로, 같은 URL의 새 개정본은 다시 승인받고 해시를 갱신해야 적재된다.
 - [x] 팀 승인(이용 허락 "간주" 판단 포함): 승인자 팀(작업자 Jin-hyuck이 Issue #39에서 전달) / 일자 2026-11-17
+- [ ] 3·4번(코스피200·나스닥100, Issue #181) 팀 승인: 이 PR 승인으로 갈음 / 일자 ____
 - [ ] (선택) 두 운용사의 이용 문의 답변 기록
 - [ ] (선택) 운용사 사이트 대신 투자설명서에 적힌 공식 열람처(DART)를 출처 URL로 쓸지 결정. DART의 이용 조건은 따로 확인해야 한다
