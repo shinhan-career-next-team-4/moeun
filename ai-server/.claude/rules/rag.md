@@ -25,7 +25,7 @@ paths:
 - 임베딩은 1536차원(`EMBEDDING_DIM`). 모델을 바꾸면 `model_code`가 다른 새 행으로 넣는다.
 - 청크·임베딩은 UPDATE하지 않는다(`is_active` 전환만 예외). 개정본은 새 `rag_document`로 넣고 이전 것은 `is_active=FALSE`(문서·임베딩을 같은 트랜잭션에서).
 - 재청킹(`--rechunk`)은 같은 문서에서 지금 쓰는 `model_code`의 기존 임베딩만 `is_active=FALSE`로 바꾸고 새 청크를 `chunk_no`를 이어 넣는다. 한 문서에서 현재 청크는 그 모델의 임베딩이 활성인 것이다. 청킹이 바뀌지 않았으면 돌리지 않는다(죽은 행만 쌓인다).
-- 공시(DISCLOSURE) 근거는 서로 다른 운용사 2곳 이상(FR-AI-03, `diversify_orgs`).
+- 공시(DISCLOSURE) 근거는 서로 다른 운용사 2곳 이상(FR-AI-03, `diversify_orgs`). 예외: 종목(`etf_codes`)을 지정한 공시 검색은 종목마다 운용사가 1곳일 수 있어 이 규칙을 적용하지 않는다(#183). 종목 필터는 공시 검색에만 건다(교육자료는 `etf_code`가 없다).
 
 ## 응답
 - `citation_chunk_ids`는 `_Turn.retrieved_ids`에 있는 것만. 근거가 없으면 빈 배열.
