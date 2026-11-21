@@ -1,4 +1,5 @@
 import re
+from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Literal
 
@@ -57,7 +58,7 @@ DISPLAY_KEY = re.compile(
     r"goalAmount|calcStartMonth|targetMonth"
     r"|(?:GOOD|AVG|BAD)\.(?:afterTaxAsset|principal|afterTaxGain|gapToGoal|goalReachMonth)"
     r"|conditions\.(?:heldAssets|monthlySavingAmount|targetPeriodMonths|savingsRatioPct|savingsRateInputPct)"
-    r"|assumptions\.(?:savingsRateBaseMonth|sp500BaseDate|taxRatePct)"
+    r"|assumptions\.(?:savingsRateBaseMonth|sp500BaseDate|taxRatePct|etfProductName|etfGainTaxRatePct)"
 )
 
 
@@ -70,6 +71,7 @@ class PlanAssumptions(ApiModel):
     is_default_savings_rate: bool
     scenario_method: str | None      # 키는 필수, ETF 0%면 null
     excluded_items: list[str] | None   # 키는 필수, 값은 null 가능
+    etf_gain_tax_rate_pct: Decimal | None = None   # 비과세 판정(0)에만 쓴다. 모델 입력에는 넣지 않는다
 
 
 class PlanResult(ApiModel):

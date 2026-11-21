@@ -59,6 +59,9 @@
       "savingsRateBaseMonth": "2026-10",
       "savingsRatioPct": 50,
       "taxRatePct": 15.4,
+      "etfProductCode": "SP500",
+      "etfProductName": "S&P500 추종 ETF",
+      "etfGainTaxRatePct": 15.4,
       "scenarioMethod": "ROLLING_DISTRIBUTION",
       "sp500BaseDate": "2026-10-31",
       "excludedItems": [
@@ -121,6 +124,9 @@
       "savingsRateBaseMonth": "2026-10",
       "savingsRatioPct": 50,
       "taxRatePct": 15.4,
+      "etfProductCode": "SP500",
+      "etfProductName": "S&P500 추종 ETF",
+      "etfGainTaxRatePct": 15.4,
       "scenarioMethod": "ROLLING_DISTRIBUTION",
       "sp500BaseDate": "2026-10-31",
       "excludedItems": [

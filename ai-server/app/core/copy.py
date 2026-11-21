@@ -43,6 +43,7 @@ _FIXED_KEYS = (
     "outOfScope.tax",
     "disclaimer",
     "tax.note",
+    "tax.noteEtfTaxFree",
     "chat.unchangeableCondition",
     "chat.noPlan",
     "chat.alreadyExceeded",
