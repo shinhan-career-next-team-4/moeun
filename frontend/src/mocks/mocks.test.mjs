@@ -747,8 +747,9 @@ test("1027 메시지 문장은 /1027 비교 카드(1031과 같은 본문)와 같
   assert.equal(messages.find((m) => m.id === 1027).content.includes(card.display["changed.AVG.afterTaxAsset"]), true);
 });
 
-test("대화 목의 문장에 추천 표현이 없다", () => {
-  const banned = /추천|권해|하세요|해야 해요|사세요|가입하/;
+test("대화 목의 문장에 개별 주식 종목 추천 표현이 없다", () => {
+  // CF-07: 개별 주식 종목 추천만 금지한다. ETF 추천 표현과 ETF 상품명은 허용한다
+  const banned = /(종목|주식)\s*(을|를)?\s*(추천|권해)|하세요|해야 해요|사세요|가입하/;
   for (const name of POLL_FILES) {
     for (const b of bodies("chat", name)) {
       for (const m of b.messages) {

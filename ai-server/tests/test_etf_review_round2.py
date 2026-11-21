@@ -96,13 +96,14 @@ async def test_b6_added_allowed_name_is_not_a_product_name_in_a_kospi_plan(monke
     assert len(claude.calls) == 1 and resp.content.startswith(answer)
 
 
-async def test_b6_unregistered_brand_still_rejected_in_a_kospi_plan():
+async def test_b6_unregistered_etf_name_passes_unchanged_in_a_kospi_plan():
+    """등록하지 않은 ETF 이름은 상품명(브랜드)과 같이 허용이라 거부·재시도하지 않는다(#168, CF-07)."""
     plan = load("plan-context-etf-tax-free.json")
     req = make_request(plan, "EXPLAIN", plan["calcRunId"])
 
-    _, claude = await run(req, text_resp("ACE 미국 지수 추종 ETF예요."), text_resp(f"{KOSPI}예요."))
+    resp, claude = await run(req, text_resp("ACE 미국 지수 추종 ETF예요."))
 
-    assert len(claude.calls) == 2
+    assert len(claude.calls) == 1 and resp.content.startswith("ACE 미국 지수 추종 ETF예요.")
 
 
 async def test_b5_model_written_general_note_alone_is_not_rejected_when_nothing_was_removed():

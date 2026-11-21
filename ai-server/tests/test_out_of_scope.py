@@ -75,6 +75,14 @@ class FakeRetriever:
         return self.chunks
 
 
+class MarkerJudge:
+    """종목명(삼성전자·삼전)이 든 문장을 개별 주식 종목 추천으로 판정하는 대역. 재시도·숫자 검사 흐름을 보는 테스트가 쓴다.
+    실제 판정 품질은 수동 평가 몫이다(D-073). 판정 호출은 모델 호출 수(claude.calls)에 세지 않는다"""
+
+    async def recommends_individual_stock(self, text: str) -> bool:
+        return "삼성전자" in text or "삼전" in text
+
+
 def make_agent(claude, calc, retriever=None):
     return ChatAgent(claude, calc, retriever or FakeRetriever(), model="claude-opus-5-5", effort="medium", max_rounds=4)
 

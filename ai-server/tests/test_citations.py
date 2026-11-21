@@ -135,10 +135,9 @@ async def test_citations_already_covering_two_orgs_are_left_as_the_model_chose()
     assert resp.citation_chunk_ids == [102, 101]
 
 
-def test_system_prompt_tells_model_to_write_generic_etf_name_instead_of_product_name():
-    """본문은 상품명 대신 'S&P500 추종 ETF'로 쓰라고 프롬프트에 적혀 있다 (D-028)"""
-    assert "S&P500 추종 ETF" in SYSTEM_PROMPT
-    assert "상품명" in SYSTEM_PROMPT
+def test_system_prompt_has_no_rule_that_replaces_product_names():
+    """상품명 대신 다른 표현을 쓰라는 규칙이 없다 (#168, D-028)"""
+    assert "상품명 대신" not in SYSTEM_PROMPT
 
 
 # ---- AC-1(검색 쪽): 후보에 한 운용사뿐이면 그 운용사를 뺀 재검색을 한 번 더 한다 ----

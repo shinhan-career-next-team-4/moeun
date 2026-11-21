@@ -34,13 +34,22 @@ from app.main import app
 from app.schemas import ChatRequest, ChatResponse, DocType, RetrievedChunk
 from app.tools.calc import CalcRejected
 from tests.fakes import FakeCalc as FixtureCalc
-from tests.test_out_of_scope import NULLS, PLAN_CONTEXT, FakeCalc, FakeClaude, FakeRetriever, text_resp, tool_resp
+from tests.test_out_of_scope import (
+    NULLS,
+    PLAN_CONTEXT,
+    FakeCalc,
+    FakeClaude,
+    FakeRetriever,
+    MarkerJudge,
+    text_resp,
+    tool_resp,
+)
 
 GENERIC = "S&P500 추종 ETF"
 CALC_EXAMPLES = Path(__file__).resolve().parents[2] / "docs" / "api" / "examples" / "internal-calc"
 CLEAN = f"{GENERIC}는 지수를 따라 오르내려요."
-RECOMMEND = f"{GENERIC}는 지수를 따라가요. 이 상품을 추천해요."
-BRAND_ONLY = "KODEX 200은 코스피를 따라가요."   # 지수를 알 수 없는 상품명 → product_name
+RECOMMEND = f"{GENERIC}는 지수를 따라가요. 삼성전자 주식을 추천해요."
+OTHER_STOCK = "삼전을 추천드려요."   # 사유는 같고 문장만 다른 두 번째 거부 본문
 # 로그에 본문 전문이 남는지 보는 표지. 한글은 JSON 이스케이프(\uXXXX)로 남으면 원문 검사에 안 걸리므로
 # ASCII 표지를 함께 넣고, leaked()가 원문·이스케이프 형태를 모두 본다(기획 검토 2차 B4)
 BODY_MARK, RETRY_MARK = "BODYMARKQZ", "RETRYMARKQZ"
@@ -69,13 +78,13 @@ _CLAUSE = re.compile(r"[.!?,\n]|(?<=[가-힣])(?:고|며|면서|지만)\s")
 # 목적어 조사(을·를·은·는·만·도)와 목적어가 아님을 보이는 그 밖의 조사
 _OBJECT_PARTICLE = re.compile(r"(?:을|를|은|는|만|도)$")
 _OTHER_PARTICLE = re.compile(r"(?:이|가|로|에|의|와|과|서)$")
-# 사유 낱말 바로 뒤에 오면 걸린 표현을 가리키는 말("추천 표현", "상품명이라는 말")
+# 사유 낱말 바로 뒤에 오면 걸린 표현을 가리키는 말("추천 표현", "종목이라는 말")
 TARGET_NOUNS = ("표현", "문장", "문구", "말", "낱말", "단어")
 
 
 def _object_before(text: str) -> tuple[str, str]:
     """동사 앞 text에서 목적어와 그 앞 낱말을 찾는다. 바로 앞이 조사 없는 명사면 그것("표현 없이", "표현 대신"),
-    아니면 뒤에서부터 목적어 조사가 붙은 첫 낱말이다("상품명을 'S&P500 추종 ETF'로 바꿔" → 상품명)."""
+    아니면 뒤에서부터 목적어 조사가 붙은 첫 낱말이다("추천을 '일반 설명'으로 바꿔" → 추천)."""
     tokens = [t.strip("'\"\u2018\u2019\u201c\u201d") for t in text.split()]
     if tokens and not (_OBJECT_PARTICLE.search(tokens[-1]) or _OTHER_PARTICLE.search(tokens[-1])):
         return tokens[-1], tokens[-2] if len(tokens) > 1 else ""
@@ -194,7 +203,7 @@ def make_agent(
 ) -> ChatAgent:
     return ChatAgent(
         claude, calc or FakeCalc(), retriever or FakeRetriever(), model="claude-opus-5-5", effort="medium",
-        max_rounds=max_rounds,
+        max_rounds=max_rounds, stock_judge=MarkerJudge(),
     )
 
 
@@ -259,35 +268,10 @@ async def test_ac1_recommendation_then_clean_retry_returns_retry_answer() -> Non
     assert len(claude.calls) == 2
 
 
-async def test_ac1_brand_only_product_name_then_clean_retry_returns_retry_answer() -> None:
-    """지수를 알 수 없는 상품명(product_name)도 재시도 대상이다"""
-    claude = FakeClaude([text_resp("ANSWER", BRAND_ONLY), text_resp("ANSWER", CLEAN)])
-    resp = await outcome(make_agent(claude), question())
-    assert isinstance(resp, ChatResponse), resp
-    assert resp.content == CLEAN
-    assert len(claude.calls) == 2
-
-
-async def test_ac1_replaceable_product_name_in_retry_answer_is_replaced() -> None:
-    """기획 검토 2차 B5: 재시도 답에 바꿀 수 있는 S&P500 상품명이 있으면 첫 응답과 같은 보정대로 이름을
-    'S&P500 추종 ETF'로 바꿔 정상 응답으로 낸다. 모델은 2번이고 본문에 원래 상품명은 없다"""
-    claude = FakeClaude([
-        text_resp("ANSWER", RECOMMEND),
-        text_resp("ANSWER", "KODEX 미국S&P500은 지수를 따라가요."),
-        text_resp("ANSWER", CLEAN),
-    ])
-    resp = await outcome(make_agent(claude), question())
-    assert isinstance(resp, ChatResponse), resp
-    assert resp.content == f"{GENERIC}은 지수를 따라가요."
-    assert "KODEX" not in resp.content
-    assert len(claude.calls) == 2
-    assert len(claude.responses) == 1
-
-
 async def test_ac1_explain_mode_retry_answer_is_corrected_to_explanation() -> None:
     """EXPLAIN 요청도 재시도한다. 재시도 응답은 첫 응답과 같은 보정을 받아 EXPLANATION·calcRunId 540이 된다"""
     clean = f"이 계획은 적금과 {GENERIC}에 나눠 넣어요."
-    claude = FakeClaude([text_resp("EXPLANATION", BRAND_ONLY), text_resp("ANSWER", clean)])
+    claude = FakeClaude([text_resp("EXPLANATION", OTHER_STOCK), text_resp("ANSWER", clean)])
     resp = await outcome(make_agent(claude), explain_request())
     assert isinstance(resp, ChatResponse), resp
     assert resp.message_type == "EXPLANATION"
@@ -327,7 +311,7 @@ async def test_ac7_each_request_gets_its_own_retry() -> None:
     """같은 agent로 두 요청을 연달아 처리해도 재시도 기회는 요청마다 1회다(앞 요청의 재시도가 뒤 요청을 막지 않는다)"""
     claude = FakeClaude([
         text_resp("ANSWER", RECOMMEND), text_resp("ANSWER", CLEAN),
-        text_resp("ANSWER", BRAND_ONLY), text_resp("ANSWER", CLEAN),
+        text_resp("ANSWER", OTHER_STOCK), text_resp("ANSWER", CLEAN),
     ])
     agent = make_agent(claude)
     first = await outcome(agent, question())
@@ -343,7 +327,7 @@ async def test_ac7_request_after_a_rejected_retry_still_gets_its_own_retry() -> 
     clean_b = f"{GENERIC}는 값이 오르내릴 수 있어요."
     claude = FakeClaude([
         text_resp("ANSWER", RECOMMEND), text_resp("ANSWER", RECOMMEND),
-        text_resp("ANSWER", BRAND_ONLY), text_resp("ANSWER", clean_b),
+        text_resp("ANSWER", OTHER_STOCK), text_resp("ANSWER", clean_b),
     ])
     agent = make_agent(claude)
     first = await outcome(agent, question())
@@ -375,7 +359,7 @@ async def test_ac7_overlapping_requests_on_same_agent_each_get_own_retry() -> No
     claude = GatedClaude(
         {
             qa: [text_resp("ANSWER", RECOMMEND), text_resp("ANSWER", clean_a)],
-            qb: [text_resp("ANSWER", BRAND_ONLY), text_resp("ANSWER", clean_b)],
+            qb: [text_resp("ANSWER", OTHER_STOCK), text_resp("ANSWER", clean_b)],
         },
         gated=qa,
     )
@@ -407,7 +391,7 @@ async def test_ac7_overlapping_retry_tool_choice_applies_only_to_that_requests_r
             qa: [text_resp("ANSWER", RECOMMEND), text_resp("ANSWER", clean_a)],
             qb: [
                 tool_resp("search_documents", {"query": "ETF 위험", "doc_type": "EDU"}),
-                text_resp("ANSWER", BRAND_ONLY, citations=[11]),
+                text_resp("ANSWER", OTHER_STOCK, citations=[11]),
                 text_resp("ANSWER", clean_b, citations=[11]),
             ],
         },
@@ -457,20 +441,20 @@ async def test_ac2_retry_is_at_most_once() -> None:
     assert len(claude.responses) == 2
 
 
-async def test_ac2_retry_with_other_forbidden_reason_is_rejected() -> None:
-    """첫 응답은 추천 표현, 재시도 응답은 상품명처럼 사유가 달라도 재시도 응답이 금지 표현이면 거부한다"""
-    claude = FakeClaude([text_resp("ANSWER", RECOMMEND), text_resp("ANSWER", BRAND_ONLY)])
+async def test_ac2_retry_with_other_stock_text_is_rejected() -> None:
+    """첫 응답과 재시도 응답의 문장이 달라도 재시도 응답이 개별 종목 추천이면 거부한다"""
+    claude = FakeClaude([text_resp("ANSWER", RECOMMEND), text_resp("ANSWER", OTHER_STOCK)])
     result = await outcome(make_agent(claude), question())
     assert isinstance(result, AgentError), result
     assert result.code == "FORBIDDEN_EXPRESSION"
     assert len(claude.calls) == 2
 
 
-@pytest.mark.parametrize("retry_body", [RECOMMEND, BRAND_ONLY], ids=["to_recommendation", "to_product_name"])
-async def test_ac2_product_name_first_then_forbidden_retry_stops_after_two_calls(retry_body: str) -> None:
-    """첫 응답이 상품명으로 걸리고 재시도 응답도 금지 표현이면(사유가 바뀌어도) 두 번째 호출에서 끝난다.
-    깨끗한 세 번째 응답이 준비돼 있어도 쓰지 않는다(사유가 바뀌었다고 재시도 횟수를 다시 세지 않는다)"""
-    claude = FakeClaude([text_resp("ANSWER", BRAND_ONLY), text_resp("ANSWER", retry_body), text_resp("ANSWER", CLEAN)])
+@pytest.mark.parametrize("retry_body", [RECOMMEND, OTHER_STOCK], ids=["same_text", "other_text"])
+async def test_ac2_stock_recommendation_first_then_forbidden_retry_stops_after_two_calls(retry_body: str) -> None:
+    """첫 응답이 개별 종목 추천으로 걸리고 재시도 응답도 금지 표현이면(문장이 바뀌어도) 두 번째 호출에서 끝난다.
+    깨끗한 세 번째 응답이 준비돼 있어도 쓰지 않는다(재시도 횟수를 다시 세지 않는다)"""
+    claude = FakeClaude([text_resp("ANSWER", OTHER_STOCK), text_resp("ANSWER", retry_body), text_resp("ANSWER", CLEAN)])
     result = await outcome(make_agent(claude), question())
     assert isinstance(result, AgentError), result
     assert result.code == "FORBIDDEN_EXPRESSION"
@@ -501,7 +485,7 @@ async def test_ac3_recalculate_is_not_repeated_and_recalc_result_survives_retry(
     retry_body = "월 저축액을 바꾼 결과예요. 목표까지 남은 금액이 줄어요."
     claude = FakeClaude([
         tool_resp("recalculate", {**NULLS, "monthly_saving_amount": 500_000}),
-        text_resp("ANSWER", f"월 저축액을 바꾼 결과예요. {GENERIC}를 추천해요."),
+        text_resp("ANSWER", "월 저축액을 바꾼 결과예요. 삼성전자 주식을 추천해요."),
         text_resp("ANSWER", retry_body),
     ])
     resp = await outcome(make_agent(claude, calc), question("월 50만원으로 바꾸면?"))
@@ -559,7 +543,7 @@ async def test_ac3_tool_use_in_retry_response_is_not_executed() -> None:
     calc = FakeCalc()
     claude = FakeClaude([
         tool_resp("recalculate", {**NULLS, "monthly_saving_amount": 500_000}),
-        text_resp("ANSWER", f"월 저축액을 바꾼 결과예요. {GENERIC}를 추천해요."),
+        text_resp("ANSWER", "월 저축액을 바꾼 결과예요. 삼성전자 주식을 추천해요."),
         tool_resp("recalculate", {**NULLS, "monthly_saving_amount": 600_000}, id_="tu_2"),
         text_resp("ANSWER", "월 저축액을 바꾼 결과예요."),
     ])
@@ -628,11 +612,11 @@ async def test_ac3_retry_call_sets_tool_choice_none() -> None:
     assert tools[1] == tools[0]
 
 
-@pytest.mark.parametrize(("first_body", "keyword"), [(RECOMMEND, "추천"), (BRAND_ONLY, "상품명")],
-                         ids=["recommendation", "product_name"])
+@pytest.mark.parametrize(("first_body", "keyword"), [(RECOMMEND, "추천"), (OTHER_STOCK, "추천")],
+                         ids=["recommend", "other_stock"])
 async def test_ac3_retry_correction_names_the_forbidden_reason(first_body: str, keyword: str) -> None:
     """재시도 호출 끝의 user 메시지(교정 지시)는 비어 있지 않고, 걸린 사유의 표현을 빼거나 바꾸라고 요청한다(B3).
-    문장 전체는 고정하지 않는다(I-1). 사유 낱말(recommendation→"추천", product_name→"상품명")과 긍정 제거·대체
+    문장 전체는 고정하지 않는다(I-1). 사유 낱말(stock_recommendation→"추천")과 긍정 제거·대체
     지시를 담고, 걸린 표현을 그대로 쓰라거나 제거하지 말라거나 원문을 다시 출력하라는 말은 담지 않는다(asks_removal).
     판정이 약해지지 않았는지 반례(제거 금지·원문 재출력·다른 문장만 삭제)와 정상 예시로 먼저 확인한다
     (기획 검토 2차 B3, 3차 B1: 제거·대체의 대상이 걸린 표현이어야 한다)"""
@@ -737,7 +721,7 @@ async def test_ac3_validation_failed_state_survives_retry() -> None:
     clean = "월 저축액은 1,000만원까지 넣을 수 있어요. 얼마로 할까요?"
     claude = FakeClaude([
         tool_resp("recalculate", {**NULLS, "monthly_saving_amount": 12_000_000}),
-        text_resp("CLARIFY", f"월 저축액은 1,000만원까지 넣을 수 있어요. {GENERIC}를 추천해요."),
+        text_resp("CLARIFY", "월 저축액은 1,000만원까지 넣을 수 있어요. 삼성전자 주식을 추천해요."),
         text_resp("ANSWER", clean),
     ])
     resp = await outcome(make_agent(claude, calc), question("월 1,200만원으로 바꾸면?"))
@@ -760,7 +744,7 @@ async def test_ac3_out_of_scope_retry_after_validation_failed_keeps_out_of_scope
     calc = FixtureCalc(error=CalcRejected(body["code"], body["errors"]))
     claude = FakeClaude([
         tool_resp("recalculate", {**NULLS, "monthly_saving_amount": 12_000_000}),
-        text_resp("CLARIFY", f"월 저축액은 1,000만원까지 넣을 수 있어요. {GENERIC}를 추천해요."),
+        text_resp("CLARIFY", "월 저축액은 1,000만원까지 넣을 수 있어요. 삼성전자 주식을 추천해요."),
         text_resp("OUT_OF_SCOPE", f"{RETRY_SENTINEL} 이 질문은 다루지 않아요."),
     ])
     resp = await outcome(make_agent(claude, calc), question("월 1,200만원으로 바꾸면?"))
@@ -790,7 +774,7 @@ async def test_ac3_tax_out_of_scope_retry_after_validation_failed_keeps_tax_copy
     claude = FakeClaude([
         tool_resp("search_documents", {"query": "ETF 세금", "doc_type": "EDU"}),
         tool_resp("recalculate", {**NULLS, "monthly_saving_amount": 12_000_000}, id_="tu_2"),
-        text_resp("CLARIFY", f"월 저축액은 1,000만원까지 넣을 수 있어요. {GENERIC}를 추천해요.", citations=[11]),
+        text_resp("CLARIFY", "월 저축액은 1,000만원까지 넣을 수 있어요. 삼성전자 주식을 추천해요.", citations=[11]),
         text_resp("OUT_OF_SCOPE", f"{RETRY_SENTINEL} {tax_copy}", citations=[11]),
     ])
     resp = await outcome(make_agent(claude, calc, retriever), question("월 1,200만원으로 바꾸면 세금은요?"))
@@ -826,12 +810,13 @@ async def test_ac3_retry_citations_dedupe_and_cap_in_first_seen_order() -> None:
 
 # ---- AC-4: 사유와 재시도 여부를 로그에 남기고 본문 전문은 남기지 않는다 ----
 
-@pytest.mark.parametrize(("first_body", "reason"), [(RECOMMEND, "recommendation"), (BRAND_ONLY, "product_name")],
-                         ids=["recommendation", "product_name"])
+@pytest.mark.parametrize(("first_body", "reason"), [(RECOMMEND, "stock_recommendation"),
+                                                     (OTHER_STOCK, "stock_recommendation")],
+                         ids=["recommend", "other_stock"])
 async def test_ac4_retry_logs_reason_and_attempt_without_body(
     first_body: str, reason: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """첫 응답 거부 → 재시도 성공: 사유(recommendation 또는 product_name)와 attempt=1이 INFO 이상 레코드
+    """첫 응답 거부 → 재시도 성공: 사유(stock_recommendation)와 attempt=1이 INFO 이상 레코드
     정확히 1건으로 남고, 거부된 첫 본문도 사용자에게 나간 재시도 본문도 로그에 남지 않는다"""
     caplog.set_level(logging.DEBUG)
     body = f"{BODY_SENTINEL} {first_body}"
@@ -846,52 +831,6 @@ async def test_ac4_retry_logs_reason_and_attempt_without_body(
     assert records[0].levelno >= logging.INFO
     assert not leaked(caplog.text, BODY_SENTINEL), leaked(caplog.text, BODY_SENTINEL)
     assert not leaked(caplog.text, RETRY_SENTINEL), leaked(caplog.text, RETRY_SENTINEL)
-
-
-@pytest.mark.parametrize(("first_body", "first_reason", "retry_body", "retry_reason"), [
-    (RECOMMEND, "recommendation", BRAND_ONLY, "product_name"),
-    (BRAND_ONLY, "product_name", RECOMMEND, "recommendation"),   # B6: 반대 방향 사유 전환
-], ids=["recommendation_to_product_name", "product_name_to_recommendation"])
-async def test_ac4_rejection_after_retry_logs_both_attempts_without_body(
-    first_body: str, first_reason: str, retry_body: str, retry_reason: str, caplog: pytest.LogCaptureFixture
-) -> None:
-    """재시도도 거부: 시도마다 그 시도의 사유가 남는다(attempt=1은 첫 답의 사유, attempt=2는 재시도 답의 사유).
-    두 방향(추천→상품명, 상품명→추천) 모두 본다. 본문은 남지 않는다"""
-    caplog.set_level(logging.DEBUG)
-    claude = FakeClaude([
-        text_resp("ANSWER", f"{BODY_SENTINEL} {first_body}"),
-        text_resp("ANSWER", f"{RETRY_SENTINEL} {retry_body}"),   # 시도마다 다른 표지(B4)
-    ])
-    result = await outcome(make_agent(claude), question())
-    assert isinstance(result, AgentError), result
-    assert result.code == "FORBIDDEN_EXPRESSION"
-    messages = [r.getMessage() for r in reason_records(caplog)]
-    assert len(messages) == 2, messages
-    # 값 경계까지 정확히 비교한다(3차 B6: reason=recommendation_unknown, attempt=20은 통과하지 않는다)
-    assert [log_fields(m) for m in messages] == [(first_reason, "1"), (retry_reason, "2")], messages
-    assert all(r.levelno >= logging.INFO for r in reason_records(caplog))
-    assert not leaked(caplog.text, BODY_SENTINEL, RETRY_SENTINEL), leaked(caplog.text, BODY_SENTINEL, RETRY_SENTINEL)
-    assert not leaked(str(result), BODY_SENTINEL, RETRY_SENTINEL), leaked(str(result), BODY_SENTINEL, RETRY_SENTINEL)
-
-
-async def test_ac4_product_name_is_checked_before_recommendation_in_same_body(caplog: pytest.LogCaptureFixture) -> None:
-    """기획 검토 3차 B8: 첫 답이 치환할 수 없는 상품명과 긍정 추천 표현을 함께 담으면, 기존 검사 순서(상품명 → 추천)대로
-    상품명에서 먼저 걸린다. 첫 거부 로그의 사유는 product_name(attempt=1) 1건이고, 교정 지시는 상품명 표현을 빼거나
-    바꾸라고 요청한다. 재시도 답은 깨끗해서 정상 응답이다. 모델 2번"""
-    caplog.set_level(logging.DEBUG)
-    claude = RecordingClaude([
-        text_resp("ANSWER", f"{BRAND_ONLY} 이 상품을 추천해요."),
-        text_resp("ANSWER", CLEAN),
-    ])
-    resp = await outcome(make_agent(claude), question())
-    assert isinstance(resp, ChatResponse), resp
-    assert resp.content == CLEAN
-    messages = [r.getMessage() for r in reason_records(caplog)]
-    assert [log_fields(m) for m in messages] == [("product_name", "1")], messages
-    assert len(claude.snapshots) == 2
-    correction = message_text(claude.snapshots[1][-1])
-    assert claude.snapshots[1][-1]["role"] == "user"
-    assert asks_removal(correction, "상품명"), correction
 
 
 @pytest.mark.parametrize("raw", [
@@ -909,7 +848,7 @@ async def test_ac4_malformed_retry_response_does_not_leak_body(raw: Any, caplog:
     """재시도 응답이 형식 오류(필수 키 누락·필드 타입 오류·잘린 JSON)면 BAD_OUTPUT으로 끝나고, 그 원문(표지 문자열)은
     로그에도 AgentError 문자열에도 없다. 거부된 첫 답의 표지도 없다. 원문·JSON 이스케이프 형태를 모두 본다(B4).
     깨끗한 세 번째 응답이 있어도 모델은 2번만 불린다. 3차 B5: 재시도가 형식 오류로 끝나도 첫 거부의 사유·시도
-    번호(recommendation, attempt=1) 레코드가 정확히 1건 남는다(재시도 결과를 본 뒤에만 사유를 기록하면 빠진다)"""
+    번호(stock_recommendation, attempt=1) 레코드가 정확히 1건 남는다(재시도 결과를 본 뒤에만 사유를 기록하면 빠진다)"""
     caplog.set_level(logging.DEBUG)
     claude = FakeClaude([
         text_resp("ANSWER", f"{BODY_SENTINEL} {RECOMMEND}"),
@@ -920,7 +859,7 @@ async def test_ac4_malformed_retry_response_does_not_leak_body(raw: Any, caplog:
     assert isinstance(result, AgentError), result
     assert result.code == "BAD_OUTPUT"
     messages = [r.getMessage() for r in reason_records(caplog)]
-    assert [log_fields(m) for m in messages] == [("recommendation", "1")], messages
+    assert [log_fields(m) for m in messages] == [("stock_recommendation", "1")], messages
     assert all(r.levelno >= logging.INFO for r in reason_records(caplog))
     assert not leaked(str(result), BODY_SENTINEL, RETRY_SENTINEL), leaked(str(result), BODY_SENTINEL, RETRY_SENTINEL)
     assert not leaked(caplog.text, BODY_SENTINEL, RETRY_SENTINEL), leaked(caplog.text, BODY_SENTINEL, RETRY_SENTINEL)
@@ -963,10 +902,10 @@ async def test_ac5_clean_answer_after_recalculate_does_not_add_model_call() -> N
 
 
 @pytest.mark.parametrize("content", [
-    "KODEX 미국S&P500은 지수를 따라가요.",          # 바꿀 수 있는 S&P500 상품명은 치환하고 재시도하지 않는다
-    f"{GENERIC}는 지수를 따라가요. 이 상품을 추천하지 않아요.",   # 부정문은 금지 표현이 아니다(CF-07)
+    "KODEX 미국S&P500은 지수를 따라가요.",          # ETF 상품명은 그대로 통과하고 재시도하지 않는다(CF-07)
+    f"{GENERIC}는 지수를 따라가요. 이 상품을 추천하지 않아요.",   # 종목명 없는 부정문은 금지 표현이 아니다(CF-07)
 ])
-async def test_ac5_replaceable_name_or_negation_does_not_retry(content: str) -> None:
+async def test_ac5_product_name_or_negation_does_not_retry(content: str) -> None:
     """(회귀 보호) 거부 사유가 아닌 본문은 재시도하지 않는다"""
     claude = FakeClaude([text_resp("ANSWER", content)])
     resp = await make_agent(claude).run(question())
@@ -1055,7 +994,7 @@ async def test_ac7_next_request_after_failed_retry_has_no_tool_choice_none(retry
 
 async def test_ac5_out_of_scope_body_with_recommendation_does_not_retry() -> None:
     """(회귀 보호) OUT_OF_SCOPE 본문은 문구표 문장으로 바뀌므로 검사·재시도하지 않는다"""
-    claude = FakeClaude([text_resp("OUT_OF_SCOPE", "이 상품을 추천해요")])
+    claude = FakeClaude([text_resp("OUT_OF_SCOPE", "삼성전자 주식을 추천해요")])
     resp = await make_agent(claude).run(question("삼성전자 살까요?"))
     assert resp.message_type == "OUT_OF_SCOPE"
     assert len(claude.calls) == 1
@@ -1101,7 +1040,7 @@ async def test_ac6_amount_from_discarded_first_answer_is_not_number_evidence() -
     표현만 빼고 같은 금액을 반복하면 NUMBER_MISMATCH다. 폐기한 첫 답은 숫자 근거가 아니다(근거는 이번 요청의
     planContext display·계산 표시값·요청 text뿐). 모델 2번이고 준비된 세 번째 응답은 쓰지 않는다"""
     claude = FakeClaude([
-        text_resp("ANSWER", f"월 999만원을 넣으면 돼요. {GENERIC}를 추천해요."),
+        text_resp("ANSWER", "월 999만원을 넣으면 돼요. 삼성전자 주식을 추천해요."),
         text_resp("ANSWER", "월 999만원을 넣으면 돼요."),
         text_resp("ANSWER", CLEAN),
     ])
@@ -1122,7 +1061,7 @@ async def test_ac6_retry_answer_keeps_successful_calc_display_as_number_evidence
     retry_body = f"월 50만원으로 바꾸면 평균 {amount}이 모여요."
     claude = FakeClaude([
         tool_resp("recalculate", {**NULLS, "monthly_saving_amount": 500_000}),
-        text_resp("ANSWER", f"월 저축액을 바꾼 결과예요. {GENERIC}를 추천해요."),
+        text_resp("ANSWER", "월 저축액을 바꾼 결과예요. 삼성전자 주식을 추천해요."),
         text_resp("ANSWER", retry_body),
     ])
     result = await outcome(make_agent(claude, calc), question("월 50만원으로 바꾸면?"))
@@ -1141,7 +1080,7 @@ async def test_ac6_retry_answer_keeps_successful_calc_display_as_number_evidence
 
 async def test_ac6_retry_answer_with_forbidden_and_unsupported_number_is_forbidden_expression() -> None:
     """첫 응답은 금지 표현만(숫자 없음), 재시도 응답은 추천 표현과 근거 없는 금액을 함께 담는다.
-    재시도 응답도 기존 검사 순서(상품명·추천 검사 → 숫자 대조)를 따라 FORBIDDEN_EXPRESSION으로 거부되고 모델은 2번이다"""
+    재시도 응답도 기존 검사 순서(종목 추천 검사 → 숫자 대조)를 따라 FORBIDDEN_EXPRESSION으로 거부되고 모델은 2번이다"""
     claude = FakeClaude([
         text_resp("ANSWER", RECOMMEND),
         text_resp("ANSWER", f"월 999만원을 넣으면 돼요. {RECOMMEND}"),
@@ -1203,8 +1142,9 @@ async def test_ac6_refusal_on_retry_follows_existing_refusal_path() -> None:
 
 # ---- 이전 실행 기획 검토(p2) plan-2~plan-8 보완. S2 기준 변경으로 minor지만 구현 전에 테스트로 둔다 ----
 
-@pytest.mark.parametrize(("body", "reason"), [(RECOMMEND, "recommendation"), (BRAND_ONLY, "product_name")],
-                         ids=["recommendation", "product_name"])
+@pytest.mark.parametrize(("body", "reason"), [(RECOMMEND, "stock_recommendation"),
+                                               (OTHER_STOCK, "stock_recommendation")],
+                         ids=["recommend", "other_stock"])
 async def test_ac4_same_reason_rejected_twice_logs_both_attempts_without_body(
     body: str, reason: str, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -1227,7 +1167,7 @@ async def test_ac4_same_reason_rejected_twice_logs_both_attempts_without_body(
 
 
 async def test_ac4_first_rejection_is_logged_even_when_retry_call_raises(caplog: pytest.LogCaptureFixture) -> None:
-    """plan-3: 재시도 모델 호출이 API 오류로 끝나도 첫 거부의 사유·시도 번호(recommendation, attempt=1) 레코드가
+    """plan-3: 재시도 모델 호출이 API 오류로 끝나도 첫 거부의 사유·시도 번호(stock_recommendation, attempt=1) 레코드가
     정확히 1건 남고 첫 본문은 로그에 없다. API 오류는 그대로 올라가고 모델은 2번이다(P-10)"""
     caplog.set_level(logging.DEBUG)
     error = anthropic.APIConnectionError(request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"))
@@ -1239,7 +1179,7 @@ async def test_ac4_first_rejection_is_logged_even_when_retry_call_raises(caplog:
         raised = e
     assert isinstance(raised, anthropic.APIConnectionError), raised
     messages = [r.getMessage() for r in reason_records(caplog)]
-    assert [log_fields(m) for m in messages] == [("recommendation", "1")], messages
+    assert [log_fields(m) for m in messages] == [("stock_recommendation", "1")], messages
     assert all(r.levelno >= logging.INFO for r in reason_records(caplog))
     assert not leaked(caplog.text, BODY_SENTINEL), leaked(caplog.text, BODY_SENTINEL)
     assert len(claude.calls) == 2
@@ -1256,7 +1196,7 @@ async def test_ac3_tool_use_with_text_block_in_retry_response_is_not_executed() 
     ])
     claude = FakeClaude([
         tool_resp("recalculate", {**NULLS, "monthly_saving_amount": 500_000}),
-        text_resp("ANSWER", f"월 저축액을 바꾼 결과예요. {GENERIC}를 추천해요."),
+        text_resp("ANSWER", "월 저축액을 바꾼 결과예요. 삼성전자 주식을 추천해요."),
         mixed,
         text_resp("ANSWER", "월 저축액을 바꾼 결과예요."),
     ])
@@ -1308,7 +1248,9 @@ async def test_ac1_direct_clarify_with_recommendation_then_clean_retry_returns_c
     """plan-6: 도구 호출 없이(계산 422 상태 없이) 나온 첫 CLARIFY 본문에 긍정 추천 표현이 있고 재시도 CLARIFY 본문이
     깨끗하면, 재시도의 확인 질문이 CLARIFY ChatResponse로 나간다. 모델 2번"""
     clean = "어떤 조건을 바꾸고 싶으세요? 월 저축액과 기간 중에서 골라 주세요."
-    claude = FakeClaude([text_resp("CLARIFY", "이 상품을 추천해요. 어떤 조건을 바꿀까요?"), text_resp("CLARIFY", clean)])
+    claude = FakeClaude([
+        text_resp("CLARIFY", "삼성전자 주식을 추천해요. 어떤 조건을 바꿀까요?"), text_resp("CLARIFY", clean),
+    ])
     resp = await outcome(make_agent(claude), question("바꾸고 싶어요"))
     assert isinstance(resp, ChatResponse), resp
     assert resp.message_type == "CLARIFY"
@@ -1363,13 +1305,13 @@ async def test_ac1_retry_type_without_server_fact_is_corrected_to_answer(retry_t
 
 
 async def test_ac2_forbidden_retry_after_recalculate_stops_without_more_calls() -> None:
-    """이번 실행 B3: 계산 뒤 첫 답은 추천 표현, 재시도 답은 금지 상품명이면 FORBIDDEN_EXPRESSION으로 끝난다.
+    """이번 실행 B3: 계산 뒤 첫 답은 추천 표현, 재시도 답도 다른 문장의 종목 추천이면 FORBIDDEN_EXPRESSION으로 끝난다.
     계산 1번, 모델 3번(계산 라운드·첫 답·재시도)이고 준비된 깨끗한 네 번째 답은 쓰지 않는다(일반 루프로 돌아가지 않는다)"""
     calc = FakeCalc()
     claude = FakeClaude([
         tool_resp("recalculate", {**NULLS, "monthly_saving_amount": 500_000}),
-        text_resp("ANSWER", f"월 저축액을 바꾼 결과예요. {GENERIC}를 추천해요."),
-        text_resp("ANSWER", f"월 저축액을 바꾼 결과예요. {BRAND_ONLY}"),
+        text_resp("ANSWER", "월 저축액을 바꾼 결과예요. 삼성전자 주식을 추천해요."),
+        text_resp("ANSWER", f"월 저축액을 바꾼 결과예요. {OTHER_STOCK}"),
         text_resp("ANSWER", "월 저축액을 바꾼 결과예요."),
     ])
     result = await outcome(make_agent(claude, calc), question("월 50만원으로 바꾸면?"))
@@ -1390,7 +1332,7 @@ async def test_ac3_retry_after_recalculate_and_search_keeps_calc_and_citations()
     claude = FakeClaude([
         tool_resp("recalculate", {**NULLS, "monthly_saving_amount": 500_000}),
         tool_resp("search_documents", {"query": "ETF란", "doc_type": "EDU"}, id_="tu_2"),
-        text_resp("ANSWER", f"월 저축액을 바꾼 결과예요. {GENERIC}를 추천해요.", citations=[11]),
+        text_resp("ANSWER", "월 저축액을 바꾼 결과예요. 삼성전자 주식을 추천해요.", citations=[11]),
         text_resp("ANSWER", retry_body, citations=[11]),
     ])
     resp = await outcome(make_agent(claude, calc, retriever), question("월 50만원으로 바꾸면?"))
@@ -1413,7 +1355,7 @@ async def test_ac4_first_rejection_is_logged_when_retry_response_is_tool_use(
     retry_tool: Any, caplog: pytest.LogCaptureFixture
 ) -> None:
     """이번 실행 B5: 첫 답이 추천 표현으로 거부되고 재시도 모델이 도구를 요청해도(PD-009로 FORBIDDEN_EXPRESSION),
-    첫 거부의 사유·시도 번호(recommendation, attempt=1) 레코드가 정확히 1건 남고 첫 본문은 로그·AgentError 문자열에
+    첫 거부의 사유·시도 번호(stock_recommendation, attempt=1) 레코드가 정확히 1건 남고 첫 본문은 로그·AgentError 문자열에
     없다. 검색·계산 0번, 모델 2번이고 준비된 세 번째 답은 쓰지 않는다"""
     caplog.set_level(logging.DEBUG)
     calc = FakeCalc()
@@ -1423,7 +1365,7 @@ async def test_ac4_first_rejection_is_logged_when_retry_response_is_tool_use(
     assert isinstance(result, AgentError), result
     assert result.code == "FORBIDDEN_EXPRESSION"
     messages = [r.getMessage() for r in reason_records(caplog)]
-    assert [log_fields(m) for m in messages] == [("recommendation", "1")], messages
+    assert [log_fields(m) for m in messages] == [("stock_recommendation", "1")], messages
     assert all(r.levelno >= logging.INFO for r in reason_records(caplog))
     assert not leaked(caplog.text, BODY_SENTINEL), leaked(caplog.text, BODY_SENTINEL)
     assert not leaked(str(result), BODY_SENTINEL), leaked(str(result), BODY_SENTINEL)

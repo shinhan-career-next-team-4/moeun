@@ -26,6 +26,7 @@ from app.llm.prompts import SYSTEM_PROMPT
 from app.main import app
 from app.schemas import ApiModel, ChatRequest, ChatResponse, DocType, RetrievedChunk
 from tests.fakes import FakeCalc
+from tests.test_out_of_scope import MarkerJudge
 
 EXAMPLES = Path(__file__).resolve().parents[2] / "docs" / "api" / "examples" / "plan-context"
 COPY = load_copy()
@@ -112,7 +113,10 @@ class FakeRetriever:
 
 
 def make_agent(claude: FakeClaude) -> ChatAgent:
-    return ChatAgent(claude, FakeCalc(), FakeRetriever(), model="claude-opus-5-5", effort="medium", max_rounds=4)
+    return ChatAgent(
+        claude, FakeCalc(), FakeRetriever(), model="claude-opus-5-5", effort="medium", max_rounds=4,
+        stock_judge=MarkerJudge(),
+    )
 
 
 def user_content(req: ChatRequest) -> str:

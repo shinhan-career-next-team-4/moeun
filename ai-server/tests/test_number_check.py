@@ -6,7 +6,7 @@
   search_documents 결과 문자열, 이전 요청의 값은 근거가 아니다.
 - 대조: 아라비아 숫자로 시작하는 금액(원·만원·억)과 N년·N개월·N달, 'N년 M월' 날짜 토큰이 근거 문자열 안에
   토큰 경계로 그대로 있어야 한다. "약"·부호 생략은 허용, 단위 환산은 하지 않는다. 한글 수사 금액은 보지 않는다(U-3, U-4).
-- 순서: 상품명·추천 검사(FORBIDDEN_EXPRESSION)가 먼저다(U-5). OUT_OF_SCOPE 본문은 대조하지 않는다(U-6).
+- 순서: 개별 종목 추천 검사(FORBIDDEN_EXPRESSION)가 먼저다(U-5). OUT_OF_SCOPE 본문은 대조하지 않는다(U-6).
 
 check_numbers 단위 테스트와 공개 진입점 ChatAgent.run 테스트를 함께 둔다. 네트워크 없이 fake만 쓴다.
 """
@@ -24,7 +24,15 @@ from app.llm.number_check import NumberMismatch, check_numbers
 from app.schemas import ChatRequest, ChatResponse, DocType, RetrievedChunk
 from app.tools.calc import CalcRejected
 from tests.fakes import FakeCalc
-from tests.test_out_of_scope import NULLS, PLAN_CONTEXT, FakeClaude, FakeRetriever, text_resp, tool_resp
+from tests.test_out_of_scope import (
+    NULLS,
+    PLAN_CONTEXT,
+    FakeClaude,
+    FakeRetriever,
+    MarkerJudge,
+    text_resp,
+    tool_resp,
+)
 
 EXAMPLES = Path(__file__).resolve().parents[2] / "docs" / "api" / "examples" / "internal-calc"
 PLAN_DISPLAY: list[str] = list(PLAN_CONTEXT["display"].values())
@@ -38,7 +46,8 @@ def calc_error(name: str) -> CalcRejected:
 
 def make_agent(claude: FakeClaude, calc: Any = None) -> ChatAgent:
     return ChatAgent(
-        claude, calc or FakeCalc(), FakeRetriever(), model="claude-opus-5-5", effort="medium", max_rounds=4
+        claude, calc or FakeCalc(), FakeRetriever(), model="claude-opus-5-5", effort="medium", max_rounds=4,
+        stock_judge=MarkerJudge(),
     )
 
 
@@ -520,23 +529,22 @@ async def test_general_explanation_without_numbers_passes_through_agent() -> Non
 
 # ---- AC-4: 검사 순서와 제외 (U-5, U-6) ----
 
-async def test_brand_only_product_name_is_rejected_before_number_check() -> None:
-    """(회귀 보호) 상품명 거부와 근거 없는 금액이 함께 있으면 FORBIDDEN_EXPRESSION이 먼저다 (U-5)"""
-    claude = FakeClaude([text_resp("ANSWER", "KODEX 200에 월 100만원 넣어 보세요.")] * 2)   # 재시도(#98)도 같은 본문
-    assert_code(await outcome(make_agent(claude), question("ETF 뭐 사요?")), "FORBIDDEN_EXPRESSION")
-
-
-async def test_recommendation_is_rejected_before_number_check() -> None:
-    """(회귀 보호) 추천 표현과 근거 없는 금액이 함께 있으면 FORBIDDEN_EXPRESSION이 먼저다 (U-5)"""
-    claude = FakeClaude([text_resp("ANSWER", "월 100만원 적금을 추천해요.")] * 2)   # 재시도(#98)도 같은 본문
+async def test_stock_recommendation_is_rejected_before_number_check() -> None:
+    """(회귀 보호) 개별 종목 추천과 근거 없는 금액이 함께 있으면 FORBIDDEN_EXPRESSION이 먼저다 (U-5)"""
+    claude = FakeClaude([text_resp("ANSWER", "삼성전자 주식에 월 100만원 넣기를 추천해요.")] * 2)   # 재시도(#98)도 같은 본문
     assert_code(await outcome(make_agent(claude), question("뭐가 좋아요?")), "FORBIDDEN_EXPRESSION")
 
 
-async def test_number_check_runs_on_body_after_product_name_replacement() -> None:
-    """(회귀 보호) 상품명을 바꾼 본문의 금액이 근거에 있으면 통과하고 'S&P500 추종 ETF'가 들어간다"""
-    claude = FakeClaude([text_resp("ANSWER", "KODEX 미국S&P500에 월 약 30만원 중 절반이 들어가요.")])
-    resp = await make_agent(claude).run(question("ETF에 얼마 들어가요?", plan_context=PLAN_CONTEXT))
-    assert GENERIC in resp.content and "KODEX" not in resp.content
+async def test_number_check_runs_on_body_with_product_name_and_etf_recommendation() -> None:
+    """(회귀 보호) 상품명·ETF 추천은 바꾸지 않는다. 금액이 근거에 있으면 통과하고, 없으면 NUMBER_MISMATCH다"""
+    body = "KODEX 미국S&P500에 월 약 30만원 중 절반이 들어가요. 이 ETF를 추천해요."
+    resp = await make_agent(FakeClaude([text_resp("ANSWER", body)])).run(
+        question("ETF에 얼마 들어가요?", plan_context=PLAN_CONTEXT)
+    )
+    assert resp.content == body
+    claude = FakeClaude([text_resp("ANSWER", "KODEX 미국S&P500에 월 777만원이 들어가요.")])
+    result = await outcome(make_agent(claude), question("ETF에 얼마 들어가요?", plan_context=PLAN_CONTEXT))
+    assert_code(result, "NUMBER_MISMATCH")
 
 
 async def test_out_of_scope_body_is_not_number_checked() -> None:

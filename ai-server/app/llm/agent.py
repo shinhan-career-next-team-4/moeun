@@ -26,13 +26,13 @@ from app.llm.assemble import (
     ALLOWED_ETF_NAMES,
     GENERIC_ETF_NAME,
     ForbiddenExpression,
+    StockRecommendationJudge,
     check_plan_etf_claims,
-    check_recommendation,
+    check_stock_recommendation,
     names_etf,
-    replace_product_names,
 )
 from app.llm.number_check import NumberMismatch, check_numbers
-from app.llm.prompts import EXPLAIN_INSTRUCTION, SYSTEM_PROMPT
+from app.llm.prompts import EXPLAIN_INSTRUCTION, STOCK_JUDGE_PROMPT, SYSTEM_PROMPT
 from app.schemas import (
     ChatMode,
     ChatRequest,
@@ -359,10 +359,11 @@ def _plan_without_etf(req: ChatRequest) -> bool:
 
 def _correction(reason: str, etf_name: str | None) -> str:
     """재시도 때 모델에게 붙이는 교정 지시. 걸린 표현을 빼거나 바꾸라고만 하고 본문은 다시 적지 않는다(P-2, P-7)."""
-    if reason == "recommendation":
+    if reason == "stock_recommendation":
         return (
-            "방금 쓴 답변은 '추천' 표현이 있어 거부됐습니다. 같은 자료로 답변을 새로 쓰되 추천 표현을 빼거나 "
-            "추천하지 않는 표현으로 바꾸고, 새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
+            "방금 쓴 답변은 개별 주식 종목을 추천하는 표현이 있어 거부됐습니다. "
+            "같은 자료로 답변을 새로 쓰되 종목 추천 표현을 빼거나 "
+            "종목을 추천하지 않는 표현으로 바꾸고, 새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
         )
     # 계획 종목이 S&P500이 아니면 계획의 종목은 표시값으로, 그 밖의 ETF는 허용 표현으로 쓰게 한다(#155, P-9).
     # 종목 표시값이 없는 ETF 0% 계획은 상품명이 나오면 재시도 없이 거부하므로 이 지시를 쓰지 않는다
@@ -401,6 +402,39 @@ class _Turn:
 ToolHandler = Callable[[_Turn, dict[str, Any]], Awaitable[str]]
 
 
+_JUDGE_TIMEOUT_SECONDS = 8.0
+
+
+def _escape_tags(text: str) -> str:
+    """본문이 </answer>로 태그를 닫고 판정 지시를 끼워 넣지 못하게 꺾쇠를 전각으로 바꾼다."""
+    return text.replace("<", "\uff1c").replace(">", "\uff1e")
+
+
+class LlmStockJudge:
+    """본문이 개별 주식 종목을 추천하는지 모델에게 묻는다(CF-07). 정확히 'false'일 때만 통과시키고,
+    true·빈 응답·형식 밖 응답은 모두 종목 추천으로 본다(거부 쪽으로 기운다)."""
+
+    def __init__(self, client: AsyncAnthropic, model: str):
+        # 판정은 응답마다 직렬로 최대 2번 더해진다. SDK 자동 재전송을 끄고 타임아웃을 짧게 한다
+        # (P-10, Spring read-timeout 30초).
+        # 테스트 대역은 with_options가 없어 실제 SDK 클라이언트일 때만 사본을 만든다
+        self._client = (
+            client.with_options(max_retries=0, timeout=_JUDGE_TIMEOUT_SECONDS)
+            if isinstance(client, AsyncAnthropic) else client
+        )
+        self._model = model
+
+    async def recommends_individual_stock(self, text: str) -> bool:
+        resp = await self._client.beta.messages.create(
+            model=self._model,
+            max_tokens=16,
+            system=STOCK_JUDGE_PROMPT,
+            messages=[BetaUserMessageParam(role="user", content=f"<answer>{_escape_tags(text)}</answer>")],
+        )
+        verdict = "".join(b.text for b in resp.content if isinstance(b, BetaTextBlock))
+        return verdict.strip(" \t\n.\"'`").lower() != "false"
+
+
 class ChatAgent:
     def __init__(
         self,
@@ -411,8 +445,10 @@ class ChatAgent:
         model: str,
         effort: Effort,
         max_rounds: int,
+        stock_judge: StockRecommendationJudge | None = None,
     ):
         self._client = client
+        self._stock_judge = stock_judge or LlmStockJudge(client, model)
         # 교정 재시도 호출은 SDK 자동 재전송을 끈다. 재전송되면 사실상 세 번째 호출이 된다(P-10, AC-6).
         # 테스트 대역은 with_options가 없어 실제 SDK 클라이언트일 때만 사본을 만든다
         self._retry_client = client.with_options(max_retries=0) if isinstance(client, AsyncAnthropic) else client
@@ -462,6 +498,7 @@ class ChatAgent:
                 case _:
                     final = _parse_final(resp)
                     try:
+                        await self._check_body(final)
                         return assemble(turn, final)
                     except _ForbiddenAnswer as e:
                         # 금지 표현이면 이미 실행한 도구 결과를 그대로 두고 모델만 한 번 다시 부른다(M-4 후속)
@@ -487,6 +524,16 @@ class ChatAgent:
             **extra,
         )
 
+    async def _check_body(self, final: FinalAnswer) -> None:
+        """M-4, CF-07: 개별 주식 종목 추천이면 거부한다. 범위 밖 답은 서버 문구로 바뀌므로 보지 않는다.
+        숫자 대조(assemble)보다 먼저 해야 거부 사유가 숫자 불일치에 가려지지 않는다(U-5)."""
+        if final.message_type == "OUT_OF_SCOPE":
+            return
+        try:
+            await check_stock_recommendation(final.content, self._stock_judge)
+        except ForbiddenExpression as e:
+            raise _ForbiddenAnswer(str(e)) from e
+
     async def _retry(self, turn: _Turn, messages: list[BetaMessageParam], reason: str) -> ChatResponse:
         """교정 지시를 붙여 모델을 한 번만 다시 부른다. 도구는 실행하지 않고 첫 호출과 같은 분기·보정을 거친다(P-4, P-6).
         거부된 첫 답은 요청에 싣지 않는다. SDK DEBUG 로그가 요청 JSON 전체를 남기기 때문이다(P-7, D-1)."""
@@ -506,6 +553,7 @@ class ChatAgent:
                 raise AgentError("FORBIDDEN_EXPRESSION", "tool_use on retry")   # PD-009. 도구를 실행하지 않는다
         final = _parse_final(retry)
         try:
+            await self._check_body(final)
             return assemble(turn, final)
         except _ForbiddenAnswer as e:
             log.warning("forbidden expression: reason=%s attempt=2 message_id=%s", e.reason, req.message_id)
@@ -815,20 +863,18 @@ def _mask_notes(content: str) -> str:
 
 
 def _checked_body(req: ChatRequest, content: str) -> str:
-    """종목명·추천 표현 검사. 상품명은 교정하고, 거부할 표현이면 _ForbiddenAnswer를 올린다."""
+    """계획 종목 표기 검사(#155). ETF 상품명은 허용(CF-07)이라 바꾸지 않는다. 개별 종목 추천은 이미 run·_retry가
+    assemble 앞에서 거른다(_check_body). 거부할 표현이면 _ForbiddenAnswer를 올린다."""
     try:
         if _plan_without_etf(req):
             # ETF 0% 계획의 종목 언급은 재시도도 문장 삭제도 없이 기존 거부로 끝낸다(#155, P-4)
             if names_etf(content):
                 raise _ForbiddenAnswer("product_name", retry=False)
-            body = content
         else:
-            body = replace_product_names(content, _plan_etf_name(req))   # M-4, D-028
-            check_plan_etf_claims(body, _plan_etf_name(req))   # 계획 종목을 다른 ETF로 바꿔 말하면 거부(#155)
-        check_recommendation(body)
+            check_plan_etf_claims(content, _plan_etf_name(req))   # 계획 종목을 다른 ETF로 바꿔 말하면 거부(#155)
     except ForbiddenExpression as e:
         raise _ForbiddenAnswer(str(e)) from e
-    return body
+    return content
 
 
 def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
@@ -862,7 +908,7 @@ def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
         content = tax_copy if tax_copy in final.content else out_of_scope_content()
     else:
         body = _checked_body(req, final.content)
-        _check_numbers(turn, body)   # PR-04. 상품명·추천 검사 뒤, 바뀐 본문을 대조한다
+        _check_numbers(turn, body)   # PR-04. 종목 추천·계획 종목 검사 뒤에 본문을 대조한다
         # 단서를 지우면 양옆 글자가 이어져 종목명·숫자가 새로 생길 수 있어 보정한 본문을 다시 검사한다(#155).
         # 숫자는 단서 자리를 끊고 본다. 단서 안의 숫자는 본문 숫자가 아니다
         content = _checked_body(req, with_tax_note(req, body))
