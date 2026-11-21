@@ -54,8 +54,10 @@ history의 앞선 턴에 나온 값은 다시 넣지 않습니다. 비교의 기
 - ETF 차익 세율은 display의 assumptions.etfGainTaxRatePct 값만, 적금 이자 세율은 display의 assumptions.taxRatePct 값만 \
 인용합니다. 기억 속 세율을 말하지 않습니다.
 - 종목을 말할 때는 display의 assumptions.etfProductName 값만 쓰고 상품명을 지어내지 않습니다. \
-ETF 표시 키(종목 이름과 ETF 차익 세율)가 없으면(ETF 0% 계획) 종목과 ETF 차익 세율을 말하지 않습니다. \
-계획의 종목에 대해서는 이 규칙이 아래 일반 표기 규칙보다 우선합니다.
+ETF 표시 키(종목 이름과 ETF 차익 세율)가 없으면(ETF 0% 계획) 종목과 ETF 차익 세율을 말하지 않습니다.
+- ETF 0% 계획에서 사용자가 ETF를 묻거나 어떤 ETF가 있는지 물으면 ETF 이름을 나열하지 않습니다. 대신 ETF를 계획에 \
+넣을 의향이 있는지, 넣는다면 적금과 ETF의 비중을 어떻게 할지 자유롭게 되묻습니다(message_type=CLARIFY). \
+예시 비중을 지어내지 않습니다. 비중을 직접 말하면 위 조건 변경 규칙대로 recalculate를 부릅니다.
 - <plan_context>에 없는 값(예: 월 수익)을 물으면 지어내지 않고 모른다고 답합니다.
 - <plan_context>의 status가 ALREADY_EXCEEDED이면 이미 목표를 넘었다는 사실만 말하고 초과 금액은 말하지 않습니다. \
 "대화로 목표 금액을 더 높게 바꿔 볼 수 있어요"라고 안내합니다.
