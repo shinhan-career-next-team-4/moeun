@@ -145,7 +145,7 @@ def out_of_scope_content() -> str:
 
 
 @dataclass
-class _Turn:
+class Turn:
     """한 요청 동안 도구가 만든 서버 쪽 사실. 모델 출력보다 이것을 믿는다."""
 
     req: ChatRequest
@@ -162,7 +162,7 @@ class _Turn:
     number_evidence: list[str] = field(default_factory=list)
 
 
-def _note_pattern(note: str) -> re.Pattern[str]:
+def note_pattern(note: str) -> re.Pattern[str]:
     """문구표 단서를 찾는 패턴. 모델이 문장 사이 공백을 줄바꿈 등으로 바꿔 써도 같은 단서로 본다."""
     return re.compile(r"\s+".join(re.escape(token) for token in note.split()))
 
@@ -191,16 +191,16 @@ def with_tax_note(req: ChatRequest, content: str) -> str:
     note, note_free = copy.get("tax.note"), copy.get("tax.noteEtfTaxFree")
     tax_free = req.plan_context.result.assumptions.etf_gain_tax_rate_pct == 0
     right, wrong = (note_free, note) if tax_free else (note, note_free)
-    right_re, wrong_re = _note_pattern(right), _note_pattern(wrong)
+    right_re, wrong_re = note_pattern(right), note_pattern(wrong)
 
     def quotes(text: str) -> bool:
         return any(_quotes_rate(text, rate) for rate in rates)
 
     # 단서 문장 안의 숫자를 세율 인용으로 오해하지 않도록 단서를 뺀 본문으로 판정한다.
     # 단서 자리에 구분자를 둬서 양옆 글자가 하나의 표시값으로 이어지지 않게 한다
-    bare = _note_pattern(note_free).sub(_NOTE_GAP, _note_pattern(note).sub(_NOTE_GAP, content))
+    bare = note_pattern(note_free).sub(_NOTE_GAP, note_pattern(note).sub(_NOTE_GAP, content))
     if not quotes(bare):
-        drop = [_note_pattern(note_free), _note_pattern(note)] if tax_free else [_note_pattern(note_free)]
+        drop = [note_pattern(note_free), note_pattern(note)] if tax_free else [note_pattern(note_free)]
         stripped = content
         for pattern in drop:
             stripped = pattern.sub("", stripped)
@@ -218,7 +218,7 @@ def with_tax_note(req: ChatRequest, content: str) -> str:
     return f"{content[:first.start()]}{right}{right_re.sub('', content[first.end():])}".rstrip()
 
 
-def _cover_orgs(turn: _Turn, citations: list[int], min_orgs: int = 2) -> list[int]:
+def _cover_orgs(turn: Turn, citations: list[int], min_orgs: int = 2) -> list[int]:
     """공시 인용이 한 운용사뿐이면 이번 검색 결과에서 가장 앞선 다른 운용사 chunk 하나를 더한다(FR-AI-03).
     검색 결과에 다른 운용사가 없으면 그대로 둔다."""
     if turn.product_filtered:
@@ -238,7 +238,7 @@ def _cover_orgs(turn: _Turn, citations: list[int], min_orgs: int = 2) -> list[in
     return [*citations, extra]
 
 
-def _number_evidence(turn: _Turn) -> list[str]:
+def _number_evidence(turn: Turn) -> list[str]:
     """본문 숫자의 근거: 이번 요청의 planContext display, 계산 응답·422 표시값, 이번 요청 text(U-1, U-2).
     history·검색 결과·이전 요청의 값은 근거가 아니다."""
     req = turn.req
@@ -246,7 +246,7 @@ def _number_evidence(turn: _Turn) -> list[str]:
     return [*plan_display, *turn.number_evidence, *([req.text] if req.text else [])]
 
 
-def _check_numbers(turn: _Turn, body: str) -> None:
+def _check_numbers(turn: Turn, body: str) -> None:
     try:
         check_numbers(body, _number_evidence(turn))
     except NumberMismatch:
@@ -257,7 +257,7 @@ def _mask_notes(content: str) -> str:
     """세금 단서 자리를 구분자로 바꾼다. 단서 문장의 글자는 보지 않고 양옆이 이어지지도 않는다."""
     copy = load_copy()
     for key in ("tax.noteEtfTaxFree", "tax.note"):
-        content = _note_pattern(copy.get(key)).sub(_NOTE_GAP, content)
+        content = note_pattern(copy.get(key)).sub(_NOTE_GAP, content)
     return content
 
 
@@ -300,7 +300,7 @@ def _fixed_copy(req: ChatRequest, content: str) -> str:
     return content
 
 
-def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
+def assemble(turn: Turn, final: FinalAnswer) -> ChatResponse:
     """DB CHECK(ck_cm_recalc/explain/out_of_scope)를 만족하도록 모델 출력을 서버 사실로 보정한다."""
     req = turn.req
     allowed = set(turn.retrieved_ids)

@@ -24,7 +24,7 @@ from app.llm.assemble import (
     MAX_CITATIONS,
     ForbiddenExpression,
     StockRecommendationJudge,
-    _Turn,
+    Turn,
     assemble,
     check_stock_recommendation,
     out_of_scope_content,
@@ -131,7 +131,7 @@ def _correction(reason: str, etf_name: str | None) -> str:
 _OUT_OF_SCOPE_ANSWER = FinalAnswer(message_type="OUT_OF_SCOPE", content="", citation_chunk_ids=[])
 
 
-ToolHandler = Callable[[_Turn, dict[str, Any]], Awaitable[str]]
+ToolHandler = Callable[[Turn, dict[str, Any]], Awaitable[str]]
 
 
 class ChatAgent:
@@ -172,7 +172,7 @@ class ChatAgent:
         if fixed is not None:
             return fixed
 
-        turn = _Turn(req)
+        turn = Turn(req)
         messages = build_messages(req)
 
         for _ in range(self._max_rounds):
@@ -233,7 +233,7 @@ class ChatAgent:
         except ForbiddenExpression as e:
             raise ForbiddenAnswer(str(e)) from e
 
-    async def _retry(self, turn: _Turn, messages: list[BetaMessageParam], reason: str) -> ChatResponse:
+    async def _retry(self, turn: Turn, messages: list[BetaMessageParam], reason: str) -> ChatResponse:
         """교정 지시를 붙여 모델을 한 번만 다시 부른다. 도구는 실행하지 않고 첫 호출과 같은 분기·보정을 거친다(P-4, P-6).
         거부된 첫 답은 요청에 싣지 않는다. SDK DEBUG 로그가 요청 JSON 전체를 남기기 때문이다(P-7, D-1)."""
         req = turn.req
@@ -258,7 +258,7 @@ class ChatAgent:
             log.warning("forbidden expression: reason=%s attempt=2 message_id=%s", e.reason, req.message_id)
             raise
 
-    async def _call_tool(self, turn: _Turn, block: BetaToolUseBlock) -> BetaToolResultBlockParam:
+    async def _call_tool(self, turn: Turn, block: BetaToolUseBlock) -> BetaToolResultBlockParam:
         handler = self._tools.get(block.name)
         try:
             if handler is None:
@@ -273,7 +273,7 @@ class ChatAgent:
             return {"type": "tool_result", "tool_use_id": block.id, "content": f"Error: {e}", "is_error": True}
         return {"type": "tool_result", "tool_use_id": block.id, "content": content}
 
-    def _on_rejected(self, turn: _Turn, block: BetaToolUseBlock, e: CalcRejected) -> BetaToolResultBlockParam:
+    def _on_rejected(self, turn: Turn, block: BetaToolUseBlock, e: CalcRejected) -> BetaToolResultBlockParam:
         if e.code == "VALIDATION_FAILED":
             turn.validation_failed = True
             turn.number_evidence.extend(
@@ -292,7 +292,7 @@ class ChatAgent:
         turn.fixed_copy_key = key
         return {"type": "tool_result", "tool_use_id": block.id, "content": f"Error: {e.code}", "is_error": True}
 
-    async def _recalculate(self, turn: _Turn, args: dict[str, Any]) -> str:
+    async def _recalculate(self, turn: Turn, args: dict[str, Any]) -> str:
         if turn.validation_failed:
             raise CalcError("허용 범위 오류를 이미 받았습니다. 값을 고쳐 다시 계산하지 말고 사용자에게 되물으세요.")
         changes = ConditionChanges.model_validate(args)
@@ -328,7 +328,7 @@ class ChatAgent:
             result = {**result, "excludedConditions": dropped, "note": EXCLUDED_NOTE}
         return json.dumps(result, ensure_ascii=False)
 
-    async def _search_documents(self, turn: _Turn, args: dict[str, Any]) -> str:
+    async def _search_documents(self, turn: Turn, args: dict[str, Any]) -> str:
         doc_type = None if args["doc_type"] == "ANY" else DocType(args["doc_type"])
         etf_codes = search_etf_codes(turn.req, doc_type, args.get("etf_codes"))
         if etf_codes:
