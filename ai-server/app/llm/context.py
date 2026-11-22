@@ -5,7 +5,7 @@ from typing import Any, Literal
 from anthropic.types.beta import BetaAssistantMessageParam, BetaMessageParam, BetaUserMessageParam
 
 from app.core.copy import load_copy
-from app.llm.assemble import _note_pattern
+from app.llm.assemble import note_pattern
 from app.llm.errors import AgentError
 from app.llm.prompts import EXPLAIN_INSTRUCTION
 from app.schemas import ChatMode, ChatRequest, ChatResponse, PlanContext
@@ -111,7 +111,7 @@ def build_messages(req: ChatRequest) -> list[BetaMessageParam]:
         if role == "assistant":
             # 코드가 붙인 세금 단서는 모델 입력에 다시 넣지 않는다(D-067, D-073)
             for note in notes:
-                content = _note_pattern(note).sub("", content)
+                content = note_pattern(note).sub("", content)
             content = content.strip()
             if not turns or not content:
                 continue

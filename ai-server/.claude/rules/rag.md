@@ -28,5 +28,5 @@ paths:
 - 공시(DISCLOSURE) 근거는 서로 다른 운용사 2곳 이상(FR-AI-03, `diversify_orgs`). 예외: 종목(`etf_codes`)을 지정한 공시 검색은 종목마다 운용사가 1곳일 수 있어 이 규칙을 적용하지 않는다(#183). 종목 필터는 공시 검색에만 건다(교육자료는 `etf_code`가 없다).
 
 ## 응답
-- `citation_chunk_ids`는 `_Turn.retrieved_ids`에 있는 것만. 근거가 없으면 빈 배열.
+- `citation_chunk_ids`는 `Turn.retrieved_ids`에 있는 것만. 근거가 없으면 빈 배열.
 - 응답 필드 조합은 `chat_message` CHECK(`../db/erd.md`)를 만족해야 한다. 보정은 `assemble` 한 곳에서 한다.
