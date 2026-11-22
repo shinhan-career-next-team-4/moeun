@@ -78,9 +78,17 @@ public class ChatAnswerListener {
             try {
                 answer = aiClient.chat(request);
             } catch (RuntimeException e) {
-                // ai-server 예외 메시지에는 응답 본문이 들어 있을 수 있어 예외를 붙이지 않고 분류·상태 코드만 남긴다
-                LOG.warn("chat.answer.aiFailed messageId={} memberId={} error={} status={}",
-                        message.id(), message.memberId(), errorKind(e), statusCode(e));
+                // ai-server 예외 메시지에는 응답 본문이 들어 있을 수 있어 예외를 붙이지 않고 분류·상태 코드만 남긴다.
+                // 값은 구조화된 필드(key-value)로 운반한다(#123 로그 계약). 문장에는 값을 넣지 않는다
+                var warn = LOG.atWarn()
+                        .addKeyValue("messageId", message.id())
+                        .addKeyValue("memberId", message.memberId())
+                        .addKeyValue("error", errorKind(e));
+                Integer status = statusCode(e);
+                if (status != null) {
+                    warn = warn.addKeyValue("status", status);
+                }
+                warn.log("chat.answer.aiFailed");
                 fail(message);
                 return;
             }
