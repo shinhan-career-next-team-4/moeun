@@ -2,23 +2,21 @@ import asyncio
 import json
 import logging
 import re
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol
+from typing import Any, Literal
 
 from anthropic import AsyncAnthropic
 from anthropic.types.beta import (
     BetaAssistantMessageParam,
-    BetaJSONOutputFormatParam,
     BetaMessageParam,
     BetaOutputConfigParam,
     BetaTextBlock,
-    BetaToolParam,
     BetaToolResultBlockParam,
     BetaToolUseBlock,
     BetaUserMessageParam,
 )
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from app.core.config import Effort
 from app.core.copy import load_copy
@@ -37,7 +35,8 @@ from app.llm.errors import AgentError, _ForbiddenAnswer
 from app.llm.number_check import NumberMismatch, check_numbers
 from app.llm.plan import ETF_TAX_RATE_KEY, TAX_RATE_KEY, _plan_etf_name, _plan_without_etf
 from app.llm.prompts import EXPLAIN_INSTRUCTION, STOCK_JUDGE_PROMPT, SYSTEM_PROMPT
-from app.rag.etf_codes import PRODUCT_DOC_CODES, doc_codes_for, product_from_display_name
+from app.llm.tools import FINAL_FORMAT, TOOLS, Calculator, DocumentSearch, FinalAnswer
+from app.rag.etf_codes import doc_codes_for, product_from_display_name
 from app.schemas import (
     ChatMode,
     ChatRequest,
@@ -46,8 +45,6 @@ from app.schemas import (
     DocType,
     MessageType,
     PlanContext,
-    RetrievedChunk,
-    Scenario,
 )
 from app.tools.calc import CalcError, CalcFailed, CalcRejected
 
@@ -102,94 +99,6 @@ def out_of_scope_content() -> str:
     names = "·".join(copy.get(key) for key in _CONDITION_COPY_KEYS)
     return f"{copy.get('outOfScope')} 대화로는 {names}을 바꿔 볼 수 있어요."
 
-
-class Calculator(Protocol):
-    async def recalculate(self, member_id: int, baseline: Scenario, changes: ConditionChanges) -> dict[str, Any]: ...
-
-
-class DocumentSearch(Protocol):
-    async def search(
-        self,
-        query: str,
-        doc_type: DocType | None = None,
-        top_k: int | None = None,
-        etf_codes: Sequence[str] | None = None,
-    ) -> list[RetrievedChunk]: ...
-
-
-def _nullable(type_: str, **extra: Any) -> dict[str, Any]:
-    return {"type": [type_, "null"], **extra}
-
-
-_CONDITION_FIELDS = {
-    "goal_amount": _nullable("integer", description="목표 금액(원)"),
-    "monthly_saving_amount": _nullable("integer", description="월 저축액(원)"),
-    "savings_ratio_pct": _nullable("integer", description="적금 비중(%), 나머지는 ETF"),
-    "savings_rate_input_pct": _nullable("number", description="적금 연 금리(%)"),
-    "target_period_months": _nullable("integer", description="목표 기한(개월)"),
-}
-
-TOOLS: list[BetaToolParam] = [
-    {
-        "name": "recalculate",
-        "description": (
-            "사용자의 현재 계획에서 일부 조건만 바꿔 Spring 계산 엔진으로 다시 계산한다. "
-            "바꿀 수 있는 조건은 목표 금액·월 저축액·적금 비중·적금 금리·기한 다섯 가지이고, "
-            "바꾸지 않는 조건은 null로 둔다. "
-            "금액은 원 단위 정수, 기한은 개월 수."
-        ),
-        "strict": True,
-        "input_schema": {
-            "type": "object",
-            "properties": _CONDITION_FIELDS,
-            "required": list(_CONDITION_FIELDS),
-            "additionalProperties": False,
-        },
-    },
-    {
-        "name": "search_documents",
-        "description": "미리 모아 둔 금융 교육자료(EDU)와 운용사 공시(DISCLOSURE)에서 관련 내용을 찾는다.",
-        "strict": True,
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "찾을 내용(한국어 문장)"},
-                "doc_type": {"type": "string", "enum": ["EDU", "DISCLOSURE", "ANY"]},
-                "etf_codes": _nullable(
-                    "array",
-                    items={"type": "string", "enum": list(PRODUCT_DOC_CODES)},
-                    description="질문이 특정 ETF를 가리킬 때만 그 종목 코드. 종목이 없는 일반 질문이면 null",
-                ),
-            },
-            "required": ["query", "doc_type", "etf_codes"],
-            "additionalProperties": False,
-        },
-    },
-]
-
-
-class FinalAnswer(BaseModel):
-    message_type: MessageType
-    content: str
-    citation_chunk_ids: list[int]
-
-
-FINAL_FORMAT: BetaJSONOutputFormatParam = {
-    "type": "json_schema",
-    "schema": {
-        "type": "object",
-        "properties": {
-            "message_type": {
-                "type": "string",
-                "enum": ["ANSWER", "EXPLANATION", "RECALC_RESULT", "CLARIFY", "OUT_OF_SCOPE"],
-            },
-            "content": {"type": "string"},
-            "citation_chunk_ids": {"type": "array", "items": {"type": "integer"}},
-        },
-        "required": ["message_type", "content", "citation_chunk_ids"],
-        "additionalProperties": False,
-    },
-}
 
 EXCLUDED_NOTE = "excludedConditions는 이번 발화에 없어 계산에서 뺐습니다. 답변에서 이 조건의 값을 말하지 마세요."
 
