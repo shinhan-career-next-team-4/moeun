@@ -12,6 +12,7 @@
 | **문구표** | `test_copy.py` | 로더(필수 키·빈 값·중복 키·환경 변수 경로) |
 | | `test_copy_cache.py` | 기본 경로 캐시(읽는 횟수, 파일 수정 반영) |
 | | `test_fixed_copy_guard.py` | 모델이 고정 문구를 바꿔 말해도 서버가 문구표 문장으로 되돌림 |
+| | `copybook/test_copy_rules.py` | 문구표 말투 규칙(면책만 격식체), 고정 문구 감지 앵커가 문구표와 어긋나지 않는지 |
 | **planContext·display 키** | `test_plan_context.py` | planContext 받기, display 허용 키 필터, 모델 입력, fixture |
 | | `test_display_contract.py` | display 키 규칙(허용·필수·누출 검사)이 분리 전과 같은지 |
 | **계산 연동** | `test_calc_client.py` | 실제 `CalcClient` + respx로 계산 응답·오류 소비 |
@@ -46,6 +47,7 @@
 | **그 밖** | `test_units.py` | 청커, 운용사 섞기, 계산 클라이언트 요청 모양, 내부 키 검사, `/chat`이 주입된 에이전트로 camelCase 응답을 내는지 |
 | | `scenarios/` | 실제 LLM으로 대화·RAG·누출 시나리오 점검(기본은 건너뜀) |
 | | `fakes/` | 공용 대역(`FakeCalc`) |
+| | `paths.py` | 새 테스트용 저장소 경로 상수(`REPO`, `COPY_FILE`) |
 
 ### 주제가 여러 파일에 걸친 것
 
