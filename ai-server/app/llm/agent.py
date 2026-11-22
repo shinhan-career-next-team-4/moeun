@@ -31,7 +31,7 @@ from app.llm.assemble import (
 )
 from app.llm.conditions import check_amount_units, drop_carried_conditions
 from app.llm.context import build_messages, check_plan_context, plan_model_input
-from app.llm.errors import AgentError, _ForbiddenAnswer
+from app.llm.errors import AgentError, ForbiddenAnswer
 from app.llm.etf import _search_etf_codes
 from app.llm.judge import LlmStockJudge
 from app.llm.plan import plan_etf_name
@@ -199,7 +199,7 @@ class ChatAgent:
                     try:
                         await self._check_body(final)
                         return assemble(turn, final)
-                    except _ForbiddenAnswer as e:
+                    except ForbiddenAnswer as e:
                         # 금지 표현이면 이미 실행한 도구 결과를 그대로 두고 모델만 한 번 다시 부른다(M-4 후속)
                         if not e.retry:
                             log.warning("forbidden expression: reason=%s attempt=1 message_id=%s", e.reason, req.message_id)
@@ -231,7 +231,7 @@ class ChatAgent:
         try:
             await check_stock_recommendation(final.content, self._stock_judge)
         except ForbiddenExpression as e:
-            raise _ForbiddenAnswer(str(e)) from e
+            raise ForbiddenAnswer(str(e)) from e
 
     async def _retry(self, turn: _Turn, messages: list[BetaMessageParam], reason: str) -> ChatResponse:
         """교정 지시를 붙여 모델을 한 번만 다시 부른다. 도구는 실행하지 않고 첫 호출과 같은 분기·보정을 거친다(P-4, P-6).
@@ -254,7 +254,7 @@ class ChatAgent:
         try:
             await self._check_body(final)
             return assemble(turn, final)
-        except _ForbiddenAnswer as e:
+        except ForbiddenAnswer as e:
             log.warning("forbidden expression: reason=%s attempt=2 message_id=%s", e.reason, req.message_id)
             raise
 

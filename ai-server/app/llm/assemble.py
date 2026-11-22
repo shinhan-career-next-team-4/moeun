@@ -4,7 +4,7 @@ from functools import cache
 from typing import Any, Protocol
 
 from app.core.copy import load_copy
-from app.llm.errors import AgentError, _ForbiddenAnswer
+from app.llm.errors import AgentError, ForbiddenAnswer
 from app.llm.number_check import NumberMismatch, check_numbers
 from app.llm.plan import ETF_TAX_RATE_KEY, TAX_RATE_KEY, plan_etf_name, plan_without_etf
 from app.llm.prompts import GOAL_AMOUNT_COPY, NO_PLAN_COPY, OUT_OF_SCOPE_TAX_COPY, SYSTEM_PROMPT
@@ -270,11 +270,11 @@ def _checked_body(req: ChatRequest, content: str) -> str:
         if plan_without_etf(req):
             # ETF 0% 계획의 종목 언급은 재시도도 문장 삭제도 없이 기존 거부로 끝낸다(#155, P-4)
             if names_etf(content):
-                raise _ForbiddenAnswer("product_name", retry=False)
+                raise ForbiddenAnswer("product_name", retry=False)
         else:
             check_plan_etf_claims(content, plan_etf_name(req))   # 계획 종목을 다른 ETF로 바꿔 말하면 거부(#155)
     except ForbiddenExpression as e:
-        raise _ForbiddenAnswer(str(e)) from e
+        raise ForbiddenAnswer(str(e)) from e
     return content
 
 
@@ -326,7 +326,7 @@ def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
     if message_type == "OUT_OF_SCOPE":
         # ETF 0% 계획은 범위 밖 답이라도 ETF 종목을 언급하면 같은 거부로 끝낸다(#155, P-4)
         if plan_without_etf(req) and names_etf(final.content):
-            raise _ForbiddenAnswer("product_name", retry=False)
+            raise ForbiddenAnswer("product_name", retry=False)
         tax_copy = load_copy().get("outOfScope.tax")
         content = tax_copy if tax_copy in final.content else out_of_scope_content()
     else:
@@ -337,7 +337,7 @@ def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
         content = _checked_body(req, with_tax_note(req, body))
         _check_numbers(turn, _mask_notes(content))
         if not content.strip():
-            raise _ForbiddenAnswer("empty_body", retry=False)   # 단서 보정 뒤 본문이 비면 정상 응답이 아니다(#155, P-10)
+            raise ForbiddenAnswer("empty_body", retry=False)   # 단서 보정 뒤 본문이 비면 정상 응답이 아니다(#155, P-10)
         copy = load_copy()
         if turn.goal_changed_note_params is not None:
             note = copy.get(

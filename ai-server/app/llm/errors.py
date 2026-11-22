@@ -6,7 +6,7 @@ class AgentError(Exception):
         self.code = code
 
 
-class _ForbiddenAnswer(AgentError):
+class ForbiddenAnswer(AgentError):
     """본문 검사(M-4)에 걸린 답. run이 사유로 재시도 여부를 정한다. 최종 거부 코드는 FORBIDDEN_EXPRESSION이다."""
 
     def __init__(self, reason: str, *, retry: bool = True):
