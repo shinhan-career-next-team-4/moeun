@@ -6,6 +6,7 @@
 import os
 import re
 from collections.abc import Mapping
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -160,10 +161,7 @@ class Copy:
         return _PLACEHOLDER.sub(replace, sentence)
 
 
-def load_copy(path: Path | None = None) -> Copy:
-    """문구표를 읽고 필수 키를 검증한다. 경로를 안 주면 환경변수, 그다음 저장소 루트 파일을 쓴다."""
-    if path is None:
-        path = Path(os.environ.get(ENV_PATH) or DEFAULT_PATH)
+def _read(path: Path) -> Copy:
     try:
         raw = yaml.load(path.read_text(encoding="utf-8"), Loader=_UniqueKeyLoader)
     except (OSError, yaml.YAMLError) as error:
@@ -180,3 +178,26 @@ def load_copy(path: Path | None = None) -> Copy:
     if missing:
         raise CopyKeyError(f"문구표에 없는 키가 있어요: {', '.join(missing)}")
     return Copy(sentences)
+
+
+# 요청 한 건에도 여러 곳이 문구표를 부르므로 기본 경로 호출은 같은 파일 버전을 한 번만 읽는다(#213).
+# 키에 수정 시각·크기를 넣어, 같은 경로의 파일을 고치면 지금처럼 바로 다시 읽고 검증한다. 예외는 캐시되지 않는다.
+# Copy는 읽기 전용이라 공유해도 된다. 옛 버전이 쌓이지 않게 개수를 제한한다.
+@lru_cache(maxsize=4)
+def _load_cached(path: Path, mtime_ns: int, size: int) -> Copy:
+    return _read(path)
+
+
+def load_copy(path: Path | None = None) -> Copy:
+    """문구표를 읽고 필수 키를 검증한다. 경로를 안 주면 환경변수, 그다음 저장소 루트 파일을 쓴다.
+
+    경로를 직접 준 호출은 매번 읽는다. 경로를 안 준 호출은 파일이 그대로면 읽어 둔 것을 돌려준다.
+    """
+    if path is not None:
+        return _read(path)
+    default = Path(os.environ.get(ENV_PATH) or DEFAULT_PATH)
+    try:
+        stat = default.stat()
+    except OSError:
+        return _read(default)   # 읽지 못한 이유를 지금과 같은 CopyKeyError로 올린다
+    return _load_cached(default, stat.st_mtime_ns, stat.st_size)
