@@ -941,6 +941,28 @@ def _checked_body(req: ChatRequest, content: str) -> str:
     return content
 
 
+# 목표 종류·보유 자산 변경 안내 문구의 마지막 문장. 모델이 문구 앞에 문장을 덧붙이거나 바꿔도 이 문장이 있으면 그 의도다.
+# 문장을 조금 바꿔 쓴 경우("보유 자산 변경은 입력 수정에서 하실 수 있어요")도 보유 자산과 입력 수정이 함께 나오면 같은 의도다
+_UNCHANGEABLE_ANCHOR = "보유 자산은 입력 수정에서 바꿀 수 있어요"
+
+
+def _is_unchangeable_answer(content: str) -> bool:
+    return _UNCHANGEABLE_ANCHOR in content or ("보유 자산" in content and "입력 수정" in content)
+
+
+def _fixed_copy(req: ChatRequest, content: str) -> str:
+    """모델이 고정 문구를 덧붙이거나 바꿔 말했으면 문구표 문장으로 되돌린다(#190).
+    실제 LLM 점검에서 모델이 "목표 금액·종목…은 대화로 바꿀 수 없어요"를 덧붙였는데 목표 금액은 대화로 바꿀 수 있다(D-090).
+    범위 밖 세제 문구를 서버가 그대로 두는 것과 같은 방식이다."""
+    copy = load_copy()
+    if _is_unchangeable_answer(content):
+        return copy.get("chat.unchangeableCondition")
+    no_plan = copy.get("chat.noPlan")
+    if req.plan_context is None and no_plan in content:
+        return no_plan
+    return content
+
+
 def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
     """DB CHECK(ck_cm_recalc/explain/out_of_scope)를 만족하도록 모델 출력을 서버 사실로 보정한다."""
     req = turn.req
@@ -971,7 +993,7 @@ def assemble(turn: _Turn, final: FinalAnswer) -> ChatResponse:
         tax_copy = load_copy().get("outOfScope.tax")
         content = tax_copy if tax_copy in final.content else out_of_scope_content()
     else:
-        body = _checked_body(req, final.content)
+        body = _checked_body(req, _fixed_copy(req, final.content))
         _check_numbers(turn, body)   # PR-04. 종목 추천·계획 종목 검사 뒤에 본문을 대조한다
         # 단서를 지우면 양옆 글자가 이어져 종목명·숫자가 새로 생길 수 있어 보정한 본문을 다시 검사한다(#155).
         # 숫자는 단서 자리를 끊고 본다. 단서 안의 숫자는 본문 숫자가 아니다
