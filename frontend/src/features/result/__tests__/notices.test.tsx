@@ -53,7 +53,7 @@ describe("결과 화면의 면책·과거 수익률 고지 (#59)", () => {
     await screen.findByLabelText("내 계획 조건");
   }
 
-  it("면책 문구는 문구표의 disclaimer 키 문장이다", () => {
+  it("COPY 상수가 면책·과거 수익률 고지 문장을 담고 있다", () => {
     expect(COPY.disclaimer).toContain(DISCLAIMER_PHRASE);
     expect(COPY["result.scenarioNotice"]).toContain(SCENARIO_NOTICE_PHRASE);
   });
@@ -74,7 +74,7 @@ describe("결과 화면의 면책·과거 수익률 고지 (#59)", () => {
     });
 
     it(
-      hasScenarios ? "과거 수익률 고지가 3구간 카드 아래에 있다" : "3구간이 없으면 과거 수익률 고지도 없다",
+      hasScenarios ? "과거 수익률 고지가 비교 카드 아래에 있다" : "카드가 없으면 과거 수익률 고지도 없다",
       async () => {
         await renderResult(body);
 

@@ -1,6 +1,6 @@
 """문구표 헤더의 규칙을 코드로 확인한다(#59, CP-05, D-066). 헤더: "문체는 해요체. 면책(disclaimer)만 격식체 문장을 섞는다."
 
-이 파일은 문구표 값을 직접 읽는다. 로더(app.core.copy)를 거치지 않아 로더의 검증과 독립이다.
+말투 검사는 문구표 YAML을 직접 읽어 로더(app.core.copy)와 독립이다. 앵커 검사만 로더로 문장을 읽는다.
 """
 
 import re
@@ -11,7 +11,7 @@ from app.core.copy import load_copy
 from app.llm.assemble import _UNCHANGEABLE_ANCHOR
 from tests.paths import COPY_FILE
 
-FORMAL_ENDING = re.compile(r"(합니다|습니다|입니다|십시오|바랍니다)")
+FORMAL_ENDING = re.compile(r"(니다|니까|십시오)")   # ~합니다·~됩니다·~드립니다·~있습니까·~하십시오
 
 
 def flatten(prefix: str, node: object, out: dict[str, str]) -> dict[str, str]:
