@@ -35,6 +35,7 @@ from app.llm.assemble import (
 )
 from app.llm.errors import AgentError, _ForbiddenAnswer
 from app.llm.number_check import NumberMismatch, check_numbers
+from app.llm.plan import ETF_TAX_RATE_KEY, TAX_RATE_KEY, _plan_etf_name, _plan_without_etf
 from app.llm.prompts import EXPLAIN_INSTRUCTION, STOCK_JUDGE_PROMPT, SYSTEM_PROMPT
 from app.rag.etf_codes import PRODUCT_DOC_CODES, doc_codes_for, product_from_display_name
 from app.schemas import (
@@ -212,8 +213,6 @@ _CALCULATED_DISPLAY_KEYS = (
 )
 _SCENARIO_DISPLAY_KEYS = ("afterTaxAsset", "principal", "afterTaxGain", "gapToGoal")
 _EXCEEDED_DISPLAY_KEYS = ("goalAmount", "conditions.heldAssets")
-TAX_RATE_KEY = "assumptions.taxRatePct"
-ETF_TAX_RATE_KEY = "assumptions.etfGainTaxRatePct"
 
 # 도구 실패로 보고 모델에게 is_error 결과로 돌려줄 예외. 그 밖의 예외는 요청 실패로 올린다
 _TOOL_ERRORS = (CalcError, ValidationError, KeyError, ValueError, RuntimeError)
@@ -354,14 +353,6 @@ def drop_carried_conditions(text: str, changes: ConditionChanges) -> ConditionCh
     return ConditionChanges.model_validate({k: v for k, v in changes.changed().items() if k in stated})
 
 
-ETF_NAME_KEY = "assumptions.etfProductName"
-
-
-def _plan_etf_name(req: ChatRequest) -> str | None:
-    """계획이 쓴 종목의 표시값. 없으면 None이고 일반 표현은 'S&P500 추종 ETF'다(#155, CP-06)."""
-    return (req.plan_context.display.get(ETF_NAME_KEY) or None) if req.plan_context else None
-
-
 def _plan_product(req: ChatRequest) -> str | None:
     """계획의 종목 코드. Spring이 준 etfProductCode를 우선하고(모르는 코드는 doc_codes_for가 버려 필터가 없다),
     없을 때(구버전 요청·ETF 0%)만 표시 이름의 키워드로 읽는다(#186)."""
@@ -393,11 +384,6 @@ def _search_etf_codes(req: ChatRequest, doc_type: DocType | None, asked: object)
     if not codes and plan_product and req.text and _MY_ETF.search(req.text):
         codes = doc_codes_for([plan_product])
     return codes
-
-
-def _plan_without_etf(req: ChatRequest) -> bool:
-    """planContext는 있지만 종목 표시값이 없다(ETF 0%). planContext가 없는 일반 질문과 구분한다(#155, P-3·P-4)."""
-    return req.plan_context is not None and _plan_etf_name(req) is None
 
 
 def _correction(reason: str, etf_name: str | None) -> str:
