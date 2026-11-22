@@ -1,10 +1,8 @@
 import asyncio
 import json
 import logging
-import re
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any
 
 from anthropic import AsyncAnthropic
 from anthropic.types.beta import (
@@ -31,20 +29,20 @@ from app.llm.assemble import (
     check_stock_recommendation,
     out_of_scope_content,
 )
+from app.llm.conditions import check_amount_units, drop_carried_conditions
+from app.llm.context import build_messages, check_plan_context, plan_model_input
 from app.llm.errors import AgentError, _ForbiddenAnswer
-from app.llm.number_check import NumberMismatch, check_numbers
-from app.llm.plan import ETF_TAX_RATE_KEY, TAX_RATE_KEY, _plan_etf_name, _plan_without_etf
-from app.llm.prompts import EXPLAIN_INSTRUCTION, STOCK_JUDGE_PROMPT, SYSTEM_PROMPT
+from app.llm.etf import _search_etf_codes
+from app.llm.judge import LlmStockJudge
+from app.llm.plan import _plan_etf_name
+from app.llm.prompts import SYSTEM_PROMPT
 from app.llm.tools import FINAL_FORMAT, TOOLS, Calculator, DocumentSearch, FinalAnswer
-from app.rag.etf_codes import doc_codes_for, product_from_display_name
 from app.schemas import (
     ChatMode,
     ChatRequest,
     ChatResponse,
     ConditionChanges,
     DocType,
-    MessageType,
-    PlanContext,
 )
 from app.tools.calc import CalcError, CalcFailed, CalcRejected
 
@@ -83,23 +81,6 @@ class _RedactRequestBody(logging.Filter):
 logging.getLogger("anthropic._base_client").addFilter(_RedactRequestBody())
 
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
-MAX_CITATIONS = 5
-_CONDITION_COPY_KEYS = (
-    "condition.goalAmount",
-    "condition.monthlySavingAmount",
-    "condition.savingsRatioPct",
-    "condition.savingsRateInputPct",
-    "condition.targetPeriodMonths",
-)
-
-
-def out_of_scope_content() -> str:
-    """범위 밖 안내. 모델 문장 대신 문구표 문장과 대화로 바꿀 수 있는 5개 조건 이름을 잇는다(D-090·D-092)."""
-    copy = load_copy()
-    names = "·".join(copy.get(key) for key in _CONDITION_COPY_KEYS)
-    return f"{copy.get('outOfScope')} 대화로는 {names}을 바꿔 볼 수 있어요."
-
-
 EXCLUDED_NOTE = "excludedConditions는 이번 발화에 없어 계산에서 뺐습니다. 답변에서 이 조건의 값을 말하지 마세요."
 
 # Spring이 모델 없이 고정 문장으로 답하라고 거절한 코드 → 문구표 키(D-056)
@@ -109,190 +90,8 @@ _FIXED_COPY_KEYS = {
     "ALREADY_EXCEEDED": "chat.alreadyExceeded",
 }
 
-_CALCULATED_DISPLAY_KEYS = (
-    "goalAmount",
-    "calcStartMonth",
-    "targetMonth",
-    "conditions.heldAssets",
-    "conditions.monthlySavingAmount",
-    "conditions.targetPeriodMonths",
-    "conditions.savingsRatioPct",
-    "conditions.savingsRateInputPct",
-    "assumptions.taxRatePct",   # D-060
-)
-_SCENARIO_DISPLAY_KEYS = ("afterTaxAsset", "principal", "afterTaxGain", "gapToGoal")
-_EXCEEDED_DISPLAY_KEYS = ("goalAmount", "conditions.heldAssets")
-
 # 도구 실패로 보고 모델에게 is_error 결과로 돌려줄 예외. 그 밖의 예외는 요청 실패로 올린다
 _TOOL_ERRORS = (CalcError, ValidationError, KeyError, ValueError, RuntimeError)
-
-
-# 이번 발화가 그 조건을 가리키는지 보는 느슨한 표현. 자연어를 해석하거나 계산하지 않고, 표현이 없을 때만 값을 뺀다.
-# "개월"의 월, "원래"의 원, "한 달"의 달처럼 다른 조건의 글자가 겹치지 않게 정규식으로 가린다(M-3)
-# 한글 수사. 이/일/사/오 한 글자는 이번·일단·사람·오늘 같은 어휘와 겹치므로 십·백·천이 붙은 것만 수사로 보고,
-# 한 글자+만(오만, 삼만)은 뒤에 금액 동작이나 단위(원·씩·으로·정도·더·올·늘 등)가 올 때만 금액으로 본다.
-# 문장 끝의 "오늘은 이만", "일만 하자"는 금액이 아니다. 앞에 한글이 붙은 것(하십시오)은 제외하고,
-# 십·백·천 수사 뒤에는 조사·단위나 한글이 아닌 글자가 와야 한다(이만큼, 백화점, 십분 제외).
-# 오류 방향이 둘이다. 십·백·천 수사의 조사 목록을 넓히면 세는 수가 늘어 필터가 꺼지는 쪽(이전 값이 남는 쪽)으로만
-# 틀리지만, 한 글자+만을 못 세면 사용자가 말한 금액이 지워지는 쪽으로 틀린다. 그래서 한 글자+만의 뒤 말 목록은
-# 금액 동작을 넓게 잡고, 어느 쪽이 맞는지 알 수 없는 입력은 센다(값을 남긴다). "천만에요"류 관용구만 뺀다
-_KO_DIGIT = "[일이삼사오육칠팔구]"
-_KO_FOLLOW = (
-    r"(?=원|으로|로|이|가|은|는|를|을|씩|짜리|퍼|프로|개월|년|달|도|면|에(?!요)|쯤|까지|부터|정도|나|밖에|마다|과|와|보다"
-    r"|(?![가-힣]))"
-)
-_KO_ONE_DIGIT_MAN_FOLLOW = r"(?=\s?(?:원|씩|으로|로|정도|쯤|이나|더|덜|올|늘|줄|넣|빼|추가))"
-_KO_IDIOM = r"(?!천만에\s*(?:요|그|아니|별|무슨|괜찮|말씀|뭘))"
-_KO_TENS = rf"(?:{_KO_DIGIT}?[십백천])+{_KO_DIGIT}?"
-_KO_MAN = (
-    rf"(?<![가-힣]){_KO_IDIOM}(?:{_KO_TENS}만{_KO_FOLLOW}|{_KO_DIGIT}만{_KO_ONE_DIGIT_MAN_FOLLOW})"
-)
-_KO_NUMERAL = rf"{_KO_MAN}|(?<![가-힣]){_KO_TENS}{_KO_FOLLOW}"
-_GOAL = re.compile(r"목표(?!\s*(?:기간|기한|일|까지))|모으려|모을")
-_HELD = re.compile(r"보유|가진|모아\s?둔|모았|이미|지금\s*있는")
-_MONTHLY_EXPLICIT = re.compile(r"(?<!개)월|매달|한\s?달|저축(?!\s*기간)|납입|적립")
-_MONTHLY = re.compile(rf"{_MONTHLY_EXPLICIT.pattern}|\d\s*만|{_KO_MAN}|만원|\d\s*원")
-_PERIOD = re.compile(r"기간|기한|개월|년|\d\s*달")
-# 적금·예금 바로 뒤에 금리 단어가 오면 상품 이름이 아니라 금리를 꾸미는 말이다
-_RATIO_WORDS = re.compile(r"비중|비율|반반|etf|주식|배분|(?:예금|적금)(?!\s*(?:금리|이율|이자))")
-# '줄이자'·'높이자'의 -이자는 제외한다. 이자율, 앞에 한글이 없는 이자, 적금이자·예금이자만 금리로 본다
-_RATE_WORDS = re.compile(r"금리|이율|이자율|(?<![가-힣])이자|(?<=금)이자")
-_PERCENT = re.compile(r"%|퍼센트|프로|퍼")
-_NUMBER = re.compile(rf"\d+(?:\.\d+)?|{_KO_NUMERAL}")
-_THOUSANDS_COMMA = re.compile(r"(?<=\d),(?=\d{3})")
-# "3년 6개월", "5년(60개월)", "60개월(5년)"은 기간 하나를 두 단위로 말한 것이다
-_PERIOD_COMPOUND = re.compile(r"\d+\s*년\s*\(?\s*\d+\s*개월\s*\)?|\d+\s*개월\s*\(?\s*\d+\s*년\s*\)?")
-_KO_DIGIT_VALUES = dict(zip("일이삼사오육칠팔구", range(1, 10), strict=True))
-_KO_UNIT_VALUES = {"십": 10, "백": 100, "천": 1000}
-_AMOUNT_EXPR = re.compile(
-    rf"({_NUMBER.pattern})\s*(?:억\s*(?:({_NUMBER.pattern})\s*만\s*원?)?|만\s*원?|원)?"
-)
-
-
-def _parse_ko_numeral(token: str) -> float | None:
-    try:
-        return float(token)
-    except ValueError:
-        pass
-    if token.endswith("만"):
-        base = _parse_ko_numeral(token[:-1])
-        return None if base is None else base * 10_000
-    total = 0
-    current = 0
-    for ch in token:
-        if ch in _KO_DIGIT_VALUES:
-            current = _KO_DIGIT_VALUES[ch]
-        elif ch in _KO_UNIT_VALUES:
-            total += (current or 1) * _KO_UNIT_VALUES[ch]
-            current = 0
-        else:
-            return None
-    return float(total + current)
-
-
-def _candidate_krw_amounts(text: str) -> set[int]:
-    """발화의 숫자·단위 표현에서 나올 수 있는 원 단위 금액 후보 집합(기존 _NUMBER·_THOUSANDS_COMMA 재사용)."""
-    cleaned = _THOUSANDS_COMMA.sub("", text)
-    candidates: set[int] = set()
-    for match in _AMOUNT_EXPR.finditer(cleaned):
-        full = match.group(0)
-        n1 = _parse_ko_numeral(match.group(1))
-        if n1 is None:
-            continue
-        if "억" in full:
-            total = round(n1 * 100_000_000)
-            if match.group(2):
-                n2 = _parse_ko_numeral(match.group(2))
-                if n2 is not None:
-                    total += round(n2 * 10_000)
-            candidates.add(total)
-        elif "만" in full:
-            candidates.add(round(n1 if match.group(1).endswith("만") else n1 * 10_000))
-        else:
-            candidates.add(round(n1))
-    return candidates
-
-
-def check_amount_units(text: str, changes: ConditionChanges) -> bool:
-    """1단계 goal_amount 추출 값이 발화의 숫자·단위 표현과 맞는지 대조한다(CF12-9-3)."""
-    if changes.goal_amount is None:
-        return True
-    lowered = text.lower()
-    if _count_numbers(lowered) == 0:
-        return True
-    return changes.goal_amount in _candidate_krw_amounts(lowered)
-
-
-def _count_numbers(text: str) -> int:
-    """발화 속 숫자 덩어리 수. 쉼표 금액(500,000)과 한 기간의 복수 단위(3년 6개월)는 하나로 센다."""
-    return len(_NUMBER.findall(_PERIOD_COMPOUND.sub("0년", _THOUSANDS_COMMA.sub("", text))))
-
-
-def _stated_conditions(text: str) -> set[str]:
-    """발화가 가리키는 조건. %는 금리·비중 단어가 있으면 그쪽에만 붙이고, 둘 다 없으면 둘 모두로 본다."""
-    ratio_words = bool(_RATIO_WORDS.search(text))
-    rate_words = bool(_RATE_WORDS.search(text))
-    percent = bool(_PERCENT.search(text))
-    goal_hit = bool(_GOAL.search(text))
-    held_hit = bool(_HELD.search(text))
-    monthly_hit = bool(_MONTHLY_EXPLICIT.search(text)) if (goal_hit or held_hit) else bool(_MONTHLY.search(text))
-    stated = {
-        "goal_amount": goal_hit,
-        "held_assets": held_hit,
-        "monthly_saving_amount": monthly_hit,
-        "savings_ratio_pct": ratio_words or (not rate_words and percent),
-        "savings_rate_input_pct": rate_words or (not ratio_words and percent),
-        "target_period_months": bool(_PERIOD.search(text)),
-    }
-    return {name for name, hit in stated.items() if hit}
-
-
-def drop_carried_conditions(text: str, changes: ConditionChanges) -> ConditionChanges:
-    """history에서 이어받은 조건을 도구 인자에서 뺀다. 비교 기준은 항상 내 계획이다(FR-AI-06, D-041).
-
-    사용자가 말한 값을 지우는 쪽이 이어받은 값이 남는 쪽보다 나쁘므로, 모호하면 남긴다. 발화의 숫자가
-    인식한 조건보다 많으면("50으로 하고 기간은 3년") 단위를 못 알아본 값이 있다고 보고 그대로 둔다.
-    쉼표 금액과 한 기간의 복수 단위는 숫자 하나로 센다.
-    표현도 숫자도 없으면 말한 값이 없으므로 전부 뺀다.
-    """
-    lowered = text.lower()
-    stated = _stated_conditions(lowered)
-    if _count_numbers(lowered) > len(stated):
-        return changes
-    return ConditionChanges.model_validate({k: v for k, v in changes.changed().items() if k in stated})
-
-
-def _plan_product(req: ChatRequest) -> str | None:
-    """계획의 종목 코드. Spring이 준 etfProductCode를 우선하고(모르는 코드는 doc_codes_for가 버려 필터가 없다),
-    없을 때(구버전 요청·ETF 0%)만 표시 이름의 키워드로 읽는다(#186)."""
-    if req.plan_context is None:
-        return None
-    code = req.plan_context.result.assumptions.etf_product_code
-    return code if code is not None else product_from_display_name(_plan_etf_name(req))
-
-
-PLAN_PRODUCT = "PLAN"   # 모델이 "내 계획의 ETF"를 가리킬 때 쓰는 표시. 코드는 서버가 계획에서 읽는다
-
-
-# 발화가 내 계획의 ETF를 가리키는 말. "내가 모르는 ETF"처럼 앞 글자가 한글로 이어지는 말은 가리키지 않는다
-_MY_ETF = re.compile(r"(?<![가-힣])(?:내|이|지금|우리)\s*(?:계획의\s*)?(?:ETF|이티에프)", re.IGNORECASE)
-
-
-def _search_etf_codes(req: ChatRequest, doc_type: DocType | None, asked: object) -> list[str]:
-    """검색을 좁힐 문서 etf_code(#183). 공시 검색에서 모델이 종목을 가리킨 경우에만 걸고, 아니면 빈 목록(필터 없음)이다.
-    교육자료는 etf_code 없이 적재돼 필터를 걸면 근거가 0건이 되므로 공시(DISCLOSURE)에만 건다. 모델이 쓴 코드는
-    enum에 있는 것만 받고, 질문이 계획의 종목을 가리키면(PLAN) 코드는 계획의 etfProductCode(없으면 표시 이름)에서
-    서버가 읽는다. 모델이 종목을 정하지 않았어도 사용자 발화가 "내 ETF"처럼 계획의 ETF를 가리키면 계획의 종목으로 건다
-    (실제 LLM 점검에서 모델이 PLAN을 빼먹어 다른 종목 문서를 인용한 적이 있다, #189)."""
-    if doc_type != DocType.DISCLOSURE:
-        return []
-    plan_product = _plan_product(req)
-    asked_products = [p for p in asked if isinstance(p, str)] if isinstance(asked, list) else []
-    products = [plan_product if p == PLAN_PRODUCT else p for p in asked_products]
-    codes = doc_codes_for([p for p in products if p])
-    if not codes and plan_product and req.text and _MY_ETF.search(req.text):
-        codes = doc_codes_for([plan_product])
-    return codes
 
 
 def _correction(reason: str, etf_name: str | None) -> str:
