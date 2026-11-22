@@ -29,9 +29,9 @@ uv run uvicorn app.main:app --reload --port 8000
 | `app/main.py` | 앱 생성, lifespan, 라우터 등록, 예외 핸들러 |
 | `app/api/` | 라우터(`health.py`, `chat.py`, `rag.py`), 의존성(`deps.py`) |
 | `app/core/` | 설정(`config.py`), DB 풀(`db.py`), 내부 키 검사(`security.py`), Spring에 돌려주는 에러 코드(`errors.py`의 `ErrorCode`) |
-| `app/llm/` | 대화 흐름(LangGraph로 전환 예정, 현재는 SDK 에이전트 루프), 도구 정의, 프롬프트. `agent.py`(`ChatAgent` 루프, 기존 import 경로 재수출), `assemble.py`(본문 검사·응답 보정·`Turn`), `context.py`(planContext 검사·모델 입력), `tools.py`(도구 스키마·`FinalAnswer`), `conditions.py`(발화 조건·금액 파싱), `etf.py`(검색 종목 필터), `judge.py`(종목 추천 판정 모델), `plan.py`(계획 표시값 읽기, `app.llm`을 import하지 않음), `errors.py`(`AgentError`) |
+| `app/llm/` | 대화 흐름(LangGraph로 전환 예정, 현재는 SDK 에이전트 루프), 도구 정의, 프롬프트. `agent.py`(`ChatAgent` 루프, 기존 import 경로 재수출), `assemble.py`(본문 검사·응답 보정·`Turn`), `context.py`(planContext 검사·모델 입력), `tools.py`(도구 스키마·`FinalAnswer`), `conditions.py`(발화 조건·금액 파싱), `etf.py`(검색 종목 필터), `judge.py`(종목 추천 판정 모델), `plan.py`(계획 표시값 읽기, `app.llm`을 import하지 않음), `errors.py`(`AgentError`, `ForbiddenReason`) |
 | `app/rag/` | 임베딩, 검색, 입력(재질문) → 검색어 |
-| `app/tools/` | 외부 호출 클라이언트(Spring 계산) |
+| `app/tools/` | 외부 호출 클라이언트(Spring 계산, 받는 쪽 거절 코드 `SpringRejectCode`) |
 | `app/ingest/` | 문서 적재 CLI, 청킹 |
 | `app/schemas.py` | Spring과 주고받는 모델(`ApiModel`, JSON camelCase) |
 
