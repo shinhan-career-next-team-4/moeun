@@ -182,7 +182,7 @@ def _read(path: Path) -> Copy:
 
 # 요청 한 건에도 여러 곳이 문구표를 부르므로 기본 경로 호출은 같은 파일 버전을 한 번만 읽는다(#213).
 # 키에 수정 시각·크기를 넣어, 같은 경로의 파일을 고치면 지금처럼 바로 다시 읽고 검증한다. 예외는 캐시되지 않는다.
-# Copy는 읽기 전용이라 공유해도 된다. 옛 버전이 쌓이지 않게 개수를 제한한다
+# Copy는 읽기 전용이라 공유해도 된다. 옛 버전이 쌓이지 않게 개수를 제한한다.
 @lru_cache(maxsize=4)
 def _load_cached(path: Path, mtime_ns: int, size: int) -> Copy:
     return _read(path)

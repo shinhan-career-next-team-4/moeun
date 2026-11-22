@@ -4,6 +4,7 @@
 """
 
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -80,6 +81,20 @@ def test_rewriting_the_same_file_is_picked_up(monkeypatch: pytest.MonkeyPatch, t
     assert len(reads) == 2
 
 
+def test_same_size_but_newer_file_is_picked_up(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, reads: list[int]):
+    """크기가 같아도 수정 시각이 달라지면 다시 읽는다. 키의 수정 시각 쪽 분기를 따로 확인한다."""
+    path = tmp_path / "copy.yml"
+    monkeypatch.setenv(ENV, str(write_variant(path, "가나다")))
+    assert load_copy().get("goal.HOUSE") == "가나다"
+
+    write_variant(path, "라마바")   # 글자 수가 같아 크기도 같다
+    stamp = path.stat().st_mtime_ns + 5_000_000_000
+    os.utime(path, ns=(stamp, stamp))
+
+    assert load_copy().get("goal.HOUSE") == "라마바"
+    assert len(reads) == 2
+
+
 def test_explicit_path_is_read_every_time(reads: list[int]):
     load_copy(COPY_PATH)
     load_copy(COPY_PATH)
@@ -147,4 +162,4 @@ async def test_two_chat_requests_read_the_file_at_most_once(reads: list[int]):
     second = await agent.run(question("분산 투자는?"))
 
     assert first.message_type == second.message_type == "ANSWER"
-    assert len(reads) <= 1
+    assert len(reads) == 1   # 캐시를 비운 뒤라 첫 요청이 한 번 읽고 둘째 요청은 읽지 않는다
