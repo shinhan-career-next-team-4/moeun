@@ -45,7 +45,7 @@ from app.schemas import (
     ConditionChanges,
     DocType,
 )
-from app.tools.calc import CalcError, CalcFailed, CalcRejected
+from app.tools.calc import CalcError, CalcFailed, CalcRejected, SpringRejectCode
 
 # 책임별 모듈로 옮긴 이름도 기존 import 경로(app.llm.agent)로 계속 쓸 수 있게 다시 내보낸다(#199)
 __all__ = [
@@ -85,10 +85,10 @@ FALLBACK_BETA = "server-side-fallback-2026-07-01"
 EXCLUDED_NOTE = "excludedConditions는 이번 발화에 없어 계산에서 뺐습니다. 답변에서 이 조건의 값을 말하지 마세요."
 
 # Spring이 모델 없이 고정 문장으로 답하라고 거절한 코드 → 문구표 키(D-056)
-_FIXED_COPY_KEYS = {
-    "FIELD_NOT_CHANGEABLE": "chat.unchangeableCondition",
-    "NO_PLAN": "chat.noPlan",
-    "ALREADY_EXCEEDED": "chat.alreadyExceeded",
+_FIXED_COPY_KEYS: dict[str, str] = {
+    SpringRejectCode.FIELD_NOT_CHANGEABLE: "chat.unchangeableCondition",
+    SpringRejectCode.NO_PLAN: "chat.noPlan",
+    SpringRejectCode.ALREADY_EXCEEDED: "chat.alreadyExceeded",
 }
 
 # 도구 실패로 보고 모델에게 is_error 결과로 돌려줄 예외. 그 밖의 예외는 요청 실패로 올린다
@@ -275,7 +275,7 @@ class ChatAgent:
         return {"type": "tool_result", "tool_use_id": block.id, "content": content}
 
     def _on_rejected(self, turn: Turn, block: BetaToolUseBlock, e: CalcRejected) -> BetaToolResultBlockParam:
-        if e.code == "VALIDATION_FAILED":
+        if e.code == SpringRejectCode.VALIDATION_FAILED:
             turn.validation_failed = True
             turn.number_evidence.extend(
                 v for item in e.errors for k in ("minDisplay", "maxDisplay") if isinstance(v := item.get(k), str)

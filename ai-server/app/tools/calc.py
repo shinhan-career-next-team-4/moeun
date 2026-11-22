@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Any
 
 import httpx
@@ -13,8 +14,18 @@ class CalcError(Exception):
     """계산을 못 했다(빈 변경 등). 모델에게 is_error 결과로 돌려준다."""
 
 
+class SpringRejectCode(StrEnum):
+    """Spring 계산 서버가 422·409로 돌려주는 거절 코드. 받는 쪽 계약이라 ai-server가 내보내는 ErrorCode와 섞지 않는다."""
+
+    VALIDATION_FAILED = "VALIDATION_FAILED"
+    FIELD_NOT_CHANGEABLE = "FIELD_NOT_CHANGEABLE"
+    NO_PLAN = "NO_PLAN"
+    ALREADY_EXCEEDED = "ALREADY_EXCEEDED"
+
+
 class CalcRejected(Exception):
-    """Spring이 422·409로 거절했다. 본문을 파싱한 구조화 오류이며 자르지 않는다(C3-2)."""
+    """Spring이 422·409로 거절했다. 본문을 파싱한 구조화 오류이며 자르지 않는다(C3-2).
+    code는 Spring 본문의 문자열 그대로다. 모르는 코드도 올 수 있어 SpringRejectCode로 바꾸지 않는다."""
 
     def __init__(self, code: str, errors: list[dict[str, Any]]):
         super().__init__(f"{code}: {errors}")
