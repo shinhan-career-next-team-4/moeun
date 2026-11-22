@@ -32,7 +32,7 @@ from app.llm.assemble import (
 from app.llm.conditions import check_amount_units, drop_carried_conditions
 from app.llm.context import build_messages, check_plan_context, plan_model_input
 from app.llm.errors import AgentError, ForbiddenAnswer
-from app.llm.etf import _search_etf_codes
+from app.llm.etf import search_etf_codes
 from app.llm.judge import LlmStockJudge
 from app.llm.plan import plan_etf_name
 from app.llm.prompts import SYSTEM_PROMPT
@@ -330,7 +330,7 @@ class ChatAgent:
 
     async def _search_documents(self, turn: _Turn, args: dict[str, Any]) -> str:
         doc_type = None if args["doc_type"] == "ANY" else DocType(args["doc_type"])
-        etf_codes = _search_etf_codes(turn.req, doc_type, args.get("etf_codes"))
+        etf_codes = search_etf_codes(turn.req, doc_type, args.get("etf_codes"))
         if etf_codes:
             chunks = await self._retriever.search(args["query"], doc_type, etf_codes=etf_codes)
         else:

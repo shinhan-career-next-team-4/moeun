@@ -21,7 +21,7 @@ PLAN_PRODUCT = "PLAN"   # 모델이 "내 계획의 ETF"를 가리킬 때 쓰는 
 _MY_ETF = re.compile(r"(?<![가-힣])(?:내|이|지금|우리)\s*(?:계획의\s*)?(?:ETF|이티에프)", re.IGNORECASE)
 
 
-def _search_etf_codes(req: ChatRequest, doc_type: DocType | None, asked: object) -> list[str]:
+def search_etf_codes(req: ChatRequest, doc_type: DocType | None, asked: object) -> list[str]:
     """검색을 좁힐 문서 etf_code(#183). 공시 검색에서 모델이 종목을 가리킨 경우에만 걸고, 아니면 빈 목록(필터 없음)이다.
     교육자료는 etf_code 없이 적재돼 필터를 걸면 근거가 0건이 되므로 공시(DISCLOSURE)에만 건다. 모델이 쓴 코드는
     enum에 있는 것만 받고, 질문이 계획의 종목을 가리키면(PLAN) 코드는 계획의 etfProductCode(없으면 표시 이름)에서
