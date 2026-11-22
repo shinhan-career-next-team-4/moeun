@@ -3,11 +3,9 @@ from typing import Any
 
 import httpx
 
+from app.core.contract import AFTER_TAX_ASSET, CALC_SIDES, calc_scenario_key
 from app.core.errors import ErrorCode
 from app.schemas import ConditionChanges, Scenario
-
-# 모델에게 넘기는 시나리오 줄기. 원 단위 금액 키는 display 밖으로 내보내지 않는다(NFR-INT-01)
-_SIDES = ("current", "changed")
 
 
 class CalcError(Exception):
@@ -107,7 +105,8 @@ def _select_for_model(body: dict[str, Any]) -> dict[str, Any]:
         for key in ("display", "diff", "conditions"):
             if key in body:
                 selected[key] = body[key]
-        for side in _SIDES:
+        # 모델에게 넘기는 시나리오 줄기. 원 단위 금액 키는 display 밖으로 내보내지 않는다(NFR-INT-01)
+        for side in CALC_SIDES:
             selected[side] = _select_side(body[side])
     except (KeyError, TypeError) as e:
         raise CalcFailed(ErrorCode.CALC_FAILED, f"unexpected response shape: {e!r}") from e
@@ -119,9 +118,9 @@ def _check_display(body: dict[str, Any]) -> None:
     display = body.get("display")
     if not isinstance(display, dict) or not display:
         raise CalcFailed(ErrorCode.CALC_DISPLAY_MISSING, "display is empty")
-    for side in _SIDES:
+    for side in CALC_SIDES:
         for item in body[side]["scenarios"]:
-            key = f"{side}.{item['scenario']}.afterTaxAsset"
+            key = calc_scenario_key(side, item["scenario"], AFTER_TAX_ASSET)
             if key not in display:
                 raise CalcFailed(ErrorCode.CALC_DISPLAY_MISSING, f"display has no {key}")
 
