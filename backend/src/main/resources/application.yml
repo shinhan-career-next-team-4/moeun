@@ -121,6 +121,9 @@ management:
         enabled: true
 
 logging:
+  pattern:
+    # 구조화된 필드(key-value)가 콘솔에 보이도록 %kvp를 붙인다. ai-server 실패 WARN의 messageId 등이 여기로 나온다(#123)
+    console: "%clr(%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}){faint} %clr(%5p) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m %kvp%n%wEx"
   level:
     com.moeun: DEBUG
     org.springframework.modulith: INFO
