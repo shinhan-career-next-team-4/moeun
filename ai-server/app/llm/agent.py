@@ -17,6 +17,7 @@ from anthropic.types.beta import (
 from pydantic import ValidationError
 
 from app.core.config import Effort
+from app.core.contract import CHANGED_SIDE, CURRENT_SIDE, GOAL_AMOUNT, calc_condition_key
 from app.core.copy import load_copy
 from app.core.errors import ErrorCode
 from app.llm.assemble import (
@@ -320,8 +321,8 @@ class ChatAgent:
         if isinstance(display, dict):
             turn.number_evidence.extend(v for v in display.values() if isinstance(v, str))
             if "goal_amount" in turn.condition_changes:
-                cur_goal = display.get("conditions.current.goalAmount")
-                chg_goal = display.get("conditions.changed.goalAmount")
+                cur_goal = display.get(calc_condition_key(CURRENT_SIDE, GOAL_AMOUNT))
+                chg_goal = display.get(calc_condition_key(CHANGED_SIDE, GOAL_AMOUNT))
                 if isinstance(cur_goal, str) and isinstance(chg_goal, str):
                     turn.goal_changed_note_params = (cur_goal, chg_goal)
         if dropped:

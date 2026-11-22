@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from functools import cache
 from typing import Any, Protocol
 
+from app.core.contract import DISPLAY_KEY_LEAK
 from app.core.copy import load_copy
 from app.core.errors import ErrorCode
 from app.llm.errors import AgentError, ForbiddenAnswer, ForbiddenReason
@@ -21,11 +22,6 @@ ALLOWED_ETF_NAMES = ("코스피200 추종 ETF", GENERIC_ETF_NAME, "나스닥 추
 # 활용형을 따지지 않고 낱말로 거른다. 부정문("추천하지 않아요")도 판정에 넘기면 모델이 가려낸다.
 # 프롬프트가 막는 '사라고 권하는 표현'(권합니다·권장해요·사세요·매수·담아 보세요)도 같이 거른다
 _RECOMMENDATION_WORDS = re.compile(r"추천|권[유장하해합]|매수|사세요|사라고|담아\s*보세요|담으세요")
-
-
-# 본문에 display 키 이름(diff.AVG.afterTaxAssetDelta, current.AVG.afterTaxAsset, AVG.gapToGoal 등)이 그대로 나오면
-# 사용자에게 내부 이름이 보인다(NFR-USA-01, #57). 키는 값(문자열)만 인용하고 이름은 쓰지 않는다
-_DISPLAY_KEY = re.compile(r"\b(?:current|changed|diff|conditions|assumptions)\.[A-Za-z]|\b(?:GOOD|AVG|BAD)\.[A-Za-z]")
 
 
 # 본문에 내부 식별자(도구 이름·도구 인자·응답 필드·프롬프트 태그·환경 변수·내부 키 헤더)가 나오면 내부 구조가 보인다(#196).
@@ -92,8 +88,10 @@ def _sentences(content: str) -> list[tuple[str, str]]:
     return list(zip(parts[0::2], [*parts[1::2], ""], strict=True))
 
 
+# 본문에 display 키 이름(diff.AVG.afterTaxAssetDelta, current.AVG.afterTaxAsset, AVG.gapToGoal 등)이 그대로 나오면
+# 사용자에게 내부 이름이 보인다(NFR-USA-01, #57). 키는 값(문자열)만 인용하고 이름은 쓰지 않는다
 def check_display_keys(content: str) -> None:
-    if _DISPLAY_KEY.search(content):
+    if DISPLAY_KEY_LEAK.search(content):
         raise ForbiddenExpression(ForbiddenReason.INTERNAL_KEY)
 
 

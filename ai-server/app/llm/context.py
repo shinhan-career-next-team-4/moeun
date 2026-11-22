@@ -4,6 +4,13 @@ from typing import Any, Literal
 
 from anthropic.types.beta import BetaAssistantMessageParam, BetaMessageParam, BetaUserMessageParam
 
+from app.core.contract import (
+    CALCULATED_KEYS,
+    EXCEEDED_KEYS,
+    GOAL_REACH_MONTH,
+    REQUIRED_SCENARIO_FIELDS,
+    scenario_key,
+)
 from app.core.copy import load_copy
 from app.core.errors import ErrorCode
 from app.llm.assemble import note_pattern
@@ -15,21 +22,6 @@ from app.schemas import ChatMode, ChatRequest, ChatResponse, PlanContext
 log = logging.getLogger("app.llm.agent")
 
 
-_CALCULATED_DISPLAY_KEYS = (
-    "goalAmount",
-    "calcStartMonth",
-    "targetMonth",
-    "conditions.heldAssets",
-    "conditions.monthlySavingAmount",
-    "conditions.targetPeriodMonths",
-    "conditions.savingsRatioPct",
-    "conditions.savingsRateInputPct",
-    "assumptions.taxRatePct",   # D-060
-)
-_SCENARIO_DISPLAY_KEYS = ("afterTaxAsset", "principal", "afterTaxGain", "gapToGoal")
-_EXCEEDED_DISPLAY_KEYS = ("goalAmount", "conditions.heldAssets")
-
-
 def _reject(req: ChatRequest, code: ErrorCode) -> AgentError:
     # planContext 본문은 로그에 남기지 않는다. 오류 코드와 calcRunId만(C1a-8)
     log.warning("plan_context rejected: code=%s calcRunId=%s", code, req.calc_run_id)
@@ -39,13 +31,13 @@ def _reject(req: ChatRequest, code: ErrorCode) -> AgentError:
 def _missing_display(plan: PlanContext) -> bool:
     display = plan.display
     if plan.result.status == "ALREADY_EXCEEDED":
-        return any(k not in display for k in _EXCEEDED_DISPLAY_KEYS)
-    required = list(_CALCULATED_DISPLAY_KEYS)
+        return any(k not in display for k in EXCEEDED_KEYS)
+    required = list(CALCULATED_KEYS)
     for item in plan.result.scenarios:
         name = item.scenario.value
-        required.extend(f"{name}.{k}" for k in _SCENARIO_DISPLAY_KEYS)
+        required.extend(scenario_key(name, k) for k in REQUIRED_SCENARIO_FIELDS)
         if item.is_achieved:
-            required.append(f"{name}.goalReachMonth")
+            required.append(scenario_key(name, GOAL_REACH_MONTH))
     return any(k not in display for k in required)
 
 
