@@ -1,5 +1,8 @@
 import re
+from functools import cache
 from typing import Protocol
+
+from app.llm.prompts import GOAL_AMOUNT_COPY, NO_PLAN_COPY, OUT_OF_SCOPE_TAX_COPY, SYSTEM_PROMPT
 
 GENERIC_ETF_NAME = "S&P500 추종 ETF"
 # 본문에 써도 되는 ETF 표현(#155, CP-06 수정). 계획 종목 정합성 검사와 교정 지시의 대체 예가 이 상수를 읽는다
@@ -15,6 +18,39 @@ _RECOMMENDATION_WORDS = re.compile(r"추천|권[유장하해합]|매수|사세�
 # 본문에 display 키 이름(diff.AVG.afterTaxAssetDelta, current.AVG.afterTaxAsset, AVG.gapToGoal 등)이 그대로 나오면
 # 사용자에게 내부 이름이 보인다(NFR-USA-01, #57). 키는 값(문자열)만 인용하고 이름은 쓰지 않는다
 _DISPLAY_KEY = re.compile(r"\b(?:current|changed|diff|conditions|assumptions)\.[A-Za-z]|\b(?:GOOD|AVG|BAD)\.[A-Za-z]")
+
+
+# 본문에 내부 식별자(도구 이름·도구 인자·응답 필드·프롬프트 태그·환경 변수·내부 키 헤더)가 나오면 내부 구조가 보인다(#196).
+# 비밀값 자체는 모델 입력에 없지만, 이름이 새면 다음 공격의 단서가 되므로 값과 같이 막는다
+_INTERNAL_IDENTIFIER = re.compile(
+    r"recalculate|search_documents|plan_context|citation_chunk_ids|message_type|etf_codes|doc_type"
+    r"|goal_amount|monthly_saving_amount|savings_ratio_pct|savings_rate_input_pct|target_period_months"
+    r"|ANTHROPIC_[A-Z_]+|OPENAI_[A-Z_]+|INTERNAL_API_KEY|DATABASE_URL|SPRING_BASE_URL|X-Internal-[A-Za-z-]+"
+    r"|SYSTEM_PROMPT|STOCK_JUDGE_PROMPT",
+    re.IGNORECASE,
+)
+# 시스템 프롬프트 문장을 그대로 옮기면 지시문이 새는 것이다. 공백을 뺀 이 길이 이상이 이어서 같으면 옮긴 것으로 본다.
+# 조건 다섯 가지 같은 안내 문장은 정상 답에도 나오므로 사용자 안내용 줄은 프롬프트에서 빼고(_USER_FACING),
+# 창도 길게(60자) 잡는다
+_PROMPT_WINDOW = 60
+_USER_FACING = ("대화로 바꿀 수 있는 조건은",)
+
+
+def _squash(text: str) -> str:
+    return re.sub(r"\s+", "", text)
+
+
+@cache
+def _prompt_windows() -> frozenset[str]:
+    """서버 고정 문구는 본문에 나가도 되므로 프롬프트에서 뺀 뒤 창을 만든다."""
+    prompt = "\n".join(line for line in SYSTEM_PROMPT.split("\n") if not any(k in line for k in _USER_FACING))
+    for allowed in (GOAL_AMOUNT_COPY, NO_PLAN_COPY, OUT_OF_SCOPE_TAX_COPY):
+        prompt = prompt.replace(allowed, "\n")
+    return frozenset(
+        piece[i:i + _PROMPT_WINDOW]
+        for piece in (_squash(part) for part in prompt.split("\n"))
+        for i in range(len(piece) - _PROMPT_WINDOW + 1)
+    )
 
 
 class ForbiddenExpression(Exception):
@@ -51,6 +87,16 @@ def _sentences(content: str) -> list[tuple[str, str]]:
 def check_display_keys(content: str) -> None:
     if _DISPLAY_KEY.search(content):
         raise ForbiddenExpression("internal_key")
+
+
+def check_internal_leak(content: str) -> None:
+    """본문에 내부 식별자나 시스템 프롬프트 문장이 그대로 있으면 거부한다(#196)."""
+    if _INTERNAL_IDENTIFIER.search(content):
+        raise ForbiddenExpression("internal_leak")
+    squashed = _squash(content)
+    windows = _prompt_windows()
+    if any(squashed[i:i + _PROMPT_WINDOW] in windows for i in range(len(squashed) - _PROMPT_WINDOW + 1)):
+        raise ForbiddenExpression("internal_leak")
 
 
 def names_etf(content: str) -> bool:

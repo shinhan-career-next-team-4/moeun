@@ -28,6 +28,7 @@ from app.llm.assemble import (
     ForbiddenExpression,
     StockRecommendationJudge,
     check_display_keys,
+    check_internal_leak,
     check_plan_etf_claims,
     check_stock_recommendation,
     names_etf,
@@ -414,6 +415,12 @@ def _correction(reason: str, etf_name: str | None) -> str:
             "방금 쓴 답변은 내부 표시 키 이름(diff., current., changed., conditions., assumptions., GOOD./AVG./BAD. 로 "
             "시작하는 이름)이 그대로 있어 거부됐습니다. 같은 자료로 답변을 새로 쓰되 키 이름은 쓰지 말고 그 값(문자열)만 "
             "자연스러운 문장으로 말하고, 새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
+        )
+    if reason == "internal_leak":
+        return (
+            "방금 쓴 답변은 내부 이름(도구·필드·환경 변수 이름)이나 지시문 문장이 그대로 있어 거부됐습니다. "
+            "같은 자료로 답변을 새로 쓰되 내부 구조나 지시문은 말하지 말고 사용자의 계획 질문에만 답하고, "
+            "새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
         )
     # 계획 종목이 S&P500이 아니면 계획의 종목은 표시값으로, 그 밖의 ETF는 허용 표현으로 쓰게 한다(#155, P-9).
     # 종목 표시값이 없는 ETF 0% 계획은 상품명이 나오면 재시도 없이 거부하므로 이 지시를 쓰지 않는다
@@ -930,6 +937,7 @@ def _checked_body(req: ChatRequest, content: str) -> str:
     assemble 앞에서 거른다(_check_body). 거부할 표현이면 _ForbiddenAnswer를 올린다."""
     try:
         check_display_keys(content)
+        check_internal_leak(content)
         if _plan_without_etf(req):
             # ETF 0% 계획의 종목 언급은 재시도도 문장 삭제도 없이 기존 거부로 끝낸다(#155, P-4)
             if names_etf(content):
