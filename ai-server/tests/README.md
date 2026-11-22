@@ -21,7 +21,7 @@
 | | `test_agent_tools.py` | 도구 스키마, 조건 4개 축소, 되묻기 규칙 |
 | **대화 흐름** | `test_agent.py` | 기본 흐름(조건 변경, 인용 제한, 거절, 입력 검사) |
 | | `test_explain.py` | EXPLAIN·QUESTION 흐름, 검사 순서, 프롬프트 규칙, 로그 |
-| | `test_explain_review_fixes.py` | EXPLAIN 리뷰 회귀(세금 단서의 이력 유입, 검색 뒤 범위 밖 답) |
+| | `test_explain_review_fixes.py` | EXPLAIN 리뷰 회귀(세금 단서의 이력 유입, 검색 뒤 범위 밖 답, EXPLAIN의 범위 밖 답) |
 | | `test_out_of_scope.py` | 질문 3유형 분류, 범위 밖 안내 문구 |
 | | `test_out_of_scope_explain.py` | EXPLAIN에서도 범위 밖 보정이 우선 |
 | | `test_llm_error_log.py` | LLM 호출 실패의 로그와 응답 코드 |
@@ -40,20 +40,21 @@
 | | `test_etf_tax_wrong_note.py` | 계획과 다른 단서는 맞는 단서로 교체 |
 | | `test_etf_note_join.py` | 단서를 지워도 양옆 글자가 이어져 새 인용이 생기지 않음 |
 | | `test_etf_name_correction.py` | 계획 종목 표기 검사·교정 지시 |
-| | `test_etf_plan_name_claims.py` | 계획 종목을 다른 ETF로 바꿔 말하면 거부(2라운드 리뷰 B1~B6) |
-| | `test_etf_out_of_scope.py` | ETF 0% 계획의 범위 밖 답에서 종목 언급 |
-| | `test_etf0_clarify.py` | ETF 0% 계획에서 ETF를 물으면 되묻기 |
-| **그 밖** | `test_units.py` | 청커, 운용사 섞기, 계산 클라이언트 요청 모양, 내부 키 검사 |
+| | `test_etf_plan_name_claims.py` | 2라운드 리뷰 재현: 계획 종목 표기 거부(B3), 세율 인용 경계·단서 줄바꿈 중복/교체·빈 본문 거부(B1·B2·B5), 코스피 계획에서 상품명 통과(B6) |
+| | `test_etf_out_of_scope.py` | ETF 0% 계획의 범위 밖 답에서 종목을 언급하면 재시도 없이 거부 |
+| | `test_etf0_clarify.py` | ETF 0% 계획의 되묻기 규칙(시스템 프롬프트 문구)과 되묻는 답이 서버 검사를 통과하는지. 모델 행동은 수동 평가 몫 |
+| **그 밖** | `test_units.py` | 청커, 운용사 섞기, 계산 클라이언트 요청 모양, 내부 키 검사, `/chat`이 주입된 에이전트로 camelCase 응답을 내는지 |
 | | `scenarios/` | 실제 LLM으로 대화·RAG·누출 시나리오 점검(기본은 건너뜀) |
 | | `fakes/` | 공용 대역(`FakeCalc`) |
 
 ### 주제가 여러 파일에 걸친 것
 
-- **세금 단서**: `test_etf_tax*.py`, `test_etf_note_join.py`, `test_etf_plan_name_claims.py`, `test_explain.py`, `test_explain_review_fixes.py`, `test_plan_context.py`, `test_forbidden_retry.py`, 문구표 키는 `test_copy.py`
-- **재시도**: `test_forbidden_retry.py`, `test_retry_no_resend.py`, `test_etf_out_of_scope.py`
+- **세금 단서**(`tax.note`): `test_etf_tax*.py`, `test_etf_note_join.py`, `test_etf_plan_name_claims.py`, `test_explain.py`, `test_explain_review_fixes.py`, `test_plan_context.py`, `test_forbidden_retry.py`, 문구표 키는 `test_copy.py`
+- **세금 범위 밖 문구**(`outOfScope.tax`): `test_fixed_copy_guard.py`, `test_explain_review_fixes.py`, `test_explain.py`, `scenarios/test_demo_scenarios.py`
+- **재시도**: 본체는 `test_forbidden_retry.py`와 `test_retry_no_resend.py`. 금지 사유별 재시도·거부 동작은 `test_guardrails.py`(종목 추천), `test_internal_key_guard.py`·`test_internal_leak_guard.py`(내부 이름), `test_etf_name_correction.py`·`test_etf_plan_name_claims.py`(종목 표기)에도 있고, `test_etf_out_of_scope.py`는 재시도 없이 거부하는 경로다
 
 ## 알아 둘 것
 
-- 일부 파일은 다른 테스트 파일의 헬퍼를 import한다(`test_out_of_scope` 8개 파일, `test_etf_tax` 8개, `test_plan_context` 5개, `test_etf_name_correction` 4개). 이 파일들을 옮기거나 이름을 바꾸면 가져가는 파일이 깨진다.
+- 일부 파일은 다른 테스트 파일의 헬퍼를 import한다(`test_out_of_scope` 8개 파일, `test_etf_tax` 8개, `test_plan_context` 5개, `test_etf_name_correction` 4개, `test_explain`·`test_forbidden_retry` 각 1개). 이 파일들을 옮기거나 이름을 바꾸면 가져가는 파일이 깨진다.
 - 저장소 루트를 `Path(__file__).resolve().parents[N]`으로 찾는 파일이 많다. 폴더 깊이를 바꾸면 N이 달라진다.
-- `scenarios/`는 `MOEUN_RUN_LLM=1`과 `ANTHROPIC_API_KEY`가 있을 때만 돈다. 사용법은 각 파일 맨 위에 있다.
+- `scenarios/`는 `MOEUN_RUN_LLM=1`과 `ANTHROPIC_API_KEY`가 있을 때만 돈다. `test_rag_scenarios.py`는 추가로 OpenAI 키와 공시 4건이 적재된 `DATABASE_URL`이 필요하다. 사용법은 각 파일 맨 위에 있다.
