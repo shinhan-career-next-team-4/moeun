@@ -4,6 +4,7 @@ from functools import cache
 from typing import Any, Protocol
 
 from app.core.copy import load_copy
+from app.core.errors import ErrorCode
 from app.llm.errors import AgentError, ForbiddenAnswer
 from app.llm.number_check import NumberMismatch, check_numbers
 from app.llm.plan import ETF_TAX_RATE_KEY, TAX_RATE_KEY, plan_etf_name, plan_without_etf
@@ -250,7 +251,7 @@ def _check_numbers(turn: Turn, body: str) -> None:
     try:
         check_numbers(body, _number_evidence(turn))
     except NumberMismatch:
-        raise AgentError("NUMBER_MISMATCH") from None   # 불일치 토큰이 본문 전체일 수 있어 detail을 뺀다(P-7)
+        raise AgentError(ErrorCode.NUMBER_MISMATCH) from None   # 불일치 토큰이 본문 전체일 수 있어 detail을 뺀다(P-7)
 
 
 def _mask_notes(content: str) -> str:

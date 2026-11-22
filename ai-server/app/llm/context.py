@@ -5,6 +5,7 @@ from typing import Any, Literal
 from anthropic.types.beta import BetaAssistantMessageParam, BetaMessageParam, BetaUserMessageParam
 
 from app.core.copy import load_copy
+from app.core.errors import ErrorCode
 from app.llm.assemble import note_pattern
 from app.llm.errors import AgentError
 from app.llm.prompts import EXPLAIN_INSTRUCTION
@@ -29,7 +30,7 @@ _SCENARIO_DISPLAY_KEYS = ("afterTaxAsset", "principal", "afterTaxGain", "gapToGo
 _EXCEEDED_DISPLAY_KEYS = ("goalAmount", "conditions.heldAssets")
 
 
-def _reject(req: ChatRequest, code: str) -> AgentError:
+def _reject(req: ChatRequest, code: ErrorCode) -> AgentError:
     # planContext 본문은 로그에 남기지 않는다. 오류 코드와 calcRunId만(C1a-8)
     log.warning("plan_context rejected: code=%s calcRunId=%s", code, req.calc_run_id)
     return AgentError(code)
@@ -53,7 +54,7 @@ def check_plan_context(req: ChatRequest) -> ChatResponse | None:
     plan = req.plan_context
     if req.mode is ChatMode.EXPLAIN:
         if plan is None or plan.calc_run_id != req.calc_run_id:
-            raise _reject(req, "BAD_REQUEST")
+            raise _reject(req, ErrorCode.BAD_REQUEST)
         if plan.result.status == "ALREADY_EXCEEDED":
             return ChatResponse(
                 message_type="EXPLANATION",
@@ -62,7 +63,7 @@ def check_plan_context(req: ChatRequest) -> ChatResponse | None:
                 calc_run_id=req.calc_run_id,
             )
     if plan is not None and _missing_display(plan):
-        raise _reject(req, "CONTEXT_DISPLAY_MISSING")
+        raise _reject(req, ErrorCode.CONTEXT_DISPLAY_MISSING)
     return None
 
 

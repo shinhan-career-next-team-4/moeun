@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from app.core.config import Effort
 from app.core.copy import load_copy
+from app.core.errors import ErrorCode
 from app.llm.assemble import (
     ALLOWED_ETF_NAMES,
     GENERIC_ETF_NAME,
@@ -164,9 +165,9 @@ class ChatAgent:
     async def run(self, req: ChatRequest) -> ChatResponse:
         match req:
             case ChatRequest(mode=ChatMode.QUESTION, text=None | ""):
-                raise AgentError("BAD_REQUEST", "text is required for QUESTION")
+                raise AgentError(ErrorCode.BAD_REQUEST, "text is required for QUESTION")
             case ChatRequest(mode=ChatMode.EXPLAIN, calc_run_id=None):
-                raise AgentError("BAD_REQUEST", "calc_run_id is required for EXPLAIN")
+                raise AgentError(ErrorCode.BAD_REQUEST, "calc_run_id is required for EXPLAIN")
 
         fixed = check_plan_context(req)
         if fixed is not None:
@@ -182,7 +183,7 @@ class ChatAgent:
                 case "refusal":
                     return _refusal(req)
                 case "max_tokens":
-                    raise AgentError("MAX_TOKENS")
+                    raise AgentError(ErrorCode.MAX_TOKENS)
                 case "tool_use":
                     tool_uses = [b for b in resp.content if isinstance(b, BetaToolUseBlock)]
                     messages.append(BetaAssistantMessageParam(role="assistant", content=resp.content))
@@ -207,7 +208,7 @@ class ChatAgent:
                         log.info("forbidden expression: reason=%s attempt=1 message_id=%s", e.reason, req.message_id)
                         return await self._retry(turn, messages, e.reason)
 
-        raise AgentError("TOO_MANY_ROUNDS")
+        raise AgentError(ErrorCode.TOO_MANY_ROUNDS)
 
     async def _create(self, messages: list[BetaMessageParam], *, client: Any = None, **extra: Any) -> Any:
         return await (client or self._client).beta.messages.create(
@@ -246,10 +247,10 @@ class ChatAgent:
                 return assemble(turn, _OUT_OF_SCOPE_ANSWER)   # 서버가 만든 입력으로 같은 보정을 거친다(P-4)
             case "max_tokens":
                 if _answer_text(retry):   # 텍스트가 있으면 잘린 JSON이다. 본문은 detail에 싣지 않는다(P-17, D-2)
-                    raise AgentError("BAD_OUTPUT", "max_tokens")
-                raise AgentError("MAX_TOKENS")
+                    raise AgentError(ErrorCode.BAD_OUTPUT, "max_tokens")
+                raise AgentError(ErrorCode.MAX_TOKENS)
             case "tool_use":
-                raise AgentError("FORBIDDEN_EXPRESSION", "tool_use on retry")   # PD-009. 도구를 실행하지 않는다
+                raise AgentError(ErrorCode.FORBIDDEN_EXPRESSION, "tool_use on retry")   # PD-009. 도구를 실행하지 않는다
         final = _parse_final(retry)
         try:
             await self._check_body(final)
@@ -288,7 +289,7 @@ class ChatAgent:
             }
         key = _FIXED_COPY_KEYS.get(e.code)
         if key is None:
-            raise AgentError("CALC_FAILED", f"unexpected rejection {e.code}") from e
+            raise AgentError(ErrorCode.CALC_FAILED, f"unexpected rejection {e.code}") from e
         turn.fixed_copy_key = key
         return {"type": "tool_result", "tool_use_id": block.id, "content": f"Error: {e.code}", "is_error": True}
 
@@ -373,4 +374,4 @@ def _parse_final(resp: Any) -> FinalAnswer:
     try:
         return FinalAnswer.model_validate_json(_answer_text(resp))
     except ValidationError as e:
-        raise AgentError("BAD_OUTPUT", ",".join(f"{err['type']}@{err['loc']}" for err in e.errors())) from None
+        raise AgentError(ErrorCode.BAD_OUTPUT, ",".join(f"{err['type']}@{err['loc']}" for err in e.errors())) from None
