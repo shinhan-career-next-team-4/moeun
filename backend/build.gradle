@@ -87,12 +87,28 @@ dependencies {
 }
 
 tasks.named('test') {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags 'report'   // 비교 리포트(#162)는 로컬 가격 파일로 calcReport에서만 돈다
+    }
     environment 'JWT_SECRET', 'test-only-jwt-secret-not-for-any-real-env-000'   // 테스트 전용 서명 키
     // 테스트는 개발자 로컬의 ETF 가격 파일(backend/data/seed, git 제외)을 읽지 않는다. 같은 입력 → 같은 결과
     // S&P500은 테스트마다 MOEUN_SP500_FILE로 레포의 가짜 파일을 준다. 새 종목은 필요한 테스트만 따로 준다
     environment 'MOEUN_ETF_069500_FILE', 'file:build/no-local-etf-069500.csv'
     environment 'MOEUN_ETF_133690_FILE', 'file:build/no-local-etf-133690.csv'
+}
+
+// 세 종목·두 계산 방식 비교 리포트(#162). 개발자 로컬의 가격 파일(data/seed, git 제외)로
+// build/reports/calc/product-comparison.md를 만든다. 파일이 없는 종목은 "데이터 없음"으로 적는다
+tasks.register('calcReport', Test) {
+    description = '세 종목·두 계산 방식 비교 리포트를 만든다(#162)'
+    group = 'documentation'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'report'
+    }
+    workingDir = projectDir           // data/seed·build/reports 상대 경로의 기준(backend/)
+    outputs.upToDateWhen { false }   // 로컬 파일이 바뀌어도 Gradle은 모르므로 매번 다시 만든다
 }
 
 checkstyle {
