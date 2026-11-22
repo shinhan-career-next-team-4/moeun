@@ -34,7 +34,7 @@ from app.llm.context import build_messages, check_plan_context, plan_model_input
 from app.llm.errors import AgentError, _ForbiddenAnswer
 from app.llm.etf import _search_etf_codes
 from app.llm.judge import LlmStockJudge
-from app.llm.plan import _plan_etf_name
+from app.llm.plan import plan_etf_name
 from app.llm.prompts import SYSTEM_PROMPT
 from app.llm.tools import FINAL_FORMAT, TOOLS, Calculator, DocumentSearch, FinalAnswer
 from app.schemas import (
@@ -237,7 +237,7 @@ class ChatAgent:
         """교정 지시를 붙여 모델을 한 번만 다시 부른다. 도구는 실행하지 않고 첫 호출과 같은 분기·보정을 거친다(P-4, P-6).
         거부된 첫 답은 요청에 싣지 않는다. SDK DEBUG 로그가 요청 JSON 전체를 남기기 때문이다(P-7, D-1)."""
         req = turn.req
-        correction = _correction(reason, _plan_etf_name(req))
+        correction = _correction(reason, plan_etf_name(req))
         retry_messages = [*messages, BetaUserMessageParam(role="user", content=correction)]
         # tool_choice none은 이 호출에만 준다(요청 지역)
         retry = await self._create(retry_messages, client=self._retry_client, tool_choice={"type": "none"})

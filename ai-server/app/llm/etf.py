@@ -1,6 +1,6 @@
 import re
 
-from app.llm.plan import _plan_etf_name
+from app.llm.plan import plan_etf_name
 from app.rag.etf_codes import doc_codes_for, product_from_display_name
 from app.schemas import ChatRequest, DocType
 
@@ -11,7 +11,7 @@ def _plan_product(req: ChatRequest) -> str | None:
     if req.plan_context is None:
         return None
     code = req.plan_context.result.assumptions.etf_product_code
-    return code if code is not None else product_from_display_name(_plan_etf_name(req))
+    return code if code is not None else product_from_display_name(plan_etf_name(req))
 
 
 PLAN_PRODUCT = "PLAN"   # 모델이 "내 계획의 ETF"를 가리킬 때 쓰는 표시. 코드는 서버가 계획에서 읽는다
