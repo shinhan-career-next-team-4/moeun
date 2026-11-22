@@ -1,4 +1,3 @@
-import re
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Literal
@@ -6,17 +5,14 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, field_validator
 from pydantic.alias_generators import to_camel
 
+from app.core.contract import DISPLAY_KEY as DISPLAY_KEY
+from app.core.contract import Scenario as Scenario
+
 
 class ApiModel(BaseModel):
     """Spring(Jackson)과 주고받는 모델. JSON은 camelCase, 파이썬은 snake_case."""
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, serialize_by_alias=True)
-
-
-class Scenario(StrEnum):
-    GOOD = "GOOD"
-    AVG = "AVG"
-    BAD = "BAD"
 
 
 class ChatMode(StrEnum):
@@ -51,15 +47,6 @@ class ConditionChanges(ApiModel):
 class HistoryItem(ApiModel):
     role: Literal["user", "assistant"]
     content: str
-
-
-# 계약 C1a-8 display 허용 키. 여기에 맞고 값이 문자열인 항목만 받는다
-DISPLAY_KEY = re.compile(
-    r"goalAmount|calcStartMonth|targetMonth"
-    r"|(?:GOOD|AVG|BAD)\.(?:afterTaxAsset|principal|afterTaxGain|gapToGoal|goalReachMonth)"
-    r"|conditions\.(?:heldAssets|monthlySavingAmount|targetPeriodMonths|savingsRatioPct|savingsRateInputPct)"
-    r"|assumptions\.(?:savingsRateBaseMonth|sp500BaseDate|taxRatePct|etfProductName|etfGainTaxRatePct)"
-)
 
 
 class PlanScenario(ApiModel):

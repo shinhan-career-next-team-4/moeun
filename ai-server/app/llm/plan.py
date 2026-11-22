@@ -1,8 +1,7 @@
+from app.core.contract import ETF_NAME_KEY as ETF_NAME_KEY
+from app.core.contract import ETF_TAX_RATE_KEY as ETF_TAX_RATE_KEY
+from app.core.contract import TAX_RATE_KEY as TAX_RATE_KEY
 from app.schemas import ChatRequest
-
-TAX_RATE_KEY = "assumptions.taxRatePct"
-ETF_TAX_RATE_KEY = "assumptions.etfGainTaxRatePct"
-ETF_NAME_KEY = "assumptions.etfProductName"
 
 
 def plan_etf_name(req: ChatRequest) -> str | None:
