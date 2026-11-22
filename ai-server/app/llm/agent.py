@@ -33,6 +33,7 @@ from app.llm.assemble import (
     check_stock_recommendation,
     names_etf,
 )
+from app.llm.errors import AgentError, _ForbiddenAnswer
 from app.llm.number_check import NumberMismatch, check_numbers
 from app.llm.prompts import EXPLAIN_INSTRUCTION, STOCK_JUDGE_PROMPT, SYSTEM_PROMPT
 from app.rag.etf_codes import PRODUCT_DOC_CODES, doc_codes_for, product_from_display_name
@@ -48,6 +49,20 @@ from app.schemas import (
     Scenario,
 )
 from app.tools.calc import CalcError, CalcFailed, CalcRejected
+
+# 책임별 모듈로 옮긴 이름도 기존 import 경로(app.llm.agent)로 계속 쓸 수 있게 다시 내보낸다(#199)
+__all__ = [
+    "MAX_CITATIONS",
+    "TOOLS",
+    "AgentError",
+    "ChatAgent",
+    "LlmStockJudge",
+    "assemble",   # tests/test_forbidden_retry.py가 agent_module.assemble을 바꿔 run·_retry의 호출을 엿본다
+    "build_messages",
+    "drop_carried_conditions",
+    "out_of_scope_content",
+    "plan_model_input",
+]
 
 log = logging.getLogger(__name__)
 
@@ -337,23 +352,6 @@ def drop_carried_conditions(text: str, changes: ConditionChanges) -> ConditionCh
     if _count_numbers(lowered) > len(stated):
         return changes
     return ConditionChanges.model_validate({k: v for k, v in changes.changed().items() if k in stated})
-
-
-class AgentError(Exception):
-    """설명 생성 실패. Spring은 chat_message를 FAILED로 바꾸고 실패 안내를 보여준다(FR-AI-04)."""
-
-    def __init__(self, code: str, detail: str = ""):
-        super().__init__(f"{code}: {detail}")
-        self.code = code
-
-
-class _ForbiddenAnswer(AgentError):
-    """본문 검사(M-4)에 걸린 답. run이 사유로 재시도 여부를 정한다. 최종 거부 코드는 FORBIDDEN_EXPRESSION이다."""
-
-    def __init__(self, reason: str, *, retry: bool = True):
-        super().__init__("FORBIDDEN_EXPRESSION", reason)
-        self.reason = reason
-        self.retry = retry   # 재시도해도 고칠 수 없는 답이면 False
 
 
 ETF_NAME_KEY = "assumptions.etfProductName"
