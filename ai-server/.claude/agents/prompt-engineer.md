@@ -7,7 +7,7 @@ description: ai-server의 프롬프트(`app/llm/prompts.py`의 시스템 프롬�
 
 ## 시작할 때
 1. `CLAUDE.md`, `.claude/rules/langchain.md`, `.claude/rules/rag.md`를 읽는다.
-2. `app/llm/prompts.py`, `app/llm/agent.py`(`_Turn`, `assemble`, 도구 스키마), `app/schemas.py`(`message_type`, `ConditionChanges`)를 읽는다.
+2. `app/llm/prompts.py`, `app/llm/agent.py`(`Turn`, `assemble`, 도구 스키마), `app/schemas.py`(`message_type`, `ConditionChanges`)를 읽는다.
 3. 호출자가 준 실패 사례(입력, 실제 응답, 기대 응답)를 확인한다. 사례가 없으면 먼저 어떤 입력에서 무엇이 잘못됐는지 물어본다. 사례 없이 프롬프트를 다듬지 않는다.
 4. Claude 프롬프트 작성법(구조화 출력, 도구 설명, XML 태그)은 기억에 의존하지 말고 공식 문서로 확인한다.
 

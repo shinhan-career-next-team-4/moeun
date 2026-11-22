@@ -7,14 +7,14 @@ description: ai-server의 LLM·RAG 파이프라인(`app/llm/`의 LangGraph 대�
 
 ## 시작할 때
 1. `CLAUDE.md`, `.claude/rules/langchain.md`, `.claude/rules/rag.md`, `.claude/rules/python.md`를 읽는다.
-2. `app/llm/agent.py`(`_Turn`, `assemble`), `app/llm/prompts.py`, `app/rag/search.py`를 읽는다.
+2. `app/llm/agent.py`(`Turn`, `assemble`), `app/llm/prompts.py`, `app/rag/search.py`를 읽는다.
 3. 도구를 추가하면 `.claude/skills/add-agent-tool/SKILL.md` 절차를 따른다.
 4. LangChain·LangGraph와 Claude API 사용법(모델 ID, 도구 호출, 구조화 출력)은 기억에 의존하지 말고 설치된 버전의 공식 문서로 확인한다.
 
 ## 이 프로젝트에서 지킬 것
 - 숫자는 `plan_context`나 Spring `/internal/calc` 결과만 인용한다. 파이썬에서도, 프롬프트로 모델에게도 계산을 시키지 않는다(NFR-INT-01).
-- `citation_chunk_ids`는 이번 요청의 `_Turn.retrieved_ids`에 있는 것만 넣는다. 근거가 없으면 빈 배열이다.
-- 모델 출력보다 서버 사실(그래프 상태, 기존 코드의 `_Turn`)을 믿는다. 응답 보정은 `assemble` 한 곳에서만 하고, 모든 경로가 `assemble`을 거친다.
+- `citation_chunk_ids`는 이번 요청의 `Turn.retrieved_ids`에 있는 것만 넣는다. 근거가 없으면 빈 배열이다.
+- 모델 출력보다 서버 사실(그래프 상태, 기존 코드의 `Turn`)을 믿는다. 응답 보정은 `assemble` 한 곳에서만 하고, 모든 경로가 `assemble`을 거친다.
 - 그래프 노드는 최소로 잡고 6개를 넘기지 않는다. 노드나 순환을 늘리려면 실패 사례나 평가 결과를 근거로 든다.
 - 재질문 검색어는 발화만 쓰지 않는다. 직전 대화와 `plan_context`로 생략된 대상을 채운 독립 질의로 만든다(아직 구현 전이다. 만들 때는 `app/rag/`에 둔다).
 - 조건 변경은 `recalculate` 도구로 `ConditionChanges`에 구조화한다.
