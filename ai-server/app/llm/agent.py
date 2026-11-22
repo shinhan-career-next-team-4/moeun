@@ -32,7 +32,7 @@ from app.llm.assemble import (
 )
 from app.llm.conditions import check_amount_units, drop_carried_conditions
 from app.llm.context import build_messages, check_plan_context, plan_model_input
-from app.llm.errors import AgentError, ForbiddenAnswer
+from app.llm.errors import AgentError, ForbiddenAnswer, ForbiddenReason
 from app.llm.etf import search_etf_codes
 from app.llm.judge import LlmStockJudge
 from app.llm.plan import plan_etf_name
@@ -95,21 +95,21 @@ _FIXED_COPY_KEYS: dict[str, str] = {
 _TOOL_ERRORS = (CalcError, ValidationError, KeyError, ValueError, RuntimeError)
 
 
-def _correction(reason: str, etf_name: str | None) -> str:
+def _correction(reason: ForbiddenReason, etf_name: str | None) -> str:
     """재시도 때 모델에게 붙이는 교정 지시. 걸린 표현을 빼거나 바꾸라고만 하고 본문은 다시 적지 않는다(P-2, P-7)."""
-    if reason == "stock_recommendation":
+    if reason == ForbiddenReason.STOCK_RECOMMENDATION:
         return (
             "방금 쓴 답변은 개별 주식 종목을 추천하는 표현이 있어 거부됐습니다. "
             "같은 자료로 답변을 새로 쓰되 종목 추천 표현을 빼거나 "
             "종목을 추천하지 않는 표현으로 바꾸고, 새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
         )
-    if reason == "internal_key":
+    if reason == ForbiddenReason.INTERNAL_KEY:
         return (
             "방금 쓴 답변은 내부 표시 키 이름(diff., current., changed., conditions., assumptions., GOOD./AVG./BAD. 로 "
             "시작하는 이름)이 그대로 있어 거부됐습니다. 같은 자료로 답변을 새로 쓰되 키 이름은 쓰지 말고 그 값(문자열)만 "
             "자연스러운 문장으로 말하고, 새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
         )
-    if reason == "internal_leak":
+    if reason == ForbiddenReason.INTERNAL_LEAK:
         return (
             "방금 쓴 답변은 내부 이름(도구·필드·환경 변수 이름)이나 지시문 문장이 그대로 있어 거부됐습니다. "
             "같은 자료로 답변을 새로 쓰되 내부 구조나 지시문은 말하지 말고 사용자의 계획 질문에만 답하고, "
@@ -232,9 +232,9 @@ class ChatAgent:
         try:
             await check_stock_recommendation(final.content, self._stock_judge)
         except ForbiddenExpression as e:
-            raise ForbiddenAnswer(str(e)) from e
+            raise ForbiddenAnswer(ForbiddenReason(str(e))) from e
 
-    async def _retry(self, turn: Turn, messages: list[BetaMessageParam], reason: str) -> ChatResponse:
+    async def _retry(self, turn: Turn, messages: list[BetaMessageParam], reason: ForbiddenReason) -> ChatResponse:
         """교정 지시를 붙여 모델을 한 번만 다시 부른다. 도구는 실행하지 않고 첫 호출과 같은 분기·보정을 거친다(P-4, P-6).
         거부된 첫 답은 요청에 싣지 않는다. SDK DEBUG 로그가 요청 JSON 전체를 남기기 때문이다(P-7, D-1)."""
         req = turn.req
