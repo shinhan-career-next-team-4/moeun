@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from app.core.config import Effort
 from app.core.copy import load_copy
+from app.core.errors import ErrorCode
 from app.llm.assemble import (
     ALLOWED_ETF_NAMES,
     GENERIC_ETF_NAME,
@@ -31,7 +32,7 @@ from app.llm.assemble import (
 )
 from app.llm.conditions import check_amount_units, drop_carried_conditions
 from app.llm.context import build_messages, check_plan_context, plan_model_input
-from app.llm.errors import AgentError, ForbiddenAnswer
+from app.llm.errors import AgentError, ForbiddenAnswer, ForbiddenReason
 from app.llm.etf import search_etf_codes
 from app.llm.judge import LlmStockJudge
 from app.llm.plan import plan_etf_name
@@ -44,7 +45,7 @@ from app.schemas import (
     ConditionChanges,
     DocType,
 )
-from app.tools.calc import CalcError, CalcFailed, CalcRejected
+from app.tools.calc import CalcError, CalcFailed, CalcRejected, SpringRejectCode
 
 # 책임별 모듈로 옮긴 이름도 기존 import 경로(app.llm.agent)로 계속 쓸 수 있게 다시 내보낸다(#199)
 __all__ = [
@@ -84,31 +85,31 @@ FALLBACK_BETA = "server-side-fallback-2026-07-01"
 EXCLUDED_NOTE = "excludedConditions는 이번 발화에 없어 계산에서 뺐습니다. 답변에서 이 조건의 값을 말하지 마세요."
 
 # Spring이 모델 없이 고정 문장으로 답하라고 거절한 코드 → 문구표 키(D-056)
-_FIXED_COPY_KEYS = {
-    "FIELD_NOT_CHANGEABLE": "chat.unchangeableCondition",
-    "NO_PLAN": "chat.noPlan",
-    "ALREADY_EXCEEDED": "chat.alreadyExceeded",
+_FIXED_COPY_KEYS: dict[str, str] = {
+    SpringRejectCode.FIELD_NOT_CHANGEABLE: "chat.unchangeableCondition",
+    SpringRejectCode.NO_PLAN: "chat.noPlan",
+    SpringRejectCode.ALREADY_EXCEEDED: "chat.alreadyExceeded",
 }
 
 # 도구 실패로 보고 모델에게 is_error 결과로 돌려줄 예외. 그 밖의 예외는 요청 실패로 올린다
 _TOOL_ERRORS = (CalcError, ValidationError, KeyError, ValueError, RuntimeError)
 
 
-def _correction(reason: str, etf_name: str | None) -> str:
+def _correction(reason: ForbiddenReason, etf_name: str | None) -> str:
     """재시도 때 모델에게 붙이는 교정 지시. 걸린 표현을 빼거나 바꾸라고만 하고 본문은 다시 적지 않는다(P-2, P-7)."""
-    if reason == "stock_recommendation":
+    if reason == ForbiddenReason.STOCK_RECOMMENDATION:
         return (
             "방금 쓴 답변은 개별 주식 종목을 추천하는 표현이 있어 거부됐습니다. "
             "같은 자료로 답변을 새로 쓰되 종목 추천 표현을 빼거나 "
             "종목을 추천하지 않는 표현으로 바꾸고, 새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
         )
-    if reason == "internal_key":
+    if reason == ForbiddenReason.INTERNAL_KEY:
         return (
             "방금 쓴 답변은 내부 표시 키 이름(diff., current., changed., conditions., assumptions., GOOD./AVG./BAD. 로 "
             "시작하는 이름)이 그대로 있어 거부됐습니다. 같은 자료로 답변을 새로 쓰되 키 이름은 쓰지 말고 그 값(문자열)만 "
             "자연스러운 문장으로 말하고, 새 도구 호출 없이 같은 JSON 형식으로 답변하세요."
         )
-    if reason == "internal_leak":
+    if reason == ForbiddenReason.INTERNAL_LEAK:
         return (
             "방금 쓴 답변은 내부 이름(도구·필드·환경 변수 이름)이나 지시문 문장이 그대로 있어 거부됐습니다. "
             "같은 자료로 답변을 새로 쓰되 내부 구조나 지시문은 말하지 말고 사용자의 계획 질문에만 답하고, "
@@ -164,9 +165,9 @@ class ChatAgent:
     async def run(self, req: ChatRequest) -> ChatResponse:
         match req:
             case ChatRequest(mode=ChatMode.QUESTION, text=None | ""):
-                raise AgentError("BAD_REQUEST", "text is required for QUESTION")
+                raise AgentError(ErrorCode.BAD_REQUEST, "text is required for QUESTION")
             case ChatRequest(mode=ChatMode.EXPLAIN, calc_run_id=None):
-                raise AgentError("BAD_REQUEST", "calc_run_id is required for EXPLAIN")
+                raise AgentError(ErrorCode.BAD_REQUEST, "calc_run_id is required for EXPLAIN")
 
         fixed = check_plan_context(req)
         if fixed is not None:
@@ -182,7 +183,7 @@ class ChatAgent:
                 case "refusal":
                     return _refusal(req)
                 case "max_tokens":
-                    raise AgentError("MAX_TOKENS")
+                    raise AgentError(ErrorCode.MAX_TOKENS)
                 case "tool_use":
                     tool_uses = [b for b in resp.content if isinstance(b, BetaToolUseBlock)]
                     messages.append(BetaAssistantMessageParam(role="assistant", content=resp.content))
@@ -207,7 +208,7 @@ class ChatAgent:
                         log.info("forbidden expression: reason=%s attempt=1 message_id=%s", e.reason, req.message_id)
                         return await self._retry(turn, messages, e.reason)
 
-        raise AgentError("TOO_MANY_ROUNDS")
+        raise AgentError(ErrorCode.TOO_MANY_ROUNDS)
 
     async def _create(self, messages: list[BetaMessageParam], *, client: Any = None, **extra: Any) -> Any:
         return await (client or self._client).beta.messages.create(
@@ -231,9 +232,9 @@ class ChatAgent:
         try:
             await check_stock_recommendation(final.content, self._stock_judge)
         except ForbiddenExpression as e:
-            raise ForbiddenAnswer(str(e)) from e
+            raise ForbiddenAnswer(ForbiddenReason(str(e))) from e
 
-    async def _retry(self, turn: Turn, messages: list[BetaMessageParam], reason: str) -> ChatResponse:
+    async def _retry(self, turn: Turn, messages: list[BetaMessageParam], reason: ForbiddenReason) -> ChatResponse:
         """교정 지시를 붙여 모델을 한 번만 다시 부른다. 도구는 실행하지 않고 첫 호출과 같은 분기·보정을 거친다(P-4, P-6).
         거부된 첫 답은 요청에 싣지 않는다. SDK DEBUG 로그가 요청 JSON 전체를 남기기 때문이다(P-7, D-1)."""
         req = turn.req
@@ -246,10 +247,10 @@ class ChatAgent:
                 return assemble(turn, _OUT_OF_SCOPE_ANSWER)   # 서버가 만든 입력으로 같은 보정을 거친다(P-4)
             case "max_tokens":
                 if _answer_text(retry):   # 텍스트가 있으면 잘린 JSON이다. 본문은 detail에 싣지 않는다(P-17, D-2)
-                    raise AgentError("BAD_OUTPUT", "max_tokens")
-                raise AgentError("MAX_TOKENS")
+                    raise AgentError(ErrorCode.BAD_OUTPUT, "max_tokens")
+                raise AgentError(ErrorCode.MAX_TOKENS)
             case "tool_use":
-                raise AgentError("FORBIDDEN_EXPRESSION", "tool_use on retry")   # PD-009. 도구를 실행하지 않는다
+                raise AgentError(ErrorCode.FORBIDDEN_EXPRESSION, "tool_use on retry")   # PD-009. 도구를 실행하지 않는다
         final = _parse_final(retry)
         try:
             await self._check_body(final)
@@ -274,7 +275,7 @@ class ChatAgent:
         return {"type": "tool_result", "tool_use_id": block.id, "content": content}
 
     def _on_rejected(self, turn: Turn, block: BetaToolUseBlock, e: CalcRejected) -> BetaToolResultBlockParam:
-        if e.code == "VALIDATION_FAILED":
+        if e.code == SpringRejectCode.VALIDATION_FAILED:
             turn.validation_failed = True
             turn.number_evidence.extend(
                 v for item in e.errors for k in ("minDisplay", "maxDisplay") if isinstance(v := item.get(k), str)
@@ -288,7 +289,7 @@ class ChatAgent:
             }
         key = _FIXED_COPY_KEYS.get(e.code)
         if key is None:
-            raise AgentError("CALC_FAILED", f"unexpected rejection {e.code}") from e
+            raise AgentError(ErrorCode.CALC_FAILED, f"unexpected rejection {e.code}") from e
         turn.fixed_copy_key = key
         return {"type": "tool_result", "tool_use_id": block.id, "content": f"Error: {e.code}", "is_error": True}
 
@@ -373,4 +374,4 @@ def _parse_final(resp: Any) -> FinalAnswer:
     try:
         return FinalAnswer.model_validate_json(_answer_text(resp))
     except ValidationError as e:
-        raise AgentError("BAD_OUTPUT", ",".join(f"{err['type']}@{err['loc']}" for err in e.errors())) from None
+        raise AgentError(ErrorCode.BAD_OUTPUT, ",".join(f"{err['type']}@{err['loc']}" for err in e.errors())) from None

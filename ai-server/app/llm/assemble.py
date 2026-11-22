@@ -4,7 +4,8 @@ from functools import cache
 from typing import Any, Protocol
 
 from app.core.copy import load_copy
-from app.llm.errors import AgentError, ForbiddenAnswer
+from app.core.errors import ErrorCode
+from app.llm.errors import AgentError, ForbiddenAnswer, ForbiddenReason
 from app.llm.number_check import NumberMismatch, check_numbers
 from app.llm.plan import ETF_TAX_RATE_KEY, TAX_RATE_KEY, plan_etf_name, plan_without_etf
 from app.llm.prompts import GOAL_AMOUNT_COPY, NO_PLAN_COPY, OUT_OF_SCOPE_TAX_COPY, SYSTEM_PROMPT
@@ -78,7 +79,7 @@ def needs_stock_judgment(content: str) -> bool:
 async def check_stock_recommendation(content: str, judge: StockRecommendationJudge) -> None:
     # 문장을 지워 고치면 본문이 비거나 어색해지므로 고치지 않고 거부한다(Spring이 FAILED 처리)
     if needs_stock_judgment(content) and await judge.recommends_individual_stock(content):
-        raise ForbiddenExpression("stock_recommendation")
+        raise ForbiddenExpression(ForbiddenReason.STOCK_RECOMMENDATION)
 
 
 # 문장 경계: .·!·? 뒤(공백이 없어도), 줄바꿈. '15.4%'처럼 뒤에 숫자가 이어지는 소수점은 경계가 아니다
@@ -93,17 +94,17 @@ def _sentences(content: str) -> list[tuple[str, str]]:
 
 def check_display_keys(content: str) -> None:
     if _DISPLAY_KEY.search(content):
-        raise ForbiddenExpression("internal_key")
+        raise ForbiddenExpression(ForbiddenReason.INTERNAL_KEY)
 
 
 def check_internal_leak(content: str) -> None:
     """본문에 내부 식별자나 시스템 프롬프트 문장이 그대로 있으면 거부한다(#196)."""
     if _INTERNAL_IDENTIFIER.search(content):
-        raise ForbiddenExpression("internal_leak")
+        raise ForbiddenExpression(ForbiddenReason.INTERNAL_LEAK)
     squashed = _squash(content)
     windows = _prompt_windows()
     if any(squashed[i:i + _PROMPT_WINDOW] in windows for i in range(len(squashed) - _PROMPT_WINDOW + 1)):
-        raise ForbiddenExpression("internal_leak")
+        raise ForbiddenExpression(ForbiddenReason.INTERNAL_LEAK)
 
 
 def names_etf(content: str) -> bool:
@@ -124,7 +125,7 @@ def check_plan_etf_claims(content: str, etf_name: str | None) -> None:
     others = [name for name in ALLOWED_ETF_NAMES if name != etf_name]
     for sentence, _ in _sentences(content):
         if etf_name not in sentence and any(x in sentence for x in _PLAN_REFERENCE) and any(x in sentence for x in others):
-            raise ForbiddenExpression("product_name")
+            raise ForbiddenExpression(ForbiddenReason.PRODUCT_NAME)
 
 
 MAX_CITATIONS = 5
@@ -250,7 +251,7 @@ def _check_numbers(turn: Turn, body: str) -> None:
     try:
         check_numbers(body, _number_evidence(turn))
     except NumberMismatch:
-        raise AgentError("NUMBER_MISMATCH") from None   # 불일치 토큰이 본문 전체일 수 있어 detail을 뺀다(P-7)
+        raise AgentError(ErrorCode.NUMBER_MISMATCH) from None   # 불일치 토큰이 본문 전체일 수 있어 detail을 뺀다(P-7)
 
 
 def _mask_notes(content: str) -> str:
@@ -270,11 +271,11 @@ def _checked_body(req: ChatRequest, content: str) -> str:
         if plan_without_etf(req):
             # ETF 0% 계획의 종목 언급은 재시도도 문장 삭제도 없이 기존 거부로 끝낸다(#155, P-4)
             if names_etf(content):
-                raise ForbiddenAnswer("product_name", retry=False)
+                raise ForbiddenAnswer(ForbiddenReason.PRODUCT_NAME, retry=False)
         else:
             check_plan_etf_claims(content, plan_etf_name(req))   # 계획 종목을 다른 ETF로 바꿔 말하면 거부(#155)
     except ForbiddenExpression as e:
-        raise ForbiddenAnswer(str(e)) from e
+        raise ForbiddenAnswer(ForbiddenReason(str(e))) from e
     return content
 
 
@@ -326,7 +327,7 @@ def assemble(turn: Turn, final: FinalAnswer) -> ChatResponse:
     if message_type == "OUT_OF_SCOPE":
         # ETF 0% 계획은 범위 밖 답이라도 ETF 종목을 언급하면 같은 거부로 끝낸다(#155, P-4)
         if plan_without_etf(req) and names_etf(final.content):
-            raise ForbiddenAnswer("product_name", retry=False)
+            raise ForbiddenAnswer(ForbiddenReason.PRODUCT_NAME, retry=False)
         tax_copy = load_copy().get("outOfScope.tax")
         content = tax_copy if tax_copy in final.content else out_of_scope_content()
     else:
@@ -337,7 +338,8 @@ def assemble(turn: Turn, final: FinalAnswer) -> ChatResponse:
         content = _checked_body(req, with_tax_note(req, body))
         _check_numbers(turn, _mask_notes(content))
         if not content.strip():
-            raise ForbiddenAnswer("empty_body", retry=False)   # 단서 보정 뒤 본문이 비면 정상 응답이 아니다(#155, P-10)
+            # 단서 보정 뒤 본문이 비면 정상 응답이 아니다(#155, P-10)
+            raise ForbiddenAnswer(ForbiddenReason.EMPTY_BODY, retry=False)
         copy = load_copy()
         if turn.goal_changed_note_params is not None:
             note = copy.get(

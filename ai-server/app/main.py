@@ -11,6 +11,7 @@ from openai import AsyncOpenAI
 from app.api import chat, health, rag
 from app.core.config import get_settings
 from app.core.db import create_pool
+from app.core.errors import ErrorCode
 from app.llm.agent import AgentError, ChatAgent
 from app.rag.embedder import Embedder
 from app.rag.search import Retriever
@@ -52,9 +53,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="moeun-ai-server", lifespan=lifespan)
 
 
+# 요청이 잘못돼 400으로 돌려줄 코드. 나머지 AgentError는 502다
+BAD_REQUEST_CODES = frozenset({ErrorCode.BAD_REQUEST})
+
+
 @app.exception_handler(AgentError)
 async def _agent_error(_: Request, e: AgentError) -> JSONResponse:
-    status = 400 if e.code == "BAD_REQUEST" else 502
+    status = 400 if e.code in BAD_REQUEST_CODES else 502
     return JSONResponse(status_code=status, content={"error": e.code})
 
 
@@ -62,7 +67,7 @@ async def _agent_error(_: Request, e: AgentError) -> JSONResponse:
 async def _llm_error(_: Request, e: anthropic.APIError) -> JSONResponse:
     # 오류 문자열에는 SDK가 되돌려 준 요청 본문(이전 답변 포함)이 섞일 수 있어 유형과 상태 코드만 남긴다.
     log.warning("llm call failed: type=%s status=%s", type(e).__name__, getattr(e, "status_code", None))
-    code = "LLM_RATE_LIMIT" if isinstance(e, anthropic.RateLimitError) else "LLM_UNAVAILABLE"
+    code = ErrorCode.LLM_RATE_LIMIT if isinstance(e, anthropic.RateLimitError) else ErrorCode.LLM_UNAVAILABLE
     return JSONResponse(status_code=502, content={"error": code})
 
 

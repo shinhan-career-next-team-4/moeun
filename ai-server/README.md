@@ -92,10 +92,12 @@ uv run moeun-ingest --file docs/a.pdf --doc-type DISCLOSURE --org "OO자산운�
 - `status`가 항상 `CALCULATED`인 것은 `/internal/calc` 응답 한정이다. planContext의 `result`에는 `ALREADY_EXCEEDED`가 올 수 있고 `assumptions.excludedItems`는 planContext 경로에서 쓴다. 두 계약에 같은 pydantic 모델을 쓰면 `status`를 `Literal['CALCULATED']`로 만들지 않고 `excludedItems`를 지우지 않는다.
 - 200이면 `calcRunId`가 정수인지 검사한다. 모델에 넘기는 도구 결과는 추린 것만이다: `display`, `diff`, `conditions`, `current`·`changed`의 `scenarios[].{scenario,isAchieved}`·`baselineScenario`, `assumptions.isDefaultSavingsRate`.
 - 두 `display` 값을 빼서 차이를 만들지 않고 차이는 `diff.*` 키만 인용한다. 달성 시점 두 달 사이의 개월 수는 말하지 않는다.
-- **[전환기]** `display`가 비어 있거나 응답에 있는 시나리오의 `*.afterTaxAsset` 키가 하나라도 없으면 비교를 내지 않고 `AgentError("CALC_DISPLAY_MISSING")`으로 실패시킨다(Spring `FAILED`).
+- **[전환기]** `display`가 비어 있거나 응답에 있는 시나리오의 `*.afterTaxAsset` 키가 하나라도 없으면 비교를 내지 않고 `AgentError(ErrorCode.CALC_DISPLAY_MISSING)`으로 실패시킨다(Spring `FAILED`).
 - 성공 1건당 Spring이 `calc_run(CHAT)` 1행을 만들고 그 id가 `calcRunId`다. 실패하면 기록이 없고, `chat_message`가 참조하지 않는 행이 남아도 정리하지 않는다(D-057).
 
 ### 오류 코드와 ai-server 동작
+
+ai-server가 Spring에 `{"error": CODE}`로 돌려주는 코드는 `app/core/errors.py`의 `ErrorCode` 한 곳에 모여 있다. 값은 Spring과의 계약이라 바꾸지 않는다. 아래 표의 `code`는 반대로 Spring이 ai-server에 보내는 거절 코드이며 `app/tools/calc.py`의 `SpringRejectCode`와 본문 그대로의 문자열로 다룬다.
 
 오류는 `application/problem+json`이고 `code`, `errors[]`로 판단한다(`title`은 쓰지 않는다).
 
@@ -105,13 +107,13 @@ uv run moeun-ingest --file docs/a.pdf --doc-type DISCLOSURE --org "OO자산운�
 | 422 | `FIELD_NOT_CHANGEABLE` | 허용 키가 섞여도 요청 전체가 거절된다. 모델에 넘기지 않고 문구표 고정 문장으로 답하며 `messageType=ANSWER`(D-056) |
 | 409 | `NO_PLAN` | 모델에 넘기지 않고 문구표 `chat.noPlan` 고정 문장, `ANSWER` |
 | 409 | `ALREADY_EXCEEDED` | 모델에 넘기지 않고 문구표 `chat.alreadyExceeded` 고정 문장, `ANSWER` |
-| 400 | `MALFORMED_REQUEST` | `AgentError("CALC_BAD_REQUEST")` → Spring `FAILED` |
-| 401 | `INVALID_INTERNAL_KEY` | `AgentError("CALC_UNAUTHORIZED")` → `FAILED` |
-| 500 | `CALC_FAILED` | `AgentError("CALC_FAILED")` → `FAILED` |
+| 400 | `MALFORMED_REQUEST` | `AgentError(ErrorCode.CALC_BAD_REQUEST)` → Spring `FAILED` |
+| 401 | `INVALID_INTERNAL_KEY` | `AgentError(ErrorCode.CALC_UNAUTHORIZED)` → `FAILED` |
+| 500 | `CALC_FAILED` | `AgentError(ErrorCode.CALC_FAILED)` → `FAILED` |
 
 목표 금액 변경은 두 겹으로 막는다(도구 스키마·프롬프트, Spring `FIELD_NOT_CHANGEABLE`). 두 경로의 사용자 결과(같은 문장, 같은 `messageType`, 비교 없음)는 같아야 한다. `VALIDATION_FAILED`인데 `minDisplay`·`maxDisplay`가 없으면(계약 위반) 숫자 없이 "허용 범위를 벗어났어요"라고만 말하고 다시 묻는다.
 
-타임아웃·연결 실패는 `AgentError("CALC_UNAVAILABLE")` → `FAILED`. 422·409 본문은 문자열로 자르지 않고 `CalcRejected(code, errors)`로 파싱한다. 목·테스트의 응답 예시는 `docs/api/examples/internal-calc/`의 파일을 그대로 쓴다.
+타임아웃·연결 실패는 `AgentError(ErrorCode.CALC_UNAVAILABLE)` → `FAILED`. 422·409 본문은 문자열로 자르지 않고 `CalcRejected(code, errors)`로 파싱한다. 목·테스트의 응답 예시는 `docs/api/examples/internal-calc/`의 파일을 그대로 쓴다.
 
 ## 테스트
 

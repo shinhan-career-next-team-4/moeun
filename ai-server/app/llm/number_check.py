@@ -3,7 +3,7 @@ from collections.abc import Iterable
 
 
 class NumberMismatch(Exception):
-    """본문에 근거 없는 금액·기간이 있다. 호출자가 AgentError(NUMBER_MISMATCH)로 바꿔 올린다."""
+    """본문에 근거 없는 금액·기간이 있다. 호출자가 AgentError(ErrorCode.NUMBER_MISMATCH)로 바꿔 올린다."""
 
 
 # 숫자: 쉼표 묶음("1,234")과 소수("1.5")를 한 덩어리로 본다
