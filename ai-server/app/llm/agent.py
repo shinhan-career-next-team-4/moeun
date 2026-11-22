@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any, Literal
+from typing import Any
 
 from anthropic import AsyncAnthropic
 from anthropic.types.beta import (
@@ -24,17 +24,18 @@ from app.llm.assemble import (
     MAX_CITATIONS,
     ForbiddenExpression,
     StockRecommendationJudge,
-    _note_pattern,
     _Turn,
     assemble,
     check_stock_recommendation,
     out_of_scope_content,
 )
 from app.llm.conditions import check_amount_units, drop_carried_conditions
+from app.llm.context import build_messages, check_plan_context, plan_model_input
 from app.llm.errors import AgentError, _ForbiddenAnswer
 from app.llm.etf import _search_etf_codes
+from app.llm.judge import LlmStockJudge
 from app.llm.plan import _plan_etf_name
-from app.llm.prompts import EXPLAIN_INSTRUCTION, STOCK_JUDGE_PROMPT, SYSTEM_PROMPT
+from app.llm.prompts import SYSTEM_PROMPT
 from app.llm.tools import FINAL_FORMAT, TOOLS, Calculator, DocumentSearch, FinalAnswer
 from app.schemas import (
     ChatMode,
@@ -42,7 +43,6 @@ from app.schemas import (
     ChatResponse,
     ConditionChanges,
     DocType,
-    PlanContext,
 )
 from app.tools.calc import CalcError, CalcFailed, CalcRejected
 
@@ -90,20 +90,6 @@ _FIXED_COPY_KEYS = {
     "ALREADY_EXCEEDED": "chat.alreadyExceeded",
 }
 
-_CALCULATED_DISPLAY_KEYS = (
-    "goalAmount",
-    "calcStartMonth",
-    "targetMonth",
-    "conditions.heldAssets",
-    "conditions.monthlySavingAmount",
-    "conditions.targetPeriodMonths",
-    "conditions.savingsRatioPct",
-    "conditions.savingsRateInputPct",
-    "assumptions.taxRatePct",   # D-060
-)
-_SCENARIO_DISPLAY_KEYS = ("afterTaxAsset", "principal", "afterTaxGain", "gapToGoal")
-_EXCEEDED_DISPLAY_KEYS = ("goalAmount", "conditions.heldAssets")
-
 # 도구 실패로 보고 모델에게 is_error 결과로 돌려줄 예외. 그 밖의 예외는 요청 실패로 올린다
 _TOOL_ERRORS = (CalcError, ValidationError, KeyError, ValueError, RuntimeError)
 
@@ -146,39 +132,6 @@ _OUT_OF_SCOPE_ANSWER = FinalAnswer(message_type="OUT_OF_SCOPE", content="", cita
 
 
 ToolHandler = Callable[[_Turn, dict[str, Any]], Awaitable[str]]
-
-
-_JUDGE_TIMEOUT_SECONDS = 8.0
-
-
-def _escape_tags(text: str) -> str:
-    """본문이 </answer>로 태그를 닫고 판정 지시를 끼워 넣지 못하게 꺾쇠를 전각으로 바꾼다."""
-    return text.replace("<", "\uff1c").replace(">", "\uff1e")
-
-
-class LlmStockJudge:
-    """본문이 개별 주식 종목을 추천하는지 모델에게 묻는다(CF-07). 정확히 'false'일 때만 통과시키고,
-    true·빈 응답·형식 밖 응답은 모두 종목 추천으로 본다(거부 쪽으로 기운다)."""
-
-    def __init__(self, client: AsyncAnthropic, model: str):
-        # 판정은 응답마다 직렬로 최대 2번 더해진다. SDK 자동 재전송을 끄고 타임아웃을 짧게 한다
-        # (P-10, Spring read-timeout 30초).
-        # 테스트 대역은 with_options가 없어 실제 SDK 클라이언트일 때만 사본을 만든다
-        self._client = (
-            client.with_options(max_retries=0, timeout=_JUDGE_TIMEOUT_SECONDS)
-            if isinstance(client, AsyncAnthropic) else client
-        )
-        self._model = model
-
-    async def recommends_individual_stock(self, text: str) -> bool:
-        resp = await self._client.beta.messages.create(
-            model=self._model,
-            max_tokens=16,
-            system=STOCK_JUDGE_PROMPT,
-            messages=[BetaUserMessageParam(role="user", content=f"<answer>{_escape_tags(text)}</answer>")],
-        )
-        verdict = "".join(b.text for b in resp.content if isinstance(b, BetaTextBlock))
-        return verdict.strip(" \t\n.\"'`").lower() != "false"
 
 
 class ChatAgent:
@@ -421,101 +374,3 @@ def _parse_final(resp: Any) -> FinalAnswer:
         return FinalAnswer.model_validate_json(_answer_text(resp))
     except ValidationError as e:
         raise AgentError("BAD_OUTPUT", ",".join(f"{err['type']}@{err['loc']}" for err in e.errors())) from None
-
-
-def _reject(req: ChatRequest, code: str) -> AgentError:
-    # planContext 본문은 로그에 남기지 않는다. 오류 코드와 calcRunId만(C1a-8)
-    log.warning("plan_context rejected: code=%s calcRunId=%s", code, req.calc_run_id)
-    return AgentError(code)
-
-
-def _missing_display(plan: PlanContext) -> bool:
-    display = plan.display
-    if plan.result.status == "ALREADY_EXCEEDED":
-        return any(k not in display for k in _EXCEEDED_DISPLAY_KEYS)
-    required = list(_CALCULATED_DISPLAY_KEYS)
-    for item in plan.result.scenarios:
-        name = item.scenario.value
-        required.extend(f"{name}.{k}" for k in _SCENARIO_DISPLAY_KEYS)
-        if item.is_achieved:
-            required.append(f"{name}.goalReachMonth")
-    return any(k not in display for k in required)
-
-
-def check_plan_context(req: ChatRequest) -> ChatResponse | None:
-    """모델을 부르기 전 planContext 검사(계약 C1a-8 검사 2~5). 고정 문장으로 끝나면 그 응답을 돌려준다."""
-    plan = req.plan_context
-    if req.mode is ChatMode.EXPLAIN:
-        if plan is None or plan.calc_run_id != req.calc_run_id:
-            raise _reject(req, "BAD_REQUEST")
-        if plan.result.status == "ALREADY_EXCEEDED":
-            return ChatResponse(
-                message_type="EXPLANATION",
-                content=load_copy().get("chat.alreadyExceeded"),
-                baseline_scenario=req.baseline_scenario,
-                calc_run_id=req.calc_run_id,
-            )
-    if plan is not None and _missing_display(plan):
-        raise _reject(req, "CONTEXT_DISPLAY_MISSING")
-    return None
-
-
-def plan_model_input(plan: PlanContext) -> dict[str, Any]:
-    """모델에 넘기는 planContext. raw 금액·식별 정보는 빼고 display 문자열과 문구표 문장만 담는다(C1a-8)."""
-    copy = load_copy()
-    known = copy.keys()
-    assumptions = plan.result.assumptions
-    notes: list[str] = []
-    dropped = 0
-    for code in assumptions.excluded_items or []:
-        if f"excluded.{code}" in known:
-            notes.append(copy.get(f"excluded.{code}"))
-        else:
-            dropped += 1
-    if dropped:
-        log.warning("excludedItems code without copy dropped: count=%s", dropped)
-    shown: dict[str, Any] = {"isDefaultSavingsRate": assumptions.is_default_savings_rate, "excludedNotes": notes}
-    if assumptions.scenario_method is not None:
-        shown["scenarioMethodNote"] = copy.get(f"scenarioMethod.{assumptions.scenario_method}")
-    return {
-        "result": {
-            "status": plan.result.status,
-            "scenarios": [{"scenario": s.scenario.value, "isAchieved": s.is_achieved} for s in plan.result.scenarios],
-            "assumptions": shown,
-        },
-        "display": plan.display,
-    }
-
-
-def build_messages(req: ChatRequest) -> list[BetaMessageParam]:
-    """기록은 user로 시작하고 역할이 번갈아야 한다. 같은 역할이 이어지면 합친다."""
-    plan_input = plan_model_input(req.plan_context) if req.plan_context else None
-    context = json.dumps(plan_input, ensure_ascii=False)
-    body = req.text if req.mode is ChatMode.QUESTION else EXPLAIN_INSTRUCTION
-    current = (
-        f"<plan_context>{context}</plan_context>\n"
-        f"<baseline_scenario>{req.baseline_scenario.value}</baseline_scenario>\n"
-        f"<request>{body}</request>"
-    )
-
-    copy = load_copy()
-    notes = (copy.get("tax.note"), copy.get("tax.noteEtfTaxFree"))
-    turns: list[tuple[Literal["user", "assistant"], str]] = []
-    for role, content in [*((h.role, h.content) for h in req.history), ("user", current)]:
-        if role == "assistant":
-            # 코드가 붙인 세금 단서는 모델 입력에 다시 넣지 않는다(D-067, D-073)
-            for note in notes:
-                content = _note_pattern(note).sub("", content)
-            content = content.strip()
-            if not turns or not content:
-                continue
-        if turns and turns[-1][0] == role:
-            turns[-1] = (role, f"{turns[-1][1]}\n\n{content}")
-        else:
-            turns.append((role, content))
-    return [
-        BetaUserMessageParam(role="user", content=content)
-        if role == "user"
-        else BetaAssistantMessageParam(role="assistant", content=content)
-        for role, content in turns
-    ]
