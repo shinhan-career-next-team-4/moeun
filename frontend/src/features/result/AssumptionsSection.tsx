@@ -1,4 +1,5 @@
 import { COPY, type CopyMap } from "../../shared/copy/copy";
+import { taxNoteFor } from "../../shared/copy/taxNote";
 import type { Assumptions } from "./types";
 
 interface AssumptionsSectionProps {
@@ -36,7 +37,7 @@ export function AssumptionsSection({ assumptions, display }: AssumptionsSectionP
           </div>
         )}
       </dl>
-      <p className="text-xs leading-relaxed text-text-muted">{COPY["tax.note"]}</p>
+      <p className="text-xs leading-relaxed text-text-muted">{taxNoteFor(assumptions.etfGainTaxRatePct)}</p>
       {methodText && <p className="text-xs text-text-muted">{methodText}</p>}
       {assumptions.excludedItems.length > 0 && (
         <ul className="list-disc space-y-1 pl-5 text-xs text-text-muted">

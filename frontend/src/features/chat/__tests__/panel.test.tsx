@@ -35,6 +35,14 @@ describe("머리글과 안내", () => {
   });
 });
 
+describe("세금 안내(#233)", () => {
+  it("대화 패널에는 세금 안내 문장이 없다(결과 화면 가정 보기에서만 고지)", async () => {
+    await mount({ get: [page([], false)] });
+    expect(screen.queryByText(/세금은 일반 과세를 기준으로/)).toBeNull();
+    expect(screen.queryByText(/매매차익은 비과세로/)).toBeNull();
+  });
+});
+
 describe("빈 상태", () => {
   it("안내 문구와 예시 버튼이 세 개 보인다", async () => {
     await mount({ get: [page([], false)] });

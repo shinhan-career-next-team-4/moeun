@@ -17,27 +17,33 @@ async def test_b1_separator_after_the_tax_free_display_is_not_a_quote(tail: str)
 
 
 async def test_b1_separator_after_the_savings_rate_is_not_a_quote():
+    """단서를 지워 이어진 세율 뒤에 쉼표·숫자가 붙으면 인용이 아니라 띄우지 않고, 아니면 한 칸 띄운다(#233, P-6)."""
     plan = load("plan-context-basic.json")
     rate = plan["display"]["assumptions.taxRatePct"]
-    assert TAX_NOTE not in await answer_of(plan, f"적금 이자 세율은 {rate}\uff0c\uff11이에요.")
-    assert TAX_NOTE in await answer_of(plan, f"적금 이자 세율은 {rate}예요.")
+    head, tail = rate[:-1], rate[-1:]   # "15.4" | "%"
+    assert await answer_of(plan, f"적금 이자 세율은 {head}{TAX_NOTE}{tail}\uff0c\uff11이에요.") == (
+        f"적금 이자 세율은 {rate}\uff0c\uff11이에요."
+    )
+    assert await answer_of(plan, f"적금 이자 세율은 {head}{TAX_NOTE}{tail}예요.") == f"적금 이자 세율은 {head} {tail}예요."
 
 
-# B2: 단서 문장 사이 공백이 줄바꿈이어도 같은 단서로 본다
-async def test_b2_note_with_newlines_is_not_duplicated():
+# B2: 단서 문장 사이 공백이 줄바꿈이어도 같은 단서로 보고 지운다(#233)
+async def test_b2_note_with_newlines_is_removed():
     plan = load("plan-context-etf-tax-free.json")
     rate = plan["display"]["assumptions.taxRatePct"]
-    newline_note = TAX_NOTE_FREE.replace(" ", "\n")
-    content = await answer_of(plan, f"적금 이자 세율은 {rate}예요.\n\n{newline_note}")
-    assert content.count(TAX_NOTE_FREE) == 1
-    assert newline_note not in content and "\n" not in content.split("예요.", 1)[1].strip()
+    body = f"적금 이자 세율은 {rate}예요."
+    content = await answer_of(plan, f"{body}\n\n{TAX_NOTE_FREE.replace(' ', chr(10))}")
+    assert content == body
+    assert TAX_NOTE_FREE not in content and TAX_NOTE not in content
 
 
-async def test_b2_wrong_note_with_newlines_is_replaced():
+async def test_b2_general_note_with_newlines_is_removed():
     plan = load("plan-context-etf-tax-free.json")
     rate = plan["display"]["assumptions.taxRatePct"]
-    content = await answer_of(plan, f"적금 이자 세율은 {rate}예요.\n\n{TAX_NOTE.replace(' ', chr(10))}")
-    assert content.count(TAX_NOTE_FREE) == 1 and TAX_NOTE.split()[0] not in content.replace(TAX_NOTE_FREE, "")
+    body = f"적금 이자 세율은 {rate}예요."
+    content = await answer_of(plan, f"{body}\n\n{TAX_NOTE.replace(' ', chr(10))}")
+    assert content == body
+    assert TAX_NOTE_FREE not in content and TAX_NOTE.split()[0] not in content
 
 
 # B3: 계획 종목을 다른 허용 ETF로 바꿔 말하면 거부, 다른 ETF를 따로 설명하는 문장은 허용
@@ -106,11 +112,13 @@ async def test_b6_unregistered_etf_name_passes_unchanged_in_a_kospi_plan():
     assert len(claude.calls) == 1 and resp.content.startswith("ACE 미국 지수 추종 ETF예요.")
 
 
-async def test_b5_model_written_general_note_alone_is_not_rejected_when_nothing_was_removed():
-    """지운 문장이 없으면 P-6대로 비과세가 아닌 계획의 tax.note는 지금처럼 둔다."""
-    resp, claude = await run(etf0_request(), text_resp(TAX_NOTE))
+@pytest.mark.parametrize("note", [TAX_NOTE, TAX_NOTE.replace(" ", "\n")], ids=["general", "newline"])
+async def test_b5_model_written_general_note_alone_is_rejected_as_an_empty_body(note: str):
+    """비과세가 아닌 계획의 tax.note도 지우므로(#233) 단서뿐인 답은 빈 본문이 되어 재시도 없이 거부한다(P-10)."""
+    error, claude = await rejected(etf0_request(), text_resp(note), text_resp("호출되면 안 돼요"))
 
-    assert len(claude.calls) == 1 and resp.content == TAX_NOTE
+    assert error.code == "FORBIDDEN_EXPRESSION"
+    assert len(claude.calls) == 1
 
 
 # 보정 뒤 본문이 비면 정상 응답을 내지 않고 재시도 없이 기존 거부로 끝낸다(결정 18, P-10)

@@ -42,14 +42,15 @@ def sent_text(messages: Any) -> str:
 
 
 async def test_tax_note_of_previous_answer_is_not_sent_back_to_the_model():
+    """#233부터 응답에 단서를 붙이지 않지만, 그 전에 저장된 답은 단서를 달고 이력으로 온다(D-067)."""
     plan = load("plan-context-basic.json")
     claude = FakeClaude([text_resp("세금은 15.4%로 가정했어요.", "ANSWER")])
     first = await agent(claude).run(make_request(plan, "QUESTION", text="세금 얼마 떼요?"))
-    assert TAX_NOTE in first.content   # 응답에는 붙는다
+    assert TAX_NOTE not in first.content   # 응답에는 붙지 않는다
 
     history = [
         {"role": "user", "content": "세금 얼마 떼요?"},
-        {"role": "assistant", "content": first.content},
+        {"role": "assistant", "content": f"{first.content}\n\n{TAX_NOTE}"},   # #233 전에 저장된 답
     ]
     req = make_request(plan, "QUESTION", text="그럼 목표까지 얼마나 모자라요?", history=history)
 

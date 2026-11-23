@@ -175,46 +175,33 @@ def _quotes_rate(content: str, rate: str) -> bool:
     return re.search(rf"(?<![\d.,\uff0e\uff0c]){re.escape(rate)}(?!\d|[,\uff0c]|[.\uff0e]\d)", content) is not None
 
 
-def with_tax_note(req: ChatRequest, content: str) -> str:
-    """답이 계획의 세율 표시값을 독립된 숫자로 말했으면 계획에 맞는 세금 단서 하나를 끝에 붙인다(D-067, D-073).
-    비과세 종목(raw etfGainTaxRatePct가 0)이면 tax.noteEtfTaxFree, 아니면 tax.note다.
-    모델이 계획과 다른 단서를 썼으면 지우고 맞는 단서로 바꾼다. 세율을 말하지 않은 답에는 단서를 붙이지 않고,
-    계획과 다른 단서(모든 계획의 tax.noteEtfTaxFree, 비과세 계획의 tax.note)는 지우기만 한다(#155 P-2·P-6).
-    단서는 문장 사이 공백·줄바꿈이 달라도 같은 단서로 찾는다. 코드가 붙이므로 모델 입력에는 없다."""
-    if req.plan_context is None:
+def without_tax_notes(req: ChatRequest, content: str) -> str:
+    """세금 단서(tax.note·tax.noteEtfTaxFree)는 대화 패널의 고정 문구로 한 번 보여 주고 답에는 붙이지 않는다(#233,
+    D-067·D-073의 표시 위치 변경). 모델이 본문에 쓴 단서는 두 종류 모두 지운다.
+    단서를 지우자 양옆 글자가 이어져 세율 표시값이 새로 생기면 한 칸을 띄워 이어지지 않게 한다(#155 P-6).
+    단서는 문장 사이 공백·줄바꿈이 달라도 같은 단서로 찾는다."""
+    copy = load_copy()
+    patterns = [note_pattern(copy.get("tax.noteEtfTaxFree")), note_pattern(copy.get("tax.note"))]
+    stripped = content
+    for pattern in patterns:
+        stripped = pattern.sub("", stripped)
+    if stripped == content:
         return content
-    display = req.plan_context.display
+    display = req.plan_context.display if req.plan_context else {}
     # 빈 표시값은 어떤 답에도 들어 있으므로 세율 인용으로 보지 않는다
     rates = [rate for k in (TAX_RATE_KEY, ETF_TAX_RATE_KEY) if (rate := display.get(k))]
-    copy = load_copy()
-    note, note_free = copy.get("tax.note"), copy.get("tax.noteEtfTaxFree")
-    tax_free = req.plan_context.result.assumptions.etf_gain_tax_rate_pct == 0
-    right, wrong = (note_free, note) if tax_free else (note, note_free)
-    right_re, wrong_re = note_pattern(right), note_pattern(wrong)
 
     def quotes(text: str) -> bool:
         return any(_quotes_rate(text, rate) for rate in rates)
 
-    # 단서 문장 안의 숫자를 세율 인용으로 오해하지 않도록 단서를 뺀 본문으로 판정한다.
-    # 단서 자리에 구분자를 둬서 양옆 글자가 하나의 표시값으로 이어지지 않게 한다
-    bare = note_pattern(note_free).sub(_NOTE_GAP, note_pattern(note).sub(_NOTE_GAP, content))
-    if not quotes(bare):
-        drop = [note_pattern(note_free), note_pattern(note)] if tax_free else [note_pattern(note_free)]
+    bare = content
+    for pattern in patterns:
+        bare = pattern.sub(_NOTE_GAP, bare)
+    if quotes(stripped) and not quotes(bare):
         stripped = content
-        for pattern in drop:
-            stripped = pattern.sub("", stripped)
-        if quotes(stripped):
-            # 단서를 지우자 양옆이 이어져 세율 표시값이 새로 생기면 한 칸을 띄워 이어지지 않게 한다
-            stripped = content
-            for pattern in drop:
-                stripped = pattern.sub(" ", stripped)
-        return content if stripped == content else stripped.rstrip()
-    content = wrong_re.sub("", content).rstrip()
-    first = right_re.search(content)
-    if first is None:
-        return f"{content}\n\n{right}"
-    # 맞는 단서를 모델이 여러 번 썼으면 첫 번째만 글자 그대로 남긴다
-    return f"{content[:first.start()]}{right}{right_re.sub('', content[first.end():])}".rstrip()
+        for pattern in patterns:
+            stripped = pattern.sub(" ", stripped)
+    return stripped.rstrip()
 
 
 def _cover_orgs(turn: Turn, citations: list[int], min_orgs: int = 2) -> list[int]:
@@ -333,7 +320,7 @@ def assemble(turn: Turn, final: FinalAnswer) -> ChatResponse:
         _check_numbers(turn, body)   # PR-04. 종목 추천·계획 종목 검사 뒤에 본문을 대조한다
         # 단서를 지우면 양옆 글자가 이어져 종목명·숫자가 새로 생길 수 있어 보정한 본문을 다시 검사한다(#155).
         # 숫자는 단서 자리를 끊고 본다. 단서 안의 숫자는 본문 숫자가 아니다
-        content = _checked_body(req, with_tax_note(req, body))
+        content = _checked_body(req, without_tax_notes(req, body))
         _check_numbers(turn, _mask_notes(content))
         if not content.strip():
             # 단서 보정 뒤 본문이 비면 정상 응답이 아니다(#155, P-10)

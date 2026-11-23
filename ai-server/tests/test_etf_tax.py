@@ -92,7 +92,7 @@ def test_ac1_raw_etf_fields_never_reach_the_model():
     text = json.dumps(build_messages(make_request(plan, "EXPLAIN", plan["calcRunId"])), ensure_ascii=False)
     for raw in ("etfProductCode", "etf_product_code", "069500", "etf_gain_tax_rate_pct", "\"etfGainTaxRatePct\""):
         assert raw not in text, raw
-    assert COPY.get("tax.noteEtfTaxFree") not in text + SYSTEM_PROMPT   # 단서는 코드가 응답에 붙인다
+    assert COPY.get("tax.noteEtfTaxFree") not in text + SYSTEM_PROMPT   # 단서는 대화 패널이 고정 문구로 보여 준다(#233)
 
 
 # ---- AC-2: ETF 미사용 계획(회귀 보호: 지금도 성공해야 한다) ----
@@ -104,10 +104,12 @@ def test_ac2_etf_unused_plan_has_no_etf_keys_in_model_input():
     assert shown["display"]["assumptions.taxRatePct"] == "15.4%"   # 적금 이자 세율은 별도 키에서 읽는다
 
 
-async def test_ac2_etf_unused_plan_gets_only_tax_note():
-    content = await answer_of(etf_unused_plan(), "적금 이자 세율은 15.4%로 가정했어요.")
-    assert content.endswith(TAX_NOTE) and content.count(TAX_NOTE) == 1
-    assert TAX_NOTE_FREE not in content
+async def test_ac2_etf_unused_plan_answer_gets_no_tax_note():
+    """세율을 인용해도 단서를 붙이지 않는다(#233). 본문은 글자 그대로다."""
+    answer = "적금 이자 세율은 15.4%로 가정했어요."
+    content = await answer_of(etf_unused_plan(), answer)
+    assert content == answer
+    assert TAX_NOTE not in content and TAX_NOTE_FREE not in content
 
 
 # ---- AC-3: 비과세 ETF 계획 ----
@@ -118,28 +120,30 @@ async def test_ac2_etf_unused_plan_gets_only_tax_note():
     [f"ETF 매매차익 세율은 {TAX_FREE_DISPLAY}이에요.", "적금 이자 세율은 15.4%로 가정했어요."],
     ids=["quotes-etf-rate", "quotes-savings-rate-only"],
 )
-async def test_ac3_tax_free_etf_gets_only_note_etf_tax_free(raw_rate: float, answer: str):
+async def test_ac3_tax_free_etf_answer_has_neither_note(raw_rate: float, answer: str):
+    """비과세 계획(raw 0·0.0)이어도 단서를 붙이지 않고, 모델이 쓴 두 단서는 모두 지운다(#233)."""
     plan = load("plan-context-etf-tax-free.json")
     plan["result"]["assumptions"]["etfGainTaxRatePct"] = raw_rate
 
-    content = await answer_of(plan, answer)
+    assert await answer_of(plan, answer) == answer
+    content = await answer_of(plan, f"{answer} {TAX_NOTE_FREE} {TAX_NOTE}")
 
-    assert content.startswith(answer) and content.endswith(TAX_NOTE_FREE)   # 글자 그대로, 본문 끝에
-    assert content.count(TAX_NOTE_FREE) == 1
-    assert TAX_NOTE not in content
-
-
-async def test_ac3_tax_free_note_already_written_by_model_is_not_duplicated():
-    answer = f"ETF 매매차익 세율은 {TAX_FREE_DISPLAY}이에요. {TAX_NOTE_FREE}"
-    assert await answer_of(load("plan-context-etf-tax-free.json"), answer) == answer
+    assert content == answer   # 본문은 글자 그대로
+    assert TAX_NOTE_FREE not in content and TAX_NOTE not in content
 
 
-async def test_ac3_general_tax_note_written_by_model_is_replaced_by_the_tax_free_note():
-    """비과세 계획에 일반 과세 안내가 보이는 모순을 막는다(사용자 결정 3, D-073)."""
+async def test_ac3_tax_free_note_written_by_model_is_removed():
+    body = f"ETF 매매차익 세율은 {TAX_FREE_DISPLAY}이에요."
+    content = await answer_of(load("plan-context-etf-tax-free.json"), f"{body} {TAX_NOTE_FREE}")
+    assert content == body and TAX_NOTE not in content
+
+
+async def test_ac3_general_tax_note_written_by_model_is_removed_and_not_replaced():
+    """비과세 계획에 일반 과세 안내가 보이는 모순을 막는다(사용자 결정 3, D-073). 대신 붙이지도 않는다(#233)."""
     body = f"ETF 매매차익 세율은 {TAX_FREE_DISPLAY}이에요."
     content = await answer_of(load("plan-context-etf-tax-free.json"), f"{body} {TAX_NOTE}")
-    assert content.count(TAX_NOTE_FREE) == 1 and TAX_NOTE not in content
-    assert content.startswith(body)
+    assert content == body
+    assert TAX_NOTE_FREE not in content and TAX_NOTE not in content
 
 
 async def test_ac3_no_note_when_answer_quotes_no_tax_rate():
@@ -155,14 +159,14 @@ def test_ac3_model_input_has_both_rates_under_their_own_keys():
 
 
 async def test_ac3_note_etf_tax_free_of_previous_answer_is_not_sent_back_to_the_model():
+    """#233 전에 저장된 답에는 단서가 붙어 있다. 이력으로 와도 모델에게 다시 보내지 않는다(D-067)."""
     plan = load("plan-context-etf-tax-free.json")
-    first = await answer_of(plan, f"ETF 매매차익 세율은 {TAX_FREE_DISPLAY}이에요.")
-    assert TAX_NOTE_FREE in first
+    body = f"ETF 매매차익 세율은 {TAX_FREE_DISPLAY}이에요."
+    first = f"{body}\n\n{TAX_NOTE_FREE}"
 
     history = [{"role": "user", "content": "세금 얼마 떼요?"}, {"role": "assistant", "content": first}]
     messages = build_messages(make_request(plan, "QUESTION", text="그럼요?", history=history))
     sent = "\n".join(str(m["content"]) for m in messages)
-    body = f"ETF 매매차익 세율은 {TAX_FREE_DISPLAY}이에요."
     assert TAX_NOTE_FREE not in sent and body in sent   # 본문은 남고 단서만 빠진다
 
     only_note = [{"role": "user", "content": "첫 질문"}, {"role": "assistant", "content": TAX_NOTE_FREE}]
@@ -170,40 +174,41 @@ async def test_ac3_note_etf_tax_free_of_previous_answer_is_not_sent_back_to_the_
     assert [m["role"] for m in messages] == ["user"]
 
 
-# ---- AC-4: 과세 종목은 동작 변화 없음 ----
+# ---- AC-4: 과세 종목도 단서를 붙이지 않는다(#233) ----
 
 @pytest.mark.parametrize("raw_rate", [15.4, None], ids=["raw-15.4", "raw-missing"])
-async def test_ac4_taxable_etf_gets_tax_note_once(raw_rate: float | None):
+async def test_ac4_taxable_etf_answer_gets_no_tax_note(raw_rate: float | None):
     plan = taxable_plan(raw_rate)
     if raw_rate is None:
-        del plan["result"]["assumptions"]["etfGainTaxRatePct"]   # raw 값이 없으면 과세로 본다
+        del plan["result"]["assumptions"]["etfGainTaxRatePct"]   # raw 값이 없어도 같다
     answer = "ETF 차익 세율은 15.4%로 가정했어요."
 
     content = await answer_of(plan, answer)
 
-    assert content.startswith(answer) and content.endswith(TAX_NOTE) and content.count(TAX_NOTE) == 1
-    assert TAX_NOTE_FREE not in content
+    assert content == answer
+    assert TAX_NOTE not in content and TAX_NOTE_FREE not in content
 
 
-async def test_ac4_taxable_etf_does_not_duplicate_tax_note():
-    answer = f"세금은 15.4%로 가정했어요. {TAX_NOTE}"
-    assert await answer_of(taxable_plan(), answer) == answer
+async def test_ac4_taxable_etf_model_written_tax_note_is_removed():
+    body = "세금은 15.4%로 가정했어요."
+    assert await answer_of(taxable_plan(), f"{body} {TAX_NOTE}") == body
 
 
-async def test_ac4_plan_without_etf_fields_keeps_old_behaviour():
-    """raw etf* 필드가 아예 없는 기존 요청(basic 예시)도 tax.note만 붙는다."""
+async def test_ac4_plan_without_etf_fields_gets_no_tax_note():
+    """raw etf* 필드가 아예 없는 기존 요청(basic 예시)도 단서를 붙이지 않고 모델이 쓴 단서는 지운다."""
     plan = load("plan-context-basic.json")
     plan["result"]["assumptions"] = {k: v for k, v in plan["result"]["assumptions"].items() if k not in ETF_RAW_KEYS}
-    content = await answer_of(plan, "세금은 15.4%로 가정했어요.")
-    assert content.endswith(TAX_NOTE) and TAX_NOTE_FREE not in content
+    body = "세금은 15.4%로 가정했어요."
+    assert await answer_of(plan, body) == body
+    assert await answer_of(plan, f"{body} {TAX_NOTE}") == body
 
 
 @pytest.mark.parametrize("plan_of", [taxable_plan, etf_unused_plan], ids=["taxable", "etf-unused"])
-async def test_ac4_tax_free_note_written_by_model_is_replaced_by_the_general_tax_note(plan_of: Any):
+async def test_ac4_tax_free_note_written_by_model_is_removed_and_not_replaced(plan_of: Any):
     body = "세금은 15.4%로 가정했어요."
     content = await answer_of(plan_of(), f"{body} {TAX_NOTE_FREE}")
-    assert content.count(TAX_NOTE) == 1 and TAX_NOTE_FREE not in content
-    assert content.startswith(body)
+    assert content == body
+    assert TAX_NOTE not in content and TAX_NOTE_FREE not in content
 
 
 @pytest.mark.parametrize("rate_key", [ETF_RATE_KEY, "assumptions.taxRatePct"], ids=["etf-rate", "savings-rate"])
