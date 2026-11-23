@@ -23,7 +23,7 @@ def test_length_caps_per_answer_type() -> None:
     assert "값 하나를 묻는 질문은 1문장" in section
     assert "RECALC_RESULT는 2문장 이내" in section
     assert "ANSWER는 3문장 이내" in section
-    assert "EXPLANATION은 4문장 이내" in section
+    assert "EXPLANATION은 3문장 이내" in section   # #252: 입력 조건 나열을 빼면서 4→3(기준표 Q3)
 
 
 def test_length_rule_does_not_cut_server_copy_or_quote_rules() -> None:
