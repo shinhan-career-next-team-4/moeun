@@ -8,6 +8,18 @@ export const CONDITION_LABELS: Record<string, string> = {
 
 export const GOAL_LABEL = "목표 금액";
 
+export const ETF_LABEL = "ETF 종목";
+
+/** 비교 카드 제목과 변화 방향 문구(#284). */
+export const DIRECTION_COPY = {
+  title: "{conditions}을 바꾼 결과",
+  better: "좋아졌어요",
+  worse: "나빠졌어요",
+  same: "변화 없어요",
+  increased: "늘렸어요",
+  decreased: "줄였어요",
+} as const;
+
 export const ACHIEVEMENT_CHANGE_LABELS: Record<string, string> = {
   STAYS_ACHIEVED: "계속 달성해요",
   STAYS_MISSED: "계속 미달이에요",
