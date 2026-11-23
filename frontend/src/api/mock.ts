@@ -34,6 +34,7 @@ const KEY_BY_PREFIX: Record<string, string> = {
   "put-plan": "PUT /api/plan",
   "post-undo": "POST /api/plan/undo",
   "post-plan-apply": "POST /api/plan/apply",
+  "post-alternatives": "POST /api/alternatives",
 };
 
 // 요청 키마다 기본 파일 하나. F-4는 messageId별 기본 파일이 있고, 그 밖의 id는 404 목이다(가정 A-6).
@@ -52,6 +53,8 @@ const DEFAULT_FILE_BY_KEY: Record<string, string> = {
   "PUT /api/plan": "put-plan.seq-full-flow.json",
   "POST /api/plan/undo": "post-undo.200.json",
   "POST /api/plan/apply": "post-plan-apply.200.json",
+  // 첫 요청은 기한 카드 빈 응답, 기한을 입력한 뒤에는 48개월 응답(본문으로는 고르지 않는다)
+  "POST /api/alternatives": "post-alternatives.seq.json",
 };
 
 const MESSAGE_ID_PATHS: Array<[RegExp, string]> = [

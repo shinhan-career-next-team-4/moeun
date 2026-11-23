@@ -1,0 +1,27 @@
+{
+  "responses": [
+    {
+      "status": 422,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "입력값을 확인해 주세요",
+        "status": 422,
+        "detail": "targetPeriodMonths: OUT_OF_RANGE",
+        "instance": "/api/alternatives",
+        "code": "VALIDATION_FAILED",
+        "errors": [
+          {
+            "field": "targetPeriodMonths",
+            "reason": "OUT_OF_RANGE",
+            "min": 1,
+            "max": 360,
+            "unit": "MONTH"
+          }
+        ]
+      }
+    }
+  ]
+}
