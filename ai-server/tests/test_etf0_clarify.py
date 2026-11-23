@@ -57,7 +57,7 @@ async def test_etf0_plan_answer_listing_etf_names_is_still_rejected_once():
     from tests.test_etf_name_correction import rejected
 
     error, claude = await rejected(
-        etf0_request(), text_resp("코스피200 추종 ETF, 나스닥 추종 ETF가 있어요."), text_resp("호출되면 안 돼요")
+        etf0_request(), text_resp("코스피200 추종 ETF, 나스닥100 추종 ETF가 있어요."), text_resp("호출되면 안 돼요")
     )
 
     assert error.code == "FORBIDDEN_EXPRESSION"

@@ -15,7 +15,7 @@ from app.schemas import ChatMode, ChatRequest, ChatResponse, MessageType
 
 GENERIC_ETF_NAME = "S&P500 추종 ETF"
 # 본문에 써도 되는 ETF 표현(#155, CP-06 수정). 계획 종목 정합성 검사와 교정 지시의 대체 예가 이 상수를 읽는다
-ALLOWED_ETF_NAMES = ("코스피200 추종 ETF", GENERIC_ETF_NAME, "나스닥 추종 ETF")
+ALLOWED_ETF_NAMES = ("코스피200 추종 ETF", GENERIC_ETF_NAME, "나스닥100 추종 ETF")
 
 # 개별 주식 종목 추천만 금지한다(CF-07, D-028). ETF 추천 표현과 ETF 상품명은 거부·치환하지 않는다.
 # 종목명(삼성전자·삼전 등)은 열린 집합이라 규칙으로 가릴 수 없어, 본문에 추천 낱말이 있을 때만 판정 모델에 묻는다.

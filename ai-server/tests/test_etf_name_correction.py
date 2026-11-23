@@ -12,7 +12,7 @@ from tests.test_plan_context import FakeClaude, make_agent
 
 KOSPI = "코스피200 추종 ETF"
 GENERIC = "S&P500 추종 ETF"
-NASDAQ = "나스닥 추종 ETF"
+NASDAQ = "나스닥100 추종 ETF"
 
 
 def retry_text(call: dict[str, Any]) -> str:
