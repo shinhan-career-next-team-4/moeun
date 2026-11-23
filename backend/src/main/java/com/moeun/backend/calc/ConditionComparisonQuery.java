@@ -13,8 +13,10 @@ public interface ConditionComparisonQuery {
      * 먼저 {@code ConditionValidator}로 검증한다).
      *
      * @return {@code basePlanVersionId}는 지금의 현재 계획 버전이다(기록이 없는 비교라 calc_run의 버전이 아니다)
-     * @param changes 검증을 통과한 바꾼 조건(하나 이상)
+     * @param changes 검증을 통과한 바꾼 조건. 종목만 바꾸면 모두 null일 수 있다
+     * @param changedEtfProductCode changed를 계산할 ETF 종목(#154, 결과 화면 종목 바꾸기 미리보기). null이면 계획의 종목.
+     *     검증을 통과한 적재된 종목이다
      * @throws CalcRejectedException 계획 없음(409 NO_PLAN), 바꾼 조건으로도 이미 목표 초과(409 ALREADY_EXCEEDED)
      */
-    ChatComparisonView compareWithCurrentPlan(long memberId, ConditionOverride changes);
+    ChatComparisonView compareWithCurrentPlan(long memberId, ConditionOverride changes, String changedEtfProductCode);
 }

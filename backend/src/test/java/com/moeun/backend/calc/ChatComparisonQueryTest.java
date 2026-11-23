@@ -257,6 +257,22 @@ class ChatComparisonQueryTest {
     }
 
     @Test
+    @DisplayName("계획의 종목이 069500이면 대화 비교도 그 종목으로 계산하고 calc_run(CHAT)에 그 가격 버전을 남긴다(#154)")
+    void comparesWithEtfProductOfPlan() throws Exception {
+        PlanSaveResult saved = savePlan(memberId, null, 300_000L);
+        long kospi = loadTaxFreeProduct();
+        // 준비 단계에서만 행을 직접 고친다(앱 코드는 plan_version을 INSERT만 한다)
+        jdbc.sql("UPDATE plan_version SET etf_product_code = '069500' WHERE id = ?").param(saved.planVersionId())
+                .update();
+
+        ComparisonResult result = compareConditionsUseCase.compare(memberId,
+                new ConditionOverride(500_000L, null, null, null, null, null));
+
+        assertThat(jdbc.sql("SELECT sp500_version_id FROM calc_run WHERE id = ?").param(result.calcRunId())
+                .query(Long.class).single()).isEqualTo(kospi);
+    }
+
+    @Test
     @DisplayName("같은 종목 비교는 calc_run(CHAT)에 changed 종목 버전을 따로 남기지 않는다(#157)")
     void leavesChangedEtfVersionEmptyForSameProduct() {
         savePlan(memberId, null, 300_000L);
