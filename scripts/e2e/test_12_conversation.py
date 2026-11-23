@@ -6,6 +6,7 @@
   #229 묻지 않은 것까지 길게 답함              → 값 조회는 짧게, 조건 변경 답도 짧게
   #233 세금 안내 문장이 대화마다 반복          → 대화 답에 세금 안내 없음
   #239 역할 단어 없는 후속 금액에 되묻기 반복   → 직전 대화의 조건으로 계산
+  #267 대화로 ETF 종목 바꾸기(D-097)          → 목록 안 종목만 계산, ETF 0%는 한 문장, 적용 불가(#268)
 LLM 문장은 매번 달라서 글자를 비교하지 않는다. 메시지 종류, F-4 conditions, 문장 수, 금지 문장만 본다.
 실패 메시지에는 본문 전체를 넣어 프롬프트 문제인지 바로 판단할 수 있게 한다.
 """
@@ -219,11 +220,57 @@ def test_s8_6_other_etf_risk_has_sources(api, fresh, q):
     assert_no_notice(msg)
 
 
-def test_s8_7_etf_product_change_is_not_recalculated_yet(api, fresh):
-    """대화로 종목을 바꾸는 기능은 아직 없다(#154, D-040 개정 전). 계산하지 않고 안내만 한다.
-    이 기능이 생기면 기대값을 RECALC_RESULT로 바꾼다."""
+def test_s8_7_etf_product_change_is_recalculated(api, fresh):
+    """대화로 종목을 바꾼다(D-097, #267). 계획(S&P500)과 다른 종목으로 계산하고, #154 전까지는 적용할 수 없다(#268)."""
     msg = ask(api, "ETF를 나스닥으로 바꾸고 싶어")
-    assert msg["messageType"] != "RECALC_RESULT", f"종목 변경을 계산함: {msg['content']}"
+    assert msg["messageType"] == "RECALC_RESULT", f"종목 변경을 계산하지 않음: {msg['content']}"
+    cmp = comparison(api, msg["messageId"])
+    assert cmp["conditions"]["changed"].get("etfProductCode") == "133690", cmp["conditions"]
+    assert cmp["applicable"] is False, "종목을 바꾼 비교는 #154 전까지 적용 불가(#268)"
+    assert "추천" not in msg["content"], msg["content"]
+    assert len(body_sentences(msg["content"])) <= 3, msg["content"]
+    assert_no_notice(msg)
+
+
+# ---------- S8-11 대화로 종목 바꾸기 (D-097, #267) ----------
+
+def test_s8_11a_product_and_monthly_saving_together(api, fresh):
+    msg = ask(api, "코스피200으로 바꾸고 월 150만원 넣으면?")
+    assert msg["messageType"] == "RECALC_RESULT", f"{msg['messageType']}: {msg['content']}"
+    changed = comparison(api, msg["messageId"])["conditions"]["changed"]
+    assert changed.get("etfProductCode") == "069500", changed
+    assert changed.get("monthlySavingAmount") == 1_500_000, changed
+
+
+def test_s8_11b_follow_up_product_does_not_carry_previous_value(api, fresh):
+    ask(api, "월 저축액을 150만원으로 하면요?")
+    msg = ask(api, "그럼 코스피200으로 바꾸면?")
+    assert msg["messageType"] == "RECALC_RESULT", f"{msg['messageType']}: {msg['content']}"
+    changed = comparison(api, msg["messageId"])["conditions"]["changed"]
+    assert changed.get("etfProductCode") == "069500", changed
+    assert changed.get("monthlySavingAmount") == fresh["plan"]["monthlySavingAmount"], (
+        f"앞 턴의 월 저축액을 이어받음(D-041) {changed}")
+
+
+def test_s8_11c_etf_zero_says_product_does_not_matter(api, fresh):
+    """ETF 비중이 0%면 종목을 바꿔도 결과가 같다고 한 문장으로 답한다(D-097 합의 4)."""
+    msg = ask(api, "적금 100%로 하고 코스피200으로 바꾸면?")
+    assert msg["messageType"] == "RECALC_RESULT", f"{msg['messageType']}: {msg['content']}"
+    assert "결과는 같" in msg["content"], msg["content"]
+    assert len(body_sentences(msg["content"])) <= 2, msg["content"]
+
+
+@pytest.mark.parametrize("q", ["코스닥150으로 바꾸면?", "삼성전자로 바꿔 줘"])
+def test_s8_11d_product_outside_the_list_asks_again(api, fresh, q):
+    """S&P500·코스피200·나스닥100 밖의 종목은 계산하지 않고 되묻는다. 어느 종목이 낫다고 권하지 않는다."""
+    msg = ask(api, q)
+    assert msg["messageType"] != "RECALC_RESULT", f"[{q}] 목록 밖 종목을 계산함: {msg['content']}"
+    assert "추천" not in msg["content"], msg["content"]
+
+
+def test_s8_11e_same_product_as_plan_is_not_a_comparison(api, fresh):
+    msg = ask(api, "S&P500으로 바꾸면?")
+    assert msg["messageType"] != "RECALC_RESULT", f"계획과 같은 종목으로 비교함: {msg['content']}"
 
 
 # ---------- #254 대화 응답 기준표: 결과 설명·수익 질문 ----------

@@ -5,7 +5,7 @@ from app.rag.etf_codes import doc_codes_for, product_from_display_name
 from app.schemas import ChatRequest, DocType
 
 
-def _plan_product(req: ChatRequest) -> str | None:
+def plan_product(req: ChatRequest) -> str | None:
     """계획의 종목 코드. Spring이 준 etfProductCode를 우선하고(모르는 코드는 doc_codes_for가 버려 필터가 없다),
     없을 때(구버전 요청·ETF 0%)만 표시 이름의 키워드로 읽는다(#186)."""
     if req.plan_context is None:
@@ -29,10 +29,10 @@ def search_etf_codes(req: ChatRequest, doc_type: DocType | None, asked: object) 
     (실제 LLM 점검에서 모델이 PLAN을 빼먹어 다른 종목 문서를 인용한 적이 있다, #189)."""
     if doc_type != DocType.DISCLOSURE:
         return []
-    plan_product = _plan_product(req)
+    planned = plan_product(req)
     asked_products = [p for p in asked if isinstance(p, str)] if isinstance(asked, list) else []
-    products = [plan_product if p == PLAN_PRODUCT else p for p in asked_products]
+    products = [planned if p == PLAN_PRODUCT else p for p in asked_products]
     codes = doc_codes_for([p for p in products if p])
-    if not codes and plan_product and req.text and _MY_ETF.search(req.text):
-        codes = doc_codes_for([plan_product])
+    if not codes and planned and req.text and _MY_ETF.search(req.text):
+        codes = doc_codes_for([planned])
     return codes

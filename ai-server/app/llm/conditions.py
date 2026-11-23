@@ -35,6 +35,10 @@ _RATIO_WORDS = re.compile(r"비중|비율|반반|etf|주식|배분|(?:예금|적
 # '줄이자'·'높이자'의 -이자는 제외한다. 이자율, 앞에 한글이 없는 이자, 적금이자·예금이자만 금리로 본다
 _RATE_WORDS = re.compile(r"금리|이율|이자율|(?<![가-힣])이자|(?<=금)이자")
 _PERCENT = re.compile(r"%|퍼센트|프로|퍼")
+# ETF 종목을 가리키는 말(D-097). 지수 이름 뒤의 숫자(코스피200·나스닥100·S&P500)는 금액·기간이 아니라 이름이다
+_INDEX_NAME = r"(?:코스피|kospi|나스닥|nasdaq|s\s*&\s*p|에스\s*앤\s*피|에스\s*엔\s*피)"
+_ETF_PRODUCT_WORDS = re.compile(rf"{_INDEX_NAME}|종목")
+_INDEX_NAME_NUMBER = re.compile(rf"({_INDEX_NAME})\s*\d+")
 _NUMBER = re.compile(rf"\d+(?:\.\d+)?|{_KO_NUMERAL}")
 _MONEY_FIELDS = ("goal_amount", "monthly_saving_amount")
 _THOUSANDS_COMMA = re.compile(r"(?<=\d),(?=\d{3})")
@@ -133,6 +137,7 @@ def check_amount_units(text: str, changes: ConditionChanges) -> bool:
 
 def _count_numbers(text: str) -> int:
     """발화 속 숫자 덩어리 수. 쉼표 금액(500,000)과 한 기간의 복수 단위(3년 6개월)는 하나로 센다."""
+    text = _INDEX_NAME_NUMBER.sub(r"\1", text)
     return len(_NUMBER.findall(_PERIOD_COMPOUND.sub("0년", _THOUSANDS_COMMA.sub("", text))))
 
 
@@ -151,6 +156,7 @@ def _stated_conditions(text: str) -> set[str]:
         "savings_ratio_pct": ratio_words or (not rate_words and percent),
         "savings_rate_input_pct": rate_words or (not ratio_words and percent),
         "target_period_months": bool(_PERIOD.search(text)),
+        "etf_product_code": bool(_ETF_PRODUCT_WORDS.search(text)),
     }
     return {name for name, hit in stated.items() if hit}
 

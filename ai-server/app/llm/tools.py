@@ -4,7 +4,7 @@ from typing import Any, Protocol
 from anthropic.types.beta import BetaJSONOutputFormatParam, BetaToolParam
 from pydantic import BaseModel
 
-from app.rag.etf_codes import PRODUCT_DOC_CODES
+from app.rag.etf_codes import PRODUCT_DOC_CODES, PRODUCT_INDEX_NAMES
 from app.schemas import ConditionChanges, DocType, MessageType, RetrievedChunk, Scenario
 
 
@@ -32,6 +32,13 @@ _CONDITION_FIELDS = {
     "savings_ratio_pct": _nullable("integer", description="적금 비중(%), 나머지는 ETF"),
     "savings_rate_input_pct": _nullable("number", description="적금 연 금리(%)"),
     "target_period_months": _nullable("integer", description="목표 기한(개월)"),
+    # 종목은 정해진 코드만 고른다(D-097). 목록에 없는 종목을 말하면 계산하지 않고 되묻는다(프롬프트)
+    "etf_product_code": {
+        "type": ["string", "null"],
+        "enum": [*PRODUCT_INDEX_NAMES, None],
+        "description": "ETF 종목 코드. "
+        + ", ".join(f"{code}={name}" for code, name in PRODUCT_INDEX_NAMES.items()),
+    },
 }
 
 TOOLS: list[BetaToolParam] = [
@@ -39,7 +46,7 @@ TOOLS: list[BetaToolParam] = [
         "name": "recalculate",
         "description": (
             "사용자의 현재 계획에서 일부 조건만 바꿔 Spring 계산 엔진으로 다시 계산한다. "
-            "바꿀 수 있는 조건은 목표 금액·월 저축액·적금 비중·적금 금리·기한 다섯 가지이고, "
+            "바꿀 수 있는 조건은 목표 금액·월 저축액·적금 비중·적금 금리·기한·ETF 종목 여섯 가지이고, "
             "바꾸지 않는 조건은 null로 둔다. "
             "금액은 원 단위 정수, 기한은 개월 수."
         ),

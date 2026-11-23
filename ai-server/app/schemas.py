@@ -2,7 +2,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, StrictStr, field_validator
 from pydantic.alias_generators import to_camel
 
 from app.core.contract import DISPLAY_KEY as DISPLAY_KEY
@@ -26,7 +26,7 @@ class DocType(StrEnum):
 
 
 class ConditionChanges(ApiModel):
-    """대화로 바꿀 수 있는 조건 1단계 5개(D-090·D-092, D-040 대체). None = 바꾸지 않음.
+    """대화로 바꿀 수 있는 조건 6개(D-092·D-097). None = 바꾸지 않음. etf_product_code만 문자열(ETF 종목 코드)이다.
 
     타입만 검사한다. 범위 검증은 Spring 한 곳에서 한다(계약 원칙 2, D-033).
     """
@@ -38,6 +38,7 @@ class ConditionChanges(ApiModel):
     savings_ratio_pct: StrictInt | None = None
     savings_rate_input_pct: StrictFloat | StrictInt | None = Field(default=None, allow_inf_nan=False)
     target_period_months: StrictInt | None = None
+    etf_product_code: StrictStr | None = None
 
     def changed(self) -> dict[str, Any]:
         # chat_message.condition_changes에 저장되는 값. snake_case 그대로 둔다(camelCase 변환은 Spring, C12b-14)

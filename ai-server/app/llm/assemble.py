@@ -133,11 +133,12 @@ _CONDITION_COPY_KEYS = (
     "condition.savingsRatioPct",
     "condition.savingsRateInputPct",
     "condition.targetPeriodMonths",
+    "condition.etfProductCode",
 )
 
 
 def out_of_scope_content() -> str:
-    """범위 밖 안내. 모델 문장 대신 문구표 문장과 대화로 바꿀 수 있는 5개 조건 이름을 잇는다(D-090·D-092)."""
+    """범위 밖 안내. 모델 문장 대신 문구표 문장과 대화로 바꿀 수 있는 6개 조건 이름을 잇는다(D-092·D-097)."""
     copy = load_copy()
     names = "·".join(copy.get(key) for key in _CONDITION_COPY_KEYS)
     return f"{copy.get('outOfScope')} 대화로는 {names}을 바꿔 볼 수 있어요."
@@ -247,21 +248,27 @@ def _mask_notes(content: str) -> str:
     return content
 
 
-def _checked_body(req: ChatRequest, content: str) -> str:
+def _checked_body(req: ChatRequest, content: str, product_changed: bool = False) -> str:
     """계획 종목 표기 검사(#155). ETF 상품명은 허용(CF-07)이라 바꾸지 않는다. 개별 종목 추천은 이미 run·_retry가
-    assemble 앞에서 거른다(_check_body). 거부할 표현이면 _ForbiddenAnswer를 올린다."""
+    assemble 앞에서 거른다(_check_body). 거부할 표현이면 _ForbiddenAnswer를 올린다.
+    대화로 종목을 바꾼 비교(D-097)는 다른 종목을 말하는 것이 답이므로 계획 종목 검사를 하지 않는다."""
     try:
         check_display_keys(content)
         check_internal_leak(content)
-        if plan_without_etf(req):
-            # ETF 0% 계획의 종목 언급은 재시도도 문장 삭제도 없이 기존 거부로 끝낸다(#155, P-4)
-            if names_etf(content):
-                raise ForbiddenAnswer(ForbiddenReason.PRODUCT_NAME, retry=False)
-        else:
-            check_plan_etf_claims(content, plan_etf_name(req))   # 계획 종목을 다른 ETF로 바꿔 말하면 거부(#155)
+        if not product_changed:
+            _check_plan_etf(req, content)
     except ForbiddenExpression as e:
         raise ForbiddenAnswer(ForbiddenReason(str(e))) from e
     return content
+
+
+def _check_plan_etf(req: ChatRequest, content: str) -> None:
+    if plan_without_etf(req):
+        # ETF 0% 계획의 종목 언급은 재시도도 문장 삭제도 없이 기존 거부로 끝낸다(#155, P-4)
+        if names_etf(content):
+            raise ForbiddenAnswer(ForbiddenReason.PRODUCT_NAME, retry=False)
+    else:
+        check_plan_etf_claims(content, plan_etf_name(req))   # 계획 종목을 다른 ETF로 바꿔 말하면 거부(#155)
 
 
 # 목표 종류·보유 자산 변경 안내 문구의 마지막 문장. 모델이 문구 앞에 문장을 덧붙이거나 바꿔도 이 문장이 있으면 그 의도다.
@@ -316,11 +323,12 @@ def assemble(turn: Turn, final: FinalAnswer) -> ChatResponse:
         tax_copy = load_copy().get("outOfScope.tax")
         content = tax_copy if tax_copy in final.content else out_of_scope_content()
     else:
-        body = _checked_body(req, _fixed_copy(req, final.content))
+        product_changed = "etf_product_code" in (turn.condition_changes or {})
+        body = _checked_body(req, _fixed_copy(req, final.content), product_changed)
         _check_numbers(turn, body)   # PR-04. 종목 추천·계획 종목 검사 뒤에 본문을 대조한다
         # 단서를 지우면 양옆 글자가 이어져 종목명·숫자가 새로 생길 수 있어 보정한 본문을 다시 검사한다(#155).
         # 숫자는 단서 자리를 끊고 본다. 단서 안의 숫자는 본문 숫자가 아니다
-        content = _checked_body(req, without_tax_notes(req, body))
+        content = _checked_body(req, without_tax_notes(req, body), product_changed)
         _check_numbers(turn, _mask_notes(content))
         if not content.strip():
             # 단서 보정 뒤 본문이 비면 정상 응답이 아니다(#155, P-10)

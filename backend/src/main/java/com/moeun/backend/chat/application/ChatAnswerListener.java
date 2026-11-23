@@ -45,7 +45,8 @@ public class ChatAnswerListener {
             "monthly_saving_amount", "monthlySavingAmount",
             "savings_ratio_pct", "savingsRatioPct",
             "savings_rate_input_pct", "savingsRateInputPct",
-            "target_period_months", "targetPeriodMonths");
+            "target_period_months", "targetPeriodMonths",
+            "etf_product_code", "etfProductCode");
 
     private final ChatMessageRepository messages;
     private final PlanContextPort planContexts;
