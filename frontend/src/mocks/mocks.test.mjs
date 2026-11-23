@@ -777,6 +777,13 @@ test("F-4 etf0: 시나리오 AVG 1개, savingsRatioPct 100", () => {
   }
   assert.equal(b.conditions.current.savingsRatioPct, 100);
   assert.equal(b.conditions.changed.savingsRatioPct, 100);
+  // ETF 0%면 종목 세 칸은 키를 빼지 않고 null이다(#150, internal-calc C2-4 직렬화 규칙)
+  for (const side of [b.current, b.changed]) {
+    assert.deepEqual(
+      [side.assumptions.etfProductCode, side.assumptions.etfProductName, side.assumptions.etfGainTaxRatePct],
+      [null, null, null],
+    );
+  }
   assert.deepEqual(b.diff.byScenario.map((s) => s.scenario), ["AVG"]);
   assert.equal(b.display["conditions.current.savingsRatioPct"], "적금 100 : ETF 0");
 });
