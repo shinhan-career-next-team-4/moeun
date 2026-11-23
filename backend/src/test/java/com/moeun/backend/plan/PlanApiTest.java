@@ -28,7 +28,7 @@ import jakarta.servlet.http.Cookie;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 
-/** 되돌리기 REST(P-5)와 plan 모듈 오류 본문. 적용은 REST가 없고(P-6은 #68) 서비스를 직접 부른다(F-5). */
+/** 되돌리기 REST(P-5)와 plan 모듈 오류 본문. 대안·비교 적용 REST(P-6)는 PlanApplyApiTest가 본다. */
 @SpringBootTest(properties = "moeun.demo.accounts=demo01:pw-123456")
 @AutoConfigureMockMvc
 @Import(TestcontainersConfig.class)
@@ -77,16 +77,6 @@ class PlanApiTest {
     void inputRulesEndpointIsGone() throws Exception {
         // GET·PUT /api/plan(P-4·P-3)은 plan이 아니라 calc.web이 맡는다(#30, #31). 테스트는 calc 쪽에 있다
         mockMvc.perform(get("/api/input-rules").cookie(cookie)).andExpect(status().isNotFound());
-    }
-
-    @Test
-    void applyEndpointIsNotMappedYet() throws Exception {
-        // P-6 POST /api/plan/apply는 Should라서 #68이 맡는다(계약 C12a-9)
-        seedPlan();
-
-        postJson("/api/plan/apply",
-                "{\"source\":\"COMPARE\",\"changes\":{\"monthlySavingAmount\":1500000},\"expectedRevision\":1}")
-                .andExpect(status().isNotFound());
     }
 
     @Test
