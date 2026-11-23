@@ -42,6 +42,8 @@ export interface ResultPlanBody {
 
 export interface ResultPlanView extends PlanView {
   baselineResultScenario: ScenarioCode | null;
+  /** 되돌릴 직전 계획이 있는지. '직전 계획으로 되돌리기' 버튼에 쓴다(D-095, #263) */
+  undoAvailable: boolean;
   plan: ResultPlanBody;
   result: {
     status: PlanStatus;

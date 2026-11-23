@@ -26,18 +26,19 @@ import com.moeun.backend.plan.PlanView;
  * @param revision 계획 revision. 프론트가 다음 저장·적용의 expectedRevision으로 쓴다
  * @param calcRunId 이 결과의 calc_run(PLAN) id. 같은 revision 동안 같다
  * @param baselineResultScenario 결과 요약에 쓸 시나리오(대체 규칙 포함). 이미 목표 초과면 null
+ * @param undoAvailable 되돌릴 직전 계획이 있는지. 결과 화면의 '직전 계획으로 되돌리기' 버튼에 쓴다(D-095, #263)
  * @param plan 사용자가 입력한 원래 값
  * @param result 계산 결과
  * @param display 표시 문자열 맵(공유 ResultDisplayBuilder)
  */
-record PlanResultResponse(long revision, long calcRunId, Scenario baselineResultScenario, PlanValues plan,
-        ResultView result, Map<String, String> display) {
+record PlanResultResponse(long revision, long calcRunId, Scenario baselineResultScenario, boolean undoAvailable,
+        PlanValues plan, ResultView result, Map<String, String> display) {
 
     static PlanResultResponse from(CurrentPlanResult current, Formatter formatter) {
         CalcResult result = current.result();
         Scenario baseline = result.findBaselineResult().map(ScenarioResult::scenario).orElse(null);
         return new PlanResultResponse(current.plan().revision(), current.calcRunId(), baseline,
-                PlanValues.from(current.plan()), ResultView.from(result),
+                current.plan().canUndo(), PlanValues.from(current.plan()), ResultView.from(result),
                 withGapBadges(current.display(), result, formatter));
     }
 
