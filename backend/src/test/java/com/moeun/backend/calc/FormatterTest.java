@@ -70,7 +70,12 @@ class FormatterTest {
         "-200000|false|미달 · 목표 −20만 원",
         "0|true|달성 · 목표 0원",
         "-3000|false|미달 · 목표 −1만 원 미만",
-        "3000|true|달성 · 목표 +1만 원 미만"
+        "3000|true|달성 · 목표 +1만 원 미만",
+        "5000|true|달성 · 목표 +1만 원",
+        "4999|true|달성 · 목표 +1만 원 미만",
+        "14999|true|달성 · 목표 +1만 원",
+        "15000|true|달성 · 목표 +2만 원",
+        "-12340000|false|미달 · 목표 −1,234만 원"
     })
     @DisplayName("결과 화면 배지는 판정 라벨 + 목표 +/−N만 원이다(약 없음, 라벨은 엔진 판정을 따른다, #224)")
     void formatsGapBadge(long gap, boolean isAchieved, String expected) {

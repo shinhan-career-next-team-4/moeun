@@ -182,6 +182,7 @@ class PlanResultApiTest {
         Map<String, String> shared = new LinkedHashMap<>(display);
         shared.keySet().removeIf(key -> key.endsWith(".gapBadge"));
         assertThat(shared).isEqualTo(engineResult.display());
+        assertThat(display).containsKeys("GOOD.gapBadge", "AVG.gapBadge", "BAD.gapBadge");
         assertThat(display).containsEntry("assumptions.taxRatePct", "15.4%");
     }
 

@@ -396,7 +396,7 @@ FR-PLAN-05·06, FR-RES-01~07, FR-INP-11, NFR-INT-02, D-010, D-062, D-072.
 
 - 내보내지 않는 것: `conditions`(raw), `result.annualReturnPct`(수익 약속처럼 읽힐 위험), `result.requiredMonthlySaving`(항상 null), `result.dataVersions`, `result.baselineScenario`·`plan.baselineScenario`, `plan.calcStartMonth`(D-035 안내는 `display["calcStartMonth"]`), `currentVersionId`·`previousVersionId`·`undoAvailable`·`memberId`. 왜: 화면이 쓰지 않는 필드는 화면 전용 View에서 뺀다. 공개 `CalcResultView`·planContext는 그대로다.
 - 응답에 문구 키 목록을 넣지 않는다. 프론트가 C12a-7대로 고른다(#30 `tax.note`·#31 D-035 "문구 키" 수용 기준 삭제, Y-13).
-- `display`는 planContext와 같은 `ResultDisplayBuilder`(#28)가 같은 접두어로 만든다. `<S>.goalReachMonth`는 `isAchieved=true`일 때만 있다.
+- `display`는 planContext와 같은 `ResultDisplayBuilder`(#28)가 같은 접두어로 만든다. `<S>.goalReachMonth`는 `isAchieved=true`일 때만 있다. 화면 전용으로 `<S>.gapBadge`(#224)가 더 붙는다. 이 키는 planContext·ai-server 계약에는 없고, 목 JSON·plan-context fixture와 글자까지 같다는 비교에서도 제외한다.
 
 #### C12a-6-2. `monthlyPoints` [v3]
 
