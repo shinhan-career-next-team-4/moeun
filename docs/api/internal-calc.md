@@ -61,14 +61,14 @@
 | `savingsRatioPct` | integer | PCT (적금 비중, 나머지 ETF) | `savings_ratio_pct` |
 | `savingsRateInputPct` | number | PCT (연, 세전) | `savings_rate_input_pct` |
 | `targetPeriodMonths` | integer | MONTH | `target_period_months` |
-| `etfProductCode` | **string** | — (활성 ETF 종목 코드. 지금 `SP500`, `069500`, `133690`) | 계획의 ETF 종목(#154). #154 전에는 항상 `SP500` |
+| `etfProductCode` | **string** | — (활성 ETF 종목 코드. 지금 `SP500`, `069500`, `133690`) | 계획의 ETF 종목(#154). 종목을 저장하기 전의 옛 계획은 `SP500` |
 
 `etfProductCode` 규칙 (#160 합의):
 - 허용 값은 활성 ETF 종목 목록(ETF 목록 API와 같은 출처)이다. 검증은 Spring이 한다. ai-server는 모델 도구 스키마에 고정된 값 목록(enum)이 필요해서 코드 목록을 `app/rag/etf_codes.py` **한 곳**에 두고, 도구 enum·설명이 여기서 나온다(#267). 종목을 더하거나 빼면 이 파일과 프롬프트를 같이 고친다. ai-server 목록에 있지만 Spring에서 꺼진 종목은 422(아래 검사 순서 6)로 되묻는다.
 - 계획과 같은 종목을 보내면 바꾸지 않은 것으로 본다(`calc_run.changed_etf_version_id`도 NULL, C2-7).
 - `changed`의 ETF 비중이 0%(`savingsRatioPct=100`)여도 거절하지 않는다. ETF를 쓰지 않으니 종목 차이는 없고 정상 비교(`200`)로 내려준다. ai-server는 "ETF 비중이 0%라서 종목을 바꿔도 결과는 같아요." 한 문장으로 답한다(B팀 후속).
 - 종목 이름은 지수 이름(예 "코스피200 추종 ETF")으로만 쓰고 운용사 상품명이나 "추천" 표현은 쓰지 않는다(CP-06).
-- 종목을 바꾼 비교는 #154(계획에 종목 저장)가 끝날 때까지 **적용할 수 없다**. F-4에서 `applicable: false`로 내리고 적용 버튼을 숨긴다(chat 모듈, B팀). 다른 조건만 바꾼 비교는 지금처럼 적용할 수 있다.
+- 종목을 바꾼 비교도 다른 비교와 같은 기준으로 적용할 수 있다(F-4 `applicable`, F-5가 새 `plan_version`에 종목 저장. #154).
 
 **받는 방식**: Spring은 `memberId`와 `conditionChanges`를 타입 있는 record가 아니라 `JsonNode`(`conditionChanges`는 `Map<String, JsonNode>`)로 받는다. `memberId`는 `JsonNode.isIntegralNumber()`로 정수인지 검사하고, `conditionChanges`는 `plan.ConditionValidator.validate(ChangePath.CHAT, …)`에서 검사한다. 왜: Boot 기본값(`FAIL_ON_UNKNOWN_PROPERTIES=false`, `ACCEPT_FLOAT_AS_INT=true`)으로는 `goalAmount`가 조용히 버려지고 `500000.5`·`memberId: 7.5`가 잘려, 아래 거절 규칙을 지킬 수 없다.
 
