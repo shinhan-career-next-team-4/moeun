@@ -172,3 +172,22 @@ def drop_carried_conditions(text: str, changes: ConditionChanges) -> ConditionCh
         k: v for k, v in changes.changed().items()
         if k in stated or (k in _MONEY_FIELDS and v in said_amounts)
     })
+
+
+def carried_amount_sources(text: str, history_user_texts: list[str], changes: ConditionChanges) -> list[str]:
+    """이번 계산에 쓴 금액 중 이번 발화에 없는 것을 말한 직전 사용자 발화(#260).
+
+    역할 단어 없는 후속 발화("목표 금액")는 직전 발화("1억으로 바꿀게")의 값으로 계산한다(#239). 답이 그 금액을 사용자 표현
+    그대로("1억") 말해도 지어낸 숫자가 아니므로, 그 발화만 숫자 검사 근거로 돌려준다. 금액마다 가장 최근 발화 하나만 고르고,
+    계산에 쓰지 않은 금액만 담긴 발화는 고르지 않는다.
+    """
+    said_now = _candidate_krw_amounts(text.lower())
+    sources: list[str] = []
+    for key in _MONEY_FIELDS:
+        value = getattr(changes, key)
+        if value is None or value in said_now:
+            continue
+        source = next((t for t in reversed(history_user_texts) if value in _candidate_krw_amounts(t.lower())), None)
+        if source is not None and source not in sources:
+            sources.append(source)
+    return sources
