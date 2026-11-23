@@ -10,6 +10,13 @@
 | ETF 월말 종가: 코스피200 추종 | `backend/data/seed/etf-069500-monthly.csv` | **없음(각자 준비)** | Investing.com 069500 월별, 원 | 2026-10-31 |
 | ETF 월말 종가: 나스닥100 추종 | `backend/data/seed/etf-133690-monthly.csv` | **없음(각자 준비)** | Investing.com 133690 월별, 원 | 2026-10-31 |
 
+## ETF 종가 파일이 없을 때
+
+파일이 없으면 그 종목만 건너뛰고 서버는 뜬다. 다만 **비중이 `null`인 계획은 기본 비중(적금:ETF)이라 ETF가 들어가서
+결과 조회가 500**이 된다(#55에서 확인). 실데이터를 받기 전에 화면만 돌려 보려면 같은 형식(`ym,close_value`,
+빠진 달 없이 121개월 이상)의 **개발 전용 파일**을 `backend/data/seed/`에 두고 첫 줄에 `#`로 실제 시세가 아님을
+적는다. 자세한 것은 `backend/data/README.md`와 `docs/verification/55-real-api.md`.
+
 ## 적금 평균금리 계산 근거
 
 - 출처: 은행연합회 소비자포털 → 금리/수수료 → 예금상품금리 비교 → **적금금리** (`portal.kfb.or.kr/compare/receiving_neosave.php`)
