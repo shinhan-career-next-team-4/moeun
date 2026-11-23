@@ -1457,6 +1457,7 @@ config ──▶ (auth, plan, calc, chat: 보안 필터 등록·예외 처리. �
 ```
 
 - **[v3] 본문은 빈 객체다.** v2의 `assistantMessageId`는 프론트가 쓰지 않아 뺐다(소비자 제안, 제공자 이견 없음). 프론트는 폴링으로 설명 메시지를 받는다. PENDING 재사용은 Spring 테스트(#43)가 DB 행 수로 확인한다. 왜 `{}`이고 빈 본문이 아닌가: 프론트 `fetch` 래퍼가 성공 응답을 항상 JSON으로 읽게 둔다.
+- **[#280] 자동 설명은 처음 진입 때 한 번뿐이다**: 대화 기록(F-2 복원)을 받은 뒤, 기록에 결과 설명(`messageType=EXPLANATION`)이 없고 이 탭에서 아직 보내지 않았을 때만 부른다. 입력 수정·비교 적용·ETF 종목 카드 적용·대화 적용(F-5)·되돌리기로 `calcRunId`가 바뀌어도 다시 부르지 않는다. 대화창은 대화로 바꾼 조건(`RECALC_RESULT`)에만 답한다. 예외: 404 회복으로 다시 불러온 결과에는 한 번 더 부른다(아래 404 규칙). store가 비워지면(로그아웃·401) 처음으로 돌아간다. 복원이 계속 실패하면 기록을 기다리지 않고 부른다. 아래 "바뀌면 부른다"는 이 조건 안에서 읽는다.
 - **[v3] 호출 지점은 #54 한 곳**: 결과 화면이 그린 **`calcRunId`가 바뀌고 `status=CALCULATED`이면** 부른다(effect 하나). 최초 결과 보기, 입력 수정, 적용 뒤, 되돌리기 뒤(TBD-26)가 모두 "결과 재조회 → `calcRunId` 바뀜"으로 이 한 지점에 모인다. #51(되돌리기)·#53(적용)은 결과 재조회까지만 하고 F-3을 부르지 않는다. 왜: 두 곳이 같은 `calcRunId`로 부르면 앞 설명이 이미 `COMPLETED`일 때 PENDING 재사용이 안 되어 설명이 두 개 생긴다. 옛 `calcRunId`로 부르는 일도 구조적으로 없어진다.
 - **초과 계획(`status=ALREADY_EXCEEDED`)에서는 부르지 않는다**(D-062). 불리면 서버는 정상 처리하고 ai-server가 LLM 없이 `chat.alreadyExceeded`로 답한다(방어용).
 - **404 규칙**(C1a-10): 없는 `calcRunId`, 남의 기록, CHAT 기록은 모두 같은 `404 NOT_FOUND`. 판단은 `calc.PlanContextProvider.findPlanRun(memberId, calcRunId)`(#78) 하나.

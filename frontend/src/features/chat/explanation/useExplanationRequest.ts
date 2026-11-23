@@ -1,4 +1,5 @@
 // 결과(CALCULATED)가 store에 들어오면 AI 설명(F-3)을 한 번 요청한다(C12b-3a). F-3을 부르는 곳은 이 파일의 effect 하나다.
+// 자동 설명은 처음 진입 때 한 번뿐이다(#280). 왼쪽 화면에서 조건을 바꿔 calcRunId가 바뀌어도 다시 보내지 않는다.
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ApiError } from "../../../api/errors";
 import type { ChatDeps } from "../index";
@@ -13,6 +14,8 @@ interface TabMemory {
   generation: number;
   /** F-3을 이미 보낸 calcRunId(성공·실패 모두). */
   sent: Set<number>;
+  /** 이 세대에서 자동 설명을 이미 보냈다(#280). 404 회복만 다시 보낼 수 있게 되돌린다. */
+  explained: boolean;
   /**
    * 회복 재조회가 돌려준 결과(응답 객체)들. 이 결과 때문에 보낸 F-3이 또 404여도 더 불러오지 않는다(한 연쇄에 회복 1회).
    * id가 아니라 객체로 구분해서, 다른 경로로 먼저 들어와 이미 보낸 같은 id의 결과는 연쇄에 편입되지 않는다.
@@ -29,17 +32,30 @@ const memories = new WeakMap<Store, TabMemory>();
 function memoryOf(store: Store): TabMemory {
   const known = memories.get(store);
   if (known) return known;
-  const memory: TabMemory = { generation: 0, sent: new Set(), recovered: new WeakSet(), recoveries: new Set(), listeners: new Set() };
+  const memory: TabMemory = {
+    generation: 0,
+    sent: new Set(),
+    explained: false,
+    recovered: new WeakSet(),
+    recoveries: new Set(),
+    listeners: new Set(),
+  };
   // 대화창이 닫혀 있는 동안의 비움(로그아웃·401)도 잊어야 해서 마운트와 무관하게 구독을 둔다.
   store.subscribe((next: PlanState, prev: PlanState) => {
     const emptied = next.revision === null && next.view === null;
     if (!emptied || (prev.revision === null && prev.view === null)) return;
     memory.generation += 1;
     memory.sent = new Set();
+    memory.explained = false;
     memory.recovered = new WeakSet();
   });
   memories.set(store, memory);
   return memory;
+}
+
+/** 자동 설명을 보냈는지 적는다(#280). 훅 밖 함수로 둔다(훅 인자인 탭 메모리를 effect 안에서 직접 바꾸지 않는다). */
+function markExplained(memory: TabMemory, explained: boolean): void {
+  memory.explained = explained;
 }
 
 /** retryOfMessageId가 있으면 '설명 다시 요청'(FR-AI-05)이다. */
@@ -93,11 +109,21 @@ export function useExplanationRequest(deps: ChatDeps, polling: ChatPolling): voi
   const calcRunId = view?.calcRunId;
   const status = view?.status;
 
+  const { messages, hasPending, answerPending, pollingFailed, resume } = polling;
+  const [firstMessages] = useState(messages);
+  const restored = messages !== firstMessages; // 마운트 직후 최초 복원 응답이 반영되면 바뀐다
+  // 새로고침 뒤에도 서버 대화 기록에 결과 설명이 있으면 처음 진입이 아니다(#280). 그래서 기록을 받은 뒤에 정한다.
+  // 기록을 못 받으면(연속 실패) 기다리지 않고 보낸다
+  const historyReady = restored || pollingFailed;
+  const historyHasExplanation = messages.some((message) => message.messageType === "EXPLANATION");
+
   useEffect(() => {
-    if (status !== "CALCULATED" || typeof calcRunId !== "number") return;
+    if (status !== "CALCULATED" || typeof calcRunId !== "number" || !historyReady) return;
+    if (historyHasExplanation) markExplained(memory, true);
     const current = store.getState().view;
-    if (current?.calcRunId !== calcRunId || memory.sent.has(calcRunId)) return;
+    if (current?.calcRunId !== calcRunId || memory.sent.has(calcRunId) || memory.explained) return;
     memory.sent.add(calcRunId);
+    markExplained(memory, true);
     const sentGeneration = memory.generation;
     const sentBody = current.body;
     // 지금 결과·세대의 응답만 쓴다. 늦게 온 옛 응답은 무시한다.
@@ -109,18 +135,17 @@ export function useExplanationRequest(deps: ChatDeps, polling: ChatPolling): voi
       },
       (error: unknown) => {
         if (error instanceof ApiError && error.code === "NOT_FOUND" && isCurrent()) {
+          // 결과가 바뀌어 없는 calcRunId였다. 다시 불러온 결과로는 아직 설명하지 않았으므로 한 번 더 보낼 수 있다
+          markExplained(memory, false);
           void recoverFromNotFound(store, memory, sentBody, isCurrent);
         }
         // 400·500·네트워크는 그리지 않고, 401은 래퍼가 로그인으로 보낸다.
       },
     );
-  }, [api, store, memory, status, calcRunId, generation]);
+  }, [api, store, memory, status, calcRunId, generation, historyReady, historyHasExplanation]);
 
-  const { messages, hasPending, answerPending, pollingFailed, resume } = polling;
   // 질문 전송(F-1 202) 직후에는 응답이 오기 전이라 hasPending이 옛 값이어도 answerPending이 켜져 있다. 둘 중 하나면 폴링이 돌고 있다.
   const running = hasPending || answerPending;
-  const [firstMessages] = useState(messages);
-  const restored = messages !== firstMessages; // 마운트 직후 최초 복원 응답이 반영되면 바뀐다
   const wantedGeneration = useRef<number | null>(null);
   const [accepted, setAccepted] = useState(0);
 

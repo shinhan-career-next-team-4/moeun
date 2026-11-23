@@ -53,7 +53,8 @@ describe("AC-1 실패한 설명을 다시 요청하면 새 설명이 PENDING으�
     fireEvent.click(button());
     await flush();
 
-    expect(f3Bodies()[1]).toEqual({ calcRunId, retryOfMessageId: 4503 });
+    // 기록에 설명이 있어 자동 설명은 나가지 않는다(#280). 첫 F-3이 다시 요청이다
+    expect(f3Bodies()[0]).toEqual({ calcRunId, retryOfMessageId: 4503 });
   });
 
   it("보일 설명 메시지가 없으면 retryOfMessageId 없이 calcRunId만 보낸다", async () => {

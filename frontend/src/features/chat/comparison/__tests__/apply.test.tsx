@@ -660,17 +660,16 @@ describe("AC-15 적용 성공 뒤 순서 (C12b-7-3, C12a-6-5, FR-PLAN-04)", () =
     }
   });
 
-  it("④ F-3(POST /api/chat/explanations)은 #54가 view.calcRunId 변화로만 한 번씩 부른다(적용 코드는 직접 부르지 않는다)", async () => {
+  it("④ F-3(POST /api/chat/explanations)은 처음 결과에서 한 번뿐이고, 적용 뒤 바뀐 calcRunId로는 보내지 않는다(적용 코드도 직접 부르지 않는다, #280)", async () => {
     const { api, store } = await mountApply([{ revision: 13 }]);
     const before = store.getState().view?.calcRunId;
     await clickApply();
     await tick(5000);
     const after = store.getState().view?.calcRunId;
     expect(after).not.toBe(before);
-    // 처음 결과와 적용 뒤 다시 불러온 결과가 각각 한 번이다. 같은 calcRunId를 두 번 보내지 않는다.
+    // 대화 적용 결과는 비교 답이 이미 설명했다. 처음 결과의 한 번만 남는다
     expect(api.calls.filter((c) => c.path.startsWith("/api/chat/explanations")).map((c) => c.body)).toEqual([
       { calcRunId: before },
-      { calcRunId: after },
     ]);
     expect(globalFetchCalls.filter((c) => c.url.startsWith("/api/chat/explanations"))).toHaveLength(0);
   });

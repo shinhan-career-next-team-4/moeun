@@ -118,7 +118,7 @@ describe("AC-5 미달·달성 결과 모두 설명을 요청한다 (D-062 예외
 });
 
 describe("AC-4 초과 결과(ALREADY_EXCEEDED)에서는 F-3을 보내지 않는다 (D-062, D-063, 결정 2 B1)", () => {
-  it("초과 결과로 열린 대화창은 F-3을 보내지 않고 복원한 옛 설명 기록은 그대로 두며, 이후 미달 결과가 오면 그때 보낸다", async () => {
+  it("초과 결과로 열린 대화창은 F-3을 보내지 않고 복원한 옛 설명 기록은 그대로 두며, 기록에 설명이 있으면 미달 결과가 와도 보내지 않는다(#280), 이후 미달 결과가 오면 그때 보낸다", async () => {
     const z = freshId();
     const y = freshId();
     const { store } = makeStore();
@@ -133,7 +133,7 @@ describe("AC-4 초과 결과(ALREADY_EXCEEDED)에서는 F-3을 보내지 않는�
 
     act(() => store.acceptPlanView(view(13, "CALCULATED", y)));
     await flush();
-    expect(f3Bodies()).toEqual([{ calcRunId: y }]);
+    expect(f3Bodies()).toEqual([]); // 대화 기록에 결과 설명이 있어 처음 진입이 아니다(#280)
     expect(bubble(501)).toBeTruthy();
   });
 
@@ -142,7 +142,7 @@ describe("AC-4 초과 결과(ALREADY_EXCEEDED)에서는 F-3을 보내지 않는�
     const z = freshId();
     const { store } = calculatedStore(12, x);
     const { f3Bodies } = await mountChat(store, {
-      get: [chatPage([explanationDone(511, "지금 계획에 대한 설명")], false)],
+      get: [chatPage([], false), chatPage([explanationDone(511, "지금 계획에 대한 설명")], false)],
     });
     await tick(3000);
     expect(f3Bodies()).toEqual([{ calcRunId: x }]);
@@ -173,7 +173,7 @@ describe("AC-6 같은 calcRunId로 다시 보내지 않는다 (C12b-3a, J-12f, �
     expect(f3Bodies()).toEqual([{ calcRunId: x }]);
   });
 
-  it("calcRunId가 바뀔 때마다 새 값으로 한 번씩 보낸다(최초 보기 → 입력 수정 저장 → 적용 뒤 → 되돌리기 뒤)", async () => {
+  it("처음 설명 뒤 입력 수정 저장·적용·되돌리기로 calcRunId가 바뀌어도 다시 보내지 않는다(#280, 최초 보기 → 입력 수정 저장 → 적용 뒤 → 되돌리기 뒤)(최초 보기 → 입력 수정 저장 → 적용 뒤 → 되돌리기 뒤)", async () => {
     const [x1, x2, x3, x4] = [freshId(), freshId(), freshId(), freshId()];
     const { store } = calculatedStore(12, x1);
     const { f3Bodies } = await mountChat(store);
@@ -183,16 +183,16 @@ describe("AC-6 같은 calcRunId로 다시 보내지 않는다 (C12b-3a, J-12f, �
     await flush();
     act(() => store.acceptRevision(14)); // 적용 응답 {revision}
     await flush();
-    expect(f3Bodies()).toEqual([{ calcRunId: x1 }, { calcRunId: x2 }]); // view가 오기 전에는 보내지 않는다
+    expect(f3Bodies()).toEqual([{ calcRunId: x1 }]);
     act(() => store.acceptPlanView(view(14, "CALCULATED", x3))); // 재조회(loadPlan) 응답
     await flush();
     act(() => store.acceptRevision(15)); // 되돌리기 응답
     act(() => store.acceptPlanView(view(15, "CALCULATED", x4)));
     await tick(5000);
-    expect(f3Bodies()).toEqual([{ calcRunId: x1 }, { calcRunId: x2 }, { calcRunId: x3 }, { calcRunId: x4 }]);
+    expect(f3Bodies()).toEqual([{ calcRunId: x1 }]);
   });
 
-  it("같은 revision에서 calcRunId만 바뀌면(기준 데이터 재적재 등, C12a-6-6) 새 값으로 한 번 보내고, 같은 값의 새 응답 객체로는 다시 보내지 않는다", async () => {
+  it("같은 revision에서 calcRunId만 바뀌어도(기준 데이터 재적재 등, C12a-6-6) 처음 설명 뒤에는 다시 보내지 않는다(#280), 같은 값의 새 응답 객체로는 다시 보내지 않는다", async () => {
     const x = freshId();
     const y = freshId();
     const { store } = calculatedStore(12, x);
@@ -202,11 +202,11 @@ describe("AC-6 같은 calcRunId로 다시 보내지 않는다 (C12b-3a, J-12f, �
     act(() => store.acceptPlanView(view(12, "CALCULATED", y)));
     await flush();
     expect(store.getState().view?.calcRunId).toBe(y);
-    expect(f3Bodies()).toEqual([{ calcRunId: x }, { calcRunId: y }]);
+    expect(f3Bodies()).toEqual([{ calcRunId: x }]);
 
     act(() => store.acceptPlanView(view(12, "CALCULATED", y)));
     await tick(5000);
-    expect(f3Bodies()).toEqual([{ calcRunId: x }, { calcRunId: y }]);
+    expect(f3Bodies()).toEqual([{ calcRunId: x }]);
   });
 
   it("view가 null이거나 calcRunId가 없으면 보내지 않다가, calcRunId가 있는 CALCULATED 결과가 오면 보낸다", async () => {
@@ -231,7 +231,7 @@ describe("AC-6 같은 calcRunId로 다시 보내지 않는다 (C12b-3a, J-12f, �
     expect(f3Bodies()).toEqual([{ calcRunId: x }]);
   });
 
-  it("대화창을 닫았다 다시 열어도 같은 calcRunId면 보내지 않고, 같은 store에 대화창이 둘 붙어도 새 calcRunId는 한 번만 보낸다", async () => {
+  it("대화창을 닫았다 다시 열어도, 같은 store에 대화창이 둘 붙어도, 처음 설명 뒤에는 같은·새 calcRunId 모두 보내지 않는다(#280), 같은 store에 대화창이 둘 붙어도 새 calcRunId는 한 번만 보낸다", async () => {
     const x = freshId();
     const y = freshId();
     const { store } = calculatedStore(12, x);
@@ -246,7 +246,7 @@ describe("AC-6 같은 calcRunId로 다시 보내지 않는다 (C12b-3a, J-12f, �
 
     act(() => store.acceptPlanView(view(13, "CALCULATED", y)));
     await tick(3000);
-    expect([...second.f3Bodies(), ...third.f3Bodies()]).toEqual([{ calcRunId: y }]);
+    expect([...second.f3Bodies(), ...third.f3Bodies()]).toEqual([]); // 처음 설명 뒤라 새 calcRunId도 보내지 않는다(#280)
   });
 
   it("F-3이 500·네트워크로 실패한 뒤 같은 store로 대화창을 닫았다 다시 열어도 같은 calcRunId로 다시 보내지 않는다(실패한 요청도 탭 단위로 기억)", async () => {
@@ -425,15 +425,15 @@ describe("AC-7 F-3 202 응답 본문은 쓰지 않고 폴링을 다시 시작한
     await expectPollingResumed({ assistantMessageId: 9999, extra: "x" });
   });
 
-  it("이전 calcRunId의 202가 늦게 오면 무시한다: 새 calcRunId의 F-3이 500으로 끝나 멈춘 폴링을 다시 돌리지 않는다 (PD-008)", async () => {
+  it("이전 calcRunId의 202가 늦게 오면 무시한다: calcRunId가 바뀐 뒤 온 202로는 폴링을 다시 돌리지 않는다 (PD-008): 새 calcRunId의 F-3이 500으로 끝나 멈춘 폴링을 다시 돌리지 않는다 (PD-008)", async () => {
     const x = freshId();
     const y = freshId();
     const late = deferred<unknown>();
     const { store } = calculatedStore(12, x);
-    const { api, f3Bodies } = await mountChat(store, { get: [chatPage([], false)], post: [late.promise, serverError()] });
+    const { api, f3Bodies } = await mountChat(store, { get: [chatPage([], false)], post: [late.promise] });
     act(() => store.acceptPlanView(view(13, "CALCULATED", y)));
     await flush();
-    expect(f3Bodies()).toEqual([{ calcRunId: x }, { calcRunId: y }]);
+    expect(f3Bodies()).toEqual([{ calcRunId: x }]); // 처음 설명 뒤라 y로는 보내지 않는다(#280)
     await tick(3000);
     const gets = api.gets().length;
 
@@ -441,7 +441,7 @@ describe("AC-7 F-3 202 응답 본문은 쓰지 않고 폴링을 다시 시작한
     await flush();
     await tick(5000);
     expect(api.gets()).toHaveLength(gets);
-    expect(f3Bodies()).toHaveLength(2);
+    expect(f3Bodies()).toHaveLength(1);
   });
 
   it("store가 비워지기(clear) 전 세대의 202가 늦게 오면 무시한다: 같은 calcRunId가 다시 들어와 있어도 폴링을 다시 돌리지 않는다 (PD-008)", async () => {
@@ -823,16 +823,16 @@ describe("AC-8 F-3 404 NOT_FOUND (C12b-3a, C12a-6-5, 결정 2 B2·B3, 결정 3 T
     const y = freshId();
     const late = deferred<unknown>();
     const { store, loadPlan } = calculatedStore(12, x);
-    const { f3Bodies } = await mountChat(store, { post: [late.promise, {}] });
+    const { f3Bodies } = await mountChat(store, { post: [late.promise] });
     act(() => store.acceptPlanView(view(13, "CALCULATED", y)));
     await flush();
-    expect(f3Bodies()).toEqual([{ calcRunId: x }, { calcRunId: y }]);
+    expect(f3Bodies()).toEqual([{ calcRunId: x }]); // 처음 설명 뒤라 y로는 보내지 않는다(#280)
 
     await act(async () => late.reject(notFound()));
     await flush();
     await tick(5000);
     expect(loadPlan).not.toHaveBeenCalled();
-    expect(f3Bodies()).toHaveLength(2);
+    expect(f3Bodies()).toHaveLength(1);
   });
 
   it("404가 오기 전에 store가 비워졌으면(clear) 같은 calcRunId가 다시 들어와 있어도 그 404로는 다시 불러오지 않는다 (B3)", async () => {
@@ -1076,7 +1076,7 @@ describe("AC-9 F-3 400·500·네트워크·401이면 대화창에 아무것도 �
 });
 
 describe("AC-10·AC-11 초과 ↔ 미달 전환 (D-063, D-072, FR-AI-05)", () => {
-  it("초과 동안 버튼·F-3이 없고, revision이 바뀌어 초과가 풀리면 새 calcRunId로 F-3을 한 번 보내고 버튼이 보이며, 다시 초과가 되면 보내지 않고 버튼이 숨는다", async () => {
+  it("초과 동안 버튼·F-3이 없고, revision이 바뀌어 초과가 풀리면 새 calcRunId로 F-3을 한 번 보내고 버튼이 보이며, 다시 초과가 되면 버튼이 숨고 그 뒤 미달이 돼도 다시 보내지 않는다(#280) 새 calcRunId로 F-3을 한 번 보내고 버튼이 보이며, 다시 초과가 되면 보내지 않고 버튼이 숨는다", async () => {
     const [z0, y, z1, w] = [freshId(), freshId(), freshId(), freshId()];
     const { store } = makeStore();
     store.acceptPlanView(view(12, "ALREADY_EXCEEDED", z0));
@@ -1103,7 +1103,7 @@ describe("AC-10·AC-11 초과 ↔ 미달 전환 (D-063, D-072, FR-AI-05)", () =>
 
     act(() => store.acceptPlanView(view(15, "CALCULATED", w)));
     await flush();
-    expect(f3Bodies()).toEqual([{ calcRunId: y }, { calcRunId: w }]);
+    expect(f3Bodies()).toEqual([{ calcRunId: y }]); // 처음 설명 뒤라 다시 보내지 않는다(#280)
     expect(retryButton()).not.toBeNull();
   });
 
@@ -1129,9 +1129,9 @@ describe("AC-10·AC-11 초과 ↔ 미달 전환 (D-063, D-072, FR-AI-05)", () =>
     act(() => store.acceptPlanView(view(14, "CALCULATED", w))); // 최신 revision의 결과
     await flush();
     expect(retryButton()).not.toBeNull();
-    expect(f3Bodies()).toEqual([{ calcRunId: x }, { calcRunId: w }]);
+    expect(f3Bodies()).toEqual([{ calcRunId: x }]); // 처음 설명 뒤라 다시 보내지 않는다(#280)
     await tick(5000);
-    expect(f3Bodies()).toEqual([{ calcRunId: x }, { calcRunId: w }]);
+    expect(f3Bodies()).toEqual([{ calcRunId: x }]);
   });
 
   it("초과 상태에서 revision만 먼저 오른 뒤 중간 revision의 CALCULATED 결과가 오면 F-3은 view 기준으로 그 calcRunId로 한 번 보내고, 버튼은 settledStatus 기준으로 숨긴 채 둔다 (검토 plan-7, C12a-6-7)", async () => {
@@ -1156,7 +1156,7 @@ describe("AC-10·AC-11 초과 ↔ 미달 전환 (D-063, D-072, FR-AI-05)", () =>
 
     act(() => store.acceptPlanView(view(14, "CALCULATED", w)));
     await flush();
-    expect(f3Bodies()).toEqual([{ calcRunId: y }, { calcRunId: w }]);
+    expect(f3Bodies()).toEqual([{ calcRunId: y }]); // 처음 설명 뒤라 다시 보내지 않는다(#280)
     expect(retryButton()).not.toBeNull();
   });
 });
