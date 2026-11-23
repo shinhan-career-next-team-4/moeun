@@ -357,7 +357,12 @@ export function ResultPage() {
                   scenarioMethod={result.assumptions.scenarioMethod}
                   productName={display["assumptions.etfProductName"]}
                 />
-                <ResultChart scenarios={result.scenarios} goalAmount={result.goalAmount} display={display} />
+                <ResultChart
+                  scenarios={result.scenarios}
+                  goalAmount={result.goalAmount}
+                  display={display}
+                  principalPoints={result.principalPoints}
+                />
                 {/* ETF 종목 비교(#156). 종목을 골라 저장 없이 미리본다. ETF 0%면 스스로 숨는다 */}
                 <EtfCompareSection
                   currentProductName={display["assumptions.etfProductName"] ?? ""}

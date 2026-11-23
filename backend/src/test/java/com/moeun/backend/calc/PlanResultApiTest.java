@@ -146,12 +146,36 @@ class PlanResultApiTest {
         assertThat(body.get("plan").get("savingsRatioPct").isNull()).isTrue();
         assertThat(body.get("plan").get("etfProductCode").asString()).isEqualTo("SP500");   // 새 계획은 대표 상품(#154)
         assertThat(body.get("result").propertyNames()).containsExactlyInAnyOrder("status", "goalAmount",
-                "calcStartMonth", "targetMonth", "scenarios", "assumptions");
+                "calcStartMonth", "targetMonth", "scenarios", "principalPoints", "assumptions");
         JsonNode scenario = body.get("result").get("scenarios").get(0);
         assertThat(scenario.has("annualReturnPct")).isFalse();
         assertThat(scenario.has("goalReachMonth")).isTrue();
         assertThat(body.toString()).doesNotContain("tax.note", "currentVersionId", "dataVersions", "memberId",
                 "requiredMonthlySaving");
+    }
+
+    @Test
+    @DisplayName("principalPoints는 엔진 점의 month·principal(누적 납입 원금)만 복사하고 새로 계산하지 않는다")
+    void copiesEnginePrincipalPoints() throws Exception {
+        JsonNode body = readBody(putPlan(request()).andExpect(status().isOk()));
+        CurrentPlanResult engineResult = transactions.execute(status ->
+                resultService.findForCurrentPlan(memberId).orElseThrow());
+
+        JsonNode points = body.get("result").get("principalPoints");
+        List<MonthlyPoint> enginePoints = engineResult.result().scenarios().get(0).monthlyPoints();
+        assertThat(points).hasSize(enginePoints.size()).hasSize(37);
+        for (int k = 0; k < enginePoints.size(); k++) {
+            assertThat(points.get(k).propertyNames()).containsExactlyInAnyOrder("month", "principal");
+            assertThat(points.get(k).get("month").asString()).isEqualTo(enginePoints.get(k).month().toString());
+            assertThat(points.get(k).get("principal").asLong()).isEqualTo(enginePoints.get(k).principal());
+        }
+        // 보유 자산에서 시작해 매달 월 저축액만큼 늘고, 끝값은 시나리오의 총 납입 원금과 같다
+        long held = body.get("plan").get("heldAssets").asLong();
+        long monthly = body.get("plan").get("monthlySavingAmount").asLong();
+        assertThat(points.get(0).get("principal").asLong()).isEqualTo(held);
+        assertThat(points.get(36).get("principal").asLong()).isEqualTo(held + monthly * 36);
+        assertThat(points.get(36).get("principal").asLong())
+                .isEqualTo(body.get("result").get("scenarios").get(0).get("principal").asLong());
     }
 
     @Test
@@ -226,6 +250,7 @@ class PlanResultApiTest {
         JsonNode body = readBody(putPlan(exceeded).andExpect(status().isOk()));
 
         assertThat(body.get("result").get("status").asString()).isEqualTo("ALREADY_EXCEEDED");
+        assertThat(body.get("result").get("principalPoints")).isEmpty();
         assertThat(body.get("result").get("scenarios")).isEmpty();
         assertThat(body.get("baselineResultScenario").isNull()).isTrue();
         assertThat(body.get("revision").asLong()).isEqualTo(1L);
