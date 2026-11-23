@@ -6,6 +6,8 @@ export const CONDITION_LABELS: Record<string, string> = {
   targetPeriodMonths: "목표 기간",
 };
 
+export const GOAL_LABEL = "목표 금액";
+
 export const ACHIEVEMENT_CHANGE_LABELS: Record<string, string> = {
   STAYS_ACHIEVED: "계속 달성해요",
   STAYS_MISSED: "계속 미달이에요",

@@ -1,7 +1,7 @@
 import type { ChatMessage } from "../types";
-import { ACHIEVEMENT_CHANGE_LABELS, APPLY_LABEL, COLLAPSED_LABEL, CONDITION_LABELS, LOAD_FAILED } from "./copy";
+import { ACHIEVEMENT_CHANGE_LABELS, APPLY_LABEL, COLLAPSED_LABEL, CONDITION_LABELS, GOAL_LABEL, LOAD_FAILED } from "./copy";
 import { isApplyActive } from "./controller";
-import { CONDITION_KEYS, type Comparison } from "./types";
+import { GOAL_KEY, conditionKeysOf, type Comparison, type ComparisonSideKey } from "./types";
 import type { ComparisonState } from "./useComparison";
 import { COPY } from "../../../shared/copy/copy";
 
@@ -23,10 +23,39 @@ function ApplyButton({ comparison, messageId, active }: { comparison: Comparison
   );
 }
 
-function Details({ data }: { data: Comparison }) {
+function goalNote(data: Comparison): string | null {
+  if (!data.changedKeys.has(GOAL_KEY)) return null;
+  return COPY["chat.goalAmountChangedNote"]
+    .replace("{currentGoal}", data.display[`conditions.current.${GOAL_KEY}`])
+    .replace("{changedGoal}", data.display[`conditions.changed.${GOAL_KEY}`]);
+}
+
+/** 한쪽이 이미 목표를 넘은 비교(D-092). 초과한 쪽은 안내 문장, 계산된 쪽은 기준 시나리오 값을 display 그대로 보인다. */
+function ExceededSides({ data, exceeded }: { data: Comparison; exceeded: ComparisonSideKey }) {
+  const { display, baselineScenario } = data;
+  const calculated: ComparisonSideKey = exceeded === "current" ? "changed" : "current";
+  const message = COPY["chat.cardAlreadyExceeded"]
+    .replace("{heldAssets}", display[`conditions.${exceeded}.heldAssets`])
+    .replace("{goalAmount}", display[`conditions.${exceeded}.${GOAL_KEY}`]);
   return (
     <>
-      {CONDITION_KEYS.map((key) => {
+      <p data-testid={`chat-comparison-${exceeded}-exceeded`}>{message}</p>
+      <div data-testid={`chat-comparison-${calculated}-calculated`} className={ROW}>
+        <span>{COPY[calculated === "current" ? "compare.colCurrent" : "compare.colChanged"]}</span>
+        <span>{COPY[`scenario.${baselineScenario}` as keyof typeof COPY] ?? baselineScenario}</span>
+        <span>{display[`${calculated}.${baselineScenario}.afterTaxAsset`]}</span>
+        <span>{display[`${calculated}.${baselineScenario}.gapToGoal`]}</span>
+      </div>
+      {exceeded === "changed" && <p data-testid="chat-comparison-changed-exceeded-note">{COPY["chat.changedAlreadyExceeded"]}</p>}
+    </>
+  );
+}
+
+function Details({ data }: { data: Comparison }) {
+  const note = goalNote(data);
+  return (
+    <>
+      {conditionKeysOf(data.changedKeys).map((key) => {
         const changed = data.changedKeys.has(key);
         return (
           <div
@@ -36,7 +65,7 @@ function Details({ data }: { data: Comparison }) {
             data-changed={changed ? "true" : "false"}
             className={changed ? CHANGED_ROW : ROW}
           >
-            <span data-testid="chat-comparison-label">{CONDITION_LABELS[key]}</span>
+            <span data-testid="chat-comparison-label">{key === GOAL_KEY ? GOAL_LABEL : CONDITION_LABELS[key]}</span>
             <span data-testid="chat-comparison-current">{data.display[`conditions.current.${key}`]}</span>
             <span aria-hidden="true">→</span>
             <span data-testid="chat-comparison-changed">{data.display[`conditions.changed.${key}`]}</span>
@@ -54,6 +83,8 @@ function Details({ data }: { data: Comparison }) {
           <span data-testid="chat-comparison-achievement">{ACHIEVEMENT_CHANGE_LABELS[achievementChange] ?? ""}</span>
         </div>
       ))}
+      {data.exceeded !== null && <ExceededSides data={data} exceeded={data.exceeded} />}
+      {note !== null && <p data-testid="chat-comparison-goal-note">{note}</p>}
     </>
   );
 }
