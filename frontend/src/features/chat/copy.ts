@@ -16,9 +16,14 @@ export const COPY = {
   send: "보내기",
   retryExplanation: "설명 다시 요청",
   retryFailed: "다시 시도",
+  etfChipsLabel: "다른 종목으로 비교해 보기",
+  etfChipQuestion: "{name}로 바꾸면 어때요?",
   validationRequired: "값을 입력해 주세요",
   validationOutOfRange: "{min}~{max} 사이로 입력해 주세요",
   unitChar: "{n}자",
 } as const;
 
 export const unitChar = (n: number): string => COPY.unitChar.replace("{n}", String(n));
+
+/** 종목 칩을 눌렀을 때 보내는 질문. 종목 이름은 서버 displayName(지수 이름)이다. */
+export const etfChipQuestion = (name: string): string => COPY.etfChipQuestion.replace("{name}", name);

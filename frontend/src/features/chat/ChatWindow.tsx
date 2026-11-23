@@ -17,7 +17,7 @@ import { Citations } from "./explanation/Citations";
 import { postExplanation, useExplanationRequest } from "./explanation/useExplanationRequest";
 import type { ChatDeps } from "./index";
 import { useRetryExplanation } from "./retry/useRetryExplanation";
-import { Suggestions } from "./suggestions";
+import { EtfChips, planEtfProductCode, Suggestions, useEtfProducts } from "./suggestions";
 import type { ChatAccepted, ChatMessage } from "./types";
 import { useChatPollingInternal } from "./useChatPolling";
 
@@ -141,6 +141,8 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, onAssi
   const { planStore: store } = deps;
   const subscribe = useCallback((onChange: () => void) => store.subscribe(() => onChange()), [store]);
   const settledStatus = useSyncExternalStore(subscribe, () => store.getState().settledStatus);
+  const etfProductCode = useSyncExternalStore(subscribe, () => planEtfProductCode(store.getState()));
+  const etfProducts = useEtfProducts(deps.api, etfProductCode);
 
   const comparison = useComparison(comparisonController, chat.messages, settledStatus === "ALREADY_EXCEEDED");
 
@@ -294,6 +296,14 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, onAssi
           <p data-testid="chat-polling-failed" className="mb-2 text-xs text-danger">
             {COPY.pollingFailed}
           </p>
+        )}
+        {etfProductCode !== null && (
+          <EtfChips
+            products={etfProducts}
+            currentCode={etfProductCode}
+            disabled={sending || answerBlocking}
+            onPick={(question) => void send(question)}
+          />
         )}
         <div className="flex items-end gap-2">
           <textarea
