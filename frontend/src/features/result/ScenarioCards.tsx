@@ -1,4 +1,5 @@
 import { COPY } from "../../shared/copy/copy";
+import { scenarioMethodLine } from "../../shared/copy/scenarioMethod";
 import type { ScenarioCode, ScenarioResult } from "./types";
 
 const SCENARIO_ORDER: readonly ScenarioCode[] = ["GOOD", "AVG", "BAD"];
@@ -12,19 +13,9 @@ interface ScenarioCardsProps {
   productName?: string;
 }
 
-/** 산정 방식 문구 앞에 기준 종목을 붙인다. 종목 이름이 없으면 산정 방식만 돌려준다(#156). */
-function methodLine(scenarioMethod: string | null, productName: string | undefined): string | undefined {
-  const method = scenarioMethod
-    ? COPY[`result.scenarioMethodShort.${scenarioMethod}` as keyof typeof COPY]
-    : undefined;
-  if (!method) return undefined;
-  if (!productName) return method;
-  return `${COPY["result.scenarioMethodProduct"].replace("{product}", productName)} · ${method}`;
-}
-
 /** 3구간 비교 카드(FR-RES-03, #50, C12a-7). */
 export function ScenarioCards({ scenarios, display, scenarioMethod, productName }: ScenarioCardsProps) {
-  const methodText = methodLine(scenarioMethod, productName);
+  const methodText = scenarioMethodLine(scenarioMethod, productName);
   const byCode = new Map(scenarios.map((s) => [s.scenario, s]));
   const ordered = SCENARIO_ORDER.map((code) => byCode.get(code)).filter(
     (s): s is ScenarioResult => s !== undefined,
