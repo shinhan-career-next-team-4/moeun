@@ -26,6 +26,7 @@ export const COPY = {
   "input.suggestSavingTooLarge": "매달 1,000만원이 넘게 필요해요. 기간을 늘리거나 목표 금액을 줄여 보세요",
   "input.suggestNeedsMoreInput": "목표 금액과 나머지 값을 채우면 대략 얼마가 필요한지 알려 드릴게요",
   "plan.changedElsewhere": "계획이 다른 곳에서 바뀌었어요. 다시 저장하면 입력한 값으로 바뀌어요",
+  "undo.planButton": "직전 계획으로 되돌리기",
   "undo.nothingToUndo": "이미 되돌렸어요",
   "undo.failed": "되돌리지 못했어요. 다시 시도해 주세요",
   "toast.applyPlanChanged": "계획이 다른 곳에서 바뀌었어요",

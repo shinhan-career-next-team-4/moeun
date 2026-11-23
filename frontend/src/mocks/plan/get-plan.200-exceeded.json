@@ -9,6 +9,7 @@
         "revision": 12,
         "calcRunId": 542,
         "baselineResultScenario": null,
+        "undoAvailable": false,
         "plan": {
           "goalType": "HOUSE",
           "goalCustomName": null,

@@ -9,6 +9,7 @@
         "revision": 12,
         "calcRunId": 540,
         "baselineResultScenario": "AVG",
+        "undoAvailable": false,
         "plan": {
           "goalType": "HOUSE",
           "goalCustomName": null,
@@ -559,6 +560,7 @@
         "revision": 15,
         "calcRunId": 555,
         "baselineResultScenario": "AVG",
+        "undoAvailable": true,
         "plan": {
           "goalType": "HOUSE",
           "goalCustomName": null,

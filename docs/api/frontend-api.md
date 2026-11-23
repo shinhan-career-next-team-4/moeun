@@ -365,6 +365,7 @@ FR-PLAN-05·06, FR-RES-01~07, FR-INP-11, NFR-INT-02, D-010, D-062, D-072.
   "revision": 12,
   "calcRunId": 540,
   "baselineResultScenario": "AVG",
+  "undoAvailable": false,
   "plan": {
     "goalType": "HOUSE",
     "goalCustomName": null,
@@ -393,11 +394,12 @@ FR-PLAN-05·06, FR-RES-01~07, FR-INP-11, NFR-INT-02, D-010, D-062, D-072.
 | `revision` | integer | `plan.revision` | 공유 상태 `revision`·`view`(C12a-6-7) |
 | `calcRunId` | integer | 이 결과의 `calc_run(PLAN)` id. 같은 `revision` 동안 같다(단서 C12a-6-6) | `view` → #54 F-3 |
 | `baselineResultScenario` | `GOOD`\|`AVG`\|`BAD`\|null | 결과 요약에 쓸 시나리오(`findBaselineResult()`, 대체 규칙 포함). 초과면 `null` | #49 |
+| `undoAvailable` | boolean | 되돌릴 직전 계획이 있는지(`plan.previous_version_id` 유무). 첫 저장 직후·되돌린 직후 `false`, 입력 수정 저장·적용 뒤 `true` | #263 '직전 계획으로 되돌리기' 버튼(D-095) |
 | `plan` | object | 사용자가 입력한 원래 값(원 단위, nullable 그대로). `calcStartMonth`·`baselineScenario` 없음 | #51 입력 채우기 |
 | `result` | object | `status`, `goalAmount`, `calcStartMonth`, `targetMonth`, `scenarios[]`(+`monthlyPoints`), `assumptions`만 | 판단·그래프 점 |
 | `display` | object | C1a-6 키·형식(접두어 `""`, 조건 `"conditions."`) | 화면의 모든 숫자 문자열 |
 
-- 내보내지 않는 것: `conditions`(raw), `result.annualReturnPct`(수익 약속처럼 읽힐 위험), `result.requiredMonthlySaving`(항상 null), `result.dataVersions`, `result.baselineScenario`·`plan.baselineScenario`, `plan.calcStartMonth`(D-035 안내는 `display["calcStartMonth"]`), `currentVersionId`·`previousVersionId`·`undoAvailable`·`memberId`. 왜: 화면이 쓰지 않는 필드는 화면 전용 View에서 뺀다. 공개 `CalcResultView`·planContext는 그대로다.
+- 내보내지 않는 것: `conditions`(raw), `result.annualReturnPct`(수익 약속처럼 읽힐 위험), `result.requiredMonthlySaving`(항상 null), `result.dataVersions`, `result.baselineScenario`·`plan.baselineScenario`, `plan.calcStartMonth`(D-035 안내는 `display["calcStartMonth"]`), `currentVersionId`·`previousVersionId`·`memberId`. 왜: 화면이 쓰지 않는 필드는 화면 전용 View에서 뺀다. `undoAvailable`은 D-095(#263)로 화면이 쓰게 되어 내보낸다. 공개 `CalcResultView`·planContext는 그대로다.
 - 응답에 문구 키 목록을 넣지 않는다. 프론트가 C12a-7대로 고른다(#30 `tax.note`·#31 D-035 "문구 키" 수용 기준 삭제, Y-13).
 - `display`는 planContext와 같은 `ResultDisplayBuilder`(#28)가 같은 접두어로 만든다. `<S>.goalReachMonth`는 `isAchieved=true`일 때만 있다. 화면 전용으로 `<S>.gapBadge`(#224)가 더 붙는다. 이 키는 planContext·ai-server 계약에는 없고, 목 JSON·plan-context fixture와 글자까지 같다는 비교에서도 제외한다.
 
@@ -597,6 +599,7 @@ FR-PLAN-04, D-013, D-041, D-044, D-068, C12b-7-4.
 | `INTERNAL_ERROR` / 네트워크 / `MALFORMED_REQUEST` | `undo.failed` 토스트. 되돌리기 토스트는 남은 시간 동안 그대로 |
 
 - 토스트가 들고 있는 값은 직전 적용 응답(F-5, P-6)의 `revision`. 되돌리기 토스트는 적용 직후에만 띄운다(P-3 뒤에는 없음).
+- **[D-095, #263] 상시 되돌리기**: 토스트가 사라진 뒤에도 결과 화면 '내 계획 조건' 바의 '직전 계획으로 되돌리기' 버튼으로 같은 P-5를 부른다. 버튼은 P-4·P-3 응답의 `undoAvailable`이 `true`일 때만 보이고, `expectedRevision`은 공유 상태의 `revision`이다. 응답별 동작은 위 표와 같다(토스트 닫기 대신 버튼만 다시 그림). 직전 계획은 입력 수정 저장(P-3)·적용(F-5·P-6) 모두에서 생기므로 버튼은 가장 최근 변경 하나를 되돌린다(1단계, D-068).
 
 ### C12a-9. P-6 대안·비교 적용 `POST /api/plan/apply` — Should, #68 확정
 

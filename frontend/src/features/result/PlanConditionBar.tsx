@@ -3,13 +3,16 @@ import { INPUT_PATH } from "../../app/routes";
 import { COPY } from "../../shared/copy/copy";
 import { goalLabel } from "../../shared/units/units";
 import type { ResultPlanView } from "./types";
+import { UndoPlanButton } from "./UndoPlanButton";
 
 interface PlanConditionBarProps {
   view: ResultPlanView;
+  /** 되돌리기 결과 안내. 없으면 안내 없이 되돌린다 */
+  onFeedback?(message: string | null): void;
 }
 
 /** 결과 화면 상단의 내 계획 조건 바(FR-RES-05, C12a-7). */
-export function PlanConditionBar({ view }: PlanConditionBarProps) {
+export function PlanConditionBar({ view, onFeedback = () => {} }: PlanConditionBarProps) {
   const { plan, result, display } = view;
   const goalName =
     plan.goalType === "CUSTOM" && plan.goalCustomName ? plan.goalCustomName : goalLabel(plan.goalType);
@@ -36,9 +39,13 @@ export function PlanConditionBar({ view }: PlanConditionBarProps) {
             {item}
           </span>
         ))}
-        <Link to={INPUT_PATH} className="ml-auto rounded-lg px-3 py-1.5 font-semibold text-primary hover:bg-surface-muted">
-          입력 수정
-        </Link>
+        <div className="ml-auto flex items-center gap-1">
+          {/* 되돌릴 직전 계획이 있을 때만 보인다(D-095) */}
+          {view.undoAvailable && <UndoPlanButton onFeedback={onFeedback} />}
+          <Link to={INPUT_PATH} className="rounded-lg px-3 py-1.5 font-semibold text-primary hover:bg-surface-muted">
+            입력 수정
+          </Link>
+        </div>
       </div>
       {result.assumptions.isDefaultSavingsRate && (
         <p className="text-xs text-text-muted">{COPY["result.defaultSavingsRate"]}</p>

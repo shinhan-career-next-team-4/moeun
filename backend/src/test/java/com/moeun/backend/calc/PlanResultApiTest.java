@@ -136,7 +136,7 @@ class PlanResultApiTest {
         JsonNode body = readBody(putPlan(request()).andExpect(status().isOk()));
 
         assertThat(body.propertyNames()).containsExactlyInAnyOrder("revision", "calcRunId",
-                "baselineResultScenario", "plan", "result", "display");
+                "baselineResultScenario", "undoAvailable", "plan", "result", "display");
         assertThat(body.get("plan").propertyNames()).containsExactlyInAnyOrder("goalType", "goalCustomName",
                 "goalAmount", "targetPeriodMonths", "heldAssets", "monthlySavingAmount", "savingsRateInputPct",
                 "savingsRatioPct", "etfProductCode");

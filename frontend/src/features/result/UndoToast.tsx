@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { api, planStore } from "../../api";
-import { ApiError } from "../../api/errors";
+import { planStore } from "../../api";
 import { COPY } from "../../shared/copy/copy";
 import { Button } from "../../shared/ui";
+import { requestUndo } from "./requestUndo";
 
 interface UndoToastProps {
   /** 직전 적용 응답의 revision. null이면 토스트를 띄우지 않는다. */
@@ -54,36 +54,37 @@ export function UndoToast({ appliedRevision, onDismiss, onFeedback }: UndoToastP
     const issuedAt = generation.current;
     setSubmittingRevision(appliedRevision);
     setErrorState(null);
-    try {
-      const res = await api.request<{ revision: number }>("POST", "/api/plan/undo", {
-        expectedRevision: appliedRevision,
-      });
-      if (generation.current !== issuedAt) return;
-      planStore.acceptRevision(res.revision);
-      onDismiss();
-      planStore.loadPlan({ fresh: true }).catch(() => {});
-    } catch (caught) {
-      if (generation.current !== issuedAt) return;
-      setSubmittingRevision(null);
-      if (!(caught instanceof ApiError)) {
-        setErrorState({ revision: appliedRevision, text: COPY["undo.failed"] });
+    const outcome = await requestUndo(appliedRevision);
+    if (generation.current !== issuedAt) return;
+    switch (outcome.kind) {
+      case "undone":
+        planStore.acceptRevision(outcome.revision);
+        onDismiss();
+        planStore.loadPlan({ fresh: true }).catch(() => {});
         return;
-      }
-      if (caught.code === "UNAUTHENTICATED") return;
-      if (caught.code === "NOTHING_TO_UNDO") {
+      case "unauthenticated":
+        setSubmittingRevision(null);
+        return;
+      case "nothingToUndo":
+        setSubmittingRevision(null);
         onDismiss();
         onFeedback?.(COPY["undo.nothingToUndo"]);
         planStore.loadPlan({ fresh: true }).catch(() => {});
-      } else if (caught.code === "PLAN_CHANGED") {
+        return;
+      case "planChanged":
+        setSubmittingRevision(null);
         onDismiss();
         onFeedback?.(COPY["plan.changedElsewhere"]);
         planStore.loadPlan({ fresh: true }).catch(() => {});
-      } else if (caught.code === "NO_PLAN") {
+        return;
+      case "noPlan":
+        setSubmittingRevision(null);
         onDismiss();
         planStore.acceptNoPlan(appliedRevision);
-      } else {
+        return;
+      case "failed":
+        setSubmittingRevision(null);
         setErrorState({ revision: appliedRevision, text: COPY["undo.failed"] });
-      }
     }
   }
 

@@ -210,7 +210,7 @@ export function ResultPage() {
     <>
       {/* 확인창이 떠 있는 동안 배경(비교 영역·대화 패널)을 막는다. 열 때의 값과 보내는 값이 달라지지 않게 한다 */}
       <div data-dialog-background className="contents" inert={confirming !== null}>
-        <ResultLayout bar={<PlanConditionBar view={data} />}>
+        <ResultLayout bar={<PlanConditionBar view={data} onFeedback={setApplyFeedback} />}>
           <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-8">
             {isExceeded ? (
               <section

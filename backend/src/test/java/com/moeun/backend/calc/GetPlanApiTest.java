@@ -193,7 +193,7 @@ class GetPlanApiTest {
         assertThat(current.get("result").get("calcStartMonth").asString()).isEqualTo(sixMonthsAgo.toString());
         assertThat(current.get("result").get("status").asString()).isEqualTo("CALCULATED");
         assertThat(current.propertyNames()).containsExactlyInAnyOrder("revision", "calcRunId",
-                "baselineResultScenario", "plan", "result", "display");
+                "baselineResultScenario", "undoAvailable", "plan", "result", "display");
     }
 
     @Test
@@ -221,8 +221,9 @@ class GetPlanApiTest {
                 "savingsRatioPct", "etfProductCode");
         assertThat(current.get("result").propertyNames()).containsExactlyInAnyOrder("status", "goalAmount",
                 "calcStartMonth", "targetMonth", "scenarios", "assumptions");
+        // undoAvailable은 '직전 계획으로 되돌리기' 버튼에 쓰므로 내보낸다(D-095, #263)
         assertThat(current.toString()).doesNotContain("heldAssetsRecheck", "annualReturnPct", "currentVersionId",
-                "undoAvailable", "dataVersions", "memberId", "requiredMonthlySaving");
+                "previousVersionId", "dataVersions", "memberId", "requiredMonthlySaving");
     }
 
     @Test

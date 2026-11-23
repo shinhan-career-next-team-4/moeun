@@ -216,6 +216,8 @@ input:
 plan:
   changedElsewhere: "계획이 다른 곳에서 바뀌었어요. 다시 저장하면 입력한 값으로 바뀌어요"
 undo:
+  # 결과 화면 '내 계획 조건' 바의 상시 되돌리기(D-095, #263). 되돌릴 직전 계획이 있을 때만 보인다
+  planButton: "직전 계획으로 되돌리기"
   nothingToUndo: "이미 되돌렸어요"
   failed: "되돌리지 못했어요. 다시 시도해 주세요"
 result:
