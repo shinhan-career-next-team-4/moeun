@@ -201,10 +201,10 @@ export function EtfCompareSection({
         const mine = generation.current
 
         // 종목 목록은 한 번만 받는다. 종목은 자주 바뀌지 않는다
-        const listed =
-            products !== null
-                ? { ok: true as const, products }
-                : await fetchEtfProducts(transport)
+        // 이미 받아 뒀어도 항상 await를 거친다: 상태 변경이 효과 안에서 동기로 일어나지 않게 한다
+        const listed = await (products !== null
+            ? Promise.resolve({ ok: true as const, products })
+            : fetchEtfProducts(transport))
         if (!listed.ok) {
             loadingRef.current = false
             setLoading(false)
