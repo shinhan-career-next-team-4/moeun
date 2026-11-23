@@ -60,6 +60,9 @@ BAD_REQUEST_CODES = frozenset({ErrorCode.BAD_REQUEST})
 @app.exception_handler(AgentError)
 async def _agent_error(_: Request, e: AgentError) -> JSONResponse:
     status = 400 if e.code in BAD_REQUEST_CODES else 502
+    # 원인 추적용으로 코드(와 거부 사유)만 남긴다. detail에는 답 본문이 섞일 수 있어 남기지 않는다(#256)
+    reason = getattr(e, "reason", None)
+    log.warning("chat failed: code=%s status=%s%s", e.code, status, f" reason={reason}" if reason else "")
     return JSONResponse(status_code=status, content={"error": e.code})
 
 
