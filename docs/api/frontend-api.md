@@ -603,6 +603,15 @@ FR-PLAN-04, D-013, D-041, D-044, D-068, C12b-7-4.
 - 경로 `POST /api/plan/apply`, 성공 `200 {revision}`, `plan.web`, `PlanApplyService.apply(…, expectedBaseVersionId=null)` 재사용만 예약한다. 요청 모양·오류·목은 **#68**(Should)에서 2주차 말에 확정한다. #33(Must)은 P-6을 들고 있지 않다. 왜: Should를 Must Issue에 두면 Must 완료를 막는다.
 - 대화 적용은 F-5뿐이다.
 
+#### C12a-9-1. 결과 화면 ETF 종목 바꾸기 (#154) — 서버 준비, REST는 #68
+
+화면 흐름: 종목을 고르면 **미리보기(비교)** → 사용자가 확인하면 **적용**. 둘 다 `COMPARE` 경로다(`rules.yml`).
+
+- **미리보기**: 조건 변경 비교 `POST /api/compare`의 `conditionChanges`에 `"etfProductCode": "069500"`을 넣는다. 다른 조건과 함께 바꿀 수 있다. `current`는 계획의 종목, `changed`는 바꾼 종목의 시계열·세율로 계산한다(`current.assumptions.etfProductCode`·`changed.assumptions.etfProductCode`). 내 계획과 calc_run은 바뀌지 않는다. `changedKeys`에 `etfProductCode`가 들어간다.
+- **적용**: `PlanApplyService.apply(memberId, COMPARE, {"etfProductCode": …}, expectedRevision, null)`이 새 plan_version에 종목을 저장하고 `PlanChanged`를 발행한다. 되돌리기는 직전 종목으로 돌아간다. 화면이 부를 REST(P-6)는 #68에서 연다.
+- **고를 수 있는 종목**: 데이터를 적재한 종목만이다(`GET /api/etf-products`와 같은 목록). 아니거나 문자열이 아니면 `422 VALIDATION_FAILED`, `errors[0] = {"field": "etfProductCode", "reason": "NOT_AVAILABLE"}`이고 아무것도 계산·저장하지 않는다.
+- **대화(CHAT)·대안(ALTERNATIVE)**: 아직 종목을 바꿀 수 없다(`NOT_CHANGEABLE`). 대화는 D-040 개정(#160) 뒤에 연다.
+
 ### C12a-10. 오류 공통 규칙과 코드 표
 
 **기계 판단은 HTTP 상태가 아니라 `code`로만 한다.** 형식은 internal-calc C3-1, 공통 규칙은 #12-b C12b-9(Spring 기본 예외 매핑, 500 전역 `INTERNAL_ERROR`, 모듈 예외는 `ErrorResponseException` 상속·`config` 상속 금지, `title`은 임시이며 프론트는 쓰지 않음).
@@ -622,7 +631,7 @@ FR-PLAN-04, D-013, D-041, D-044, D-068, C12b-7-4.
 | 500 | `INTERNAL_ERROR` | 전부 | 예상하지 못한 오류, 결과 계산 실패, 대화 삭제 실패. **P-3의 500은 "저장되지 않았다"** | `[]` |
 
 - `CALC_FAILED`는 이 계약에 나오지 않는다(`/internal/calc` 컨트롤러 한정).
-- `errors[]`: `field`, `reason`(`REQUIRED`·`OUT_OF_RANGE`·`NOT_INTEGER`·`TOO_MANY_DECIMALS`·`NOT_CHANGEABLE`), `min`·`max`·`unit`(`KRW`·`MONTH`·`PCT`·`CHAR`), `scale`. `minDisplay`·`maxDisplay` 없음.
+- `errors[]`: `field`, `reason`(`REQUIRED`·`OUT_OF_RANGE`·`NOT_INTEGER`·`TOO_MANY_DECIMALS`·`NOT_CHANGEABLE`·`NOT_AVAILABLE`(고를 수 없는 ETF 종목, #154)), `min`·`max`·`unit`(`KRW`·`MONTH`·`PCT`·`CHAR`), `scale`. `minDisplay`·`maxDisplay` 없음.
 - 새 코드 `INVALID_CREDENTIALS`(auth), `NOTHING_TO_UNDO`(plan)는 모듈 예외가 `ErrorResponseException`으로 `code`를 직접 담는다. 전역 advice는 고치지 않는다.
 
 예시(나머지 코드도 같은 모양):
