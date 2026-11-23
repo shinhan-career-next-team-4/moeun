@@ -31,6 +31,8 @@ export async function requestAlternatives(deps: AlternativesDeps, targetPeriodMo
   try {
     const body = targetPeriodMonths === undefined ? {} : { targetPeriodMonths };
     const response = (await deps.request("POST", "/api/alternatives", body)) as AlternativeResponse;
+    // 모양이 다른 응답은 그리지 않는다(카드 변환에서 깨지지 않게)
+    if (!Array.isArray(response?.alternatives)) return { ok: false, kind: "failed" };
     return { ok: true, response };
   } catch (error) {
     const code = error instanceof ApiError ? error.code : null;

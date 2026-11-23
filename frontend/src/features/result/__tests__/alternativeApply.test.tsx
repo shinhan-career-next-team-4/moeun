@@ -28,7 +28,13 @@ interface Call {
   body: unknown;
 }
 
-function stubServer(options: { alternatives?: (body: { targetPeriodMonths?: number }) => unknown } = {}) {
+function problem(status: number, code: string): Response {
+  return jsonResponse(status, { type: "about:blank", status, code, errors: [] });
+}
+
+function stubServer(
+  options: { alternatives?: (body: { targetPeriodMonths?: number }) => unknown; apply?: () => Response } = {},
+) {
   const calls: Call[] = [];
   let planReads = 0;
   vi.stubGlobal(
@@ -47,9 +53,12 @@ function stubServer(options: { alternatives?: (body: { targetPeriodMonths?: numb
           options.alternatives ??
           ((b: { targetPeriodMonths?: number }) =>
             (b.targetPeriodMonths ? periodMock : firstMock).responses[0].body);
-        return jsonResponse(200, respond(body ?? {}));
+        const result = respond(body ?? {});
+        return result instanceof Response ? result : jsonResponse(200, result);
       }
-      if (method === "POST" && url.pathname === "/api/plan/apply") return jsonResponse(200, { revision: 13 });
+      if (method === "POST" && url.pathname === "/api/plan/apply") {
+        return options.apply ? options.apply() : jsonResponse(200, { revision: 13 });
+      }
       return jsonResponse(200, { messages: [], hasPending: false });
     }),
   );
@@ -156,5 +165,57 @@ describe("결과 화면 대안 카드 (#258, A-1, D-096)", () => {
     expect(apply().disabled).toBe(true);
     await waitFor(() => expect(server.alternativeCalls().length).toBe(before + 1));
     await waitFor(() => expect(apply().disabled).toBe(false));
+  });
+  it("대안 API가 실패하면 불러오지 못했다고 안내하고 적용 버튼을 끈다(A-1-2)", async () => {
+    stubServer({ alternatives: () => problem(500, "INTERNAL_ERROR") });
+    renderResult();
+
+    const section = await screen.findByRole("region", { name: "대안" });
+    await waitFor(() => expect(within(section).getByText("대안 값을 불러오지 못했어요")).toBeTruthy());
+    const applies = within(section).getAllByRole("button", { name: "내 계획으로 적용" }) as HTMLButtonElement[];
+    expect(applies.every((button) => button.disabled)).toBe(true);
+  });
+
+  it("대안 API가 NO_PLAN이면 입력 화면으로 간다", async () => {
+    stubServer({ alternatives: () => problem(409, "NO_PLAN") });
+    renderResult();
+
+    expect(await screen.findByText("입력화면")).toBeTruthy();
+  });
+
+  it("기한이 범위 밖(422)이면 기한 카드 안에 안내하고, 이전에 받은 기한 카드는 그대로 둔다", async () => {
+    const server = stubServer({
+      alternatives: (b) =>
+        b.targetPeriodMonths === 999 ? problem(422, "VALIDATION_FAILED") : (b.targetPeriodMonths ? periodMock : firstMock).responses[0].body,
+    });
+    renderResult();
+    const deadline = await card("기한을 늘리면");
+    const input = within(deadline).getByRole("textbox", { name: "원하는 기한(개월)" });
+    fireEvent.change(input, { target: { value: "48" } });
+    fireEvent.click(within(deadline).getByRole("button", { name: "확인" }));
+    const period = periodMock.responses[0].body.alternatives[1].display as Record<string, string>;
+    await waitFor(() => expect(deadline.textContent).toContain(period["conditions.changed.targetPeriodMonths"]));
+
+    fireEvent.change(input, { target: { value: "999" } });
+    fireEvent.click(within(deadline).getByRole("button", { name: "확인" }));
+
+    await waitFor(() => expect(within(deadline).getByText(/적을 수 있는 기한을 벗어났어요/)).toBeTruthy());
+    expect(deadline.textContent).not.toContain("999개월로");
+    expect(deadline.textContent).toContain(period["conditions.changed.targetPeriodMonths"]);
+    expect(server.alternativeCalls().some((call) => (call.body as { targetPeriodMonths?: number }).targetPeriodMonths === 999)).toBe(true);
+  });
+
+  it("대안 적용이 422면 대안 카드 적용만 끄고 비교 영역은 건드리지 않는다", async () => {
+    stubServer({ apply: () => problem(422, "VALIDATION_FAILED") });
+    renderResult();
+    const monthlyCard = await card("월 저축액을 바꾸면");
+    const apply = () => within(monthlyCard).getByRole("button", { name: "내 계획으로 적용" }) as HTMLButtonElement;
+    await waitFor(() => expect(apply().disabled).toBe(false));
+
+    fireEvent.click(apply());
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "적용하기" }));
+
+    await waitFor(() => expect(screen.getByText("지금 기준으로는 적용할 수 없는 값이에요")).toBeTruthy());
+    expect(apply().disabled).toBe(true);
   });
 });

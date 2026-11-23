@@ -14,6 +14,8 @@ interface AlternativeCardProps {
   applyEnabled?: boolean;
   /** 기한 카드에서 사용자가 적은 기간(개월). D-020·D-039: 기간은 사용자가 정한다 */
   onPeriodSubmit?: (months: number) => void;
+  /** 기한 카드의 범위 안내(A-1-2 422). 있으면 '○개월로 계산했어요' 대신 보인다 */
+  periodError?: string | null;
 }
 
 interface RowProps {
@@ -37,7 +39,7 @@ function Row({ label, value, tone = "normal", suffix }: RowProps) {
 }
 
 /** 기한 카드의 기간 입력(FR-ALT-02, D-020·D-039). 입력 전에는 안내만 있는 빈 카드다. */
-function PeriodInput({ onSubmit }: { onSubmit: (months: number) => void }) {
+function PeriodInput({ onSubmit, error }: { onSubmit: (months: number) => void; error?: string | null }) {
   const [months, setMonths] = useState("");
   const [submitted, setSubmitted] = useState<number | null>(null);
   const parsed = Number(months);
@@ -61,7 +63,12 @@ function PeriodInput({ onSubmit }: { onSubmit: (months: number) => void }) {
       <Button variant="secondary" className="h-9 px-3" disabled={!canSubmit} onClick={submit}>
         {COPY["alt.periodSubmit"]}
       </Button>
-      {submitted !== null && (
+      {error && (
+        <p role="alert" className="text-xs text-danger">
+          {error}
+        </p>
+      )}
+      {!error && submitted !== null && (
         <p className="text-xs text-text-muted">
           {COPY["alt.periodSubmitted"].replace("{months}", String(submitted))}
         </p>
@@ -78,6 +85,7 @@ export function AlternativeCard({
   onApply,
   applyEnabled = false,
   onPeriodSubmit,
+  periodError,
 }: AlternativeCardProps) {
   const hasValues =
     values !== undefined && Object.values(values).some((value) => typeof value === "string" && value.length > 0);
@@ -101,7 +109,7 @@ export function AlternativeCard({
       ) : (
         <p className="text-xs text-text-muted">{COPY["alt.valuePending"]}</p>
       )}
-      {onPeriodSubmit && <PeriodInput onSubmit={onPeriodSubmit} />}
+      {onPeriodSubmit && <PeriodInput onSubmit={onPeriodSubmit} error={periodError} />}
       <div className="mt-auto flex gap-2 pt-1">
         <Button
           variant="secondary"
