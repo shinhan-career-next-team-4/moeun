@@ -34,6 +34,13 @@ def test_role_rule_uses_previous_turn_condition_before_asking():
     assert "되묻지 않" in rule
 
 
+def test_role_rule_reads_reach_amount_expression_as_goal():
+    """"N까지 모으려면/하려면"은 역할 단어가 없어도 목표 금액이다(S8-3 실제 실행에서 되물음)"""
+    rule = bullet("역할 규칙")
+    assert "까지 모으려면" in rule
+    assert "까지 하려면" in rule
+
+
 def test_role_rule_still_asks_without_history_or_with_several_conditions():
     """(예외) 직전 턴이 없거나 여러 조건을 다뤘으면 지금처럼 되묻는다"""
     rule = bullet("역할 규칙")
@@ -120,6 +127,11 @@ ASKED_VALUE = [
         pytest.param(ASKED_VALUE, "1억 2천", 120_000_000, id="after_value_question"),
         pytest.param(ASKED_ROLE, "목표금액", 100_000_000, id="condition_only_after_role_question"),
         pytest.param(ASKED_ROLE, "목표 금액이요", 100_000_000, id="condition_only_with_ending"),
+        pytest.param(
+            [{"role": "user", "content": "목표 금액을 1억으로 바꾸면요?"},
+             {"role": "assistant", "content": "목표 금액을 1억원으로 바꿔 계산했어요."}],
+            "그럼 15,000만원까지 하려면 얼마나 걸려?", 150_000_000, id="reach_amount_after_goal_recalc",
+        ),
     ],
 )
 async def test_follow_up_without_role_word_reaches_calc(history, text, amount):
