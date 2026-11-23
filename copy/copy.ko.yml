@@ -114,7 +114,7 @@ compare:
   apply: "바꾼 조건을 내 계획으로 적용"
   # 적용 확인창(FR-PLAN-01·02, #68, 계약 C12a-9-2). 값은 비교 응답 display 그대로 넣는다
   confirmTitle: "바꾼 조건을 내 계획에 적용할까요?"
-  confirmNotice: "적용하면 결과 화면이 새 조건으로 바뀌어요. 적용한 뒤 10초 안에는 되돌릴 수 있어요."
+  confirmNotice: "적용하면 결과 화면이 새 조건으로 바뀌어요. 바꾼 뒤에도 결과 화면의 '직전 계획으로 되돌리기'로 되돌릴 수 있어요."
   confirmChange: "{current} → {changed}"
   confirmCancel: "취소"
   confirmApply: "적용하기"

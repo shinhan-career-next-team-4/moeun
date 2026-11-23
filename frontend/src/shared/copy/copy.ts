@@ -94,7 +94,7 @@ export const COPY = {
   "compare.reset": "원래대로",
   "compare.apply": "바꾼 조건을 내 계획으로 적용",
   "compare.confirmTitle": "바꾼 조건을 내 계획에 적용할까요?",
-  "compare.confirmNotice": "적용하면 결과 화면이 새 조건으로 바뀌어요. 적용한 뒤 10초 안에는 되돌릴 수 있어요.",
+  "compare.confirmNotice": "적용하면 결과 화면이 새 조건으로 바뀌어요. 바꾼 뒤에도 결과 화면의 '직전 계획으로 되돌리기'로 되돌릴 수 있어요.",
   "compare.confirmChange": "{current} → {changed}",
   "compare.confirmCancel": "취소",
   "compare.confirmApply": "적용하기",
