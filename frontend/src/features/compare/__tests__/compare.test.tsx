@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import comparisonMock from "../../../mocks/chat/get-comparison.200.json";
 import notApplicableMock from "../../../mocks/chat/get-comparison.200-not-applicable.json";
+import { ApiError } from "../../../api/errors";
 import { CompareSection } from "../CompareSection";
 import { requestComparison } from "../requestComparison";
 import type { ComparisonView } from "../types";
@@ -123,24 +124,29 @@ describe("비교 영역 (#65, FR-CMP-01~03)", () => {
     expect((screen.getByRole("checkbox", { name: "월 저축액" }) as HTMLInputElement).checked).toBe(false);
   });
 
+  it("체크를 풀어 숨긴 조건의 입력값은 보내지 않는다(적용까지 이어지므로)", () => {
+    const { onCompare } = renderSection();
+
+    pick("월 저축액");
+    fireEvent.change(field("월 저축액"), { target: { value: "50" } });
+    pick("목표 기간");
+    fireEvent.change(field("목표 기간"), { target: { value: "48" } });
+    pick("월 저축액");
+    fireEvent.click(screen.getByRole("button", { name: "비교하기" }));
+
+    expect(onCompare).toHaveBeenCalledWith({ targetPeriodMonths: 48 });
+  });
+
   it("조건을 고르지 않으면 비교하기를 누를 수 없다", () => {
     renderSection();
 
     expect((screen.getByRole("button", { name: "비교하기" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("적용 버튼은 확인 흐름이 붙기 전까지 비활성이다(D-046)", () => {
-    renderSection();
-
-    const apply = screen.getByRole("button", { name: "바꾼 조건을 내 계획으로 적용" }) as HTMLButtonElement;
-    expect(apply.disabled).toBe(true);
-    expect(apply.title).toBe("적용은 확인 흐름이 붙은 뒤에 쓸 수 있어요");
-  });
-
   it("비교하지 못했으면 안내를 보여 준다", () => {
-    renderSection({ error: "비교는 조건 변경 비교 API가 붙은 뒤에 쓸 수 있어요" });
+    renderSection({ error: "비교 결과를 불러오지 못했어요" });
 
-    expect(screen.getByRole("status").textContent).toContain("조건 변경 비교 API");
+    expect(screen.getByRole("status").textContent).toContain("비교 결과를 불러오지 못했어요");
   });
   it("대안에서 넘어온 조건을 입력칸에 채운 채로 시작한다", () => {
     render(
@@ -161,7 +167,84 @@ describe("비교 영역 (#65, FR-CMP-01~03)", () => {
 });
 
 
-describe("requestComparison (#65, #64 대기)", () => {
+describe("적용 버튼 활성 조건 (#68, C12a-9-2)", () => {
+  afterEach(cleanup);
+
+  const compared = { monthlySavingAmount: 500000 };
+
+  function applyButton() {
+    return screen.getByRole("button", { name: "바꾼 조건을 내 계획으로 적용" }) as HTMLButtonElement;
+  }
+
+  function renderCompared(props: Partial<Parameters<typeof CompareSection>[0]> = {}) {
+    const onApply = vi.fn();
+    render(
+      <CompareSection
+        currentDisplay={currentDisplay}
+        comparison={view}
+        comparedChanges={compared}
+        applyEnabled
+        initialChanges={compared}
+        onCompare={vi.fn()}
+        onReset={vi.fn()}
+        onApply={onApply}
+        {...props}
+      />,
+    );
+    return { onApply };
+  }
+
+  it("비교하기 전에는 누를 수 없다", () => {
+    renderSection();
+
+    expect(applyButton().disabled).toBe(true);
+  });
+
+  it("비교 결과가 있고 입력이 그대로면 눌러서 비교한 조건을 넘긴다", () => {
+    const { onApply } = renderCompared();
+
+    expect(applyButton().disabled).toBe(false);
+    fireEvent.click(applyButton());
+    expect(onApply).toHaveBeenCalledWith(compared);
+  });
+
+  it("비교한 뒤 입력을 고치면 다시 비교할 때까지 누를 수 없다", () => {
+    renderCompared();
+
+    fireEvent.change(field("월 저축액"), { target: { value: "60" } });
+    expect(applyButton().disabled).toBe(true);
+    fireEvent.change(field("월 저축액"), { target: { value: "50" } });
+    expect(applyButton().disabled).toBe(false);
+  });
+
+  it("비교한 뒤 조건을 더 고르면 누를 수 없다", () => {
+    renderCompared();
+
+    pick("목표 기간");
+    fireEvent.change(field("목표 기간"), { target: { value: "48" } });
+    expect(applyButton().disabled).toBe(true);
+  });
+
+  it("비교 요청 중에는 누를 수 없다", () => {
+    renderCompared({ loading: true });
+
+    expect(applyButton().disabled).toBe(true);
+  });
+
+  it("applicable이 false면 누를 수 없다", () => {
+    renderCompared({ comparison: notApplicable });
+
+    expect(applyButton().disabled).toBe(true);
+  });
+
+  it("부모가 막으면(계획이 바뀜·적용 거절) 누를 수 없다", () => {
+    renderCompared({ applyEnabled: false });
+
+    expect(applyButton().disabled).toBe(true);
+  });
+});
+
+describe("requestComparison (#65, #68 실서버 연결)", () => {
   it("목 모드에서는 비교 결과를 돌려준다", async () => {
     const request = vi.fn().mockResolvedValue(view);
 
@@ -171,13 +254,33 @@ describe("requestComparison (#65, #64 대기)", () => {
     expect(request).toHaveBeenCalledWith("GET", "/api/chat/messages/1031/comparison");
   });
 
-  it("실서버 모드에서는 비교하지 않고 안내를 돌려준다", async () => {
-    const request = vi.fn();
+  it("실서버 모드에서는 POST /api/compare에 바꾼 조건을 보내고 응답을 그대로 돌려준다", async () => {
+    const request = vi.fn().mockResolvedValue(view);
 
     const result = await requestComparison({ mode: "live", request }, { monthlySavingAmount: 1500000 });
 
-    expect(result).toEqual({ ok: false, message: "비교는 조건 변경 비교 API가 붙은 뒤에 쓸 수 있어요" });
-    expect(request).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: true, view });
+    expect(request).toHaveBeenCalledWith("POST", "/api/compare", {
+      conditionChanges: { monthlySavingAmount: 1500000 },
+    });
+  });
+
+  it("실서버가 422로 거절하면 비교할 수 없는 값이라고 안내한다", async () => {
+    const request = vi.fn().mockRejectedValue(
+      ApiError.fromProblem(422, { code: "VALIDATION_FAILED", errors: [{ field: "monthlySavingAmount" }] }),
+    );
+
+    const result = await requestComparison({ mode: "live", request }, { monthlySavingAmount: 999999999 });
+
+    expect(result).toEqual({ ok: false, message: "지금 기준으로는 비교할 수 없는 값이에요" });
+  });
+
+  it("실서버 요청이 그 밖의 이유로 실패하면 실패 안내를 돌려준다", async () => {
+    const request = vi.fn().mockRejectedValue(ApiError.network());
+
+    const result = await requestComparison({ mode: "live", request }, { monthlySavingAmount: 1500000 });
+
+    expect(result).toEqual({ ok: false, message: "비교 결과를 불러오지 못했어요" });
   });
 
   it("바꾼 조건이 없으면 요청하지 않는다", async () => {

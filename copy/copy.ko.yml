@@ -107,10 +107,12 @@ compare:
   submit: "비교하기"
   reset: "원래대로"
   apply: "바꾼 조건을 내 계획으로 적용"
-  # 적용 확인 흐름(FR-PLAN-01, D-046)이 붙기 전에는 누를 수 없다
-  applyPending: "적용은 확인 흐름이 붙은 뒤에 쓸 수 있어요"
-  # 조건 변경 비교 API(#64)가 붙기 전에는 실서버에서 비교할 수 없다
-  serverPending: "비교는 조건 변경 비교 API가 붙은 뒤에 쓸 수 있어요"
+  # 적용 확인창(FR-PLAN-01·02, #68, 계약 C12a-9-2). 값은 비교 응답 display 그대로 넣는다
+  confirmTitle: "바꾼 조건을 내 계획에 적용할까요?"
+  confirmNotice: "적용하면 결과 화면이 새 조건으로 바뀌어요. 적용한 뒤 10초 안에는 되돌릴 수 있어요."
+  confirmChange: "{current} → {changed}"
+  confirmCancel: "취소"
+  confirmApply: "적용하기"
   noChanges: "바꿀 조건을 하나 이상 골라 주세요"
   colItem: "항목"
   colCurrent: "현재 조건"
