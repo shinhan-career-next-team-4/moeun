@@ -41,7 +41,7 @@ cd frontend && npm run dev          # 목을 쓰려면 VITE_API_MODE=mock
 | F-1(202) → F-2 폴링 → 답변이 실서버 응답으로 그려진다 | **통과**. "월 저축액을 150만원으로 하면요?" → `RECALC_RESULT` 말풍선과 비교 카드. 대화 화면 코드(`features/chat/**`)에는 목 분기가 없다(`api/client.ts`의 `VITE_API_MODE=mock`만) |
 | F-4 카드 → F-5 `{revision}` → 결과 갱신·되돌리기 토스트 → 이전 카드 적용 비활성(D-069) | **통과**(이 PR의 수정 뒤). 목표 금액 6,000만원 카드에서 적용 → `POST /api/chat/messages/565/apply` 200 → `GET /api/plan` 재조회, 조건 바 "목표 약 6,000만원", 토스트 "되돌리기", 이전 카드("이전 결과")와 방금 카드 적용 버튼 모두 비활성 |
 | F-3이 `calcRunId`당 한 번 나가고 설명이 뒤이어 도착한다 | **통과**. 첫 화면 1회, F-5로 계산이 바뀐 뒤 1회(`POST /api/chat/explanations` 202) |
-| 초과 계획이면 F-3이 안 나가고 대화창 첫 줄에 고정 문장만 있다 | **통과**. 목표 500만원(보유 600만원)으로 적용 → F-3 요청 없음, 대화창 첫 줄 "이미 가진 자산이 목표 금액을 넘었어요. …" |
+| 초과 계획이면 F-3이 안 나가고 대화창 첫 줄에 고정 문장만 있다 | **통과**. 결과 화면 비교 영역(P-6 `COMPARE`)에서 목표 500만원(보유 600만원)으로 적용 → `GET /api/plan` 뒤 F-3 요청 없음, 대화창 첫 줄 "이미 가진 자산이 목표 금액을 넘었어요. …". 대화 카드(F-5)로 초과 계획을 만드는 경로는 실서버로 보지 않았다(아래 단위 테스트) |
 
 ### 실서버에서 드러나 고친 것
 
@@ -50,13 +50,16 @@ cd frontend && npm run dev          # 목을 쓰려면 VITE_API_MODE=mock
 대화창에서 쓰지 않는 `features/chat/ComparisonCard.tsx`에만 들어가 있었다.
 → `parseComparison`이 `goalAmount`를 받고(바꿨으면 `conditions.*.goalAmount` display 필수), 카드가 목표 금액 행을 맨 앞에 강조해 보이며
 `chat.goalAmountChangedNote` 안내를 더한다.
+같은 이유로 목표 금액을 바꿔 한쪽이 이미 목표를 넘은 비교(D-092, `byScenario: []`)도 실패 문구로 떴을 것이라(목 `get-comparison.200-changed-exceeded`·
+`-asymmetric-exceeded`로 확인) 함께 고쳤다. 초과한 쪽은 `chat.cardAlreadyExceeded`, 계산된 쪽은 기준 시나리오의 자산·목표 대비, 바꾼 쪽이 초과면
+`chat.changedAlreadyExceeded`를 보인다. 이 경우는 단위 테스트로만 확인했다.
 
 ### 곁들여 본 것
 
 - Spring이 확인 도중 재시작돼 폴링 3번이 502(Vite 프록시 `ECONNREFUSED`)였고, 다시 뜬 뒤 그대로 이어졌다. 코드 문제 아님
 - 대화 입력창에서 Enter로는 보내지지 않는다(`textarea`, 보내기 버튼만). 수용 기준 밖이라 그대로 둔다
 - 종목(`etfProductCode`)을 바꾼 대화 비교 카드는 #157 범위라 이 PR에서 다루지 않는다
-- 비교 영역의 `requestComparison`에는 목 모드 분기(`/api/compare` 목 없음)가 남아 있다. 대화 화면 밖이라 그대로 둔다
+- 비교 영역의 `requestComparison`에는 목 모드 분기(`/api/compare` 목 없음)가 남아 있다. 실서버 모드에서는 타지 않는 경로이고, 지우려면 `/api/compare` 목을 새로 만들어야 해서(목 개수·계약 표 변경) 이 PR에서는 그대로 둔다
 
 ## 막혔던 것과 처리
 
