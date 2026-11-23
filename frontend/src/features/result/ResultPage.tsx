@@ -10,6 +10,7 @@ import {
   applyComparison,
   CompareSection,
   ConfirmApplyDialog,
+  EtfCompareSection,
   requestComparison,
   type ComparisonView,
   type ConditionChanges,
@@ -321,8 +322,15 @@ export function ResultPage() {
                   scenarios={result.scenarios}
                   display={display}
                   scenarioMethod={result.assumptions.scenarioMethod}
+                  productName={display["assumptions.etfProductName"]}
                 />
                 <ResultChart scenarios={result.scenarios} goalAmount={result.goalAmount} display={display} />
+                {/* ETF 종목 비교(#156). 종목을 골라 저장 없이 미리본다. ETF 0%면 스스로 숨는다 */}
+                <EtfCompareSection
+                  currentProductName={display["assumptions.etfProductName"] ?? ""}
+                  scenarioMethod={result.assumptions.scenarioMethod}
+                  revision={revision}
+                />
                 {/* 대안 영역(#67). 기준 시나리오가 미달일 때만 보인다(FR-ALT-01) */}
                 <AlternativeSection
                   isAchieved={(baseline?.isAchieved ?? false) || alternatives?.hasAlternatives === false}

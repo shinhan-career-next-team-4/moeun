@@ -387,4 +387,45 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
     const assumptions = await screen.findByLabelText("계산 가정");
     expect(assumptions.textContent).not.toContain("월 저축 가능 금액 전체를");
   });
+
+    // #156 2단계: 그래프 아래의 ETF 종목 비교 입구
+    describe("ETF 종목 비교 영역 (#156)", () => {
+        function withProductName() {
+            const body = structuredClone(planMock.responses[0].body) as {
+                display: Record<string, string>
+            }
+            body.display["assumptions.etfProductName"] = "S&P500 추종 ETF"
+            return body
+        }
+
+        it("그래프 바로 다음에 ETF 비교 영역이 온다", async () => {
+            vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, withProductName())))
+            renderResult()
+
+            await screen.findByLabelText("ETF 종목 비교")
+            const labels = [...document.querySelectorAll("section[aria-label]")].map((node) =>
+                node.getAttribute("aria-label"),
+            )
+            expect(labels.indexOf("ETF 종목 비교")).toBe(labels.indexOf("예상 자산 추이 그래프") + 1)
+        })
+
+        it("3구간 머리글이 display의 종목 이름을 쓴다", async () => {
+            vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, withProductName())))
+            renderResult()
+
+            expect(
+                await screen.findByText(
+                    /기준 종목 S&P500 추종 ETF · 과거 10년 수익률로 1만 가지 경우를 계산해 세 구간/,
+                ),
+            ).toBeTruthy()
+        })
+
+        it("ETF 0% 계획이면 ETF 비교 영역이 없다", async () => {
+            vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, etf0Mock.responses[0].body)))
+            renderResult()
+
+            await screen.findByLabelText("계산 가정")
+            expect(screen.queryByLabelText("ETF 종목 비교")).toBeNull()
+        })
+    })
 })
