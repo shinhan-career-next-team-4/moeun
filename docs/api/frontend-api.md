@@ -1,9 +1,9 @@
 # 프론트 ↔ Spring API 계약 (로그인·입력·결과·대화·적용)
 
-> 최종본 (2026-11-16, moeun #12). 요구사항 FR-AI-01·FR-AI-07·FR-PLAN-03·FR-PLAN-04·FR-AUTH-01·FR-AUTH-03·FR-INP-10·FR-INP-11, 결정 D-046·D-054·D-062·D-063·D-064·D-066·D-068·D-069·D-070·D-074·D-075·D-076.
+> 최종본 (2026-11-16, moeun #12). 요구사항 FR-AI-01·FR-AI-07·FR-PLAN-03·FR-PLAN-04·FR-AUTH-01·FR-AUTH-03·FR-INP-10·FR-INP-11·FR-DATA-03(절 4), 결정 D-046·D-054·D-062·D-063·D-064·D-066·D-068·D-069·D-070·D-074·D-075·D-076.
 > 기획 repo project-workspace `docs/design/contracts/`의 최종본 두 개를 그대로 옮겼다. 절 2는 `frontend-api-plan.md`(#12-a), 절 3은 `frontend-api-chat.md`(#12-b)다. 협상 기록·후속 작업 표·코드 차이 표(본문 괄호의 `X-n`·`Y-n`·`H-n`·`J-n`)는 원문에 있다.
 > 오류 본문 형식 C3-1과 `/internal/calc`는 [`internal-calc.md`](internal-calc.md), planContext(C1a-x)는 기획 repo `plan-context.md`다.
-> 이 문서가 구현 기준이고 `frontend/src/mocks/`의 목 JSON 68개(대화 38 + 로그인·계획 30)와 같은 값이다. 각 절 머리말의 "최종본 보충"이 본문보다 우선한다.
+> 이 문서가 구현 기준이고 `frontend/src/mocks/`의 목 JSON 69개(대화 38 + 로그인·계획 30 + 기준 데이터 1)와 같은 값이다. 각 절 머리말의 "최종본 보충"이 본문보다 우선한다.
 
 ## 1. 한눈에 보기
 
@@ -22,6 +22,7 @@
 | F-3 | `POST /api/chat/explanations` | `202 {}` | `chat`(B) | 예 | C12b-3a |
 | F-4 | `GET /api/chat/messages/{messageId}/comparison` | `200` (`messageId`·`applicable`·`changedKeys` 포함) | `chat`(B) | 예 | C12b-6 |
 | F-5 | `POST /api/chat/messages/{messageId}/apply` | `200 {revision}` | `chat`(B) → `plan`(A) 공개 서비스 | 예 | C12b-7 |
+| R-1 | `GET /api/etf-products` | `200 {products}` | `refdata.web`(A) | 예 | 절 4 (#220) |
 
 - 대화 기록 삭제용 프론트 엔드포인트는 없다. `auth.MemberLoggedIn`/`MemberLoggedOut`을 chat이 동기 `@EventListener`로 받아 지운다(C12b-8).
 
@@ -42,6 +43,7 @@
 | `auth` | `{}` | P-1·P-2 `auth.web` | 없음. 이벤트를 발행만 한다 |
 | `plan` | `{}` | P-5·P-6 `plan.web` | 없음. 대화를 모른다 |
 | `calc` | `{plan, refdata}` | P-3·P-4 `calc.web` | 없음 |
+| `refdata` | `{}` | R-1 `refdata.web` | 웹 계층만 새로 생김(#220). 의존 변경 없음 |
 | `chat` | `{calc, rag, plan, auth}` | F-1~F-5 | `{calc, rag}`에서 `plan`·`auth` 추가(#41) |
 
 ```
@@ -1499,3 +1501,34 @@ public record PlanApplyResult(long planVersionId, Long previousVersionId, long r
 - F-1에서 계획이 없으면 Spring이 `baselineScenario: "AVG"`를 채운다(C12b-4). `history[].role`은 Spring이 소문자로 바꾼다.
 - 위험 메모(제공자): Spring은 ai-server가 보고한 `conditionChanges`가 실제 `/internal/calc`에 보낸 값과 같은지 검증하지 못한다(`calc_run`에 변경값 미저장, ADR-002). 다르면 F-4 카드가 AI 문장과 어긋난다(카드와 적용은 서로 일치하므로 계획 데이터는 안전). **ai-server 테스트(#23)에서 "보고값 = 보낸 값"을 고정**한다.
 
+---
+
+## 4. 기준 데이터 절 (#220)
+
+### R-1. `GET /api/etf-products`: 고를 수 있는 ETF 종목 목록
+
+결과 화면에서 ETF 종목을 바꿀 때(#156 2단계) 고를 수 있는 종목을 내려준다. 종목은 서버 설정(`application.yml`의 `moeun.refdata.seeds`)으로 적재된 것만 나오며, 프론트는 목록을 하드코딩하지 않는다(FR-DATA-03).
+
+- 요청: 본문 없음. 로그인 쿠키 필요(다른 `/api/**`와 같음)
+- 성공 `200`:
+
+```json
+{
+  "products": [
+    { "code": "SP500", "displayName": "S&P500 추종 ETF", "gainTaxRatePct": 15.4 },
+    { "code": "069500", "displayName": "코스피200 추종 ETF", "gainTaxRatePct": 0 },
+    { "code": "133690", "displayName": "나스닥100 추종 ETF", "gainTaxRatePct": 15.4 }
+  ]
+}
+```
+
+| 필드 | 타입 | 뜻 |
+|---|---|---|
+| `products[].code` | string | 종목 코드. 계획·대화 조건에 쓰는 값(#154, #157) |
+| `products[].displayName` | string | 화면 이름. 상품명 대신 추종 지수로 쓴다 |
+| `products[].gainTaxRatePct` | number | 매매차익 세율(%). 국내 주식형은 `0` |
+
+- 순서: 서버 설정(`moeun.refdata.seeds`)에 적힌 순서. 대표 상품(`SP500`, 종목을 정하지 않은 계획이 쓰는 종목)을 맨 앞에 둔다. 설정에 없는 종목은 맨 뒤에 종목 코드 순
+- 가격 데이터가 적재되지 않은 종목은 목록에 없다(계산할 수 없으므로). 하나도 없으면 `200 {"products": []}`
+- 오류: 로그인하지 않으면 `401 UNAUTHENTICATED`(C3-1). 서버의 기준 데이터가 어긋나면(종목 정보 누락 등) 공통 `500 INTERNAL_ERROR`. 그 밖의 오류 코드는 없다
+- 목: `refdata/get-etf-products.200.json`
