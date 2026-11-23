@@ -21,11 +21,17 @@ export function UndoPlanButton({ onFeedback }: UndoPlanButtonProps) {
     setSubmitting(true);
     onFeedback(null);
     const outcome = await requestUndo(sent);
-    setSubmitting(false);
+    // 요청 중에 계획 상태가 비워지거나(다른 계정 로그인) 바뀌었으면 이 응답은 지금 계획의 것이 아니다. 버린다
+    if (planStore.getState().revision !== sent) {
+      setSubmitting(false);
+      return;
+    }
+    if (outcome.kind !== "undone") setSubmitting(false);
     switch (outcome.kind) {
       case "undone":
+        // 재조회가 끝나 버튼이 사라질 때까지 막아 둔다. 그 사이 다시 누르면 '이미 되돌렸어요'가 뜬다
         planStore.acceptRevision(outcome.revision);
-        planStore.loadPlan({ fresh: true }).catch(() => {});
+        planStore.loadPlan({ fresh: true }).catch(() => setSubmitting(false));
         return;
       case "nothingToUndo":
         onFeedback(COPY["undo.nothingToUndo"]);
