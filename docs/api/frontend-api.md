@@ -677,7 +677,7 @@ FR-PLAN-01·02, FR-ALT-04, FR-CMP-02, D-016, D-041, D-046, CP-07.
 | 500 | `INTERNAL_ERROR` | 전부 | 예상하지 못한 오류, 결과 계산 실패, 대화 삭제 실패. **P-3의 500은 "저장되지 않았다"** | `[]` |
 
 - `CALC_FAILED`는 이 계약에 나오지 않는다(`/internal/calc` 컨트롤러 한정).
-- `errors[]`: `field`, `reason`(`REQUIRED`·`OUT_OF_RANGE`·`NOT_INTEGER`·`TOO_MANY_DECIMALS`·`NOT_CHANGEABLE`), `min`·`max`·`unit`(`KRW`·`MONTH`·`PCT`·`CHAR`), `scale`. `minDisplay`·`maxDisplay` 없음.
+- `errors[]`: `field`, `reason`(`REQUIRED`·`OUT_OF_RANGE`·`NOT_INTEGER`·`TOO_MANY_DECIMALS`·`NOT_CHANGEABLE`·`TOO_MANY_CHANGES`(P-6 ALTERNATIVE에서 2개 이상, `field: conditionChanges`)), `min`·`max`·`unit`(`KRW`·`MONTH`·`PCT`·`CHAR`), `scale`. `minDisplay`·`maxDisplay` 없음.
 - 새 코드 `INVALID_CREDENTIALS`(auth), `NOTHING_TO_UNDO`(plan)는 모듈 예외가 `ErrorResponseException`으로 `code`를 직접 담는다. 전역 advice는 고치지 않는다.
 
 예시(나머지 코드도 같은 모양):
