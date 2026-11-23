@@ -138,7 +138,14 @@ class PlanApplyApiTest {
                 .andExpect(jsonPath("$.errors").isEmpty());
     }
 
-    // ---- 3: 허용 밖 키 ----
+    @Test
+    void noPlanIsCheckedBeforeConditionKeys() throws Exception {
+        apply(request("ALTERNATIVE", 1, "{\"goalAmount\":100000000}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("NO_PLAN"));
+    }
+
+    // ---- 3: 조건 검증 ----
 
     @Test
     void alternativeCannotChangeGoalAmount() throws Exception {
@@ -156,13 +163,66 @@ class PlanApplyApiTest {
     void unknownConditionKeyIs422FieldNotChangeable() throws Exception {
         seedPlan();
 
+        apply(request("COMPARE", 1, "{\"foo\":1}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("FIELD_NOT_CHANGEABLE"))
+                .andExpect(jsonPath("$.errors[0].field").value("foo"))
+                .andExpect(jsonPath("$.errors[0].reason").value("NOT_CHANGEABLE"));
+    }
+
+    @Test
+    void inputFieldOutsidePathIs422FieldNotChangeable() throws Exception {
+        seedPlan();
+
         apply(request("COMPARE", 1, "{\"heldAssets\":10000000}"))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.code").value("FIELD_NOT_CHANGEABLE"))
                 .andExpect(jsonPath("$.errors[0].field").value("heldAssets"));
     }
 
-    // ---- 4: 값 검증 ----
+    @ParameterizedTest
+    @ValueSource(strings = {"\"1500000\"", "true", "{\"value\":1500000}"})
+    void nonNumberValueIs422NotInteger(String value) throws Exception {
+        seedPlan();
+
+        apply(request("COMPARE", 1, "{\"monthlySavingAmount\":" + value + "}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].reason").value("NOT_INTEGER"));
+    }
+
+    @Test
+    void numberFormatAndCountAreCheckedBeforePathAllowance() throws Exception {
+        // 검증기는 숫자 형식 → 개수 → 경로 허용·범위 순으로 보고 앞 단계에서 멈춘다(C12a-9-1 검사 3)
+        seedPlan();
+
+        apply(request("ALTERNATIVE", 1, "{\"goalAmount\":100000000,\"targetPeriodMonths\":48}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("conditionChanges"))
+                .andExpect(jsonPath("$.errors[0].reason").value("TOO_MANY_CHANGES"));
+    }
+
+    @Test
+    void nullValuedKeyIsNotChanged() throws Exception {
+        seedPlan();
+        long before = currentVersion("monthly_saving_amount", Long.class);
+
+        apply(request("COMPARE", 1, "{\"monthlySavingAmount\":null,\"targetPeriodMonths\":48}"))
+                .andExpect(status().isOk());
+
+        assertThat(currentVersion("monthly_saving_amount", Long.class)).isEqualTo(before);
+        assertThat(currentVersion("target_period_months", Integer.class)).isEqualTo(48);
+    }
+
+    @Test
+    void allNullChangesIs422Required() throws Exception {
+        seedPlan();
+
+        apply(request("COMPARE", 1, "{\"monthlySavingAmount\":null}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.errors[0].reason").value("REQUIRED"));
+    }
 
     @Test
     void outOfRangeValueIs422ValidationFailedWithRange() throws Exception {
@@ -199,7 +259,16 @@ class PlanApplyApiTest {
                 .andExpect(jsonPath("$.errors[0].reason").value("TOO_MANY_CHANGES"));
     }
 
-    // ---- 5: revision ----
+    @Test
+    void conditionValidationIsCheckedBeforeRevision() throws Exception {
+        seedPlan();
+
+        apply(request("COMPARE", 9, "{\"monthlySavingAmount\":100000000}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    // ---- 4: revision ----
 
     @Test
     void staleRevisionIs409PlanChangedAndPlanStaysSame() throws Exception {
@@ -227,6 +296,13 @@ class PlanApplyApiTest {
         "{\"path\":\"COMPARE\",\"expectedRevision\":1}",
         "{\"path\":\"COMPARE\",\"expectedRevision\":1,\"conditionChanges\":[1500000]}",
         "[]",
+        "null",
+        "{\"path\":null,\"expectedRevision\":1,\"conditionChanges\":{\"monthlySavingAmount\":1500000}}",
+        "{\"path\":1,\"expectedRevision\":1,\"conditionChanges\":{\"monthlySavingAmount\":1500000}}",
+        "{\"path\":\"COMPARE\",\"expectedRevision\":true,\"conditionChanges\":{\"monthlySavingAmount\":1500000}}",
+        "{\"path\":\"COMPARE\",\"expectedRevision\":99999999999999999999,"
+                + "\"conditionChanges\":{\"monthlySavingAmount\":1500000}}",
+        "{\"path\":\"COMPARE\",\"expectedRevision\":1,\"conditionChanges\":null}",
     })
     void malformedBodyIs400(String body) throws Exception {
         seedPlan();

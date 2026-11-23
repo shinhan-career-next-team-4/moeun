@@ -631,13 +631,14 @@ FR-PLAN-01·02, FR-ALT-04, FR-CMP-02, D-016, D-041, D-046, CP-07.
 | 0 | 토큰 | `401 UNAUTHENTICATED` |
 | 1 | 본문이 객체가 아님, `expectedRevision`이 정수가 아님, `path`가 `COMPARE`·`ALTERNATIVE`가 아님, `conditionChanges`가 객체가 아님 | `400 MALFORMED_REQUEST` |
 | 2 | `plan` 행 없음 | `409 NO_PLAN` |
-| 3 | `ConditionValidator.validateChanges(path, …)`: 허용 밖 키(경로가 허용하지 않는 조건, 알 수 없는 키) | `422 FIELD_NOT_CHANGEABLE`(`reason: NOT_CHANGEABLE`) |
-| 4 | 같은 검증: 바꾼 조건 없음(`REQUIRED`), 개수 초과(ALTERNATIVE는 1개), 숫자 아님·범위·소수 자릿수, 합친 계획의 입력 검증 | `422 VALIDATION_FAILED`(`min`·`max`·`unit`·`scale`) |
-| 5 | `plan.revision ≠ expectedRevision` | `409 PLAN_CHANGED` |
-| 6 | 현재 버전 복사 + 변경 키로 `plan_version` INSERT(`source = path`, `calc_start_month`는 현재 값, D-013) → `UPDATE plan ... WHERE member_id=? AND revision=?` → 0행이면 롤백하고 `409 PLAN_CHANGED` → `PlanChanged(APPLY)` | `200 {revision}` |
+| 3 | `ConditionValidator.validateChanges(path, …)` 한 번. 검증기는 (a) 키마다 알 수 없는 키(`NOT_CHANGEABLE`)·숫자가 아닌 값(`NOT_INTEGER`) → (b) 바꾼 조건 없음(`REQUIRED`)·경로의 개수 초과(`TOO_MANY_CHANGES`) → (c) 경로가 허용하지 않는 조건(`NOT_CHANGEABLE`)·범위·소수 자릿수 순으로 보고, 앞 단계에서 오류가 나면 거기서 멈춘다 | 오류에 `NOT_CHANGEABLE`이 하나라도 있으면 `422 FIELD_NOT_CHANGEABLE`, 아니면 `422 VALIDATION_FAILED`(`min`·`max`·`unit`·`scale`) |
+| 4 | `plan.revision ≠ expectedRevision` | `409 PLAN_CHANGED` |
+| 5 | 현재 버전에 변경 키를 합친 계획의 입력 검증 | `422 VALIDATION_FAILED` |
+| 6 | 합친 계획으로 `plan_version` INSERT(`source = path`, `calc_start_month`는 현재 값, D-013) → `UPDATE plan ... WHERE member_id=? AND revision=?` → 0행이면 롤백하고 `409 PLAN_CHANGED` → `PlanChanged(APPLY)` | `200 {revision}` |
 
+- 3의 순서 때문에 ALTERNATIVE에 `goalAmount`와 다른 조건 하나를 함께 보내면 (b)에서 멈춰 `VALIDATION_FAILED`(`TOO_MANY_CHANGES`)다. 프론트는 두 422 코드를 같게 처리하므로(C12a-9-2) 화면 동작은 같다. 이 검증기는 F-5(C12b-7-1의 6·7)와 같이 쓴다.
 - 2~6은 plan의 한 트랜잭션이다. 순서와 0행 롤백은 F-5(C12b-7-1의 5~10)와 같다.
-- 중복 클릭: 두 번째 요청은 5에서 `PLAN_CHANGED`. 프론트는 요청 중 버튼을 막는다.
+- 중복 클릭: 두 번째 요청은 4에서 `PLAN_CHANGED`. 프론트는 요청 중 버튼을 막는다.
 
 #### C12a-9-2. 프론트 흐름
 
@@ -677,7 +678,7 @@ FR-PLAN-01·02, FR-ALT-04, FR-CMP-02, D-016, D-041, D-046, CP-07.
 | 500 | `INTERNAL_ERROR` | 전부 | 예상하지 못한 오류, 결과 계산 실패, 대화 삭제 실패. **P-3의 500은 "저장되지 않았다"** | `[]` |
 
 - `CALC_FAILED`는 이 계약에 나오지 않는다(`/internal/calc` 컨트롤러 한정).
-- `errors[]`: `field`, `reason`(`REQUIRED`·`OUT_OF_RANGE`·`NOT_INTEGER`·`TOO_MANY_DECIMALS`·`NOT_CHANGEABLE`·`TOO_MANY_CHANGES`(P-6 ALTERNATIVE에서 2개 이상, `field: conditionChanges`)), `min`·`max`·`unit`(`KRW`·`MONTH`·`PCT`·`CHAR`), `scale`. `minDisplay`·`maxDisplay` 없음.
+- `errors[]`: `field`, `reason`(`REQUIRED`·`OUT_OF_RANGE`·`NOT_INTEGER`·`TOO_MANY_DECIMALS`·`NOT_CHANGEABLE`·`TOO_MANY_CHANGES`(경로의 개수 초과: ALTERNATIVE 1개, COMPARE·CHAT 6개. `field: conditionChanges`)), `min`·`max`·`unit`(`KRW`·`MONTH`·`PCT`·`CHAR`), `scale`. `minDisplay`·`maxDisplay` 없음.
 - 새 코드 `INVALID_CREDENTIALS`(auth), `NOTHING_TO_UNDO`(plan)는 모듈 예외가 `ErrorResponseException`으로 `code`를 직접 담는다. 전역 advice는 고치지 않는다.
 
 예시(나머지 코드도 같은 모양):
