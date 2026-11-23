@@ -31,7 +31,12 @@ from app.llm.assemble import (
     check_stock_recommendation,
     out_of_scope_content,
 )
-from app.llm.conditions import carried_amount_sources, check_amount_units, drop_carried_conditions
+from app.llm.conditions import (
+    carried_amount_sources,
+    check_amount_units,
+    drop_carried_conditions,
+    pointed_source,
+)
 from app.llm.context import build_messages, check_plan_context, plan_model_input
 from app.llm.errors import AgentError, ForbiddenAnswer, ForbiddenReason
 from app.llm.etf import search_etf_codes
@@ -175,6 +180,9 @@ class ChatAgent:
             return fixed
 
         turn = Turn(req)
+        # 가리키는 답("그거요")에 다시 되물으며 앞 발화의 금액을 인용해도 지어낸 숫자가 아니다(#270)
+        if req.text and (source := pointed_source(req.text, req.history)) is not None:
+            turn.number_evidence.append(source)
         messages = build_messages(req)
 
         for _ in range(self._max_rounds):

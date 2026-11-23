@@ -9,6 +9,7 @@ import pytest
 
 from app.llm.agent import ChatAgent
 from app.llm.conditions import drop_carried_conditions
+from app.llm.errors import AgentError
 from app.schemas import ChatRequest, ConditionChanges, HistoryItem
 from tests.conditions.test_conditions_carry_kind import NULLS, FakeClaude, FakeRetriever, bullet, text_resp, tool_resp
 from tests.fakes import FakeCalc
@@ -128,3 +129,22 @@ def test_choice_answer_rule_covers_pointer_answers_but_asks_for_bare_pointer():
     assert "그거요" in rule
     assert "다시 되묻습니다" in rule
     assert "물음표로 끝냅니다" in rule
+
+
+# ---- 다시 되묻는 답이 앞 발화의 금액을 인용해도 숫자 검사를 지난다(S8-8f 실 LLM에서 NUMBER_MISMATCH) ----
+
+async def test_re_clarify_quoting_previous_amount_passes_number_check():
+    claude = FakeClaude([text_resp("CLARIFY", "1억으로 바꾸고 싶은 조건이 목표 금액, 월 저축액 중 어느 것인가요?")])
+    agent = ChatAgent(claude, FakeCalc(), FakeRetriever(), model="claude-opus-5-5", effort="medium", max_rounds=4)
+    req = ChatRequest(memberId=1, messageId=9, mode="QUESTION", text="그거요", baselineScenario="AVG", history=ASKED_ROLE)
+    resp = await agent.run(req)
+    assert resp.message_type == "CLARIFY"
+
+
+async def test_amount_from_unrelated_history_is_still_not_evidence():
+    """가리키는 답이 아니면 이력의 금액은 여전히 근거가 아니다(U-1)"""
+    claude = FakeClaude([text_resp("ANSWER", "목표 금액은 1억이에요.")])
+    agent = ChatAgent(claude, FakeCalc(), FakeRetriever(), model="claude-opus-5-5", effort="medium", max_rounds=4)
+    req = ChatRequest(memberId=1, messageId=9, mode="QUESTION", text="그거요", baselineScenario="AVG", history=AFTER_RECALC)
+    with pytest.raises(AgentError):
+        await agent.run(req)

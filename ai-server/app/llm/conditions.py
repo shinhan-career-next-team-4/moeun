@@ -164,16 +164,24 @@ def _pointed_amounts(text: str, history: Sequence[HistoryItem]) -> set[int]:
     history에 message_type이 없어 되묻기를 물음표로 가늠하므로, 물음표 없는 되묻기에는 금액을 남기지 않는다
     (값을 지우는 쪽으로 틀린다). 금액이 어느 조건인지는 거르지 않는다. 역할은 모델이 정한다(D-073).
     """
+    source = pointed_source(text, history)
+    return _candidate_krw_amounts(source.lower()) if source is not None else set()
+
+
+def pointed_source(text: str, history: Sequence[HistoryItem]) -> str | None:
+    """가리키는 답이 고른 금액을 말한 사용자 발화. 아니면 None(#270).
+
+    되묻기를 다시 할 때도 모델이 그 금액을 인용할 수 있으므로 호출자는 이 발화를 숫자 검사 근거에 더한다(#260과 같은 이유).
+    """
     if len(history) < 2 or _count_numbers(text) or _stated_conditions(text):
-        return set()
+        return None
     before, last = history[-2], history[-1]
     if before.role != "user" or last.role != "assistant" or not _QUESTION.search(last.content):
-        return set()
+        return None
     said_before = before.content.lower()
     if _GOAL.search(said_before) or _HELD.search(said_before) or _MONTHLY_EXPLICIT.search(said_before):
-        return set()
-    amounts = _candidate_krw_amounts(said_before)
-    return amounts if len(amounts) == 1 else set()
+        return None
+    return before.content if len(_candidate_krw_amounts(said_before)) == 1 else None
 
 
 def drop_carried_conditions(
