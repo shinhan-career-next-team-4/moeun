@@ -35,15 +35,20 @@ class ConditionComparisonService implements ConditionComparisonQuery {
 
     @Override
     @Transactional(readOnly = true)
-    public ChatComparisonView compareWithCurrentPlan(long memberId, ConditionOverride changes) {
+    public ChatComparisonView compareWithCurrentPlan(long memberId, ConditionOverride changes,
+            String changedEtfProductCode) {
         PlanView plan = planSaveService.findCurrent(memberId).orElseThrow(CalcRejectedException::noPlan);
         CalcParams params = referenceDataService.findActiveCalcParams()
                 .orElseThrow(() -> new IllegalStateException("active calc params are not loaded"));
         EtfSeries etf = referenceDataService.findActiveEtfSeries(EtfProductSelector.productCodeOf(plan)).orElse(null);
+        EtfSeries changedEtf = changedEtfProductCode == null ? etf
+                : referenceDataService.findActiveEtfSeries(changedEtfProductCode)
+                        .orElseThrow(() -> new IllegalStateException("ETF price data is not loaded: "
+                                + changedEtfProductCode));
         SavingsAvgRateData defaultRate = referenceDataService.findActiveSavingsAvgRate().orElse(null);
 
         CompareConditionsUseCase.ComputedComparison computed = compareConditions.computeComparison(plan, changes,
-                params, etf, etf, defaultRate);
+                params, etf, changedEtf, defaultRate);
         return new ChatComparisonView(plan.currentVersionId(), computed.comparison(), computed.display());
     }
 }

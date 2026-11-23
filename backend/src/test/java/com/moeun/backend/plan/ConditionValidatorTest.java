@@ -3,12 +3,83 @@ package com.moeun.backend.plan;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+
 class ConditionValidatorTest {
 
-    private final ConditionValidator validator = new ConditionValidator(PlanRulesFixture.load());
+    /** 데이터를 적재한 종목만 고를 수 있다(#154). 실제 앱에서는 calc가 refdata로 판단한다. */
+    private final ConditionValidator validator = new ConditionValidator(PlanRulesFixture.load(),
+            LoadedEtfProductsConfig.LOADED::contains);
+
+    private static Map<String, JsonNode> productChange(JsonNode code) {
+        Map<String, JsonNode> changes = new LinkedHashMap<>();
+        changes.put("etfProductCode", code);
+        return changes;
+    }
+
+    @Test
+    void compareCanChangeEtfProductToLoadedProduct() {
+        assertThat(validator.validateChanges(ChangePath.COMPARE,
+                productChange(JsonNodeFactory.instance.stringNode("069500")))).isEmpty();
+    }
+
+    @Test
+    void compareRejectsEtfProductWithoutData() {
+        assertThat(validator.validateChanges(ChangePath.COMPARE,
+                productChange(JsonNodeFactory.instance.stringNode("999999"))))
+                .containsExactly(FieldError.notAvailable("etfProductCode"));
+    }
+
+    @Test
+    void etfProductCodeMustBeText() {
+        assertThat(validator.validateChanges(ChangePath.COMPARE,
+                productChange(JsonNodeFactory.instance.numberNode(69500))))
+                .containsExactly(FieldError.notAvailable("etfProductCode"));
+    }
+
+    @Test
+    void etfProductCountsTowardChangedFieldsWithOthers() {
+        Map<String, JsonNode> changes = productChange(JsonNodeFactory.instance.stringNode("133690"));
+        changes.put("monthlySavingAmount", JsonNodeFactory.instance.numberNode(400_000L));
+
+        assertThat(validator.validateChanges(ChangePath.COMPARE, changes)).isEmpty();
+    }
+
+    @Test
+    void reportsEtfProductAndNumberErrorsTogether() {
+        Map<String, JsonNode> changes = productChange(JsonNodeFactory.instance.stringNode("999999"));
+        changes.put("monthlySavingAmount", JsonNodeFactory.instance.numberNode(5_000L));
+
+        assertThat(validator.validateChanges(ChangePath.COMPARE, changes)).containsExactly(
+                FieldError.notAvailable("etfProductCode"),
+                new FieldError("monthlySavingAmount", "OUT_OF_RANGE", 10_000L, 10_000_000L, "KRW", null));
+    }
+
+    @Test
+    void nullEtfProductIsNoChangeAndEmptyIsNotAvailable() {
+        assertThat(validator.validateChanges(ChangePath.COMPARE, productChange(JsonNodeFactory.instance.nullNode())))
+                .containsExactly(FieldError.required("conditionChanges"));
+        assertThat(validator.validateChanges(ChangePath.COMPARE,
+                productChange(JsonNodeFactory.instance.stringNode(""))))
+                .containsExactly(FieldError.notAvailable("etfProductCode"));
+    }
+
+    @Test
+    void chatAndAlternativeCannotChangeEtfProductYet() {
+        // 대화 경로는 D-040 개정(#160) 뒤에 연다
+        assertThat(validator.validateChanges(ChangePath.CHAT,
+                productChange(JsonNodeFactory.instance.stringNode("069500"))))
+                .containsExactly(FieldError.notChangeable("etfProductCode"));
+        assertThat(validator.validateChanges(ChangePath.ALTERNATIVE,
+                productChange(JsonNodeFactory.instance.stringNode("069500"))))
+                .containsExactly(FieldError.notChangeable("etfProductCode"));
+    }
 
     @Test
     void chatCanChangeFiveFields() {

@@ -38,7 +38,8 @@ class ConditionCompareDocsTest extends ConditionCompareTestSupport {
                                 + "필드 전부), 계획 없음 409 NO_PLAN, 바꾼 조건으로도 이미 목표 초과 409 ALREADY_EXCEEDED, "
                                 + "본문 형식 오류 400 MALFORMED_REQUEST.")
                         .requestFields(
-                                subsectionWithPath("conditionChanges").description("바꿀 조건. 키는 camelCase, 값은 숫자"))
+                                subsectionWithPath("conditionChanges").description("바꿀 조건. 키는 camelCase, 값은 숫자. "
+                                        + "etfProductCode만 문자열(적재된 종목 코드, 아니면 422 NOT_AVAILABLE, #154)"))
                         .responseFields(
                                 fieldWithPath("applicable").description("지금 계획 기준의 비교인지. 이 API는 항상 true"),
                                 fieldWithPath("changedKeys[]").description("바꾼 조건의 키(null이 아닌 값, 요청 순서)"),

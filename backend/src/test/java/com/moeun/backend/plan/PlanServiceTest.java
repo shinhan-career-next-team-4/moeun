@@ -27,7 +27,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 
 @ApplicationModuleTest(extraIncludes = {"config", "auth"})
-@Import(TestcontainersConfig.class)
+@Import({TestcontainersConfig.class, LoadedEtfProductsConfig.class})
 class PlanServiceTest {
 
     @Autowired
@@ -179,8 +179,83 @@ class PlanServiceTest {
                 .isEqualTo("069500");
     }
 
+    @Test
+    void applyChangesEtfProductAndUndoRestoresIt() {
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+
+        PlanApplyResult applied = applyService.apply(memberId, ChangePath.COMPARE, productChange("069500"),
+                saved.revision(), null);
+        PlanView view = saveService.findCurrent(memberId).orElseThrow();
+
+        assertThat(view.etfProductCode()).isEqualTo("069500");
+        assertThat(view.monthlySavingAmount()).isEqualTo(1_200_000L);   // 다른 조건은 그대로
+        assertThat(applied.revision()).isEqualTo(2L);
+        assertThat(jdbc.sql("SELECT source FROM plan_version WHERE id = ?").param(applied.planVersionId())
+                .query(String.class).single()).isEqualTo("COMPARE");
+
+        undoService.undo(memberId, applied.revision());
+
+        assertThat(saveService.findCurrent(memberId).orElseThrow().etfProductCode()).isEqualTo("SP500");
+    }
+
+    @Test
+    void applyChangingEtfProductPublishesPlanChanged(AssertablePublishedEvents events) {
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+
+        PlanApplyResult applied = applyService.apply(memberId, ChangePath.COMPARE, productChange("133690"),
+                saved.revision(), null);
+
+        assertThat(events.ofType(PlanChanged.class)
+                .matching(event -> event.afterVersionId() == applied.planVersionId()
+                        && "APPLY".equals(event.action())))
+                .hasSize(1);
+    }
+
+    @Test
+    void applyWithEtfProductWithoutDataIsValidationErrorAndWritesNothing() {
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+        long versions = jdbc.sql("SELECT count(*) FROM plan_version").query(Long.class).single();
+
+        assertThatThrownBy(() -> applyService.apply(memberId, ChangePath.COMPARE, productChange("999999"),
+                saved.revision(), null))
+                .isInstanceOf(ConditionViolationException.class)
+                .extracting(e -> ((ConditionViolationException)e).errors())
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+                .containsExactly(FieldError.notAvailable("etfProductCode"));
+        assertThat(jdbc.sql("SELECT count(*) FROM plan_version").query(Long.class).single()).isEqualTo(versions);
+        assertThat(saveService.findCurrent(memberId).orElseThrow().etfProductCode()).isEqualTo("SP500");
+    }
+
+    @Test
+    void applyChangesEtfProductWithOtherCondition() {
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+        Map<String, JsonNode> changes = new java.util.LinkedHashMap<>(productChange("133690"));
+        changes.put("monthlySavingAmount", JsonNodeFactory.instance.numberNode(1_500_000L));
+
+        applyService.apply(memberId, ChangePath.COMPARE, changes, saved.revision(), null);
+        PlanView view = saveService.findCurrent(memberId).orElseThrow();
+
+        assertThat(view.etfProductCode()).isEqualTo("133690");
+        assertThat(view.monthlySavingAmount()).isEqualTo(1_500_000L);
+    }
+
+    @Test
+    void chatCannotApplyEtfProductYet() {
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+
+        assertThatThrownBy(() -> applyService.apply(memberId, ChangePath.CHAT, productChange("069500"),
+                saved.revision(), null))
+                .isInstanceOf(ConditionViolationException.class);
+        assertThat(saveService.findCurrent(memberId).orElseThrow().etfProductCode()).isEqualTo("SP500");
+        assertThat(jdbc.sql("SELECT count(*) FROM plan_version").query(Long.class).single()).isEqualTo(1L);
+    }
+
+    private static Map<String, JsonNode> productChange(String etfProductCode) {
+        return Map.of("etfProductCode", JsonNodeFactory.instance.stringNode(etfProductCode));
+    }
+
     /**
-     * 종목을 바꾸는 적용 경로가 아직 없어(#154 2단계) 준비 단계에서만 행을 직접 고친다.
+     * 재저장·적용이 현재 종목을 이어받는지 보려고 준비 단계에서만 행을 직접 고친다.
      * 앱 코드는 plan_version을 INSERT만 한다(ADR-002).
      */
     private void setEtfProduct(long planVersionId, String etfProductCode) {

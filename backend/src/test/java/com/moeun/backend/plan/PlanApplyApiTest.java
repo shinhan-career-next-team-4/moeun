@@ -7,6 +7,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.io.InputStream;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -15,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
@@ -22,6 +27,9 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import com.moeun.backend.auth.application.JwtTokenService;
 import com.moeun.backend.config.TestcontainersConfig;
+import com.moeun.backend.refdata.EtfProduct;
+import com.moeun.backend.refdata.application.ReferenceDataLoader;
+import com.moeun.backend.refdata.application.VersionSpec;
 
 import jakarta.servlet.http.Cookie;
 
@@ -41,6 +49,9 @@ class PlanApplyApiTest {
 
     @Autowired
     PlanSaveService saveService;
+
+    @Autowired
+    ReferenceDataLoader loader;
 
     Cookie cookie;
     long memberId;
@@ -125,6 +136,55 @@ class PlanApplyApiTest {
                         .content("{\"expectedRevision\":2}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.revision").value(3));
+    }
+
+    // ---- 결과 화면 종목 바꾸기(#154)도 P-6 COMPARE로 적용한다(C12a-9-3) ----
+
+    /** 같은 DB를 쓰는 다른 테스트 클래스의 069500 라벨과 겹치지 않게 둔다. 이미 있으면 그 버전을 쓴다. */
+    private void loadKospi200() throws Exception {
+        try (InputStream csv = new ClassPathResource("refdata/test-sp500-2016-10-to-2026-10.csv").getInputStream()) {
+            loader.loadEtf(new EtfProduct("069500", "코스피200 추종 ETF", BigDecimal.ZERO),
+                    new VersionSpec("test-kospi-plan-apply", LocalDate.of(2026, 10, 31), "테스트용 가짜 데이터"), csv);
+        }
+    }
+
+    @Test
+    void compareApplyChangesEtfProductAndUndoRestoresIt() throws Exception {
+        loadKospi200();
+        seedPlan();
+
+        apply(request("COMPARE", 1, "{\"etfProductCode\":\"069500\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revision").value(2));
+        assertThat(currentVersion("etf_product_code", String.class)).isEqualTo("069500");
+
+        mockMvc.perform(post("/api/plan/undo").cookie(cookie).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedRevision\":2}"))
+                .andExpect(status().isOk());
+        assertThat(currentVersion("etf_product_code", String.class)).isEqualTo("SP500");
+    }
+
+    @Test
+    void alternativeCannotChangeEtfProduct() throws Exception {
+        loadKospi200();
+        seedPlan();
+
+        apply(request("ALTERNATIVE", 1, "{\"etfProductCode\":\"069500\"}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("FIELD_NOT_CHANGEABLE"))
+                .andExpect(jsonPath("$.errors[0].field").value("etfProductCode"));
+    }
+
+    @Test
+    void unloadedEtfProductIs422NotAvailable() throws Exception {
+        seedPlan();
+
+        apply(request("COMPARE", 1, "{\"etfProductCode\":\"999999\"}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("etfProductCode"))
+                .andExpect(jsonPath("$.errors[0].reason").value("NOT_AVAILABLE"));
+        assertThat(currentRevision()).isEqualTo(1);
     }
 
     // ---- 2: 계획 없음 ----
