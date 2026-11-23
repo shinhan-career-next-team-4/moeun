@@ -251,7 +251,8 @@ export function EtfCompareSection({
 
     // 화면이 뜨면 바로 받는다. ETF 0% 계획(종목 이름 없음)은 고를 종목이 없어 받지 않는다
     useEffect(() => {
-        if (currentProductName) void fetchOptions({ revision })
+        // 받는 일은 다음 틱에서 시작한다: 효과 안에서 상태를 동기로 바꾸지 않는다
+        if (currentProductName) void Promise.resolve().then(() => fetchOptions({ revision }))
         // 처음 한 번만. 그 뒤의 계획 변화는 아래 isStale 안내와 적용 직후 다시 받기가 다룬다
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
