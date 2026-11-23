@@ -39,16 +39,23 @@ _THOUSANDS_COMMA = re.compile(r"(?<=\d),(?=\d{3})")
 _PERIOD_COMPOUND = re.compile(r"\d+\s*년\s*\(?\s*\d+\s*개월\s*\)?|\d+\s*개월\s*\(?\s*\d+\s*년\s*\)?")
 _KO_DIGIT_VALUES = dict(zip("일이삼사오육칠팔구", range(1, 10), strict=True))
 _KO_UNIT_VALUES = {"십": 10, "백": 100, "천": 1000}
-# 숫자+천·백은 뒤에 만·억이 올 때만 한 덩어리로 읽는다("5천만원"). 만 없는 "3천"은 3천만인지 알 수 없어 그대로 둔다
+# 숫자+천·백(2천, 2천5백, 5백)은 뒤에 만·억이 올 때만 한 덩어리로 읽는다("5천만원"). 만 없는 "3천"은 3천만인지
+# 알 수 없어 그대로 두고, "만들다"의 만은 단위로 보지 않는다
 _ARABIC = r"\d+(?:\.\d+)?"
-_SCALED = rf"{_ARABIC}\s*[천백](?=\s*[만억])"
-# 억 뒤의 천·백은 만을 생략해도 천만·백만이다("1억 2천", "1억 이천"). 만 없는 맨 숫자("1억 30")는 붙이지 않는다
-_EOK_REST = rf"{_ARABIC}(?:\s*[천백])?|{_KO_TENS}"
-_EOK_REST_SCALED = rf"{_ARABIC}\s*[천백]|{_KO_TENS}"
+_ARABIC_SCALED = rf"{_ARABIC}\s*천(?:\s*\d+\s*백)?|{_ARABIC}\s*백"
+_MAN_UNIT = r"만(?!들)"
+_SCALED = rf"(?:{_ARABIC_SCALED})(?=\s*(?:{_MAN_UNIT}|억))"
+# 억 뒤의 천·백은 만을 생략해도 천만·백만이다("1억 2천", "1억 이천오백"). 만 없는 맨 숫자("1억 30")와
+# 천·백으로 시작하는 낱말(십년, 천천히, 백세, 백일)은 붙이지 않도록, 만 없는 쪽은 천·백으로 끝나고
+# 조사·원이나 한글 아닌 글자가 뒤따를 때만 읽는다
+_EOK_MAN_REST = rf"{_ARABIC_SCALED}|{_ARABIC}|{_KO_IDIOM}{_KO_TENS}"
+_EOK_BARE_REST = rf"{_ARABIC_SCALED}|(?:{_KO_DIGIT}?[천백])+"
+_EOK_FOLLOW = r"(?=\s*원|으로|로|이|가|은|는|을|를|도|면|쯤|까지|정도|짜리|에(?!요)|(?![가-힣]))"
 _AMOUNT_EXPR = re.compile(
     rf"({_SCALED}|{_NUMBER.pattern})\s*"
-    rf"(?:억(?:\s*(?:({_EOK_REST})\s*만|({_EOK_REST_SCALED})))?\s*원?|만\s*원?|원)?"
+    rf"(?:억(?:\s*(?:({_EOK_MAN_REST})\s*{_MAN_UNIT}|({_EOK_BARE_REST}){_EOK_FOLLOW}))?\s*원?|{_MAN_UNIT}\s*원?|원)?"
 )
+_ARABIC_SCALE_PART = re.compile(r"(\d+(?:\.\d+)?)\s*([천백])")
 _ARABIC_SCALE_VALUES = {"천": 1000, "백": 100}
 
 
@@ -74,15 +81,11 @@ def _parse_ko_numeral(token: str) -> float | None:
 
 
 def _parse_amount_number(token: str) -> float | None:
-    """금액 앞 숫자. 아라비아 숫자+천·백("5천", "2 백")은 곱해서 읽고 나머지는 _parse_ko_numeral에 맡긴다."""
-    token = token.replace(" ", "")
-    scale = _ARABIC_SCALE_VALUES.get(token[-1:])
-    if scale is not None and token[:-1]:
-        try:
-            return float(token[:-1]) * scale
-        except ValueError:
-            pass
-    return _parse_ko_numeral(token)
+    """금액 앞 숫자. 아라비아 숫자+천·백("5천", "2천5백")은 자리마다 곱해 더하고 나머지는 _parse_ko_numeral에 맡긴다."""
+    parts = _ARABIC_SCALE_PART.findall(token)
+    if parts:
+        return sum(float(n) * _ARABIC_SCALE_VALUES[unit] for n, unit in parts)
+    return _parse_ko_numeral(token.replace(" ", ""))
 
 
 def _candidate_krw_amounts(text: str) -> set[int]:

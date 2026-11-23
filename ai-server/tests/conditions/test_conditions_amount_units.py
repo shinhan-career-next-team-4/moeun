@@ -34,6 +34,12 @@ def goal(amount: int) -> ConditionChanges:
         pytest.param("목표 1억 2천만 원", 120_000_000, id="eok_cheon_man_space_won"),
         pytest.param("1억 5백", 105_000_000, id="eok_baek"),
         pytest.param("목표 5천만원", 50_000_000, id="digit_cheon_man"),
+        pytest.param("8천만", 80_000_000, id="digit_cheon_man_no_won"),
+        pytest.param("목표 2천5백만원", 25_000_000, id="digit_cheon_baek_man"),
+        pytest.param("목표 1천2백만원", 12_000_000, id="digit_cheon_baek_man_small"),
+        pytest.param("목표 1억 2천5백만원", 125_000_000, id="eok_cheon_baek_man"),
+        pytest.param("목표 1억 3천5백", 135_000_000, id="eok_cheon_baek"),
+        pytest.param("1억 이천오백", 125_000_000, id="eok_korean_cheon_baek"),
     ],
 )
 def test_omitted_man_and_scaled_digits_pass_unit_check(text, amount):
@@ -50,6 +56,7 @@ def test_omitted_man_and_scaled_digits_pass_unit_check(text, amount):
         pytest.param("1억 2천", 102_000_000, id="eok_cheon_as_2man"),
         pytest.param("목표 5천만원", 10_000_000, id="digit_dropped"),
         pytest.param("목표 3천으로", 30_000_000, id="bare_cheon_is_ambiguous"),
+        pytest.param("목표 3천 만들기", 30_000_000, id="mandeul_is_not_man"),
     ],
 )
 def test_wrong_or_ambiguous_amount_still_fails_unit_check(text, amount):
@@ -64,12 +71,28 @@ def test_wrong_or_ambiguous_amount_still_fails_unit_check(text, amount):
         pytest.param("1억 2,000만원", 120_000_000, id="eok_comma_man"),
         pytest.param("1.2억", 120_000_000, id="decimal_eok"),
         pytest.param("2,500만원", 25_000_000, id="comma_man"),
-        pytest.param("8천만", 80_000_000, id="digit_cheon_man_no_won"),
     ],
 )
 def test_existing_amount_forms_still_pass(text, amount):
     """(예외) 이미 읽던 형태는 그대로 읽는다"""
     assert check_amount_units(text, goal(amount)) is True
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param("목표 1억 십년 안에 모을래", id="sip_nyeon"),
+        pytest.param("목표 1억 십 년", id="sip_space_nyeon"),
+        pytest.param("목표 1억 천천히 모을래", id="cheoncheonhi"),
+        pytest.param("목표 1억 백세까지", id="baekse"),
+        pytest.param("1억 백화점", id="baekhwajeom"),
+        pytest.param("목표 1억 천만에요", id="cheonmaneyo_idiom"),
+        pytest.param("1억 백일 안에", id="baekil"),
+    ],
+)
+def test_words_after_eok_are_not_amount(text):
+    """(예외) 억 뒤에 십·백·천으로 시작하는 낱말이 와도 금액에 붙이지 않는다(리뷰 회귀)"""
+    assert check_amount_units(text, goal(100_000_000)) is True
 
 
 # ---- 수용 기준 3: 재현 대화의 후속 발화가 계산까지 간다 ----
