@@ -103,18 +103,19 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
       expect(summary.textContent).not.toContain("원금");
     });
 
-    it("(W-04) 그래프에 범위 밴드와 범례 세 개가 보인다", async () => {
+    it("(W-04) 그래프에 3개 시나리오 선(빨강·초록·파랑)과 목표선 범례가 보인다", async () => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
       renderResult();
 
       const chart = await screen.findByLabelText("예상 자산 추이 그래프");
-      // 3구간 카드에도 '평균'이 있으므로 범례는 그래프 안에서 찾는다
+      // 3구간 카드에도 '평균' 등이 있으므로 범례는 그래프 안에서 찾는다
+      expect(within(chart).getByText("좋았던 때")).toBeTruthy();
       expect(within(chart).getByText("평균")).toBeTruthy();
-      expect(within(chart).getByText("좋았던 때~나빴던 때 범위")).toBeTruthy();
+      expect(within(chart).getByText("나빴던 때")).toBeTruthy();
       expect(within(chart).getByText("목표선")).toBeTruthy();
-      // 밴드는 닫힌 path(Z)로 그린다
-      const filled = [...chart.querySelectorAll("path")].filter((node) => node.getAttribute("d")?.endsWith("Z"));
-      expect(filled.length).toBe(1);
+      expect(chart.querySelector('path[data-scenario="GOOD"]')?.getAttribute("stroke")).toBe("#dc2626");
+      expect(chart.querySelector('path[data-scenario="AVG"]')?.getAttribute("stroke")).toBe("#16a34a");
+      expect(chart.querySelector('path[data-scenario="BAD"]')?.getAttribute("stroke")).toBe("#2563eb");
     });
 
     it("(W-04 예외) GOOD·BAD monthlyPoints가 없으면 밴드 없이 평균선과 목표선만 그린다", async () => {

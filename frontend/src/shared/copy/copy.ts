@@ -47,8 +47,7 @@ export const COPY = {
   "result.scenarioMethodShort.CAGR": "과거 데이터의 연평균 수익률로 세 구간을 나눠 계산 (가정 보기 참고)",
   "result.scenarioMethodShort.ROLLING_DISTRIBUTION":
     "과거 10년 수익률로 1만 가지 경우를 계산해 세 구간 (가정 보기 참고)",
-  "result.chartLegendAvg": "평균",
-  "result.chartLegendBand": "좋았던 때~나빴던 때 범위",
+  "result.chartLegendPrincipal": "누적 납입 원금",
   "result.chartLegendGoal": "목표선",
   "result.loadFailed": "결과를 불러오지 못했어요. 다시 시도해 주세요",
   "result.alreadyExceeded":

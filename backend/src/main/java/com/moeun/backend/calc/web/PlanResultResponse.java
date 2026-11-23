@@ -68,12 +68,31 @@ record PlanResultResponse(long revision, long calcRunId, Scenario baselineResult
         }
     }
 
+    /**
+     * @param principalPoints 누적 납입 원금 월별 점(그래프 하단 막대). 엔진이 점마다 이미 담는 원금(보유 자산 + 월 저축액 ×
+     *     경과 개월)이라 시나리오와 무관하게 같다. 새로 계산하지 않고 첫 시나리오의 점에서 옮긴다. 시나리오가 없으면(이미 목표 초과) 빈 목록이다
+     */
     record ResultView(CalcStatus status, long goalAmount, YearMonth calcStartMonth, YearMonth targetMonth,
-            List<ScenarioView> scenarios, Assumptions assumptions) {
+            List<ScenarioView> scenarios, List<PrincipalPointView> principalPoints, Assumptions assumptions) {
 
         static ResultView from(CalcResult result) {
             return new ResultView(result.status(), result.goalAmount(), result.calcStartMonth(), result.targetMonth(),
-                    result.scenarios().stream().map(ScenarioView::from).toList(), result.assumptions());
+                    result.scenarios().stream().map(ScenarioView::from).toList(), principalPointsOf(result),
+                    result.assumptions());
+        }
+
+        private static List<PrincipalPointView> principalPointsOf(CalcResult result) {
+            return result.scenarios().stream().findFirst()
+                    .map(scenario -> scenario.monthlyPoints().stream().map(PrincipalPointView::from).toList())
+                    .orElseGet(List::of);
+        }
+    }
+
+    /** 누적 납입 원금 점. month·principal만 담는다. */
+    record PrincipalPointView(YearMonth month, long principal) {
+
+        static PrincipalPointView from(MonthlyPoint point) {
+            return new PrincipalPointView(point.month(), point.principal());
         }
     }
 

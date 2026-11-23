@@ -386,6 +386,7 @@ FR-PLAN-05·06, FR-RES-01~07, FR-INP-11, NFR-INT-02, D-010, D-062, D-072.
     "calcStartMonth": "2026-11",
     "targetMonth": "2029-11",
     "scenarios": [ { "...": "C1a-4 ScenarioResult 그대로(annualReturnPct 없음) + monthlyPoints" } ],
+    "principalPoints": [ { "month": "2026-11", "principal": 6000000 }, { "...": "C12a-6-3, 점 수 = targetPeriodMonths + 1" } ],
     "assumptions": { "...": "C1a-4 그대로" }
   },
   "display": { "...": "C1a-6 키·형식 그대로" }
@@ -399,7 +400,7 @@ FR-PLAN-05·06, FR-RES-01~07, FR-INP-11, NFR-INT-02, D-010, D-062, D-072.
 | `baselineResultScenario` | `GOOD`\|`AVG`\|`BAD`\|null | 결과 요약에 쓸 시나리오(`findBaselineResult()`, 대체 규칙 포함). 초과면 `null` | #49 |
 | `undoAvailable` | boolean | 되돌릴 직전 계획이 있는지(`plan.previous_version_id` 유무). 첫 저장 직후·되돌린 직후 `false`, 입력 수정 저장·적용 뒤 `true` | #263 '직전 계획으로 되돌리기' 버튼(D-095) |
 | `plan` | object | 사용자가 입력한 원래 값(원 단위, nullable 그대로). `calcStartMonth`·`baselineScenario` 없음 | #51 입력 채우기 |
-| `result` | object | `status`, `goalAmount`, `calcStartMonth`, `targetMonth`, `scenarios[]`(+`monthlyPoints`), `assumptions`만 | 판단·그래프 점 |
+| `result` | object | `status`, `goalAmount`, `calcStartMonth`, `targetMonth`, `scenarios[]`(+`monthlyPoints`), `principalPoints[]`(C12a-6-3), `assumptions`만 | 판단·그래프 점 |
 | `display` | object | C1a-6 키·형식(접두어 `""`, 조건 `"conditions."`) | 화면의 모든 숫자 문자열 |
 
 - 내보내지 않는 것: `conditions`(raw), `result.annualReturnPct`(수익 약속처럼 읽힐 위험), `result.requiredMonthlySaving`(항상 null), `result.dataVersions`, `result.baselineScenario`·`plan.baselineScenario`, `plan.calcStartMonth`(D-035 안내는 `display["calcStartMonth"]`), `currentVersionId`·`previousVersionId`·`memberId`. 왜: 화면이 쓰지 않는 필드는 화면 전용 View에서 뺀다. `undoAvailable`은 D-095(#263)로 화면이 쓰게 되어 내보낸다. 공개 `CalcResultView`·planContext는 그대로다.
@@ -414,7 +415,7 @@ FR-PLAN-05·06, FR-RES-01~07, FR-INP-11, NFR-INT-02, D-010, D-062, D-072.
 | `[].month` | `"YYYY-MM"` |
 | `[].afterTaxAsset` | integer(KRW). 그 달의 세후 예상 자산 |
 
-- **[v3] `principal`은 내보내지 않는다.** 왜: FR-RES-04·#50은 자산선과 목표선만 그린다. 점당 숫자가 반이 된다(최대 361점 × 3). 엔진 `MonthlyPoint`의 `principal`은 그대로 두고 View가 옮기지 않을 뿐이다. 원금선이 필요해지면 키 하나를 다시 더한다.
+- **[v3] `monthlyPoints`에 `principal`은 내보내지 않는다.**(시나리오와 무관한 누적 납입 원금은 `result.principalPoints`에 한 번만 싣는다. C12a-6-3) 왜: FR-RES-04·#50은 자산선과 목표선만 그린다. 점당 숫자가 반이 된다(최대 361점 × 3). 엔진 `MonthlyPoint`의 `principal`은 그대로 두고 View가 옮기지 않을 뿐이다. 원금선이 필요해지면 키 하나를 다시 더한다.
 - **규칙**(k = 0 … `targetPeriodMonths`):
   - k번째 점 `month` = `result.calcStartMonth` + k개월. 점 수 = `targetPeriodMonths + 1`, 오름차순.
   - **첫 점(k=0)**: `month = result.calcStartMonth`, `afterTaxAsset = plan.heldAssets`(납입 전 출발점, 보유 자산은 운용 수익 없음 CP-03).
@@ -514,6 +515,21 @@ FR-PLAN-05·06, FR-RES-01~07, FR-INP-11, NFR-INT-02, D-010, D-062, D-072.
 
 목 흐름(C12a-12)에서 PUT 뒤의 GET이 작은 `revision`을 줘도 규칙 1로 무시된다.
 
+#### C12a-6-3. `principalPoints` (#290)
+
+그래프 하단의 **누적 납입 원금 막대**(보유 자산 + 월 저축액 × 경과 개월)에 쓰는 월별 점이다. 시나리오와 무관해서 `scenarios[]`마다 싣지 않고 `result` 아래에 한 번만 둔다(점 수 × 1).
+
+| 필드 | 이 계약 |
+|---|---|
+| `result.principalPoints` | 배열. 점 수 = `targetPeriodMonths + 1`, 오름차순. 이미 목표를 넘어 `scenarios`가 없으면(`ALREADY_EXCEEDED`) 빈 배열 |
+| `[].month` | `"YYYY-MM"`. `monthlyPoints`와 같은 달 |
+| `[].principal` | integer(KRW). 그 달까지의 누적 납입 원금 |
+
+- **새로 계산하지 않는다.** 엔진이 `monthlyPoints`의 점마다 이미 담는 `principal`(`MonthlyPoint.principal`)을 첫 시나리오의 점에서 옮긴다. 모든 시나리오가 같은 값이다.
+- 첫 점(k=0)은 `plan.heldAssets`이고 매달 `plan.monthlySavingAmount`만큼 늘어난다. 마지막 점은 시나리오의 `principal`(= '총 납입 원금' 표시값의 원본)과 같다.
+- 프론트는 이 값을 더하거나 고쳐 쓰지 않고 막대 높이로만 쓴다(NFR-INT-01). 키가 없는 응답(옛 목)이면 막대와 범례 '누적 납입 원금'을 그리지 않는다.
+- 그래프 표현(3개 시나리오 선 + 이 막대 + 목표선, 범위 밴드 없음)은 #290에서 바뀌었다. 와이어프레임 W-04의 범위 밴드와 다르다.
+
 ### C12a-7. 결과 화면이 계산하지 않기 위한 대응표
 
 표기는 모두 `display["키"]`(키는 점 포함 평면 문자열). 이 표에 없는 숫자 문자열을 프론트가 만들면 계약 위반이다.
@@ -523,7 +539,7 @@ FR-PLAN-05·06, FR-RES-01~07, FR-INP-11, NFR-INT-02, D-010, D-062, D-072.
 | 조건 바(FR-RES-05, #49) | 목표명: 문구표 `goal.<goalType>`(없으면 코드 문자열) 또는 `plan.goalCustomName`(길어도 줄바꿈·말줄임으로 깨지지 않게). `display["goalAmount"]`, `["conditions.monthlySavingAmount"]`, `["conditions.targetPeriodMonths"]`, `["conditions.savingsRatioPct"]`, `["conditions.savingsRateInputPct"]`, `["conditions.heldAssets"]`, 기본 금리 표시 `result.defaultSavingsRate` | `result.assumptions.isDefaultSavingsRate` |
 | 결과 요약(FR-RES-02, #49) | `S = baselineResultScenario`일 때 `display["S.afterTaxAsset"]`, `["S.gapToGoal"]`, `["targetMonth"]`. 상단 배지(#224)는 `display["S.gapBadge"]`(`달성 · 목표 +150만 원`/`미달 · 목표 −20만 원`, "약" 없음, 이 화면 응답에만 있고 planContext에는 없다), 문구표 `scenario.<S>` | 그 시나리오 `isAchieved` |
 | 3구간(FR-RES-03, #50) | `["GOOD","AVG","BAD"]` 고정 순서로 돌며 `result.scenarios`에 있는 것만 그린다. 칸마다 `display["<S>.afterTaxAsset"]`, `["<S>.gapToGoal"]`, 도달 시점은 `isAchieved`면 `display["<S>.goalReachMonth"]`, 아니면 문구표 `result.notReachedInPeriod`. 아래 고지 한 줄은 `result.scenarioNotice`(D-029) | 시나리오 수(1이면 ETF 0%), `isAchieved` |
-| 그래프(FR-RES-04, #50) | 목표선 라벨 `display["goalAmount"]`, 가로축 양 끝 `display["calcStartMonth"]`·`display["targetMonth"]`, 시나리오 최종값 라벨 `display["S.afterTaxAsset"]`. 세로축 눈금 숫자·툴팁·점별 월 라벨은 없다(R-5) | `monthlyPoints[].afterTaxAsset`(점 위치), `result.goalAmount`(목표선 높이) |
+| 그래프(FR-RES-04, #50) | 목표선 라벨 `display["goalAmount"]`, 가로축 양 끝 `display["calcStartMonth"]`·`display["targetMonth"]`, 시나리오 최종값 라벨 `display["S.afterTaxAsset"]`. 세로축 눈금 숫자·툴팁·점별 월 라벨은 없다(R-5) | `monthlyPoints[].afterTaxAsset`(점 위치), `result.principalPoints[].principal`(하단 누적 납입 원금 막대), `result.goalAmount`(목표선 높이) |
 | 초과 안내(FR-RES-01, #49) | **문구표 `result.alreadyExceeded`**(결과 화면용) 안에 `display["goalAmount"]`, `display["conditions.heldAssets"]`. 초과 금액 없음 | `view.status === "ALREADY_EXCEEDED"` → 요약·3구간·그래프·대안 숨김, F-3 안 부름(D-062) |
 | 가정 보기(FR-RES-06, #49) | `display["assumptions.taxRatePct"]` + 문구표 `tax.note`(D-067), **추가(#150)** `display["assumptions.etfProductName"]`·`["assumptions.etfGainTaxRatePct"]`(ETF가 있을 때만), `display["conditions.savingsRateInputPct"]`, `display["assumptions.savingsRateBaseMonth"]`·`["assumptions.sp500BaseDate"]`(없으면 줄 생략), 문구표 `excluded.<CODE>`, `scenarioMethod.<CODE>` | `result.assumptions.excludedItems`, `scenarioMethod`, `isDefaultSavingsRate` |
 | 면책(FR-RES-07, #49) | 문구표 `disclaimer` | — |
