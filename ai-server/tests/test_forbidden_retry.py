@@ -279,12 +279,13 @@ async def test_ac1_explain_mode_retry_answer_is_corrected_to_explanation() -> No
     assert resp.content == clean
 
 
-@pytest.mark.parametrize("model_wrote_note", [False, True], ids=["note_appended", "note_not_duplicated"])
-async def test_ac1_explain_retry_answer_quoting_tax_rate_gets_tax_note_once(model_wrote_note: bool) -> None:
+@pytest.mark.parametrize("model_wrote_note", [False, True], ids=["note_not_appended", "note_removed"])
+async def test_ac1_explain_retry_answer_quoting_tax_rate_gets_no_tax_note(model_wrote_note: bool) -> None:
     """기획 검토 3차 B4: EXPLAIN 요청에서 첫 답이 금지 표현으로 걸리고 재시도 답이 planContext의 세율 표시값(15.4%)을
-    인용하면, 첫 응답과 같은 보정대로 문구표 tax.note가 본문 끝에 한 번 붙는다. 재시도 답에 이미 단서가 있으면
-    다시 붙이지 않는다. 모델 2번"""
-    note = load_copy().get("tax.note")
+    인용해도, 첫 응답과 같은 보정대로 세금 단서를 붙이지 않는다(#233). 재시도 답에 모델이 쓴 단서가 있으면 지운다.
+    모델 2번"""
+    copy = load_copy()
+    note, note_free = copy.get("tax.note"), copy.get("tax.noteEtfTaxFree")
     answer = "세금은 15.4%로 가정했어요."
     retry_body = f"{answer} {note}" if model_wrote_note else answer
     claude = FakeClaude([text_resp("EXPLANATION", RECOMMEND), text_resp("EXPLANATION", retry_body)])
@@ -292,9 +293,8 @@ async def test_ac1_explain_retry_answer_quoting_tax_rate_gets_tax_note_once(mode
     assert isinstance(resp, ChatResponse), resp
     assert resp.message_type == "EXPLANATION"
     assert resp.calc_run_id == 540
-    assert resp.content.startswith(answer) and resp.content.endswith(note), resp.content
-    assert resp.content.count(note) == 1
-    assert resp.content == (retry_body if model_wrote_note else f"{answer}\n\n{note}")
+    assert resp.content == answer, resp.content
+    assert note not in resp.content and note_free not in resp.content
     assert len(claude.calls) == 2
 
 
