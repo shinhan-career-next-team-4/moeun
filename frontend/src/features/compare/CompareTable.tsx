@@ -1,12 +1,13 @@
 import { COPY, type CopyMap } from "../../shared/copy/copy";
-import type { ComparisonView, ConditionKey } from "./types";
+import type { ComparedKey, ComparisonView } from "./types";
 
-const CONDITION_LABEL_KEY: Record<ConditionKey, string> = {
+const CONDITION_LABEL_KEY: Record<ComparedKey, string> = {
   goalAmount: "condition.goalAmount",
   monthlySavingAmount: "condition.monthlySavingAmount",
   savingsRatioPct: "condition.savingsRatioPct",
   savingsRateInputPct: "condition.savingsRateInputPct",
   targetPeriodMonths: "condition.targetPeriodMonths",
+  etfProductCode: "condition.etfProductCode",
 };
 
 /** 표의 한 줄. 값이 없는 칸은 '—'로 둔다(프론트가 값을 만들지 않는다). */
@@ -19,11 +20,27 @@ interface Row {
 
 const DASH = "—";
 
+/**
+ * 조건 한 줄의 현재·바꾼 값. 숫자 조건은 서버 display 문자열을 쓰고, ETF 종목만 두 계산의
+ * 가정에 담긴 화면 이름을 쓴다. 비교 display에는 `assumptions.*` 키가 없기 때문이다(계약 C2-6).
+ */
+function conditionValues(view: ComparisonView, key: ComparedKey): { current?: string; changed?: string } {
+  if (key === "etfProductCode") {
+    return {
+      current: view.current?.assumptions?.etfProductName ?? undefined,
+      changed: view.changed?.assumptions?.etfProductName ?? undefined,
+    };
+  }
+  return {
+    current: view.display[`conditions.current.${key}`],
+    changed: view.display[`conditions.changed.${key}`],
+  };
+}
+
 function conditionRows(view: ComparisonView, copy: CopyMap): Row[] {
   return [...view.changedKeys].sort().map((key) => ({
     label: copy[CONDITION_LABEL_KEY[key]] ?? key,
-    current: view.display[`conditions.current.${key}`],
-    changed: view.display[`conditions.changed.${key}`],
+    ...conditionValues(view, key),
     // 조건 자체의 변화량(`+30만 원`) display 키는 계약에 없다(W-15과 같은 이유)
     change: undefined,
   }));

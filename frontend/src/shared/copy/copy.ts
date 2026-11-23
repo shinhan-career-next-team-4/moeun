@@ -58,6 +58,7 @@ export const COPY = {
   "result.defaultSavingsRate": "적금 금리는 평균 금리를 기본값으로 사용했어요",
   "condition.goalAmount": "목표 금액",
   "condition.monthlySavingAmount": "월 저축액",
+  "condition.etfProductCode": "ETF 종목",
   "condition.savingsRatioPct": "저축 비중",
   "condition.savingsRateInputPct": "적금 금리",
   "condition.targetPeriodMonths": "목표 기간",

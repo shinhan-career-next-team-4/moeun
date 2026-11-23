@@ -188,6 +188,7 @@ scenarioMethod:
 condition:
   goalAmount: "목표 금액"
   monthlySavingAmount: "월 저축액"
+  etfProductCode: "ETF 종목"
   savingsRatioPct: "저축 비중"
   savingsRateInputPct: "적금 금리"
   targetPeriodMonths: "목표 기간"
