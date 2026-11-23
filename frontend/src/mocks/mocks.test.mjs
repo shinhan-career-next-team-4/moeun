@@ -59,7 +59,7 @@ const AUTH_FILES = [
   "post-logout.401.json",
 ];
 
-// 계약 C12a-12 표는 30행이다(본문의 "29개"는 422-custom-name 추가 전 숫자). 표를 기준으로 한다.
+// 계약 C12a-12 표는 36행이다(본문의 "29개"는 422-custom-name 추가 전 숫자, P-6 6개는 #68). 표를 기준으로 한다.
 const PLAN_FILES = [
   "get-plan.seq-full-flow.json",
   "get-plan.seq-exceeded-toggle.json",
@@ -85,6 +85,12 @@ const PLAN_FILES = [
   "post-undo.409-plan-changed.json",
   "post-undo.409-no-plan.json",
   "post-undo.500.json",
+  "post-plan-apply.200.json",
+  "post-plan-apply.409-plan-changed.json",
+  "post-plan-apply.409-no-plan.json",
+  "post-plan-apply.422-validation.json",
+  "post-plan-apply.422-field-not-changeable.json",
+  "post-plan-apply.500.json",
 ];
 
 // 기준 데이터(#220): ETF 종목 목록
@@ -110,7 +116,7 @@ function allFiles() {
 
 // ---------------------------------------------------------------- 파일 목록
 
-test("목 파일 개수: chat 38, auth 6, plan 24, refdata 1", () => {
+test("목 파일 개수: chat 38, auth 6, plan 30, refdata 1", () => {
   for (const [dir, names] of Object.entries(DIRS)) {
     const actual = fs.existsSync(path.join(here, dir))
       ? fs.readdirSync(path.join(here, dir)).filter((f) => f.endsWith(".json")).sort()
@@ -118,7 +124,7 @@ test("목 파일 개수: chat 38, auth 6, plan 24, refdata 1", () => {
     assert.deepEqual(actual, [...names].sort(), `${dir}/ 파일 목록이 계약 표와 다르다`);
   }
   assert.equal(CHAT_FILES.length, 38);
-  assert.equal(AUTH_FILES.length + PLAN_FILES.length, 30);
+  assert.equal(AUTH_FILES.length + PLAN_FILES.length, 36);
   assert.equal(REFDATA_FILES.length, 1);
 });
 
@@ -244,6 +250,11 @@ const ERROR_CODES = {
   "plan/post-undo.409-plan-changed.json": [409, "PLAN_CHANGED"],
   "plan/post-undo.409-no-plan.json": [409, "NO_PLAN"],
   "plan/post-undo.500.json": [500, "INTERNAL_ERROR"],
+  "plan/post-plan-apply.409-plan-changed.json": [409, "PLAN_CHANGED"],
+  "plan/post-plan-apply.409-no-plan.json": [409, "NO_PLAN"],
+  "plan/post-plan-apply.422-validation.json": [422, "VALIDATION_FAILED"],
+  "plan/post-plan-apply.422-field-not-changeable.json": [422, "FIELD_NOT_CHANGEABLE"],
+  "plan/post-plan-apply.500.json": [500, "INTERNAL_ERROR"],
 };
 
 test("오류 목의 HTTP 상태와 code가 계약 표와 같다", () => {
@@ -791,6 +802,23 @@ test("mocks/README.md: 시퀀스는 요청 순서로 소비, GET /api/plan은 lo
 });
 
 // ---------------------------------------------------------------- 계약 문서
+
+test("계약 문서: P-6 요청·응답·검사 순서·프론트 흐름(#68)", () => {
+  const doc = fs.readFileSync(docPath, "utf8");
+  for (const needle of [
+    "### C12a-9. P-6 대안·비교 적용 `POST /api/plan/apply` — Should, #68 확정",
+    '{ "path": "COMPARE", "expectedRevision": 13, "conditionChanges": { "monthlySavingAmount": 1500000 } }',
+    '{ "revision": 14 }',
+    "#### C12a-9-1. 서버 검사 순서", "#### C12a-9-2. 프론트 흐름",
+    "`COMPARE`(비교 영역) 또는 `ALTERNATIVE`(대안 카드)", "expectedBaseVersionId=null",
+    "| 409 | `NO_PLAN` | P-4, P-5, P-6 |", "| 409 | `PLAN_CHANGED` | P-3, P-5, P-6 |",
+    "| 422 | `FIELD_NOT_CHANGEABLE` | P-6 |", "`plan/post-plan-apply.200.json` (기본)",
+  ]) {
+    assert.ok(doc.includes(needle), `문서에 ${needle}이 없다`);
+  }
+  assert.ok(!doc.includes("경로 예약만"), "P-6 경로 예약 문구가 남았다");
+  assert.deepEqual(body("plan", "post-plan-apply.200.json"), { revision: 14 });
+});
 
 test("계약 문서: 엔드포인트·오류 코드 예시", () => {
   const doc = fs.readFileSync(docPath, "utf8");
