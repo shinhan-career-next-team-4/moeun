@@ -95,8 +95,12 @@ public class PlanService implements PlanSaveService, PlanApplyService, PlanUndoS
         Integer savingsRatioPct = currentVersion != null
                 ? currentVersion.getSavingsRatioPct()
                 : null;   // 요청에 없는 값은 현재 버전에서 복사(C12a-5-1)
+        String etfProductCode = currentVersion != null
+                ? currentVersion.getEtfProductCode()
+                : PlanView.DEFAULT_ETF_PRODUCT_CODE;   // 입력 화면에는 종목 선택이 없다(#154)
 
-        PlanVersion saved = versionRepository.save(newVersion(memberId, in, savingsRatioPct, calcStartMonth, "INPUT"));
+        PlanVersion saved = versionRepository.save(
+                newVersion(memberId, in, savingsRatioPct, etfProductCode, calcStartMonth, "INPUT"));
         Long before = existing.map(Plan::getCurrentVersionId).orElse(null);
         long newRevision;
         if (existing.isEmpty()) {
@@ -136,8 +140,8 @@ public class PlanService implements PlanSaveService, PlanApplyService, PlanUndoS
         PlanInput merged = merge(current, changes);
         throwIfInvalid(inputValidator.validate(merged));
         Integer ratio = changes.savingsRatioPct() != null ? changes.savingsRatioPct() : current.getSavingsRatioPct();
-        PlanVersion saved = versionRepository.save(
-                newVersion(memberId, merged, ratio, current.getCalcStartMonth(), path.name()));
+        PlanVersion saved = versionRepository.save(newVersion(memberId, merged, ratio, current.getEtfProductCode(),
+                current.getCalcStartMonth(), path.name()));
         if (planRepository.replaceCurrent(memberId, saved.getId(), expectedRevision) == 0) {
             throw new PlanChangedException();   // 롤백해 방금 INSERT한 plan_version을 남기지 않는다
         }
@@ -219,8 +223,8 @@ public class PlanService implements PlanSaveService, PlanApplyService, PlanUndoS
         return new PlanInput(current.getGoalType(), current.getGoalCustomName(), fields);
     }
 
-    private PlanVersion newVersion(long memberId, PlanInput in, Integer savingsRatioPct, LocalDate calcStartMonth,
-            String source) {
+    private PlanVersion newVersion(long memberId, PlanInput in, Integer savingsRatioPct, String etfProductCode,
+            LocalDate calcStartMonth, String source) {
         String customName = in.goalCustomName() == null ? null : in.goalCustomName().strip();
         Map<String, JsonNode> fields = in.fields();
         return new PlanVersion(memberId, in.goalType(),
@@ -231,7 +235,7 @@ public class PlanService implements PlanSaveService, PlanApplyService, PlanUndoS
                 longField(fields, InputField.HELD_ASSETS),
                 longField(fields, InputField.MONTHLY_SAVING_AMOUNT),
                 decimalField(fields, InputField.SAVINGS_RATE_INPUT_PCT),
-                savingsRatioPct, source, clock.instant());
+                savingsRatioPct, etfProductCode, source, clock.instant());
     }
 
     private PlanVersion copyVersion(PlanVersion source) {
@@ -246,6 +250,7 @@ public class PlanService implements PlanSaveService, PlanApplyService, PlanUndoS
                 source.getMonthlySaving(),
                 source.getSavingsRatePct(),
                 source.getSavingsRatioPct(),
+                source.getEtfProductCode(),
                 source.getSource(),
                 clock.instant());
     }
@@ -280,6 +285,7 @@ public class PlanService implements PlanSaveService, PlanApplyService, PlanUndoS
                 version.getMonthlySaving(),
                 version.getSavingsRatePct(),
                 version.getSavingsRatioPct(),
+                version.getEtfProductCode(),
                 YearMonth.from(version.getCalcStartMonth()).toString(),
                 plan.getBaselineScenario(),
                 plan.getRevision(),

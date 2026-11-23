@@ -33,6 +33,7 @@ import com.moeun.backend.refdata.ReferenceDataService;
 class SchemaUpgradeTest {
 
     private static final ClassPathResource SCHEMA = new ClassPathResource("db/schema.sql");
+    private static final String OLD_PLAN_MEMBER = "schema-upgrade-plan";
 
     @Autowired
     JdbcTemplate jdbc;
@@ -46,6 +47,8 @@ class SchemaUpgradeTest {
     @BeforeEach
     void makeOldStructure() {
         jdbc.execute("TRUNCATE data_version RESTART IDENTITY CASCADE");
+        // #154 전 plan_version: 종목 칸 없음
+        jdbc.execute("ALTER TABLE plan_version DROP COLUMN IF EXISTS etf_product_code");
         // #157 전 calc_run: changed 쪽 ETF 버전 칸 없음
         jdbc.execute("ALTER TABLE calc_run DROP COLUMN IF EXISTS changed_etf_version_id");
         // #138 전 data_version: product_code 없음, 종류에 SP500, 종류별 활성 1개, (종류, 이름) 유일
@@ -71,6 +74,9 @@ class SchemaUpgradeTest {
     @AfterEach
     void restoreNewStructure() {
         runSchema();
+        jdbc.update("DELETE FROM plan_version WHERE member_id IN (SELECT id FROM member WHERE login_id = ?)",
+                OLD_PLAN_MEMBER);
+        jdbc.update("DELETE FROM member WHERE login_id = ?", OLD_PLAN_MEMBER);
         jdbc.execute("TRUNCATE data_version RESTART IDENTITY CASCADE");
         jdbc.execute("TRUNCATE sp500_monthly");
     }
@@ -131,5 +137,25 @@ class SchemaUpgradeTest {
                 "INSERT INTO data_version (data_kind, product_code, version_label, base_date, source, is_active) "
                         + "VALUES ('ETF_PRICE', 'SP500', 'other-label', '2026-10-31', '중복 활성', true)"))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("종목 칸이 없던 옛 계획 버전은 보정 뒤 대표 상품 SP500으로 읽히고, 칸은 비울 수 없다(#154)")
+    void upgradesOldPlanVersionToRepresentativeProduct() {
+        Long memberId = jdbc.queryForObject("INSERT INTO member (login_id, password_hash) VALUES (?, 'x') RETURNING id",
+                Long.class, OLD_PLAN_MEMBER);
+        Long versionId = jdbc.queryForObject("INSERT INTO plan_version (member_id, goal_type_code, goal_amount, "
+                + "target_period_months, calc_start_month, held_assets, monthly_saving_amount, source) "
+                + "VALUES (?, 'HOUSE', 20000000, 36, '2026-11-01', 5000000, 300000, 'INPUT') RETURNING id",
+                Long.class, memberId);
+
+        runSchema();
+        runSchema();
+
+        assertThat(jdbc.queryForObject("SELECT etf_product_code FROM plan_version WHERE id = ?", String.class,
+                versionId)).isEqualTo("SP500");
+        assertThat(jdbc.queryForObject("SELECT is_nullable FROM information_schema.columns "
+                + "WHERE table_name = 'plan_version' AND column_name = 'etf_product_code'", String.class))
+                .isEqualTo("NO");
     }
 }

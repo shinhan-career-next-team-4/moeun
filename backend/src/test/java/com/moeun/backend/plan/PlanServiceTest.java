@@ -126,6 +126,69 @@ class PlanServiceTest {
     }
 
     @Test
+    void firstSaveStoresRepresentativeEtfProduct() {
+        saveService.save(memberId, valid().build(), null);
+
+        assertThat(saveService.findCurrent(memberId).orElseThrow().etfProductCode()).isEqualTo("SP500");
+        assertThat(jdbc.sql("SELECT etf_product_code FROM plan_version WHERE member_id = ?").param(memberId)
+                .query(String.class).single()).isEqualTo("SP500");
+    }
+
+    @Test
+    void secondSaveKeepsEtfProductOfCurrentVersion() {
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+        setEtfProduct(saved.planVersionId(), "069500");
+
+        saveService.save(memberId, valid().monthlySavingAmount(1_500_000L).build(), saved.revision());
+
+        assertThat(saveService.findCurrent(memberId).orElseThrow().etfProductCode()).isEqualTo("069500");
+    }
+
+    @Test
+    void applyKeepsEtfProductOfCurrentVersion() {
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+        setEtfProduct(saved.planVersionId(), "133690");
+
+        applyService.apply(memberId, ChangePath.COMPARE, changes("monthlySavingAmount", 1_500_000L),
+                saved.revision(), null);
+
+        assertThat(saveService.findCurrent(memberId).orElseThrow().etfProductCode()).isEqualTo("133690");
+    }
+
+    @Test
+    void undoRestoresEtfProductOfPreviousVersion() {
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+        setEtfProduct(saved.planVersionId(), "069500");
+        PlanApplyResult applied = applyService.apply(memberId, ChangePath.COMPARE,
+                changes("monthlySavingAmount", 1_500_000L), saved.revision(), null);
+        setEtfProduct(applied.planVersionId(), "133690");
+
+        undoService.undo(memberId, applied.revision());
+
+        assertThat(saveService.findCurrent(memberId).orElseThrow().etfProductCode()).isEqualTo("069500");
+    }
+
+    @Test
+    void findVersionReturnsEtfProductOfThatVersion() {
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+        setEtfProduct(saved.planVersionId(), "069500");
+        applyService.apply(memberId, ChangePath.COMPARE, changes("monthlySavingAmount", 1_500_000L),
+                saved.revision(), null);
+
+        assertThat(saveService.findVersion(memberId, saved.planVersionId()).orElseThrow().etfProductCode())
+                .isEqualTo("069500");
+    }
+
+    /**
+     * 종목을 바꾸는 적용 경로가 아직 없어(#154 2단계) 준비 단계에서만 행을 직접 고친다.
+     * 앱 코드는 plan_version을 INSERT만 한다(ADR-002).
+     */
+    private void setEtfProduct(long planVersionId, String etfProductCode) {
+        jdbc.sql("UPDATE plan_version SET etf_product_code = ? WHERE id = ?")
+                .param(etfProductCode).param(planVersionId).update();
+    }
+
+    @Test
     void saveWithErrorsThrowsValidationExceptionAndWritesNothing() {
         assertThatThrownBy(() -> saveService.save(memberId, valid().goalAmount(null).build(), null))
                 .isInstanceOf(ConditionViolationException.class)
