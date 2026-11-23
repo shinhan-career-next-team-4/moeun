@@ -36,10 +36,24 @@ export function AssumptionsSection({
             <dd>{display["assumptions.savingsRateBaseMonth"]}</dd>
           </div>
         )}
+        {/* 키 이름은 sp500BaseDate이지만 값은 계산에 쓴 ETF 종목 데이터의 기준일이다(#138, plan-context.md) */}
         {display["assumptions.sp500BaseDate"] && (
           <div>
-            <dt className="font-medium text-text">S&P500 기준일</dt>
+            <dt className="font-medium text-text">ETF 기준일</dt>
             <dd>{display["assumptions.sp500BaseDate"]}</dd>
+          </div>
+        )}
+        {/* 종목 이름과 종목 세율은 ETF가 들어간 계산에만 있다(#150). 상품명 대신 화면 이름이다(CP-06) */}
+        {display["assumptions.etfProductName"] && (
+          <div>
+            <dt className="font-medium text-text">ETF 종목</dt>
+            <dd>{display["assumptions.etfProductName"]}</dd>
+          </div>
+        )}
+        {display["assumptions.etfGainTaxRatePct"] && (
+          <div>
+            <dt className="font-medium text-text">ETF 매매차익 세율</dt>
+            <dd>{display["assumptions.etfGainTaxRatePct"]}</dd>
           </div>
         )}
       </dl>
