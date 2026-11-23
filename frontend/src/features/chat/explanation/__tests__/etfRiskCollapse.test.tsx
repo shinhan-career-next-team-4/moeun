@@ -26,7 +26,10 @@ const TITLE = copy["chat.etfRiskTitle"];
 function storeWithRatio(savingsRatioPct: number) {
   const made = makeStore();
   const body = view(1, "CALCULATED", freshId());
-  (body.result as { assumptions: Record<string, unknown> }).assumptions.savingsRatioPct = savingsRatioPct;
+  const assumptions = (body.result as { assumptions: Record<string, unknown> }).assumptions;
+  assumptions.savingsRatioPct = savingsRatioPct;
+  // 서버는 ETF 0%면 종목 코드를 주지 않는다(Assumptions). 실제로 올 수 있는 조합만 만든다.
+  if (savingsRatioPct === 100) assumptions.etfProductCode = null;
   made.store.acceptPlanView(body);
   return made.store;
 }
