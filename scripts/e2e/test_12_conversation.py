@@ -224,7 +224,7 @@ def test_s8_7_etf_product_change_is_recalculated(api, fresh):
     """대화로 종목을 바꾼다(D-097, #267). 계획(S&P500)과 다른 종목으로 계산하고, #154 전까지는 적용할 수 없다(#268)."""
     msg = ask(api, "ETF를 나스닥으로 바꾸고 싶어")
     assert msg["messageType"] == "RECALC_RESULT", f"종목 변경을 계산하지 않음: {msg['content']}"
-    cmp = comparison(api, msg["messageId"])
+    cmp = comparison(api, msg["id"])
     assert cmp["conditions"]["changed"].get("etfProductCode") == "133690", cmp["conditions"]
     assert cmp["applicable"] is False, "종목을 바꾼 비교는 #154 전까지 적용 불가(#268)"
     assert "추천" not in msg["content"], msg["content"]
@@ -237,7 +237,7 @@ def test_s8_7_etf_product_change_is_recalculated(api, fresh):
 def test_s8_11a_product_and_monthly_saving_together(api, fresh):
     msg = ask(api, "코스피200으로 바꾸고 월 150만원 넣으면?")
     assert msg["messageType"] == "RECALC_RESULT", f"{msg['messageType']}: {msg['content']}"
-    changed = comparison(api, msg["messageId"])["conditions"]["changed"]
+    changed = comparison(api, msg["id"])["conditions"]["changed"]
     assert changed.get("etfProductCode") == "069500", changed
     assert changed.get("monthlySavingAmount") == 1_500_000, changed
 
@@ -246,7 +246,7 @@ def test_s8_11b_follow_up_product_does_not_carry_previous_value(api, fresh):
     ask(api, "월 저축액을 150만원으로 하면요?")
     msg = ask(api, "그럼 코스피200으로 바꾸면?")
     assert msg["messageType"] == "RECALC_RESULT", f"{msg['messageType']}: {msg['content']}"
-    changed = comparison(api, msg["messageId"])["conditions"]["changed"]
+    changed = comparison(api, msg["id"])["conditions"]["changed"]
     assert changed.get("etfProductCode") == "069500", changed
     assert changed.get("monthlySavingAmount") == fresh["plan"]["monthlySavingAmount"], (
         f"앞 턴의 월 저축액을 이어받음(D-041) {changed}")

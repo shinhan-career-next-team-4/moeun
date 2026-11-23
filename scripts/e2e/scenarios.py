@@ -14,6 +14,7 @@ def P(pid, name, goal_type, goal, months, held, monthly, rate=None, expect=None,
             "goalType": goal_type, "goalCustomName": custom, "goalAmount": goal,
             "targetPeriodMonths": months, "heldAssets": held, "monthlySavingAmount": monthly,
             "savingsRateInputPct": rate,
+            "savingsRatioPct": None,   # #241부터 키 필수. null이면 기본 비중(5:5)
         },
     }
 

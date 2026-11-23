@@ -33,9 +33,9 @@ _CONDITION_FIELDS = {
     "savings_rate_input_pct": _nullable("number", description="적금 연 금리(%)"),
     "target_period_months": _nullable("integer", description="목표 기한(개월)"),
     # 종목은 정해진 코드만 고른다(D-097). 목록에 없는 종목을 말하면 계산하지 않고 되묻는다(프롬프트)
+    # 타입 배열에 enum을 함께 두면 API가 스키마를 거절한다(400). 코드 enum과 null을 anyOf로 나눈다
     "etf_product_code": {
-        "type": ["string", "null"],
-        "enum": [*PRODUCT_INDEX_NAMES, None],
+        "anyOf": [{"type": "string", "enum": list(PRODUCT_INDEX_NAMES)}, {"type": "null"}],
         "description": "ETF 종목 코드. "
         + ", ".join(f"{code}={name}" for code, name in PRODUCT_INDEX_NAMES.items()),
     },

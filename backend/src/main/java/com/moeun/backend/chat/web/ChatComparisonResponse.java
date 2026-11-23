@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.moeun.backend.calc.CalcComparison;
 import com.moeun.backend.calc.CalcResultView;
 import com.moeun.backend.chat.application.ChatComparison;
@@ -19,13 +20,16 @@ record ChatComparisonResponse(long messageId, boolean applicable, List<String> c
     record Conditions(Side current, Side changed) {
     }
 
-    /** 대화로 바꿀 수 있는 5개 조건의 한쪽 값(D-090·D-092). */
+    /**
+     * 대화로 바꿀 수 있는 조건의 한쪽 값(D-092·D-097). 종목 코드는 종목을 바꾼 비교에만 있고 아니면 키가 없다
+     * (internal-calc C2-3과 같다).
+     */
     record Side(long goalAmount, Long monthlySavingAmount, int savingsRatioPct, BigDecimal savingsRateInputPct,
-            Integer targetPeriodMonths) {
+            Integer targetPeriodMonths, @JsonInclude(JsonInclude.Include.NON_NULL) String etfProductCode) {
 
         private static Side of(long goalAmount, CalcComparison.ConditionValues values) {
             return new Side(goalAmount, values.monthlySavingAmount(), values.savingsRatioPct(),
-                    values.savingsRateInputPct(), values.targetPeriodMonths());
+                    values.savingsRateInputPct(), values.targetPeriodMonths(), values.etfProductCode());
         }
     }
 

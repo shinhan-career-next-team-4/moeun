@@ -103,7 +103,7 @@ async def run(
 def test_recalculate_tool_offers_only_the_three_product_codes():
     """종목은 정해진 코드(SP500·069500·133690)와 null만 고른다. 지수 이름이 설명에 있다"""
     field = next(t for t in TOOLS if t["name"] == "recalculate")["input_schema"]["properties"]["etf_product_code"]
-    assert field["enum"] == ["SP500", "069500", "133690", None]
+    assert field["anyOf"] == [{"type": "string", "enum": ["SP500", "069500", "133690"]}, {"type": "null"}]
     assert all(name in field["description"] for name in ("S&P500", "코스피200", "나스닥100"))
 
 
