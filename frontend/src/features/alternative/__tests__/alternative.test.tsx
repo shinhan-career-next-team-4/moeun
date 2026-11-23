@@ -99,12 +99,30 @@ describe("대안 영역 (#67, FR-ALT-01·02)", () => {
     expect(onCompare).toHaveBeenCalledWith(values);
   });
 
-  it("내 계획으로 적용은 확인 흐름이 붙기 전까지 비활성이다(D-046)", () => {
-    render(<AlternativeSection isAchieved={false} />);
+  it("값이 없거나 부모가 막으면 내 계획으로 적용을 누를 수 없다", () => {
+    render(<AlternativeSection isAchieved={false} onApply={vi.fn()} applyEnabled />);
 
     const apply = screen.getAllByRole("button", { name: "내 계획으로 적용" }) as HTMLButtonElement[];
     expect(apply).toHaveLength(3);
     expect(apply.every((button) => button.disabled)).toBe(true);
+  });
+
+  it("값이 있고 부모가 허용하면 내 계획으로 적용을 눌러 그 대안을 넘긴다(#258, FR-ALT-04)", () => {
+    const onApply = vi.fn();
+    const values = { changedCondition: "약 30만원 → 약 33만원", changes: { monthlySavingAmount: 330000 } };
+    const { rerender } = render(
+      <AlternativeSection isAchieved={false} values={{ monthlySavingAmount: values }} onApply={onApply} applyEnabled />,
+    );
+
+    const [apply] = screen.getAllByRole("button", { name: "내 계획으로 적용" }) as HTMLButtonElement[];
+    expect(apply.disabled).toBe(false);
+    fireEvent.click(apply);
+    expect(onApply).toHaveBeenCalledWith(values);
+
+    rerender(
+      <AlternativeSection isAchieved={false} values={{ monthlySavingAmount: values }} onApply={onApply} applyEnabled={false} />,
+    );
+    expect((screen.getAllByRole("button", { name: "내 계획으로 적용" })[0] as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("값이 없는 카드는 비교하기를 누를 수 없다", () => {
