@@ -6,7 +6,7 @@ import type { PlanView } from "../../api/planStore";
 import { RESULT_PATH } from "../../app/routes";
 import { COPY } from "../../shared/copy/copy";
 import { Button, ChipGroup, FieldError, UnitInput } from "../../shared/ui";
-import { formatFieldError, formatUnitValue, goalLabel, type ServerFieldError } from "../../shared/units/units";
+import { formatFieldError, formatUnitValue, goalLabel, isBlank, type ServerFieldError } from "../../shared/units/units";
 import { KnownRadio } from "./KnownRadio";
 import {
   applySuggestions,
@@ -27,6 +27,7 @@ const FIELD_ELEMENT_ID: Record<FormField, string> = {
   heldAssets: "heldAssets",
   monthlySavingAmount: "monthlySavingAmount",
   savingsRateInputPct: "savingsRateInputPct",
+  existingSaving: "existingSavingBank",
 };
 
 const GOAL_OPTIONS = GOAL_TYPES.map((code) => ({ value: code, label: goalLabel(code) }));
@@ -119,6 +120,12 @@ export function PlanInputPage() {
     update(field === "period" ? { periodKnown: known } : { savingKnown: known });
   }
 
+  /** (h) 되보낼 값은 저장을 누르는 시점의 공유 store에서 읽는다. */
+  function latestRatioPct(): number | null {
+    const slot = planStore.getState().view;
+    return slot ? ((slot.body as ResultPlanView).plan.savingsRatioPct ?? null) : null;
+  }
+
   function showErrors(next: FormErrors) {
     setErrors(next);
     const first = FIELD_ORDER.find((field) => next[field] !== undefined);
@@ -142,7 +149,7 @@ export function PlanInputPage() {
       const view = await api.request<PlanView>(
         "PUT",
         "/api/plan",
-        buildPutPlanBody(applySuggestions(form, editedByUser), planStore.getState().revision),
+        buildPutPlanBody(applySuggestions(form, editedByUser), planStore.getState().revision, latestRatioPct()),
       );
       planStore.acceptPlanView(view);
       navigate(RESULT_PATH);
@@ -324,6 +331,44 @@ export function PlanInputPage() {
           />
         </FormCard>
 
+        <FormCard step={5} title="지금 하고 있는 저축">
+          <label className="flex items-center gap-2 text-sm font-medium text-text">
+            <input
+              id="existingSavingOn"
+              type="checkbox"
+              className="h-4 w-4"
+              checked={form.existingSavingOn}
+              onChange={(event) => update({ existingSavingOn: event.target.checked })}
+            />
+            {COPY["input.existingSavingToggle"]}
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <UnitInput
+              id="existingSavingBank"
+              label={COPY["input.existingSavingBank"]}
+              unit="만원"
+              inputMode="decimal"
+              value={form.existingSavingBank}
+              onChange={(existingSavingBank) => update({ existingSavingBank })}
+              disabled={!form.existingSavingOn}
+            />
+            <UnitInput
+              id="existingSavingEtf"
+              label={COPY["input.existingSavingEtf"]}
+              unit="만원"
+              inputMode="decimal"
+              value={form.existingSavingEtf}
+              onChange={(existingSavingEtf) => update({ existingSavingEtf })}
+              disabled={!form.existingSavingOn}
+            />
+          </div>
+          {errors.existingSaving && <FieldError id="existingSaving-error" message={errors.existingSaving} />}
+          <p className="text-xs text-text-muted">{COPY["input.existingSavingHelp"]}</p>
+          {form.existingSavingOn && isBlank(form.existingSavingBank) && isBlank(form.existingSavingEtf) && (
+            <p className="text-xs text-text-muted">{COPY["input.ratioKept"]}</p>
+          )}
+        </FormCard>
+
         {currentRatioText && (
           <p className="rounded-lg bg-surface-muted px-4 py-3 text-sm text-text-muted">
             {COPY["input.currentRatioLabel"]}: <strong className="text-text">{currentRatioText}</strong>
@@ -338,7 +383,7 @@ export function PlanInputPage() {
 
         <div className="flex items-center justify-between">
           <span className="text-xs text-text-muted">* 필수 입력 항목</span>
-          <Button type="submit" loading={submitting}>
+          <Button type="submit" loading={submitting} disabled={!ready}>
             결과 보기
           </Button>
         </div>

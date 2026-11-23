@@ -14,7 +14,7 @@ export const ACHIEVEMENT_CHANGE_LABELS: Record<string, string> = {
 };
 
 export const TOAST_COPY = {
-  applyStaleComparison: "가장 최근 비교 결과만 적용할 수 있어요",
+  applyStaleComparison: "계획이 바뀌었거나 더 최근 비교가 있어요. 최신 비교를 다시 받아 적용해 주세요",
   applyPlanChanged: "계획이 다른 곳에서 바뀌었어요",
   applyNotApplicable: "지금 기준으로는 적용할 수 없는 값이에요",
   applyFailed: "적용하지 못했어요",
