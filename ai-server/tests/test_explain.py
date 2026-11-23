@@ -278,7 +278,7 @@ def test_ac12_422_logs_no_plan_context_body(caplog: pytest.LogCaptureFixture):
         assert secret not in caplog.text, secret
 
 
-# ---- AC-14·AC-15: 세금 단서(D-067·D-073)는 코드가 붙이고, 범위 밖 세금 질문은 고정 문장 ----
+# ---- AC-14·AC-15: 세금 단서(D-067·D-073)는 답에 붙이지 않고(#233, 대화 패널 고정 문구), 범위 밖 세금 질문은 고정 문장 ----
 
 @pytest.mark.parametrize(
     ("mode", "message_type", "request_name"),
@@ -287,7 +287,9 @@ def test_ac12_422_logs_no_plan_context_body(caplog: pytest.LogCaptureFixture):
         ("QUESTION", "ANSWER", "chat-request-question-with-plan.json"),
     ],
 )
-async def test_ac14_tax_note_is_appended_when_answer_quotes_tax_rate(mode: str, message_type: str, request_name: str):
+async def test_ac14_tax_note_is_not_appended_even_when_answer_quotes_tax_rate(
+    mode: str, message_type: str, request_name: str
+):
     req = ChatRequest.model_validate(load(request_name))
     answer = "세금은 15.4%로 가정했어요."
     assert req.mode == mode
@@ -295,13 +297,13 @@ async def test_ac14_tax_note_is_appended_when_answer_quotes_tax_rate(mode: str, 
     resp, _ = await run(req, text_resp(answer, message_type))
 
     assert resp.message_type == message_type
-    assert resp.content.startswith(answer) and resp.content.endswith(TAX_NOTE)   # 글자 그대로, 본문 끝에
-    assert resp.content.count(TAX_NOTE) == 1
+    assert resp.content == answer   # 글자 그대로, 단서 없이
+    assert TAX_NOTE not in resp.content and COPY.get("tax.noteEtfTaxFree") not in resp.content
 
 
-async def test_ac14_tax_note_is_not_duplicated_when_model_already_wrote_it():
-    answer = f"세금은 15.4%로 가정했어요. {TAX_NOTE}"
-    resp, _ = await run(make_request(load("plan-context-basic.json"), "EXPLAIN", 540), text_resp(answer))
+async def test_ac14_tax_note_written_by_model_is_removed():
+    answer = "세금은 15.4%로 가정했어요."
+    resp, _ = await run(make_request(load("plan-context-basic.json"), "EXPLAIN", 540), text_resp(f"{answer} {TAX_NOTE}"))
     assert resp.content == answer
 
 
@@ -312,13 +314,13 @@ async def test_ac14_tax_note_is_not_appended_when_answer_has_no_tax_rate():
 
 
 async def test_ac14_model_breaking_rule_8_is_a_normal_response_not_an_error():
-    """모델이 기억 속 세율을 말해도 실패(AgentError)로 처리하지 않는다. 표시값이 없으니 단서도 붙지 않는다."""
+    """모델이 기억 속 세율을 말해도 실패(AgentError)로 처리하지 않는다. 단서는 어느 쪽에도 붙지 않는다(#233)."""
     answer = "세금은 22%를 떼요."
     resp, _ = await run(make_request(load("plan-context-basic.json"), "EXPLAIN", 540), text_resp(answer))
     assert resp.message_type == "EXPLANATION" and resp.content == answer
 
     resp, _ = await run(make_request(load("plan-context-basic.json"), "EXPLAIN", 540), text_resp("세금은 15.4%예요."))
-    assert resp.message_type == "EXPLANATION" and resp.content.startswith("세금은 15.4%예요.")   # 단서만 덧붙는다
+    assert resp.message_type == "EXPLANATION" and resp.content == "세금은 15.4%예요."
 
 
 async def test_ac15_out_of_scope_tax_answer_is_passed_through_as_out_of_scope():
@@ -354,7 +356,7 @@ def test_ac16_prompt_contains_rule_phrases(rule: str):
 def test_ac16_prompt_has_fixed_sentences_but_not_the_tax_note():
     assert COPY.get("outOfScope.tax") in SYSTEM_PROMPT and "OUT_OF_SCOPE" in SYSTEM_PROMPT   # 범위 밖 세금 질문
     assert COPY.get("chat.noPlan") in SYSTEM_PROMPT                                          # 계획 없음 + 계산·설명 요청
-    assert TAX_NOTE not in SYSTEM_PROMPT                                                     # 단서는 코드가 붙인다(D-073)
+    assert TAX_NOTE not in SYSTEM_PROMPT                                                     # 단서는 패널이 보인다(#233)
 
 
 def test_ac16_prompt_does_not_leak_account_info():

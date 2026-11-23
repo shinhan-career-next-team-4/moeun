@@ -34,29 +34,29 @@ _RATIO_WORDS = re.compile(r"비중|비율|반반|etf|주식|배분|(?:예금|적
 _RATE_WORDS = re.compile(r"금리|이율|이자율|(?<![가-힣])이자|(?<=금)이자")
 _PERCENT = re.compile(r"%|퍼센트|프로|퍼")
 _NUMBER = re.compile(rf"\d+(?:\.\d+)?|{_KO_NUMERAL}")
+_MONEY_FIELDS = ("goal_amount", "monthly_saving_amount")
 _THOUSANDS_COMMA = re.compile(r"(?<=\d),(?=\d{3})")
 # "3년 6개월", "5년(60개월)", "60개월(5년)"은 기간 하나를 두 단위로 말한 것이다
 _PERIOD_COMPOUND = re.compile(r"\d+\s*년\s*\(?\s*\d+\s*개월\s*\)?|\d+\s*개월\s*\(?\s*\d+\s*년\s*\)?")
 _KO_DIGIT_VALUES = dict(zip("일이삼사오육칠팔구", range(1, 10), strict=True))
 _KO_UNIT_VALUES = {"십": 10, "백": 100, "천": 1000}
-# 숫자+천·백(2천, 2천5백, 5백)은 뒤에 만·억이 올 때만 한 덩어리로 읽는다("5천만원"). 만 없는 "3천"은 3천만인지
-# 알 수 없어 그대로 두고, "만들다"의 만은 단위로 보지 않는다
-_ARABIC = r"\d+(?:\.\d+)?"
-_ARABIC_SCALED = rf"{_ARABIC}\s*천(?:\s*\d+\s*백)?|{_ARABIC}\s*백"
-_MAN_UNIT = r"만(?!들)"
-_SCALED = rf"(?:{_ARABIC_SCALED})(?=\s*(?:{_MAN_UNIT}|억))"
-# 억 뒤의 천·백은 만을 생략해도 천만·백만이다("1억 2천", "1억 이천오백"). 만 없는 맨 숫자("1억 30")와
-# 천·백으로 시작하는 낱말(십년, 천천히, 백세, 백일)은 붙이지 않도록, 만 없는 쪽은 천·백으로 끝나고
-# 조사·원이나 한글 아닌 글자가 뒤따를 때만 읽는다
-_EOK_MAN_REST = rf"{_ARABIC_SCALED}|{_ARABIC}|{_KO_IDIOM}{_KO_TENS}"
-_EOK_BARE_REST = rf"{_ARABIC_SCALED}|(?:{_KO_DIGIT}?[천백])+"
-_EOK_FOLLOW = r"(?=\s*원|으로|로|이|가|은|는|을|를|도|면|쯤|까지|정도|짜리|에(?!요)|(?![가-힣]))"
-_AMOUNT_EXPR = re.compile(
-    rf"({_SCALED}|{_NUMBER.pattern})\s*"
-    rf"(?:억(?:\s*(?:({_EOK_MAN_REST})\s*{_MAN_UNIT}|({_EOK_BARE_REST}){_EOK_FOLLOW}))?\s*원?|{_MAN_UNIT}\s*원?|원)?"
+# 억·만 앞의 숫자+한글 단위 혼합(5천, 1천5백, 오천)과 한글 한 자리+억(일억)을 아라비아 숫자로 바꾼다(#231).
+# 억·만이 바로 뒤에 올 때만 바꿔서 "이번", "천천히" 같은 말은 건드리지 않는다. "1억5천만"의 5천처럼 억 바로 뒤는 허용한다
+# "만들다"의 만과 "천만에요"는 단위가 아니다(#236)
+_MIXED_NUMERAL = re.compile(
+    rf"(?:(?<=억)|(?<![\d.가-힣])){_KO_IDIOM}"
+    rf"(?:(?:(?:\d+|{_KO_DIGIT})?[십백천])+(?:\d+|{_KO_DIGIT})?(?=\s*(?:억|만(?!들)))"
+    rf"|{_KO_DIGIT}(?=\s*억))"
 )
-_ARABIC_SCALE_PART = re.compile(r"(\d+(?:\.\d+)?)\s*([천백])")
-_ARABIC_SCALE_VALUES = {"천": 1000, "백": 100}
+# 억 뒤의 천·백은 만을 생략해도 천만·백만이다("1억 2천", "1억 이천오백"). _MIXED_NUMERAL 앞에서 만을 채운다(#236).
+# 천·백으로 끝나고 조사·원이나 한글 아닌 글자가 뒤따를 때만 채워서 "1억 천천히", "1억 백세", "1억 십년"은 건드리지 않는다
+_EOK_OMITTED_MAN = re.compile(
+    rf"(?<=억)(\s*(?:(?:\d+|{_KO_DIGIT})?[천백])+)"
+    r"(?=\s*원|으로|로|이|가|은|는|을|를|도|면|쯤|까지|정도|짜리|에(?!요)|(?![\d가-힣]))"
+)
+_AMOUNT_EXPR = re.compile(
+    rf"({_NUMBER.pattern})\s*(?:억\s*(?:({_NUMBER.pattern})\s*만\s*원?)?|만\s*원?|원)?"
+)
 
 
 def _parse_ko_numeral(token: str) -> float | None:
@@ -80,28 +80,35 @@ def _parse_ko_numeral(token: str) -> float | None:
     return float(total + current)
 
 
-def _parse_amount_number(token: str) -> float | None:
-    """금액 앞 숫자. 아라비아 숫자+천·백("5천", "2천5백")은 자리마다 곱해 더하고 나머지는 _parse_ko_numeral에 맡긴다."""
-    parts = _ARABIC_SCALE_PART.findall(token)
-    if parts:
-        return sum(float(n) * _ARABIC_SCALE_VALUES[unit] for n, unit in parts)
-    return _parse_ko_numeral(token.replace(" ", ""))
+def _mixed_numeral_value(token: str) -> int:
+    """'1천5백' → 1500, '5천' → 5000, '오천' → 5000, '일' → 1. 십·백·천 앞의 수가 없으면 1로 본다."""
+    total = 0
+    digits = ""
+    for ch in token:
+        if ch.isdigit():
+            digits += ch
+        elif ch in _KO_DIGIT_VALUES:
+            digits = str(_KO_DIGIT_VALUES[ch])
+        else:
+            total += (int(digits) if digits else 1) * _KO_UNIT_VALUES[ch]
+            digits = ""
+    return total + (int(digits) if digits else 0)
 
 
 def _candidate_krw_amounts(text: str) -> set[int]:
     """발화의 숫자·단위 표현에서 나올 수 있는 원 단위 금액 후보 집합(기존 _NUMBER·_THOUSANDS_COMMA 재사용)."""
-    cleaned = _THOUSANDS_COMMA.sub("", text)
+    cleaned = _EOK_OMITTED_MAN.sub(r"\1만", _THOUSANDS_COMMA.sub("", text))
+    cleaned = _MIXED_NUMERAL.sub(lambda m: str(_mixed_numeral_value(m.group(0))), cleaned)
     candidates: set[int] = set()
     for match in _AMOUNT_EXPR.finditer(cleaned):
         full = match.group(0)
-        n1 = _parse_amount_number(match.group(1))
+        n1 = _parse_ko_numeral(match.group(1))
         if n1 is None:
             continue
         if "억" in full:
             total = round(n1 * 100_000_000)
-            rest = match.group(2) or match.group(3)
-            if rest:
-                n2 = _parse_amount_number(rest)
+            if match.group(2):
+                n2 = _parse_ko_numeral(match.group(2))
                 if n2 is not None:
                     total += round(n2 * 10_000)
             candidates.add(total)
@@ -158,4 +165,10 @@ def drop_carried_conditions(text: str, changes: ConditionChanges) -> ConditionCh
     stated = _stated_conditions(lowered)
     if _count_numbers(lowered) > len(stated):
         return changes
-    return ConditionChanges.model_validate({k: v for k, v in changes.changed().items() if k in stated})
+    # 되묻기에 금액만 답한 발화("15000만원")는 조건 낱말이 없어도 그 금액을 이번에 말한 것이다(#231).
+    # 이 필터는 앞 턴에서 이어받은 값을 빼는 것이므로, 이번 발화에 그대로 있는 금액은 남긴다
+    said_amounts = _candidate_krw_amounts(lowered)
+    return ConditionChanges.model_validate({
+        k: v for k, v in changes.changed().items()
+        if k in stated or (k in _MONEY_FIELDS and v in said_amounts)
+    })

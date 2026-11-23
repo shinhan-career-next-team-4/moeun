@@ -25,6 +25,8 @@ export interface Assumptions {
   scenarioMethod: string | null;
   sp500BaseDate: string | null;
   excludedItems: string[];
+  /** ETF 종목의 매매차익 세율. ETF 0%면 null이거나 없다(#150) */
+  etfGainTaxRatePct?: number | null;
 }
 
 export interface ResultPlanBody {

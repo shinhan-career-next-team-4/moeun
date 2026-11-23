@@ -37,12 +37,13 @@
 | | `test_etf_rag_sources.py` | ETF 종목별 공시가 허락 목록·적재 스크립트에 있는지 |
 | | `test_etf_code_filter.py` | 검색에 종목 코드 필터(다른 종목 근거 차단) |
 | **ETF 종목·세금 단서** | `test_etf_tax.py` | 종목 이름·세율을 설명에 반영(#155 수용 테스트, 다른 파일이 헬퍼를 가져다 씀) |
-| | `test_etf_tax_quote.py` | 세율 인용 판정 |
-| | `test_etf_tax_quote_punctuation.py` | 세율 표시값 뒤 문장 끝 소수점은 인용 |
-| | `test_etf_tax_wrong_note.py` | 계획과 다른 단서는 맞는 단서로 교체 |
+| | `test_etf_tax_quote.py` | 세율 인용 판정(단서를 지운 자리를 띄울지, P-6) |
+| | `test_etf_tax_quote_punctuation.py` | 세율 표시값 뒤 문장 끝 소수점은 인용(P-6 띄우기 판정) |
+| | `test_etf_tax_wrong_note.py` | 모델이 쓴 단서는 계획과 맞든 다르든 지우고 붙이지 않음 |
+| | `tax_note/test_tax_note_removed.py` | #233 수용 테스트: 세금 단서를 답에 붙이지 않고 모델이 쓴 두 단서를 지움, P-6 |
 | | `test_etf_note_join.py` | 단서를 지워도 양옆 글자가 이어져 새 인용이 생기지 않음 |
 | | `test_etf_name_correction.py` | 계획 종목 표기 검사·교정 지시 |
-| | `test_etf_plan_name_claims.py` | 2라운드 리뷰 재현: 계획 종목 표기 거부(B3), 세율 인용 경계·단서 줄바꿈 중복/교체·빈 본문 거부(B1·B2·B5), 코스피 계획에서 상품명 통과(B6) |
+| | `test_etf_plan_name_claims.py` | 2라운드 리뷰 재현: 계획 종목 표기 거부(B3), 세율 인용 경계·줄바꿈 단서 제거·빈 본문 거부(B1·B2·B5), 코스피 계획에서 상품명 통과(B6) |
 | | `test_etf_out_of_scope.py` | ETF 0% 계획의 범위 밖 답에서 종목을 언급하면 재시도 없이 거부 |
 | | `test_etf0_clarify.py` | ETF 0% 계획의 되묻기 규칙(시스템 프롬프트 문구)과 되묻는 답이 서버 검사를 통과하는지. 모델 행동은 수동 평가 몫 |
 | **그 밖** | `test_units.py` | 청커, 운용사 섞기, 계산 클라이언트 요청 모양, 내부 키 검사, `/chat`이 주입된 에이전트로 camelCase 응답을 내는지 |
@@ -52,7 +53,7 @@
 
 ### 주제가 여러 파일에 걸친 것
 
-- **세금 단서**(`tax.note`): `test_etf_tax*.py`, `test_etf_note_join.py`, `test_etf_plan_name_claims.py`, `test_explain.py`, `test_explain_review_fixes.py`, `test_plan_context.py`, `test_forbidden_retry.py`, 문구표 키는 `test_copy.py`
+- **세금 단서**(`tax.note`, #233부터 답에 붙이지 않고 지움): `tax_note/test_tax_note_removed.py`, `test_etf_tax*.py`, `test_etf_note_join.py`, `test_etf_plan_name_claims.py`, `test_explain.py`, `test_explain_review_fixes.py`, `test_plan_context.py`, `test_forbidden_retry.py`, 문구표 키는 `test_copy.py`
 - **세금 범위 밖 문구**(`outOfScope.tax`): `test_fixed_copy_guard.py`, `test_explain_review_fixes.py`, `test_explain.py`, `scenarios/test_demo_scenarios.py`
 - **재시도**: 본체는 `test_forbidden_retry.py`와 `test_retry_no_resend.py`. 금지 사유별 재시도·거부 동작은 `test_guardrails.py`(종목 추천), `test_internal_key_guard.py`·`test_internal_leak_guard.py`(내부 이름), `test_etf_name_correction.py`·`test_etf_plan_name_claims.py`(종목 표기)에도 있고, `test_etf_out_of_scope.py`는 재시도 없이 거부하는 경로다
 

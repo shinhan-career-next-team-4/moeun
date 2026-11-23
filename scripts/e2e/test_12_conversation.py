@@ -1,0 +1,144 @@
+"""S8. 실제 대화에서 나온 실패를 다중 턴으로 되풀이한다(#234). ai-server + LLM 필요.
+
+출처가 된 실패:
+  #227 목표 금액 변경 비교(F-4)가 500       → 목표 금액 비교는 200이고 changedKeys가 goalAmount
+  #231 '1억5천만원'·금액만 답하기를 못 알아들음 → 여러 금액 표현, 되묻기 뒤 금액만 답해도 계산
+  #229 묻지 않은 것까지 길게 답함              → 값 조회는 짧게, 조건 변경 답도 짧게
+  #233 세금 안내 문장이 대화마다 반복          → 대화 답에 세금 안내 없음
+LLM 문장은 매번 달라서 글자를 비교하지 않는다. 메시지 종류, F-4 conditions, 문장 수, 금지 문장만 본다.
+실패 메시지에는 본문 전체를 넣어 프롬프트 문제인지 바로 판단할 수 있게 한다.
+"""
+import re
+
+import pytest
+
+from conftest import ask, expect, save_plan_ok
+from oracle import unknown_numbers
+
+pytestmark = [pytest.mark.ai, pytest.mark.usefixtures("ai_ready")]
+
+ONE_AND_HALF_EOK = 150_000_000
+
+# 서버가 본문 뒤에 붙이는 안내 문장. 답 길이를 셀 때 뺀다(문구표 chat.goalAmountChangedNote·changedAlreadyExceeded)
+_SERVER_NOTES = [
+    re.compile(r"목표 금액이 .+?(?:으로|로) 바뀌어, 달성 여부는 각각 자기 목표 기준이에요\.?"),
+    re.compile(r"이 조건으로 적용하면 이미 목표를 넘은 상태가 돼요\.?"),
+]
+# 문구표 tax.note·tax.noteEtfTaxFree의 앞부분. 대화 답에 나오면 안 된다(#233)
+_TAX_NOTES = ("세금은 일반 과세를 기준으로 가정했어요", "매매차익은 비과세로, 적금 이자는 일반 과세를 기준으로")
+
+
+def body_sentences(content: str) -> list[str]:
+    """서버 안내 문장을 뺀 본문 문장. '.', '?', '!'와 줄바꿈으로 나눈다(소수점 3.2%는 나누지 않는다)."""
+    for note in _SERVER_NOTES:
+        content = note.sub("", content)
+    parts = re.split(r"(?<!\d)[.?!](?!\d)|\n+", content)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def assert_no_tax_note(msg: dict) -> None:
+    for note in _TAX_NOTES:
+        assert note not in msg["content"], f"대화 답에 세금 안내가 붙음(#233)\n{msg['content']}"
+
+
+def comparison(api, message_id):
+    return expect(api.get(f"/api/chat/messages/{message_id}/comparison"), 200)
+
+
+@pytest.fixture
+def fresh(api):
+    """대화 기록을 비우고(재로그인) 와이어프레임 계획(목표 5,000만원)으로 시작."""
+    expect(api.login(), 200)
+    return save_plan_ok(api)
+
+
+# ---------- #231·#227 목표 금액 표현 ----------
+
+GOAL_EXPRESSIONS = [
+    "1억5천만원",
+    "1억 5천만원",
+    "1억 5000만원",
+    "15000만원",
+    "15,000만원",
+    "1.5억",
+    "일억 오천만원",
+]
+
+
+@pytest.mark.parametrize("amount", GOAL_EXPRESSIONS)
+def test_s8_1_goal_amount_expressions(api, fresh, amount):
+    q = f"목표 금액을 {amount}으로 바꾸면 어떻게 돼요?"
+    msg = ask(api, q)
+    assert msg["messageType"] == "RECALC_RESULT", f"[{q}] → {msg['messageType']}: {msg['content']}"
+
+    cmp = comparison(api, msg["id"])   # #227: 목표 금액 비교가 500이면 여기서 실패
+    assert cmp["changedKeys"] == ["goalAmount"], f"[{q}] 바뀐 키 {cmp['changedKeys']}"
+    assert cmp["conditions"]["changed"]["goalAmount"] == ONE_AND_HALF_EOK, cmp["conditions"]["changed"]
+    bad = unknown_numbers(msg["content"], cmp["display"], fresh["display"], q)
+    assert not bad, f"[{q}] 계산 결과에 없는 금액 {sorted(bad)}만원\n{msg['content']}"
+
+
+def test_s8_2_bare_amount_after_clarify(api, fresh):
+    """값 없이 조건만 고르면 되묻고, 금액만 답해도 그 조건으로 계산한다(#231)."""
+    first = ask(api, "목표 금액을 바꿔 보고 싶어요")
+    assert first["messageType"] == "CLARIFY", f"{first['messageType']}: {first['content']}"
+
+    second = ask(api, "15000만원")
+    assert second["messageType"] == "RECALC_RESULT", f"{second['messageType']}: {second['content']}"
+    cmp = comparison(api, second["id"])
+    assert cmp["changedKeys"] == ["goalAmount"], cmp["changedKeys"]
+    assert cmp["conditions"]["changed"]["goalAmount"] == ONE_AND_HALF_EOK
+
+
+def test_s8_3_follow_up_amount_without_condition_word(api, fresh):
+    """앞에서 목표 금액을 바꿔 본 뒤 '그럼 N까지 하려면 얼마나 걸려'도 목표 금액으로 계산한다(#231)."""
+    first = ask(api, "목표 금액을 1억으로 바꾸면요?")
+    assert first["messageType"] == "RECALC_RESULT", f"{first['messageType']}: {first['content']}"
+
+    second = ask(api, "그럼 15,000만원까지 하려면 얼마나 걸려?")
+    assert second["messageType"] == "RECALC_RESULT", f"{second['messageType']}: {second['content']}"
+    cmp = comparison(api, second["id"])
+    assert cmp["conditions"]["changed"]["goalAmount"] == ONE_AND_HALF_EOK, cmp["conditions"]["changed"]
+    # 비교의 기준은 늘 내 계획이다(D-041). 앞 턴의 1억을 기준으로 쌓지 않는다
+    assert cmp["conditions"]["current"]["goalAmount"] == fresh["plan"]["goalAmount"]
+
+
+# ---------- #229 답 길이 · #233 세금 안내 ----------
+
+@pytest.mark.parametrize("q", ["적금 금리 몇이야?", "지금 월 저축액이 얼마예요?", "적금 이자 세율이 몇 %예요?"])
+def test_s8_4_value_lookup_is_short(api, fresh, q):
+    msg = ask(api, q)
+    assert msg["messageType"] == "ANSWER", f"[{q}] → {msg['messageType']}: {msg['content']}"
+    sentences = body_sentences(msg["content"])
+    assert len(sentences) <= 2, f"[{q}] 값 하나를 묻는데 {len(sentences)}문장(#229)\n{msg['content']}"
+    assert_no_tax_note(msg)
+    bad = unknown_numbers(msg["content"], fresh["display"], q)
+    assert not bad, f"[{q}] 계획에 없는 금액 {sorted(bad)}만원\n{msg['content']}"
+
+
+@pytest.mark.parametrize("q", ["월 저축액을 150만원으로 하면요?", "목표 금액 1억으로", "기간을 4년으로 하면 어때요?"])
+def test_s8_5_recalc_answer_is_short(api, fresh, q):
+    msg = ask(api, q)
+    assert msg["messageType"] == "RECALC_RESULT", f"[{q}] → {msg['messageType']}: {msg['content']}"
+    sentences = body_sentences(msg["content"])
+    assert len(sentences) <= 3, f"[{q}] 조건 변경 답이 {len(sentences)}문장(#229)\n{msg['content']}"
+    assert_no_tax_note(msg)
+
+
+# ---------- ETF 종목 (S&P500·나스닥100·코스피200) ----------
+
+@pytest.mark.parametrize("q", ["나스닥100 ETF는 어떤 위험이 있어요?", "코스피200 ETF는 어떤 위험이 있어요?"])
+def test_s8_6_other_etf_risk_has_sources(api, fresh, q):
+    """나스닥100·코스피200 공시도 근거로 찾는다(#181). 실패하면 scripts/ingest/ingest.sh로 적재했는지 본다."""
+    msg = ask(api, q)
+    assert msg["messageType"] == "ANSWER", f"[{q}] → {msg['messageType']}: {msg['content']}"
+    assert msg["citations"], f"[{q}] 출처 없음. 공시 4건을 적재했는지 확인(scripts/ingest/ingest.sh)\n{msg['content']}"
+    assert "찾을 수 있는 자료가 없" not in msg["content"], msg["content"]
+    assert_no_tax_note(msg)
+
+
+def test_s8_7_etf_product_change_is_not_recalculated_yet(api, fresh):
+    """대화로 종목을 바꾸는 기능은 아직 없다(#154, D-040 개정 전). 계산하지 않고 안내만 한다.
+    이 기능이 생기면 기대값을 RECALC_RESULT로 바꾼다."""
+    msg = ask(api, "ETF를 나스닥으로 바꾸고 싶어")
+    assert msg["messageType"] != "RECALC_RESULT", f"종목 변경을 계산함: {msg['content']}"
