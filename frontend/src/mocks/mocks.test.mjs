@@ -96,7 +96,17 @@ const PLAN_FILES = [
 // 기준 데이터(#220): ETF 종목 목록
 const REFDATA_FILES = ["get-etf-products.200.json"];
 
-const DIRS = { chat: CHAT_FILES, auth: AUTH_FILES, plan: PLAN_FILES, refdata: REFDATA_FILES };
+// 대안(A-1, #66·#258): 기본은 순서 파일(첫 요청 = 기한 카드 빈 응답, 그다음 = 기한 48개월 응답)
+const ALTERNATIVE_FILES = [
+  "post-alternatives.seq.json",
+  "post-alternatives.200.json",
+  "post-alternatives.200-period.json",
+  "post-alternatives.200-none.json",
+  "post-alternatives.422-period.json",
+  "post-alternatives.409-no-plan.json",
+];
+
+const DIRS = { chat: CHAT_FILES, auth: AUTH_FILES, plan: PLAN_FILES, refdata: REFDATA_FILES, alternative: ALTERNATIVE_FILES };
 
 function load(dir, name) {
   return JSON.parse(fs.readFileSync(path.join(here, dir, name), "utf8"));
@@ -116,7 +126,7 @@ function allFiles() {
 
 // ---------------------------------------------------------------- 파일 목록
 
-test("목 파일 개수: chat 38, auth 6, plan 30, refdata 1", () => {
+test("목 파일 개수: chat 38, auth 6, plan 30, refdata 1, alternative 6", () => {
   for (const [dir, names] of Object.entries(DIRS)) {
     const actual = fs.existsSync(path.join(here, dir))
       ? fs.readdirSync(path.join(here, dir)).filter((f) => f.endsWith(".json")).sort()
@@ -126,6 +136,7 @@ test("목 파일 개수: chat 38, auth 6, plan 30, refdata 1", () => {
   assert.equal(CHAT_FILES.length, 38);
   assert.equal(AUTH_FILES.length + PLAN_FILES.length, 36);
   assert.equal(REFDATA_FILES.length, 1);
+  assert.equal(ALTERNATIVE_FILES.length, 6);
 });
 
 test("ETF 종목 목록: 대표 상품(SP500)이 첫째이고 세 칸(code·displayName·gainTaxRatePct)만 있다(#220)", () => {
@@ -843,6 +854,46 @@ test("계약 문서: P-6 요청·응답·검사 순서·프론트 흐름(#68)", 
   }
   assert.ok(!doc.includes("경로 예약만"), "P-6 경로 예약 문구가 남았다");
   assert.deepEqual(body("plan", "post-plan-apply.200.json"), { revision: 14 });
+});
+
+test("대안 목(A-1): 카드 3장 순서, 빈 카드 모양, 카드 본문 display 키(D-096)", () => {
+  const order = ["monthlySavingAmount", "targetPeriodMonths", "savingsRatioPct"];
+  const rowKeys = (key) => [
+    `conditions.current.${key}`, `conditions.changed.${key}`,
+    "diff.AVG.afterTaxAssetDelta", "changed.AVG.afterTaxAsset", "changed.AVG.gapToGoal",
+  ];
+  const first = body("alternative", "post-alternatives.200.json");
+  assert.equal(first.hasAlternatives, true);
+  assert.deepEqual(first.alternatives.map((c) => c.key), order);
+  // 기간을 주지 않으면 기한 카드는 입력 전의 빈 카드다(D-039)
+  const deadline = first.alternatives[1];
+  assert.deepEqual(deadline.changes, {});
+  assert.deepEqual(deadline.display, {});
+  assert.equal(deadline.changed, null);
+  for (const card of [first.alternatives[0], first.alternatives[2]]) {
+    assert.deepEqual(Object.keys(card.changes), [card.key]);
+    for (const k of rowKeys(card.key)) assert.ok(card.display[k], `${card.key}: ${k}`);
+  }
+  const period = body("alternative", "post-alternatives.200-period.json");
+  assert.equal(period.alternatives[1].changes.targetPeriodMonths, 48);
+  for (const k of rowKeys("targetPeriodMonths")) assert.ok(period.alternatives[1].display[k], k);
+  assert.deepEqual(bodies("alternative", "post-alternatives.seq.json"), [first, period]);
+  assert.deepEqual(body("alternative", "post-alternatives.200-none.json"), { hasAlternatives: false, alternatives: [] });
+  const invalid = body("alternative", "post-alternatives.422-period.json");
+  assert.equal(invalid.code, "VALIDATION_FAILED");
+  assert.deepEqual(invalid.errors[0], { field: "targetPeriodMonths", reason: "OUT_OF_RANGE", min: 1, max: 360, unit: "MONTH" });
+  assert.equal(body("alternative", "post-alternatives.409-no-plan.json").code, "NO_PLAN");
+});
+
+test("계약 문서: 대안 절 A-1(#258, D-096)", () => {
+  const doc = fs.readFileSync(docPath, "utf8");
+  for (const needle of [
+    "| A-1 | `POST /api/alternatives` |", "## 5. 대안 절 (#66, #258)", "### A-1. `POST /api/alternatives`",
+    '{ "targetPeriodMonths": 48 }', "`hasAlternatives`", "`diff.AVG.afterTaxAssetDelta`", "D-096",
+    "`alternative/post-alternatives.seq.json` (기본)",
+  ]) {
+    assert.ok(doc.includes(needle), `문서에 ${needle}이 없다`);
+  }
 });
 
 test("계약 문서: 엔드포인트·오류 코드 예시", () => {
