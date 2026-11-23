@@ -10,11 +10,51 @@ FastAPI 서버. Spring만 호출한다(브라우저 노출 금지).
 
 ## 실행
 
+순서: DB(저장소 루트 `docker compose up -d`) → backend([../backend/README.md](../backend/README.md)) → ai-server → frontend.
+
+### 1. `ai-server/.env`
+
 ```bash
+cd ai-server
 uv sync
-cp .env.example .env        # ANTHROPIC_API_KEY, OPENAI_API_KEY 채우기
-uv run uvicorn app.main:app --reload --port 8000
+cp .env.example .env
 ```
+
+설정은 **실행한 디렉터리의 `.env`**를 읽는다. 그래서 `ai-server/`에 두고 `ai-server/`에서 실행한다. 파일은 커밋하지 않는다.
+
+| 변수 | 필수 | 뜻 |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | 예 | 대화 모델 |
+| `OPENAI_API_KEY` | 예 | 임베딩(검색·문서 적재) |
+| `INTERNAL_API_KEY` | 아니오 | Spring만 부르게 하는 키(기본 `local-internal-key`). **`backend/.env`의 값과 같아야 한다** |
+| `DATABASE_URL` | 아니오 | 기본 `postgresql://moeun:moeun@localhost:5432/moeun`(docker compose DB) |
+| `SPRING_BASE_URL` | 아니오 | 기본 `http://localhost:8080` |
+| `ANTHROPIC_MODEL`, `ANTHROPIC_EFFORT`, `EMBEDDING_MODEL`, `RAG_TOP_K` | 아니오 | 비우면 코드 기본값 |
+| `LANGSMITH_TRACING` | 아니오 | `false`로 둔다(대화 내용이 외부로 나간다) |
+
+**주의:** `.env.example`을 복사하면 값이 빈 줄(`INTERNAL_API_KEY=`)이 남는다. 빈 값은 기본값이 아니라 빈 문자열로 읽히므로 키가 Spring과 달라진다. 쓰지 않을 변수는 줄을 지우고, `INTERNAL_API_KEY`는 두 서버에 같은 값을 넣거나 두 파일 모두에서 지운다(그러면 둘 다 기본값).
+
+### 2. 근거 문서 적재(처음 한 번)
+
+ETF 위험 설명의 출처가 되는 공시 투자설명서 4건(S&P500 2건, 코스피200, 나스닥100)을 내려받아 넣는다. 다시 돌려도 중복이 생기지 않는다. 저장소 루트에서:
+
+```bash
+scripts/ingest/ingest.sh
+```
+
+적재하지 않으면 "나스닥100 ETF는 어떤 위험이 있어요?" 같은 질문에 "자료가 없다"고 답한다.
+
+### 3. 실행과 확인
+
+```bash
+cd ai-server
+uv run uvicorn app.main:app --reload --port 8000
+curl -s localhost:8000/health        # 200
+```
+
+`--reload`는 코드 변경만 다시 읽는다. `.env`를 바꾸면 서버를 껐다가 다시 띄운다.
+
+대화가 "답변을 만들지 못했어요"로 끝나면 이 서버 로그를 본다. `POST /chat 401`이면 `INTERNAL_API_KEY`가 backend와 다르다.
 
 ## 문서 적재
 
