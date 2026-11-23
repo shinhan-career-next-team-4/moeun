@@ -13,6 +13,9 @@
   --color-text-muted: #5f6b77;
   --color-danger: #c62828;
   --color-success: #2e7d32;
+  --color-success-soft: #e8f5e9;
+  --color-warning: #c2410c;
+  --color-warning-soft: #fff1e6;
   --font-sans: system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 }
 

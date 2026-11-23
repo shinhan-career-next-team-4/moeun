@@ -27,7 +27,7 @@ export function PlanConditionBar({ view }: PlanConditionBarProps) {
   return (
     <section
       aria-label="내 계획 조건"
-      className="flex flex-col gap-2 rounded-xl border border-border bg-surface px-5 py-4 text-sm text-text"
+      className="flex flex-col gap-1 text-sm text-text"
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="font-bold text-primary-strong">내 계획 조건</span>

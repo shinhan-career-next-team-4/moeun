@@ -69,7 +69,9 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
     expect(scenarios.textContent).toContain("나빴던 때");
     expect(screen.getByRole("img", { name: "예상 자산 추이" })).toBeTruthy();
     expect(screen.getByLabelText("계산 가정").textContent).toContain("15.4%");
-    expect(screen.getByText(/실제 수령액이나 수익을 보장하지 않습니다/)).toBeTruthy();
+        // 대화 패널에도 같은 고지가 있어서 페이지 면책(footer)을 짚는다
+        const footer = document.querySelector('footer') as HTMLElement
+        expect(within(footer).getByText(/실제 수령액이나 수익을 보장하지 않습니다/)).toBeTruthy()
   });
 
   // 와이어프레임 03 반영(#136). 숫자는 모두 서버 display 문자열을 그대로 쓴다.
@@ -274,6 +276,35 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
         await screen.findByLabelText('결과 요약')
         expect(screen.queryByLabelText('대안')).toBeNull()
     })
+    // 상단 배지(#224): 서버가 준 gapBadge 문자열을 그대로 쓰고, 색은 isAchieved로 정한다(프론트가 재계산하지 않는다)
+    it('결과 요약 배지는 서버 gapBadge를 그대로 보여 주고 미달은 주황, 달성은 초록이다', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)),
+        )
+        renderResult()
+
+        const missed = await screen.findByTestId('result-gap-badge')
+        expect(missed.textContent).toBe('미달 · 목표 −288만 원')
+        expect(missed.className).toContain('text-warning')
+        cleanup()
+
+        const achieved = structuredClone(planMock.responses[0].body) as {
+            result: { scenarios: { scenario: string; isAchieved: boolean }[] }
+            display: Record<string, string>
+        }
+        for (const scenario of achieved.result.scenarios)
+            scenario.isAchieved = true
+        achieved.display['AVG.gapBadge'] = '달성 · 목표 +150만 원'
+        planStore.clear()
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, achieved)))
+        renderResult()
+
+        const badge = await screen.findByTestId('result-gap-badge')
+        expect(badge.textContent).toBe('달성 · 목표 +150만 원')
+        expect(badge.className).toContain('text-success')
+    })
+
     // 비교 영역 연결(#65, FR-CMP-02)
     it('결과 화면에 비교 영역이 있고 실서버 모드에서는 비교 대신 안내를 보여 준다', async () => {
         vi.stubGlobal(

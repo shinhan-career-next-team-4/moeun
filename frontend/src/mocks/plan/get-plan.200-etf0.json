@@ -216,7 +216,8 @@
           "conditions.savingsRatioPct": "적금 100 : ETF 0",
           "conditions.savingsRateInputPct": "연 3.12%",
           "assumptions.savingsRateBaseMonth": "2026년 10월",
-          "assumptions.taxRatePct": "15.4%"
+          "assumptions.taxRatePct": "15.4%",
+          "AVG.gapBadge": "미달 · 목표 −405만 원"
         }
       }
     }

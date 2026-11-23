@@ -574,7 +574,10 @@
           "conditions.savingsRateInputPct": "연 3.12%",
           "assumptions.savingsRateBaseMonth": "2026년 10월",
           "assumptions.sp500BaseDate": "2026년 10월",
-          "assumptions.taxRatePct": "15.4%"
+          "assumptions.taxRatePct": "15.4%",
+          "GOOD.gapBadge": "달성 · 목표 +702만 원",
+          "AVG.gapBadge": "달성 · 목표 +501만 원",
+          "BAD.gapBadge": "달성 · 목표 +324만 원"
         }
       }
     },
@@ -1121,7 +1124,10 @@
           "conditions.savingsRateInputPct": "연 3.12%",
           "assumptions.savingsRateBaseMonth": "2026년 10월",
           "assumptions.sp500BaseDate": "2026년 10월",
-          "assumptions.taxRatePct": "15.4%"
+          "assumptions.taxRatePct": "15.4%",
+          "GOOD.gapBadge": "미달 · 목표 −155만 원",
+          "AVG.gapBadge": "미달 · 목표 −288만 원",
+          "BAD.gapBadge": "미달 · 목표 −402만 원"
         }
       }
     }
