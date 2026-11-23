@@ -113,8 +113,6 @@ export const COPY = {
   "compare.colItem": "항목",
   "compare.colCurrent": "현재 조건",
   "compare.colChanged": "바꾼 조건",
-  "compare.colNow": "바뀐 조건",
-  "compare.colPrevious": "이전 조건",
   "compare.colChange": "변화",
   "compare.rowAvgAsset": "세후 예상 자산(평균)",
   "compare.rowGapToGoal": "목표 대비",
@@ -124,10 +122,8 @@ export const COPY = {
   "compare.notApplicable": "지금 기준으로는 비교할 수 없는 값이에요",
   // 결과 화면 ETF 종목 비교(#156, C12a-9-3). 상품명 대신 화면 이름만 쓴다(CP-06)
   "etfCompare.sectionLabel": "ETF 종목 비교",
-  "etfCompare.open": "다른 ETF 종목으로 비교해 보기",
   "etfCompare.title": "다른 ETF 종목으로 비교",
   "etfCompare.notice": "종목을 누르면 바로 내 계획에 적용돼요. 되돌리기로 이전 종목으로 돌아갈 수 있어요",
-  "etfCompare.current": "지금 종목: {product}",
   "etfCompare.pickLabel": "ETF 종목",
   "etfCompare.currentBadge": "지금 종목",
   "etfCompare.rowDelta": "지금 종목 대비",
@@ -138,8 +134,6 @@ export const COPY = {
   "etfCompare.notAvailable": "그 종목은 아직 계산할 수 없어요",
   "etfCompare.listFailed": "종목 목록을 불러오지 못했어요. 다시 시도해 주세요",
   "etfCompare.retry": "다시 시도",
-  "etfCompare.close": "닫기",
-  "etfCompare.appliedTitle": "종목을 바꿨어요. 이전 종목과 비교해 보세요",
   "alt.title": "목표에 닿으려면 이렇게 바꿀 수 있어요",
   "alt.header":
     "세 대안은 같은 기준(평균, 세후)으로 계산했어요. 순서는 우열이 아니며, 서비스는 하나를 추천하지 않아요.",

@@ -87,10 +87,9 @@ function renderResult() {
   );
 }
 
-/** 영역을 열고 세 종목 카드가 뜰 때까지 기다린다. */
+/** 세 종목 카드가 뜰 때까지 기다린다(열기 단계는 없다). */
 async function openCards() {
   const section = await screen.findByRole("region", { name: "ETF 종목 비교" });
-  fireEvent.click(within(section).getByRole("button", { name: "다른 ETF 종목으로 비교해 보기" }));
   await within(section).findByRole("button", { name: NASDAQ });
   return section;
 }
@@ -137,7 +136,10 @@ describe("결과 화면 ETF 종목 3안 (#156, C12a-9-3)", () => {
       expect(screen.getByLabelText("계산 가정").textContent).toContain(NASDAQ);
     });
     expect(screen.getByText(new RegExp(`기준 종목 ${NASDAQ}`))).toBeTruthy();
-    expect(screen.getByLabelText("ETF 종목 비교").textContent).toContain(`지금 종목: ${NASDAQ}`);
+    await waitFor(() => {
+      const next = within(screen.getByLabelText("ETF 종목 비교")).getByRole("button", { name: NASDAQ });
+      expect((next as HTMLButtonElement).disabled).toBe(true);
+    });
     expect(screen.getByRole("button", { name: "되돌리기" })).toBeTruthy();
   });
 
@@ -154,20 +156,5 @@ describe("결과 화면 ETF 종목 3안 (#156, C12a-9-3)", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect((within(section).getByRole("button", { name: NASDAQ }) as HTMLButtonElement).disabled).toBe(false);
     expect(screen.queryByText("종목을 바꿨어요. 이전 종목과 비교해 보세요")).toBeNull();
-  });
-
-  it("적용한 뒤에는 바뀐 조건과 이전 조건을 비교해서 보여 준다", async () => {
-    stubServer();
-    renderResult();
-
-    const section = await openCards();
-    fireEvent.click(within(section).getByRole("button", { name: NASDAQ }));
-
-    expect(await screen.findByText("종목을 바꿨어요. 이전 종목과 비교해 보세요")).toBeTruthy();
-    const compare = screen.getByLabelText("ETF 종목 비교");
-    expect(within(compare).getByRole("columnheader", { name: "바뀐 조건" })).toBeTruthy();
-    expect(within(compare).getByRole("columnheader", { name: "이전 조건" })).toBeTruthy();
-    const row = within(compare).getByRole("rowheader", { name: "ETF 종목" }).closest("tr") as HTMLElement;
-    expect(within(row).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([NASDAQ, SP500, "—"]);
   });
 });

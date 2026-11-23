@@ -1,8 +1,7 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { api } from '../../api'
 import { COPY } from '../../shared/copy/copy'
 import { Button } from '../../shared/ui'
-import { CompareTable } from './CompareTable'
 import type { ComparisonResult } from './requestComparison'
 import {
     fetchEtfProducts,
@@ -41,13 +40,9 @@ const DEFAULT_DEPS: EtfCompareDeps = {
 /** 종목 코드별 비교 결과와, 그것을 받은 때의 내 계획 revision */
 interface Options {
     revision: number | null
+    /** 이 결과가 '지금 종목'으로 본 종목 코드 */
+    currentCode?: string
     byCode: Record<string, ComparisonResult>
-}
-
-/** 방금 적용한 종목의 비교(이전 종목 → 바뀐 종목)와, 적용 뒤 내 계획의 revision */
-interface Applied {
-    view: ComparisonView
-    revision: number
 }
 
 /** 종목 코드가 기준이다. 이름은 서버 두 곳(display와 종목 목록)이 글자까지 같아야 맞아서 코드가 없을 때만 쓴다 */
@@ -166,10 +161,10 @@ function EtfOptionCard({
 /**
  * 결과 화면 ETF 종목 3안(#156 2단계, 계약 C12a-9-3).
  *
- * 열면 서버가 정한 종목(`GET /api/etf-products`)을 카드 한 장씩, 한 번에 보여 준다. 지금 종목이 아닌 종목의 결과는
- * 열 때 `POST /api/compare`로 미리 받아 카드에 채운다. 카드를 누르면 확인창 없이 바로 내 계획에 적용하고(되돌리기
- * 토스트로 돌아간다), 적용한 뒤에는 바뀐 조건과 이전 조건을 비교해 보여 준다. 숫자는 모두 서버 display 문자열이고,
- * 종목은 상품명 대신 화면 이름으로만 보여 준다(CP-06).
+ * 화면이 뜨면 서버가 정한 종목(`GET /api/etf-products`)을 카드 한 장씩 바로 보여 준다. 지금 종목이 아닌 종목의
+ * 결과는 `POST /api/compare`로 미리 받아 카드에 채운다. 카드를 누르면 확인창 없이 바로 내 계획에 적용하고
+ * (되돌리기 토스트로 돌아간다), 적용한 종목이 지금 종목이 되도록 카드를 새로 받는다. 숫자는 모두 서버
+ * display 문자열이고, 종목은 상품명 대신 화면 이름으로만 보여 준다(CP-06).
  */
 export function EtfCompareSection({
     currentProductName,
@@ -179,28 +174,31 @@ export function EtfCompareSection({
     deps,
 }: EtfCompareSectionProps) {
     const transport = deps ?? DEFAULT_DEPS
-    const [open, setOpen] = useState(false)
     const [products, setProducts] = useState<EtfProduct[] | null>(null)
     const [options, setOptions] = useState<Options | null>(null)
     const [loading, setLoading] = useState(false)
     const [listError, setListError] = useState<string | null>(null)
     const [choosing, setChoosing] = useState(false)
-    const [applied, setApplied] = useState<Applied | null>(null)
     // 받아 오기를 시작할 때마다 올린다. 늦게 온 응답이 더 나중 상태를 덮어쓰지 않게 한다
     const generation = useRef(0)
-    // 요청이 날아가 있는 동안 또 보내지 않는다(응답 전에 닫고 다시 열거나 다시 시도를 두 번 눌러도 한 번이다)
+    // 요청이 날아가 있는 동안 또 보내지 않는다(다시 시도를 두 번 눌러도 한 번이다)
     const loadingRef = useRef(false)
     // 적용 요청이 날아가 있는 동안 다른 카드를 눌러도 보내지 않는다
     const choosingRef = useRef(false)
 
-    async function loadOptions() {
+    /**
+     * 종목 목록과, 지금 종목이 아닌 종목마다의 비교를 받는다.
+     * 적용 직후에는 계획이 아직 다시 읽히기 전이라 새 revision과 새 지금 종목을 직접 넘긴다.
+     */
+    async function loadOptions(
+        at: { revision: number | null; currentCode?: string } = { revision },
+    ) {
         if (loadingRef.current) return
         loadingRef.current = true
         setLoading(true)
         setListError(null)
         generation.current += 1
         const mine = generation.current
-        const loadedAt = revision
 
         // 종목 목록은 한 번만 받는다. 종목은 자주 바뀌지 않는다
         const listed =
@@ -215,11 +213,10 @@ export function EtfCompareSection({
         }
         setProducts(listed.products)
 
-        const currentCode = findCurrent(
-            listed.products,
-            currentProductCode,
-            currentProductName,
-        )?.code
+        const currentCode =
+            at.currentCode ??
+            findCurrent(listed.products, currentProductCode, currentProductName)
+                ?.code
         const others = listed.products.filter(
             (product) => product.code !== currentCode,
         )
@@ -235,16 +232,19 @@ export function EtfCompareSection({
         loadingRef.current = false
         setLoading(false)
         if (generation.current !== mine) return
-        setOptions({ revision: loadedAt, byCode: Object.fromEntries(compared) })
+        setOptions({
+            revision: at.revision,
+            currentCode,
+            byCode: Object.fromEntries(compared),
+        })
     }
 
-    function openSection() {
-        setOpen(true)
-        // 같은 계획에서 이미 받아 둔 결과가 있으면 다시 받지 않는다
-        if (options === null || options.revision !== revision) {
-            void loadOptions()
-        }
-    }
+    // 화면이 뜨면 바로 받는다. ETF 0% 계획(종목 이름 없음)은 고를 종목이 없어 받지 않는다
+    useEffect(() => {
+        if (currentProductName) void loadOptions()
+        // 처음 한 번만. 그 뒤의 계획 변화는 아래 isStale 안내와 적용 직후 다시 받기가 다룬다
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     async function choose(product: EtfProduct) {
         const option = freshOptions?.byCode[product.code]
@@ -265,10 +265,8 @@ export function EtfCompareSection({
         choosingRef.current = false
         setChoosing(false)
         if (newRevision === null) return
-        generation.current += 1
-        setApplied({ view: option.view, revision: newRevision })
-        setOptions(null)
-        setOpen(false)
+        // 바뀐 종목이 지금 종목이 되었으니 나머지 두 종목의 결과를 새 계획 기준으로 다시 받는다
+        void loadOptions({ revision: newRevision, currentCode: product.code })
     }
 
     if (!currentProductName) return null
@@ -277,57 +275,22 @@ export function EtfCompareSection({
     const freshOptions =
         options !== null && options.revision === revision ? options : null
     const isStale = options !== null && options.revision !== revision
-    // 적용 직후 비교는 그 적용으로 생긴 revision에서만 보여 준다(그 뒤 되돌리기 등으로 바뀌면 지운다)
-    const shownApplied =
-        applied !== null && applied.revision === revision ? applied : null
     const currentProduct =
         products === null
             ? undefined
-            : findCurrent(products, currentProductCode, currentProductName)
+            : products.find(
+                  (product) => product.code === freshOptions?.currentCode,
+              ) ?? findCurrent(products, currentProductCode, currentProductName)
     // 지금 종목 카드의 값은 어느 비교든 current 쪽에 들어 있다
     const currentView =
         Object.values(freshOptions?.byCode ?? {}).find(
             (option): option is { ok: true; view: ComparisonView } =>
                 option.ok,
         )?.view ?? null
-    const label = COPY['etfCompare.sectionLabel']
-
-    if (!open) {
-        return (
-            <section
-                aria-label={label}
-                className="flex flex-col items-start gap-3 rounded-xl border border-border bg-surface p-5"
-            >
-                <p className="text-sm text-text-muted">
-                    {COPY['etfCompare.current'].replace(
-                        '{product}',
-                        currentProductName,
-                    )}
-                </p>
-                <Button variant="secondary" onClick={openSection}>
-                    {COPY['etfCompare.open']}
-                </Button>
-                {shownApplied !== null && (
-                    <div className="flex w-full flex-col gap-2">
-                        <p
-                            role="status"
-                            className="text-sm font-semibold text-text"
-                        >
-                            {COPY['etfCompare.appliedTitle']}
-                        </p>
-                        <CompareTable
-                            view={shownApplied.view}
-                            variant="applied"
-                        />
-                    </div>
-                )}
-            </section>
-        )
-    }
 
     return (
         <section
-            aria-label={label}
+            aria-label={COPY['etfCompare.sectionLabel']}
             className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-5"
         >
             <div>
@@ -388,7 +351,8 @@ export function EtfCompareSection({
                         className="grid gap-4 sm:grid-cols-3"
                     >
                         {products.map((product) => {
-                            const isCurrent = product.code === currentProduct?.code
+                            const isCurrent =
+                                product.code === currentProduct?.code
                             const option = freshOptions.byCode[product.code]
                             return (
                                 <EtfOptionCard
@@ -414,14 +378,6 @@ export function EtfCompareSection({
                         })}
                     </div>
                 )}
-
-            <Button
-                variant="ghost"
-                className="self-start"
-                onClick={() => setOpen(false)}
-            >
-                {COPY['etfCompare.close']}
-            </Button>
         </section>
     )
 }

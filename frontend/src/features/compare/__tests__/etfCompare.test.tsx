@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ApiError } from "../../../api/errors";
 import etfCompareMock from "../../../mocks/chat/post-compare.200-etf.json";
 import productsMock from "../../../mocks/refdata/get-etf-products.200.json";
 import { EtfCompareSection } from "../EtfCompareSection";
 
-// 결과 화면 ETF 종목 3안(#156). 열면 세 종목을 카드로 한 번에 보여 주고, 카드를 누르면 바로 적용한다.
+// 결과 화면 ETF 종목 3안(#156). 화면이 뜨면 세 종목을 카드로 바로 보여 주고, 카드를 누르면 바로 적용한다.
 
 const products = productsMock.responses[0].body;
 const kospiView = etfCompareMock.responses[0].body;
@@ -70,27 +70,14 @@ function renderSection(
   return { request, callsTo, onApply, view, update };
 }
 
-function open() {
-  fireEvent.click(screen.getByRole("button", { name: "다른 ETF 종목으로 비교해 보기" }));
-}
-
 const card = (name: string) => screen.getByRole("button", { name }) as HTMLButtonElement;
 const waitForCards = () => screen.findByRole("button", { name: NASDAQ });
 
 describe("ETF 종목 3안 (#156, C12a-9-3)", () => {
   afterEach(cleanup);
 
-  it("닫혀 있을 때는 지금 종목과 여는 단추만 보인다", () => {
-    renderSection();
-
-    expect(screen.getByText(`지금 종목: ${CURRENT}`)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "다른 ETF 종목으로 비교해 보기" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: NASDAQ })).toBeNull();
-  });
-
   it("열면 서버가 준 세 종목이 카드로 한 번에 보이고 종목 고르기 칩은 없다", async () => {
     renderSection();
-    open();
     await waitForCards();
 
     expect(card(CURRENT)).toBeTruthy();
@@ -101,7 +88,6 @@ describe("ETF 종목 3안 (#156, C12a-9-3)", () => {
 
   it("지금 종목 카드는 누를 수 없고 다른 두 종목 카드는 누를 수 있다", async () => {
     renderSection();
-    open();
     await waitForCards();
 
     expect(card(CURRENT).disabled).toBe(true);
@@ -111,7 +97,6 @@ describe("ETF 종목 3안 (#156, C12a-9-3)", () => {
 
   it("지금 종목은 비교를 요청하지 않고 다른 두 종목만 요청한다", async () => {
     const { callsTo } = renderSection();
-    open();
     await waitForCards();
 
     const codes = callsTo("/api/compare").map((call) => (call[2] as { conditionChanges: { etfProductCode: string } }).conditionChanges.etfProductCode);
@@ -120,7 +105,6 @@ describe("ETF 종목 3안 (#156, C12a-9-3)", () => {
 
   it("카드마다 서버 display 값이 보인다. 지금 종목은 지금 값, 다른 종목은 바뀐 값과 지금 종목 대비", async () => {
     renderSection();
-    open();
     await waitForCards();
 
     expect(card(CURRENT).textContent).toContain("지금 종목");
@@ -138,7 +122,6 @@ describe("ETF 종목 3안 (#156, C12a-9-3)", () => {
 
   it("카드를 누르면 확인 없이 바로 그 종목과 그때의 revision으로 적용한다", async () => {
     const { onApply } = renderSection();
-    open();
     await waitForCards();
 
     fireEvent.click(card(KOSPI));
@@ -152,7 +135,6 @@ describe("ETF 종목 3안 (#156, C12a-9-3)", () => {
   it("적용 중에 카드를 또 눌러도 한 번만 보낸다", async () => {
     const applying = pending<number | null>();
     const { onApply } = renderSection({}, {}, vi.fn(() => applying.promise));
-    open();
     await waitForCards();
 
     fireEvent.click(card(KOSPI));
@@ -164,34 +146,37 @@ describe("ETF 종목 3안 (#156, C12a-9-3)", () => {
     applying.release(null);
   });
 
-  it("적용하면 닫히고, 바뀐 조건과 이전 조건을 그 순서로 비교해서 보여 준다", async () => {
-    const { onApply, update } = renderSection();
-    open();
+  it("화면이 뜨면 열기 단계 없이 바로 카드가 보이고, 목록과 비교는 한 번씩만 받는다", async () => {
+    const { callsTo } = renderSection();
+    await waitForCards();
+
+    expect(screen.queryByRole("button", { name: "다른 ETF 종목으로 비교해 보기" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "닫기" })).toBeNull();
+    expect(callsTo("/api/etf-products")).toHaveLength(1);
+    expect(callsTo("/api/compare")).toHaveLength(2);
+  });
+
+  it("적용하면 카드가 열린 채로, 바뀐 종목이 지금 종목이 되고 나머지 두 종목 결과를 새로 받는다", async () => {
+    const { callsTo, update } = renderSection();
     await waitForCards();
     fireEvent.click(card(KOSPI));
-    await waitFor(() => expect(onApply).toHaveBeenCalled());
 
     // 적용에 성공하면 결과 화면이 새 revision으로 계획을 다시 읽어 내려 준다
     update({ revision: 13, currentProductName: KOSPI });
 
-    expect(await screen.findByText("종목을 바꿨어요. 이전 종목과 비교해 보세요")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: NASDAQ })).toBeNull();
-    expect(screen.getByRole("columnheader", { name: "바뀐 조건" })).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "이전 조건" })).toBeTruthy();
-    expect(screen.queryByRole("columnheader", { name: "현재 조건" })).toBeNull();
-    expect(screen.queryByRole("columnheader", { name: "바꾼 조건" })).toBeNull();
-
-    const cellsOf = (label: string) =>
-      within(screen.getByRole("rowheader", { name: label }).closest("tr") as HTMLElement)
-        .getAllByRole("cell")
-        .map((cell) => cell.textContent);
-    expect(cellsOf("ETF 종목")).toEqual([KOSPI, CURRENT, "—"]);
-    expect(cellsOf("세후 예상 자산(평균)")).toEqual(["약 1,689만원", "약 1,712만원", "약 23만원 감소"]);
+    await waitFor(() => expect(callsTo("/api/compare")).toHaveLength(4));
+    const codes = callsTo("/api/compare")
+      .slice(2)
+      .map((call) => (call[2] as { conditionChanges: { etfProductCode: string } }).conditionChanges.etfProductCode);
+    expect(codes.sort()).toEqual(["133690", "SP500"]);
+    await waitFor(() => expect(card(KOSPI).disabled).toBe(true));
+    expect(card(KOSPI).textContent).toContain("지금 종목");
+    expect(card(CURRENT).disabled).toBe(false);
+    expect(screen.queryByText("종목을 바꿨어요. 이전 종목과 비교해 보세요")).toBeNull();
   });
 
   it("적용하지 못하면 카드가 그대로 열려 있고 비교표는 없다", async () => {
     const { onApply } = renderSection({}, {}, vi.fn(async () => null));
-    open();
     await waitForCards();
 
     fireEvent.click(card(KOSPI));
@@ -201,57 +186,14 @@ describe("ETF 종목 3안 (#156, C12a-9-3)", () => {
     expect(screen.queryByText("종목을 바꿨어요. 이전 종목과 비교해 보세요")).toBeNull();
   });
 
-  it("그 뒤 내 계획이 또 바뀌면(되돌리기 등) 이전 종목 비교표를 지운다", async () => {
-    const { onApply, update } = renderSection();
-    open();
-    await waitForCards();
-    fireEvent.click(card(KOSPI));
-    await waitFor(() => expect(onApply).toHaveBeenCalled());
-    update({ revision: 13, currentProductName: KOSPI });
-    await screen.findByText("종목을 바꿨어요. 이전 종목과 비교해 보세요");
-
-    update({ revision: 14, currentProductName: CURRENT });
-
-    expect(screen.queryByText("종목을 바꿨어요. 이전 종목과 비교해 보세요")).toBeNull();
-    expect(screen.queryByRole("columnheader", { name: "이전 조건" })).toBeNull();
-  });
-
   it("결과를 계산하는 동안에는 계산 중이라고 알린다", async () => {
     const slow = pending<unknown>();
     renderSection({ compare: () => slow.promise });
-    open();
 
     expect(await screen.findByText("종목별 결과를 계산하는 중이에요")).toBeTruthy();
     slow.release(kospiView);
     await waitForCards();
     expect(screen.queryByText("종목별 결과를 계산하는 중이에요")).toBeNull();
-  });
-
-  it("닫았다가 다시 열어도 같은 계획이면 다시 받지 않는다", async () => {
-    const { callsTo } = renderSection();
-    open();
-    await waitForCards();
-
-    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
-    open();
-    await waitForCards();
-
-    expect(callsTo("/api/etf-products")).toHaveLength(1);
-    expect(callsTo("/api/compare")).toHaveLength(2);
-  });
-
-  it("받아 오는 중에 닫고 다시 열어도 한 번만 받는다", async () => {
-    const first = pending<unknown>();
-    const { callsTo } = renderSection({ products: () => first.promise });
-    open();
-    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
-    open();
-
-    first.release(products);
-    await waitForCards();
-
-    expect(callsTo("/api/etf-products")).toHaveLength(1);
-    expect(callsTo("/api/compare")).toHaveLength(2);
   });
 
   it("종목 목록을 못 가져오면 안내와 다시 시도가 보이고, 다시 시도를 연달아 눌러도 요청은 하나다", async () => {
@@ -263,7 +205,6 @@ describe("ETF 종목 3안 (#156, C12a-9-3)", () => {
         return attempt === 1 ? Promise.reject(ApiError.network()) : second.promise;
       },
     });
-    open();
     expect(await screen.findByText("종목 목록을 불러오지 못했어요. 다시 시도해 주세요")).toBeTruthy();
     const retry = screen.getByRole("button", { name: "다시 시도" });
 
@@ -277,7 +218,6 @@ describe("ETF 종목 3안 (#156, C12a-9-3)", () => {
 
   it("종목 목록 응답에 products가 없으면 목록 실패로 다룬다", async () => {
     renderSection({ products: async () => ({}) });
-    open();
 
     expect(await screen.findByText("종목 목록을 불러오지 못했어요. 다시 시도해 주세요")).toBeTruthy();
     expect(screen.queryByRole("button", { name: CURRENT })).toBeNull();
@@ -285,7 +225,6 @@ describe("ETF 종목 3안 (#156, C12a-9-3)", () => {
 
   it("고를 수 있는 종목이 내 종목 하나뿐이면 비교할 종목이 없다고 안내한다", async () => {
     renderSection({ products: async () => ({ products: [products.products[0]] }) });
-    open();
 
     expect(await screen.findByText("지금은 비교할 다른 종목이 없어요")).toBeTruthy();
     expect(screen.queryByRole("button", { name: CURRENT })).toBeNull();
@@ -303,7 +242,6 @@ describe("ETF 종목 3안 (#156, C12a-9-3)", () => {
             )
           : Promise.resolve(kospiView),
     });
-    open();
     await waitForCards();
 
     expect(card(NASDAQ).disabled).toBe(true);
@@ -313,7 +251,6 @@ describe("ETF 종목 3안 (#156, C12a-9-3)", () => {
 
   it("열려 있는 동안 내 계획이 바뀌면 카드를 막고 다시 비교하라고 안내한다", async () => {
     const { callsTo, update } = renderSection();
-    open();
     await waitForCards();
 
     update({ revision: 13 });
@@ -330,7 +267,6 @@ describe("ETF 종목 3안 (#156, C12a-9-3)", () => {
 
   it("지금 종목은 이름이 아니라 종목 코드로 찾는다", async () => {
     const { callsTo } = renderSection({}, { currentProductName: "에스앤피500 추종 ETF", currentProductCode: "SP500" });
-    open();
     await waitForCards();
 
     expect(card(CURRENT).disabled).toBe(true);
@@ -339,8 +275,9 @@ describe("ETF 종목 3안 (#156, C12a-9-3)", () => {
   });
 
   it("ETF 0% 계획(종목 이름 없음)에서는 아무것도 그리지 않는다", () => {
-    const { view } = renderSection({}, { currentProductName: "" });
+    const { view, callsTo } = renderSection({}, { currentProductName: "" });
 
     expect(view.container.firstChild).toBeNull();
+    expect(callsTo("/api/etf-products")).toHaveLength(0);
   });
 });
