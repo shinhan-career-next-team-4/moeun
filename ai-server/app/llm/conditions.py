@@ -34,11 +34,18 @@ _RATIO_WORDS = re.compile(r"비중|비율|반반|etf|주식|배분|(?:예금|적
 _RATE_WORDS = re.compile(r"금리|이율|이자율|(?<![가-힣])이자|(?<=금)이자")
 _PERCENT = re.compile(r"%|퍼센트|프로|퍼")
 _NUMBER = re.compile(rf"\d+(?:\.\d+)?|{_KO_NUMERAL}")
+_MONEY_FIELDS = ("goal_amount", "monthly_saving_amount")
 _THOUSANDS_COMMA = re.compile(r"(?<=\d),(?=\d{3})")
 # "3년 6개월", "5년(60개월)", "60개월(5년)"은 기간 하나를 두 단위로 말한 것이다
 _PERIOD_COMPOUND = re.compile(r"\d+\s*년\s*\(?\s*\d+\s*개월\s*\)?|\d+\s*개월\s*\(?\s*\d+\s*년\s*\)?")
 _KO_DIGIT_VALUES = dict(zip("일이삼사오육칠팔구", range(1, 10), strict=True))
 _KO_UNIT_VALUES = {"십": 10, "백": 100, "천": 1000}
+# 억·만 앞의 숫자+한글 단위 혼합(5천, 1천5백, 오천)과 한글 한 자리+억(일억)을 아라비아 숫자로 바꾼다(#231).
+# 억·만이 바로 뒤에 올 때만 바꿔서 "이번", "천천히" 같은 말은 건드리지 않는다. "1억5천만"의 5천처럼 억 바로 뒤는 허용한다
+_MIXED_NUMERAL = re.compile(
+    rf"(?:(?<=억)|(?<![\d.가-힣]))(?:(?:(?:\d+|{_KO_DIGIT})?[십백천])+(?:\d+|{_KO_DIGIT})?(?=\s*[억만])"
+    rf"|{_KO_DIGIT}(?=\s*억))"
+)
 _AMOUNT_EXPR = re.compile(
     rf"({_NUMBER.pattern})\s*(?:억\s*(?:({_NUMBER.pattern})\s*만\s*원?)?|만\s*원?|원)?"
 )
@@ -65,9 +72,24 @@ def _parse_ko_numeral(token: str) -> float | None:
     return float(total + current)
 
 
+def _mixed_numeral_value(token: str) -> int:
+    """'1천5백' → 1500, '5천' → 5000, '오천' → 5000, '일' → 1. 십·백·천 앞의 수가 없으면 1로 본다."""
+    total = 0
+    digits = ""
+    for ch in token:
+        if ch.isdigit():
+            digits += ch
+        elif ch in _KO_DIGIT_VALUES:
+            digits = str(_KO_DIGIT_VALUES[ch])
+        else:
+            total += (int(digits) if digits else 1) * _KO_UNIT_VALUES[ch]
+            digits = ""
+    return total + (int(digits) if digits else 0)
+
+
 def _candidate_krw_amounts(text: str) -> set[int]:
     """발화의 숫자·단위 표현에서 나올 수 있는 원 단위 금액 후보 집합(기존 _NUMBER·_THOUSANDS_COMMA 재사용)."""
-    cleaned = _THOUSANDS_COMMA.sub("", text)
+    cleaned = _MIXED_NUMERAL.sub(lambda m: str(_mixed_numeral_value(m.group(0))), _THOUSANDS_COMMA.sub("", text))
     candidates: set[int] = set()
     for match in _AMOUNT_EXPR.finditer(cleaned):
         full = match.group(0)
@@ -134,4 +156,10 @@ def drop_carried_conditions(text: str, changes: ConditionChanges) -> ConditionCh
     stated = _stated_conditions(lowered)
     if _count_numbers(lowered) > len(stated):
         return changes
-    return ConditionChanges.model_validate({k: v for k, v in changes.changed().items() if k in stated})
+    # 되묻기에 금액만 답한 발화("15000만원")는 조건 낱말이 없어도 그 금액을 이번에 말한 것이다(#231).
+    # 이 필터는 앞 턴에서 이어받은 값을 빼는 것이므로, 이번 발화에 그대로 있는 금액은 남긴다
+    said_amounts = _candidate_krw_amounts(lowered)
+    return ConditionChanges.model_validate({
+        k: v for k, v in changes.changed().items()
+        if k in stated or (k in _MONEY_FIELDS and v in said_amounts)
+    })
