@@ -24,7 +24,8 @@ import tools.jackson.databind.JsonNode;
 /**
  * 조건 변경 비교 {@code POST /api/compare}(FR-CMP-02, #64). 사용자가 조건을 바꿔 현재와 변경 결과를 나란히 본다.
  * <p>검증은 공용 COMPARE 규칙({@code rules.yml}, D-090·D-092)이 한다. 허용 키 밖·범위 밖·정수 자리의 소수·숫자가 아닌 값은
- * 걸린 필드를 모두 담아 422 VALIDATION_FAILED다. 계산은 calc의 공개 API가 하며 계획을 바꾸거나 비교 결과를 저장하지
+ * 걸린 필드를 모두 담아 422 VALIDATION_FAILED다. ETF 종목({@code etfProductCode})만 문자열이고, 주면 changed를 그 종목으로
+ * 계산한다(결과 화면 종목 바꾸기 미리보기, #154). 적재하지 않은 종목이면 422 NOT_AVAILABLE이다. 계산은 calc의 공개 API가 하며 계획을 바꾸거나 비교 결과를 저장하지
  * 않는다. 회원은 JWT로만 정한다. 본문 형식 오류(객체가 아님, conditionChanges가 객체가 아님)는 400 MALFORMED_REQUEST다.
  */
 @RestController
@@ -56,7 +57,8 @@ class ConditionCompareController {
         }
         try {
             return ConditionCompareResponse.from(
-                    comparisons.compareWithCurrentPlan(Long.parseLong(jwt.getSubject()), toOverride(changes)),
+                    comparisons.compareWithCurrentPlan(Long.parseLong(jwt.getSubject()), toOverride(changes),
+                            textOf(changes, "etfProductCode")),
                     changedKeys(changes));
         } catch (CalcRejectedException rejected) {
             throw CompareRequestException.rejected(rejected.status(), rejected.code(),
@@ -74,6 +76,11 @@ class ConditionCompareController {
         return new ConditionOverride(longOf(changes, "monthlySavingAmount"), intOf(changes, "targetPeriodMonths"),
                 intOf(changes, "savingsRatioPct"), decimalOf(changes, "savingsRateInputPct"),
                 longOf(changes, "goalAmount"), null);
+    }
+
+    private static String textOf(Map<String, JsonNode> changes, String key) {
+        JsonNode value = changes.get(key);
+        return value == null || value.isNull() ? null : value.asString();
     }
 
     private static Long longOf(Map<String, JsonNode> changes, String key) {
