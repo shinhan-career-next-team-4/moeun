@@ -116,6 +116,9 @@ compare:
 template:
   achieved: "달성"
   missed: "미달"
+  # 결과 화면 배지(#224). 금액은 "약" 없이 "N만 원"으로 붙인다. {gap}은 부호가 붙은 금액이다
+  gapBadgeAchieved: "달성 · 목표 {gap}"
+  gapBadgeMissed: "미달 · 목표 {gap}"
   increase: "증가"
   decrease: "감소"
   unchanged: "변화 없음"

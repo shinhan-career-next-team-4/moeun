@@ -14,7 +14,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.moeun.backend.calc.CurrentPlanResult;
 import com.moeun.backend.calc.CurrentPlanResultService;
+import com.moeun.backend.calc.application.Formatter;
 import com.moeun.backend.calc.application.SavePlanUseCase;
 import com.moeun.backend.plan.FieldError;
 import com.moeun.backend.plan.GoalType;
@@ -45,10 +47,13 @@ class PlanResultController {
 
     private final SavePlanUseCase savePlanUseCase;
     private final CurrentPlanResultService resultService;
+    private final Formatter formatter;
 
-    PlanResultController(SavePlanUseCase savePlanUseCase, CurrentPlanResultService resultService) {
+    PlanResultController(SavePlanUseCase savePlanUseCase, CurrentPlanResultService resultService,
+            Formatter formatter) {
         this.savePlanUseCase = savePlanUseCase;
         this.resultService = resultService;
+        this.formatter = formatter;
     }
 
     /**
@@ -59,7 +64,7 @@ class PlanResultController {
     @GetMapping
     PlanResultResponse findCurrentPlan(@AuthenticationPrincipal Jwt jwt) {
         return resultService.findForCurrentPlan(memberId(jwt))
-                .map(PlanResultResponse::from)
+                .map(current -> PlanResultResponse.from(current, formatter))
                 .orElseThrow(NoPlanException::new);
     }
 
@@ -69,7 +74,8 @@ class PlanResultController {
         checkNullableKeysPresent(body);
         JsonNode revision = body.get(EXPECTED_REVISION);
         Long expectedRevision = revision.isNull() ? null : revision.longValue();
-        return PlanResultResponse.from(savePlanUseCase.save(memberId(jwt), toPlanInput(body), expectedRevision));
+        CurrentPlanResult saved = savePlanUseCase.save(memberId(jwt), toPlanInput(body), expectedRevision);
+        return PlanResultResponse.from(saved, formatter);
     }
 
     /** 순서 1: JSON 숫자·알려진 목표 종류·정수 revision인지(C12a-5-2). 어기면 400 MALFORMED_REQUEST. */

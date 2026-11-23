@@ -32,7 +32,7 @@ public final class CopyBook {
             "chat.changedAlreadyExceeded", "chat.cardAlreadyExceeded", "chat.failed",
             "chat.pollingFailed", "chat.sendFailed",
             "template.achieved", "template.missed", "template.increase", "template.decrease",
-            "template.unchanged", "template.ratio",
+            "template.unchanged", "template.ratio", "template.gapBadgeAchieved", "template.gapBadgeMissed",
             "toast.applyStaleComparison", "toast.applyPlanChanged", "toast.applyNotApplicable",
             "toast.applyFailed", "comparison.loadFailed",
             "common.networkError", "auth.invalidCredentials", "auth.loginFailed", "auth.logoutFailed",

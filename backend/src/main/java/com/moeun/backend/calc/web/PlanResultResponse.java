@@ -2,6 +2,7 @@ package com.moeun.backend.calc.web;
 
 import java.math.BigDecimal;
 import java.time.YearMonth;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -12,6 +13,7 @@ import com.moeun.backend.calc.CurrentPlanResult;
 import com.moeun.backend.calc.MonthlyPoint;
 import com.moeun.backend.calc.Scenario;
 import com.moeun.backend.calc.ScenarioResult;
+import com.moeun.backend.calc.application.Formatter;
 import com.moeun.backend.plan.GoalType;
 import com.moeun.backend.plan.PlanView;
 
@@ -31,11 +33,26 @@ import com.moeun.backend.plan.PlanView;
 record PlanResultResponse(long revision, long calcRunId, Scenario baselineResultScenario, PlanValues plan,
         ResultView result, Map<String, String> display) {
 
-    static PlanResultResponse from(CurrentPlanResult current) {
+    static PlanResultResponse from(CurrentPlanResult current, Formatter formatter) {
         CalcResult result = current.result();
         Scenario baseline = result.findBaselineResult().map(ScenarioResult::scenario).orElse(null);
         return new PlanResultResponse(current.plan().revision(), current.calcRunId(), baseline,
-                PlanValues.from(current.plan()), ResultView.from(result), current.display());
+                PlanValues.from(current.plan()), ResultView.from(result),
+                withGapBadges(current.display(), result, formatter));
+    }
+
+    /**
+     * 화면 전용 배지 문자열 {@code <S>.gapBadge}(#224)를 더한다. 공유 display(planContext·ai-server 계약)는 건드리지 않으려고
+     * 이 응답에서만 붙인다.
+     */
+    private static Map<String, String> withGapBadges(Map<String, String> shared, CalcResult result,
+            Formatter formatter) {
+        Map<String, String> display = new LinkedHashMap<>(shared);
+        for (ScenarioResult scenario : result.scenarios()) {
+            display.put(scenario.scenario() + ".gapBadge",
+                    formatter.formatGapBadge(scenario.gapToGoal(), scenario.isAchieved()));
+        }
+        return display;
     }
 
     /** 사용자가 입력한 원래 값(원 단위, nullable 그대로). 기본금리·기본 비중을 채우기 전 값이다. */

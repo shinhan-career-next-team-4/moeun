@@ -139,6 +139,15 @@ class GetPlanApiTest {
         assertThat(plan.get("savingsRatioPct").isNull()).isTrue();
         assertThat(current.get("result")).isEqualTo(saved.get("result"));
         assertThat(current.get("display")).isEqualTo(saved.get("display"));
+        // 결과 화면 배지(#224): 같은 응답의 gapToGoal·isAchieved에서 기대 문자열을 따로 만들어 전체를 비교한다
+        for (JsonNode scenario : current.get("result").get("scenarios")) {
+            long gap = scenario.get("gapToGoal").asLong();
+            String label = scenario.get("isAchieved").asBoolean() ? "달성" : "미달";
+            String amount = String.format("%,d만 원", Math.round(Math.abs(gap) / 10_000.0));
+            String expected = label + " · 목표 " + (gap < 0 ? "\u2212" : "+") + amount;
+            assertThat(current.get("display").get(scenario.get("scenario").asString() + ".gapBadge").asString())
+                    .isEqualTo(expected);
+        }
         assertThat(current.get("result").get("calcStartMonth").asString())
                 .isEqualTo(YearMonth.now(ZoneId.of("Asia/Seoul")).toString());
         assertThat(count("calc_run")).isEqualTo(1);

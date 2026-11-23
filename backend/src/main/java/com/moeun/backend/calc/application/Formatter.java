@@ -32,6 +32,8 @@ public class Formatter {
     private static final int MONTHS_PER_YEAR = 12;
     private static final int TOTAL_RATIO_PCT = 100;
     private static final String UNDER_TEN_THOUSAND = "1만원 미만";
+    private static final String BADGE_UNDER_TEN_THOUSAND = "1만 원 미만";
+    private static final String BADGE_MINUS = "\u2212";
 
     private final CopyBook copy;
 
@@ -56,6 +58,20 @@ public class Formatter {
         }
         String sign = gap < 0 ? "-" : "+";
         return sign + unsignedAmount(Math.abs(gap)) + " " + label;
+    }
+
+    /**
+     * 결과 화면 배지(#224): {@code 달성 · 목표 +150만 원}, {@code 미달 · 목표 −20만 원}. 금액에 "약"을 붙이지 않는다.
+     * 라벨은 반올림 값이 아니라 엔진 판정(isAchieved)을 따르고, 0원은 부호 없이 {@code 0원}이다.
+     */
+    public String formatGapBadge(long gap, boolean isAchieved) {
+        String signed;
+        if (gap == 0) {
+            signed = "0원";
+        } else {
+            signed = (gap < 0 ? BADGE_MINUS : "+") + badgeAmount(Math.abs(gap));
+        }
+        return copy.get(isAchieved ? "template.gapBadgeAchieved" : "template.gapBadgeMissed", Map.of("gap", signed));
     }
 
     /** 두 계산의 차이(바꾼 쪽 − 현재). 부호 대신 방향 단어를 쓴다. 차이는 값마다 따로 반올림한다. */
@@ -128,6 +144,14 @@ public class Formatter {
             return UNDER_TEN_THOUSAND;
         }
         return "약 " + group(tenThousands) + "만원";
+    }
+
+    /** {@link #unsignedAmount}와 같은 반올림에 "약" 없이 {@code N만 원}으로 쓴다. 0만 원으로 반올림되면 {@code 1만 원 미만}이다. */
+    private static String badgeAmount(long won) {
+        long tenThousands = BigDecimal.valueOf(won)
+                .divide(BigDecimal.valueOf(TEN_THOUSAND), 0, RoundingMode.HALF_UP)
+                .longValueExact();
+        return tenThousands == 0 ? BADGE_UNDER_TEN_THOUSAND : group(tenThousands) + "만 원";
     }
 
     /** 천 단위 쉼표. 서버 로케일이 달라도 같은 글자가 나오게 구분자를 고정한다(PR-04). */

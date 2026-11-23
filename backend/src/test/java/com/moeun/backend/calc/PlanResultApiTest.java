@@ -178,7 +178,11 @@ class PlanResultApiTest {
 
         Map<String, String> display = new LinkedHashMap<>();
         body.get("display").properties().forEach(entry -> display.put(entry.getKey(), entry.getValue().asString()));
-        assertThat(display).isEqualTo(engineResult.display());
+        // 화면 전용 배지 키(<S>.gapBadge, #224)는 공유 display에 없고 이 응답에서만 더해진다
+        Map<String, String> shared = new LinkedHashMap<>(display);
+        shared.keySet().removeIf(key -> key.endsWith(".gapBadge"));
+        assertThat(shared).isEqualTo(engineResult.display());
+        assertThat(display).containsKeys("GOOD.gapBadge", "AVG.gapBadge", "BAD.gapBadge");
         assertThat(display).containsEntry("assumptions.taxRatePct", "15.4%");
     }
 
