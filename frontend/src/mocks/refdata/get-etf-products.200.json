@@ -1,0 +1,29 @@
+{
+  "responses": [
+    {
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "products": [
+          {
+            "code": "SP500",
+            "displayName": "S&P500 추종 ETF",
+            "gainTaxRatePct": 15.4
+          },
+          {
+            "code": "069500",
+            "displayName": "코스피200 추종 ETF",
+            "gainTaxRatePct": 0
+          },
+          {
+            "code": "133690",
+            "displayName": "나스닥100 추종 ETF",
+            "gainTaxRatePct": 15.4
+          }
+        ]
+      }
+    }
+  ]
+}

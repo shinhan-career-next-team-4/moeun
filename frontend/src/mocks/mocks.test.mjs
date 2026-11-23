@@ -87,7 +87,10 @@ const PLAN_FILES = [
   "post-undo.500.json",
 ];
 
-const DIRS = { chat: CHAT_FILES, auth: AUTH_FILES, plan: PLAN_FILES };
+// 기준 데이터(#220): ETF 종목 목록
+const REFDATA_FILES = ["get-etf-products.200.json"];
+
+const DIRS = { chat: CHAT_FILES, auth: AUTH_FILES, plan: PLAN_FILES, refdata: REFDATA_FILES };
 
 function load(dir, name) {
   return JSON.parse(fs.readFileSync(path.join(here, dir, name), "utf8"));
@@ -107,7 +110,7 @@ function allFiles() {
 
 // ---------------------------------------------------------------- 파일 목록
 
-test("목 파일 개수: chat 38, auth 6, plan 24", () => {
+test("목 파일 개수: chat 38, auth 6, plan 24, refdata 1", () => {
   for (const [dir, names] of Object.entries(DIRS)) {
     const actual = fs.existsSync(path.join(here, dir))
       ? fs.readdirSync(path.join(here, dir)).filter((f) => f.endsWith(".json")).sort()
@@ -116,6 +119,17 @@ test("목 파일 개수: chat 38, auth 6, plan 24", () => {
   }
   assert.equal(CHAT_FILES.length, 38);
   assert.equal(AUTH_FILES.length + PLAN_FILES.length, 30);
+  assert.equal(REFDATA_FILES.length, 1);
+});
+
+test("ETF 종목 목록: 대표 상품(SP500)이 첫째이고 세 칸(code·displayName·gainTaxRatePct)만 있다(#220)", () => {
+  const { products } = body("refdata", "get-etf-products.200.json");
+  assert.equal(products[0].code, "SP500");
+  for (const product of products) {
+    assert.deepEqual(Object.keys(product).sort(), ["code", "displayName", "gainTaxRatePct"]);
+    assert.equal(typeof product.gainTaxRatePct, "number");
+    assert.match(product.displayName, / 추종 ETF$/);
+  }
 });
 
 test("chat/get-messages.200-restore-pending.json 있음, post-explanations.seq-reuse.json 없음", () => {
@@ -126,7 +140,7 @@ test("chat/get-messages.200-restore-pending.json 있음, post-explanations.seq-r
 test("계약 문서의 목 표와 실제 파일 이름이 같다", () => {
   const doc = fs.readFileSync(docPath, "utf8");
   const found = new Set();
-  for (const m of doc.matchAll(/`((?:auth|plan|chat)\/)?([a-z0-9][a-z0-9.-]*\.json)`/g)) {
+  for (const m of doc.matchAll(/`((?:auth|plan|chat|refdata)\/)?([a-z0-9][a-z0-9.-]*\.json)`/g)) {
     const dir = m[1] ? m[1].slice(0, -1) : "chat";
     found.add(`${dir}/${m[2]}`);
   }
