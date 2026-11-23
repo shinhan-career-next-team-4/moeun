@@ -21,6 +21,7 @@
 | | `test_no_accumulate.py` | 이전 대화의 조건을 이번 계산에 누적하지 않음 |
 | | `conditions/test_conditions_amount_units.py` | 목표 금액 단위 대조가 억 뒤 만 생략(1억 2천)·숫자+천·백(5천만원)을 읽음 |
 | | `conditions/test_conditions_carry_kind.py` | 역할 단어 없는 후속 금액을 직전 대화의 조건으로 계산(프롬프트 규칙, 서버가 막지 않음) |
+| | `conditions/test_conditions_carried_amount_evidence.py` | #260 이어받아 계산한 금액의 출처 발화만 숫자 근거로 더함 |
 | | `test_agent_tools.py` | 도구 스키마, 조건 4개 축소, 되묻기 규칙 |
 | **대화 흐름** | `test_agent.py` | 기본 흐름(조건 변경, 인용 제한, 거절, 입력 검사) |
 | | `test_explain.py` | EXPLAIN·QUESTION 흐름, 검사 순서, 프롬프트 규칙, 로그 |

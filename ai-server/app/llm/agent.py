@@ -31,7 +31,7 @@ from app.llm.assemble import (
     check_stock_recommendation,
     out_of_scope_content,
 )
-from app.llm.conditions import check_amount_units, drop_carried_conditions
+from app.llm.conditions import carried_amount_sources, check_amount_units, drop_carried_conditions
 from app.llm.context import build_messages, check_plan_context, plan_model_input
 from app.llm.errors import AgentError, ForbiddenAnswer, ForbiddenReason
 from app.llm.etf import search_etf_codes
@@ -314,6 +314,10 @@ class ChatAgent:
         result = await self._calc.recalculate(turn.req.member_id, turn.req.baseline_scenario, changes)
         turn.calc_run_id = result["calcRunId"]
         turn.condition_changes = changes.changed()
+        if turn.req.text and turn.req.history:
+            # 직전 발화의 금액을 이어받아 계산했으면 그 발화를 숫자 근거에 더한다(#260)
+            user_texts = [h.content for h in turn.req.history if h.role == "user"]
+            turn.number_evidence.extend(carried_amount_sources(turn.req.text, user_texts, changes))
         changed_obj = result.get("changed")
         if isinstance(changed_obj, dict):
             turn.changed_already_exceeded = changed_obj.get("status") == "ALREADY_EXCEEDED"
