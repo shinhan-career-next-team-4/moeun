@@ -8,6 +8,7 @@ import { AlternativeSection, requestAlternatives, toAlternativeValues } from "..
 import type { AlternativeValues, AlternativeValuesByKey } from "../alternative/types";
 import {
   applyComparison,
+  type ApplyOutcome,
   CompareSection,
   ConfirmApplyDialog,
   EtfCompareSection,
@@ -123,36 +124,28 @@ export function ResultPage() {
     setConfirming({ comparison, changes: compared.changes, revision: compared.revision, path: "COMPARE" });
   }
 
-  /** ETF 종목 미리보기의 '이 종목으로 바꾸기'. 확인창부터는 비교 영역 적용과 같은 흐름이다(C12a-9-2) */
-  function openEtfConfirm(request: EtfApplyRequest) {
-    setConfirmError(null);
-    // 종목 바꾸기도 비교 경로다(C12a-9-3). 대안 적용만 ALTERNATIVE를 쓴다
-    setConfirming({ ...request, path: "COMPARE" });
-  }
-
   function closeConfirm() {
     setConfirming(null);
     setConfirmError(null);
   }
 
-  /** P-6 적용(#68, C12a-9-2). 코드별 동작은 대화 적용(F-5, C12b-7-2)과 같다 */
-  async function confirmApply() {
-    if (confirming === null || applying) return;
-    const { changes, revision: sent, path } = confirming;
-    setApplying(true);
-    setConfirmError(null);
-    const outcome = await applyComparison(
-      { request: (method, path, body) => api.request(method, path, body) },
-      { expectedRevision: sent, changes, path },
-    );
-    setApplying(false);
+  /**
+   * P-6 응답을 화면 동작으로 바꾼다(#68, C12a-9-2). 코드별 동작은 대화 적용(F-5, C12b-7-2)과 같다.
+   * 적용에 성공하면 새 revision을, 아니면 null을 돌려준다. 다시 시도할 수 있는 실패의 안내 자리는
+   * 부르는 쪽이 정한다(확인창 안 / 확인창 없는 적용은 토스트).
+   */
+  function settleApply(
+    outcome: ApplyOutcome,
+    { revision: sent, changes, path }: { revision: number; changes: ConditionChanges; path: "COMPARE" | "ALTERNATIVE" },
+    onFailed: () => void,
+  ): number | null {
     switch (outcome.kind) {
       case "applied":
         closeConfirm();
         resetComparison();
         setResetSeq((seq) => seq + 1);
         // 요청 중에 계획 상태가 비워졌으면(다른 계정 로그인 등) 다시 채우지 않는다(대화 적용 onApplied와 같다)
-        if (planStore.getState().revision === null) return;
+        if (planStore.getState().revision === null) return null;
         // 기한 카드를 적용했으면 적어 둔 기간은 이제 내 계획 기간이다. 다음 요청에 싣지 않는다
         if (path === "ALTERNATIVE" && changes.targetPeriodMonths !== undefined) {
           validPeriod.current = undefined;
@@ -164,29 +157,61 @@ export function ResultPage() {
           setUndo({ revision: outcome.revision, id: undoSeq.current });
         }
         planStore.loadPlan({ fresh: true }).catch(() => {});
-        return;
+        return outcome.revision;
       case "planChanged":
         closeConfirm();
         setApplyFeedback(COPY["toast.applyPlanChanged"]);
         planStore.loadPlan({ fresh: true }).catch(() => {});
-        return;
+        return null;
       case "noPlan":
         closeConfirm();
         planStore.acceptNoPlan(sent);
-        return;
+        return null;
       case "notApplicable":
         closeConfirm();
         // 거절된 쪽만 다시 받을/비교할 때까지 막는다
         if (path === "ALTERNATIVE") setAlternatives((prev) => prev && { ...prev, blocked: true });
         else setCompared(null);
         setApplyFeedback(COPY["toast.applyNotApplicable"]);
-        return;
+        return null;
       case "unauthenticated":
         closeConfirm();
-        return;
+        return null;
       case "failed":
-        setConfirmError(COPY["toast.applyFailed"]);
+        onFailed();
+        return null;
     }
+  }
+
+  /** 확인창의 '적용하기'(#68, C12a-9-2). */
+  async function confirmApply() {
+    if (confirming === null || applying) return;
+    setApplying(true);
+    setConfirmError(null);
+    const outcome = await applyComparison(
+      { request: (method, path, body) => api.request(method, path, body) },
+      { expectedRevision: confirming.revision, changes: confirming.changes, path: confirming.path },
+    );
+    setApplying(false);
+    settleApply(outcome, confirming, () => setConfirmError(COPY["toast.applyFailed"]));
+  }
+
+  /**
+   * ETF 종목 카드를 누르면 확인창 없이 바로 적용한다(#156, C12a-9-3). 되돌리기 토스트가 안전망이다.
+   * 성공하면 새 revision을 돌려줘 ETF 영역이 '바뀐 조건 vs 이전 조건' 비교를 그 revision에서 보여 준다.
+   */
+  async function applyEtf({ changes, revision: sent }: EtfApplyRequest): Promise<number | null> {
+    if (applying) return null;
+    setApplying(true);
+    setApplyFeedback(null);
+    const outcome = await applyComparison(
+      { request: (method, path, body) => api.request(method, path, body) },
+      { expectedRevision: sent, changes, path: "COMPARE" },
+    );
+    setApplying(false);
+    return settleApply(outcome, { revision: sent, changes, path: "COMPARE" }, () =>
+      setApplyFeedback(COPY["toast.applyFailed"]),
+    );
   }
 
   /** 대안 카드의 '비교하기'. 비교 영역에 조건만 채우고 저장은 하지 않는다(FR-ALT-04, D-046) */
@@ -335,13 +360,10 @@ export function ResultPage() {
                 <ResultChart scenarios={result.scenarios} goalAmount={result.goalAmount} display={display} />
                 {/* ETF 종목 비교(#156). 종목을 골라 저장 없이 미리본다. ETF 0%면 스스로 숨는다 */}
                 <EtfCompareSection
-                  // 적용에 성공하면 비교 영역과 함께 처음 상태(접힌 입구)로 돌아간다
-                  key={resetSeq}
                   currentProductName={display["assumptions.etfProductName"] ?? ""}
                   currentProductCode={result.assumptions.etfProductCode ?? undefined}
-                  scenarioMethod={result.assumptions.scenarioMethod}
                   revision={revision}
-                  onApply={openEtfConfirm}
+                  onApply={applyEtf}
                 />
                 {/* 대안 영역(#67). 기준 시나리오가 미달일 때만 보인다(FR-ALT-01) */}
                 <AlternativeSection

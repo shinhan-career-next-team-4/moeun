@@ -1,4 +1,4 @@
-export { applyComparison } from "./applyComparison";
+export { applyComparison, type ApplyOutcome } from "./applyComparison";
 export { CompareSection } from "./CompareSection";
 export { ConfirmApplyDialog } from "./ConfirmApplyDialog";
 export { EtfCompareSection, type EtfApplyRequest } from "./EtfCompareSection";

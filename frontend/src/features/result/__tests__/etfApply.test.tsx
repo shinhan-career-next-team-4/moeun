@@ -11,8 +11,8 @@ import planMock from "../../../mocks/plan/get-plan.200.json";
 import afterApplyMock from "../../../mocks/plan/get-plan.200-after-apply.json";
 import { ResultPage } from "../ResultPage";
 
-// 결과 화면 ETF 종목 바꾸기(#156 2단계, C12a-9-3): 종목 고르기 -> 미리보기 -> 확인창 -> 적용(P-6).
-// 적용하면 화면의 ETF 기준 값이 모두 새 종목 값으로 바뀐다(서버가 다시 계산한 계획을 그대로 보여 준다).
+// 결과 화면 ETF 종목 3안(#156 2단계, C12a-9-3): 열면 세 종목 카드 -> 카드를 누르면 확인 없이 바로 적용(P-6).
+// 적용하면 화면의 ETF 기준 값이 모두 새 종목 값으로 바뀌고, 바뀐 조건과 이전 조건을 비교해 보여 준다.
 
 const SP500 = "S&P500 추종 ETF";
 const NASDAQ = "나스닥100 추종 ETF";
@@ -21,7 +21,7 @@ const NASDAQ = "나스닥100 추종 ETF";
 function planWith(mock: typeof planMock, productName: string) {
   const body = structuredClone(mock.responses[0].body) as { display: Record<string, string> };
   body.display["assumptions.etfProductName"] = productName;
-  body.display["assumptions.etfGainTaxRatePct"] = productName === NASDAQ ? "15.4%" : "15.4%";
+  body.display["assumptions.etfGainTaxRatePct"] = "15.4%";
   return body;
 }
 
@@ -46,7 +46,7 @@ interface Call {
   body: unknown;
 }
 
-function stubServer() {
+function stubServer(applyResponse: () => Response = () => jsonResponse(200, { revision: 13 })) {
   const calls: Call[] = [];
   let planReads = 0;
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -63,8 +63,11 @@ function stubServer() {
     if (method === "GET" && url.pathname === "/api/etf-products") {
       return jsonResponse(200, productsMock.responses[0].body);
     }
-    if (method === "POST" && url.pathname === "/api/compare") return jsonResponse(200, nasdaqComparison());
-    if (method === "POST" && url.pathname === "/api/plan/apply") return jsonResponse(200, { revision: 13 });
+    if (method === "POST" && url.pathname === "/api/compare") {
+      const code = (body as { conditionChanges: { etfProductCode: string } }).conditionChanges.etfProductCode;
+      return jsonResponse(200, code === "133690" ? nasdaqComparison() : etfCompareMock.responses[0].body);
+    }
+    if (method === "POST" && url.pathname === "/api/plan/apply") return applyResponse();
     return jsonResponse(200, { messages: [], hasPending: false });
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -84,16 +87,15 @@ function renderResult() {
   );
 }
 
-/** 나스닥을 골라 미리보기까지. */
-async function previewNasdaq() {
+/** 영역을 열고 세 종목 카드가 뜰 때까지 기다린다. */
+async function openCards() {
   const section = await screen.findByRole("region", { name: "ETF 종목 비교" });
   fireEvent.click(within(section).getByRole("button", { name: "다른 ETF 종목으로 비교해 보기" }));
-  fireEvent.click(await within(section).findByRole("radio", { name: NASDAQ }));
-  await within(section).findByRole("rowheader", { name: "ETF 종목" });
+  await within(section).findByRole("button", { name: NASDAQ });
   return section;
 }
 
-describe("결과 화면 ETF 종목 바꾸기 (#156, C12a-9-3)", () => {
+describe("결과 화면 ETF 종목 3안 (#156, C12a-9-3)", () => {
   beforeEach(() => {
     planStore.clear();
   });
@@ -103,28 +105,23 @@ describe("결과 화면 ETF 종목 바꾸기 (#156, C12a-9-3)", () => {
     vi.unstubAllGlobals();
   });
 
-  it("종목을 고르면 미리보기만 하고 내 계획은 그대로다", async () => {
+  it("카드를 열어 보기만 해서는 내 계획이 바뀌지 않는다", async () => {
     const { calls } = stubServer();
     renderResult();
 
-    await previewNasdaq();
+    const section = await openCards();
 
-    expect(calls.filter((call) => call.path === "/api/compare")).toHaveLength(1);
+    expect(within(section).getByRole("button", { name: SP500 })).toBeTruthy();
     expect(calls.some((call) => call.path === "/api/plan/apply")).toBe(false);
-    // 미리보기 중에도 3구간 머리글은 내 계획의 종목이다
-    expect(screen.getByText(new RegExp(`기준 종목 ${SP500.replace("&", "&")}`))).toBeTruthy();
+    expect(screen.getByText(new RegExp(`기준 종목 ${SP500}`))).toBeTruthy();
   });
 
-  it("적용하면 확인창을 거쳐 P-6으로 종목만 보내고, 화면의 ETF 기준 값이 새 종목으로 바뀐다", async () => {
+  it("카드를 누르면 확인창 없이 바로 P-6으로 종목만 보내고, 화면의 ETF 기준 값이 새 종목으로 바뀐다", async () => {
     const { calls } = stubServer();
     renderResult();
 
-    const section = await previewNasdaq();
-    fireEvent.click(within(section).getByRole("button", { name: "이 종목으로 바꾸기" }));
-
-    const dialog = screen.getByRole("dialog", { name: "바꾼 조건을 내 계획에 적용할까요?" });
-    expect(within(dialog).getByText("ETF 종목").closest("li")?.textContent).toContain(`${SP500} → ${NASDAQ}`);
-    fireEvent.click(within(dialog).getByRole("button", { name: "적용하기" }));
+    const section = await openCards();
+    fireEvent.click(within(section).getByRole("button", { name: NASDAQ }));
 
     await waitFor(() => {
       expect(calls.find((call) => call.path === "/api/plan/apply")?.body).toEqual({
@@ -133,6 +130,7 @@ describe("결과 화면 ETF 종목 바꾸기 (#156, C12a-9-3)", () => {
         conditionChanges: { etfProductCode: "133690" },
       });
     });
+    expect(screen.queryByRole("dialog")).toBeNull();
 
     // 적용 뒤 계획을 다시 읽어 화면 전체가 새 종목 기준이 된다
     await waitFor(() => {
@@ -141,5 +139,35 @@ describe("결과 화면 ETF 종목 바꾸기 (#156, C12a-9-3)", () => {
     expect(screen.getByText(new RegExp(`기준 종목 ${NASDAQ}`))).toBeTruthy();
     expect(screen.getByLabelText("ETF 종목 비교").textContent).toContain(`지금 종목: ${NASDAQ}`);
     expect(screen.getByRole("button", { name: "되돌리기" })).toBeTruthy();
+  });
+
+  it("적용에 실패하면 확인창 대신 안내가 보이고, 카드는 그대로 열려 있어 다시 누를 수 있다", async () => {
+    stubServer(() =>
+      jsonResponse(500, { type: "about:blank", status: 500, code: "INTERNAL_ERROR", errors: [] }),
+    );
+    renderResult();
+
+    const section = await openCards();
+    fireEvent.click(within(section).getByRole("button", { name: NASDAQ }));
+
+    expect(await screen.findByText("적용하지 못했어요")).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect((within(section).getByRole("button", { name: NASDAQ }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByText("종목을 바꿨어요. 이전 종목과 비교해 보세요")).toBeNull();
+  });
+
+  it("적용한 뒤에는 바뀐 조건과 이전 조건을 비교해서 보여 준다", async () => {
+    stubServer();
+    renderResult();
+
+    const section = await openCards();
+    fireEvent.click(within(section).getByRole("button", { name: NASDAQ }));
+
+    expect(await screen.findByText("종목을 바꿨어요. 이전 종목과 비교해 보세요")).toBeTruthy();
+    const compare = screen.getByLabelText("ETF 종목 비교");
+    expect(within(compare).getByRole("columnheader", { name: "바뀐 조건" })).toBeTruthy();
+    expect(within(compare).getByRole("columnheader", { name: "이전 조건" })).toBeTruthy();
+    const row = within(compare).getByRole("rowheader", { name: "ETF 종목" }).closest("tr") as HTMLElement;
+    expect(within(row).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([NASDAQ, SP500, "—"]);
   });
 });

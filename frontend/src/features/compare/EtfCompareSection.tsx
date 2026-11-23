@@ -1,237 +1,427 @@
-import { useEffect, useRef, useState } from "react";
-import { api } from "../../api";
-import { COPY } from "../../shared/copy/copy";
-import { scenarioMethodLine } from "../../shared/copy/scenarioMethod";
-import { Button, ChipGroup } from "../../shared/ui";
-import { CompareTable } from "./CompareTable";
-import { fetchEtfProducts, requestEtfComparison, type EtfCompareDeps, type EtfProduct } from "./requestEtfComparison";
-import type { ComparisonView, ConditionChanges } from "./types";
+import { useId, useRef, useState } from 'react'
+import { api } from '../../api'
+import { COPY } from '../../shared/copy/copy'
+import { Button } from '../../shared/ui'
+import { CompareTable } from './CompareTable'
+import type { ComparisonResult } from './requestComparison'
+import {
+    fetchEtfProducts,
+    requestEtfComparison,
+    type EtfCompareDeps,
+    type EtfProduct,
+} from './requestEtfComparison'
+import type { ComparisonView, ConditionChanges } from './types'
 
-/** 적용할 거리: 미리본 비교와 그 비교가 쓴 조건·revision(C12a-9-2의 확인창이 그대로 쓴다) */
+/** 적용할 거리: 고른 종목과, 그 종목의 결과를 받은 때의 revision(P-6 expectedRevision) */
 export interface EtfApplyRequest {
-  comparison: ComparisonView;
-  changes: ConditionChanges;
-  revision: number;
+    changes: ConditionChanges
+    revision: number
 }
 
 interface EtfCompareSectionProps {
-  /** 내 계획의 종목 이름(`display["assumptions.etfProductName"]`). 비면 ETF 0%라 영역을 그리지 않는다 */
-  currentProductName: string;
-  /** 내 계획의 종목 코드(`result.assumptions.etfProductCode`). 목록에서 지금 종목을 찾는 기준이다 */
-  currentProductCode?: string;
-  /** 3구간 산정 방식 코드. 고른 종목 기준의 산정 문구에 쓴다 */
-  scenarioMethod: string | null;
-  /** 내 계획의 revision. 바뀌면 표가 가리키는 '현재'가 더 이상 내 계획이 아니라서 결과를 지운다 */
-  revision: number | null;
-  /** 미리본 종목을 내 계획에 적용한다. 확인창과 P-6 호출은 결과 화면이 맡는다(C12a-9-2) */
-  onApply(request: EtfApplyRequest): void;
-  /** 테스트에서 바꿔 끼운다. 기본은 앱의 API 래퍼 */
-  deps?: EtfCompareDeps;
+    /** 내 계획의 종목 이름(`display["assumptions.etfProductName"]`). 비면 ETF 0%라 영역을 그리지 않는다 */
+    currentProductName: string
+    /** 내 계획의 종목 코드(`result.assumptions.etfProductCode`). 목록에서 지금 종목을 찾는 기준이다 */
+    currentProductCode?: string
+    /** 내 계획의 revision. 바뀌면 받아 둔 결과의 '지금 종목'이 더 이상 내 계획이 아니라서 쓰지 않는다 */
+    revision: number | null
+    /**
+     * 고른 종목을 내 계획에 적용한다. 확인창 없이 바로 보낸다(#156). P-6 호출과 응답 처리는 결과 화면이 맡고,
+     * 적용에 성공하면 새 revision을, 아니면 null을 돌려준다.
+     */
+    onApply(request: EtfApplyRequest): Promise<number | null>
+    /** 테스트에서 바꿔 끼운다. 기본은 앱의 API 래퍼 */
+    deps?: EtfCompareDeps
 }
 
 const DEFAULT_DEPS: EtfCompareDeps = {
-  request: (method, path, body) => api.request(method, path, body),
-};
+    request: (method, path, body) => api.request(method, path, body),
+}
+
+/** 종목 코드별 비교 결과와, 그것을 받은 때의 내 계획 revision */
+interface Options {
+    revision: number | null
+    byCode: Record<string, ComparisonResult>
+}
+
+/** 방금 적용한 종목의 비교(이전 종목 → 바뀐 종목)와, 적용 뒤 내 계획의 revision */
+interface Applied {
+    view: ComparisonView
+    revision: number
+}
+
+/** 종목 코드가 기준이다. 이름은 서버 두 곳(display와 종목 목록)이 글자까지 같아야 맞아서 코드가 없을 때만 쓴다 */
+function findCurrent(
+    products: EtfProduct[],
+    code: string | undefined,
+    name: string,
+): EtfProduct | undefined {
+    return (
+        products.find((product) => product.code === code) ??
+        products.find((product) => product.displayName === name)
+    )
+}
+
+interface EtfOptionCardProps {
+    product: EtfProduct
+    isCurrent: boolean
+    /** 값을 읽을 비교 응답. 지금 종목은 아무 비교의 current 쪽, 다른 종목은 자기 비교의 changed 쪽을 읽는다 */
+    view: ComparisonView | null
+    /** 이 종목의 비교를 받지 못한 이유 */
+    failure: string | null
+    disabled: boolean
+    onChoose(): void
+}
+
+/** ETF 한 종목의 안(案). 카드를 누르면 바로 적용한다. 값은 모두 서버 display 문자열이다(NFR-INT-01). */
+function EtfOptionCard({
+    product,
+    isCurrent,
+    view,
+    failure,
+    disabled,
+    onChoose,
+}: EtfOptionCardProps) {
+    const nameId = useId()
+    const valuesId = useId()
+    const side = isCurrent ? 'current' : 'changed'
+    const baseline = view?.diff.baselineScenario
+    const rows =
+        view && baseline
+            ? [
+                  {
+                      label: COPY['compare.rowAvgAsset'],
+                      value: view.display[`${side}.${baseline}.afterTaxAsset`],
+                  },
+                  {
+                      label: COPY['etfCompare.rowDelta'],
+                      value: isCurrent
+                          ? undefined
+                          : view.display[`diff.${baseline}.afterTaxAssetDelta`],
+                  },
+                  {
+                      label: COPY['compare.rowGapToGoal'],
+                      value: view.display[`${side}.${baseline}.gapToGoal`],
+                  },
+                  {
+                      label: COPY['compare.rowBad'],
+                      value: view.display[`${side}.BAD.afterTaxAsset`],
+                  },
+              ]
+            : []
+
+    return (
+        // 카드 전체가 하나의 단추다. 단추 안에는 문장 요소(span)만 둔다
+        <button
+            type="button"
+            disabled={isCurrent || disabled || failure !== null}
+            aria-labelledby={nameId}
+            aria-describedby={valuesId}
+            onClick={onChoose}
+            className={`flex flex-col gap-3 rounded-xl border p-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+                isCurrent
+                    ? 'cursor-default border-primary bg-primary-soft'
+                    : 'border-border bg-surface hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60'
+            }`}
+        >
+            <span className="flex items-center justify-between gap-2">
+                <span id={nameId} className="text-sm font-semibold text-text">
+                    {product.displayName}
+                </span>
+                {isCurrent && (
+                    <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-primary-strong">
+                        {COPY['etfCompare.currentBadge']}
+                    </span>
+                )}
+            </span>
+            <span id={valuesId} className="flex flex-col gap-1">
+                {rows
+                    .filter((row) => row.value)
+                    .map((row) => (
+                        <span
+                            key={row.label}
+                            className="flex items-baseline justify-between gap-3"
+                        >
+                            <span className="shrink-0 text-xs text-text-muted">
+                                {row.label}
+                            </span>
+                            <span className="text-right text-sm font-medium text-text">
+                                {row.value}
+                            </span>
+                        </span>
+                    ))}
+                {failure !== null && (
+                    <span className="text-xs text-danger">{failure}</span>
+                )}
+            </span>
+            {!isCurrent && failure === null && (
+                <span className="text-xs font-semibold text-primary">
+                    {COPY['etfCompare.choose']}
+                </span>
+            )}
+        </button>
+    )
+}
 
 /**
- * 종목을 고른 뒤 비교를 보내기까지 기다리는 시간(ms).
+ * 결과 화면 ETF 종목 3안(#156 2단계, 계약 C12a-9-3).
  *
- * 칩은 radiogroup이라 방향키로 지나가는 종목마다 선택이 바뀐다(`ChipGroup`). 그대로 요청하면
- * 지나간 종목마다 서버가 3구간을 다시 계산한다. 멈춘 종목 하나만 보낸다.
- */
-const COMPARE_DEBOUNCE_MS = 250;
-
-/**
- * 결과 화면 ETF 종목 비교(#156 2단계, 계약 C12a-9-3).
- *
- * 고를 수 있는 종목은 서버가 정하고(`GET /api/etf-products`), 종목을 고르면 저장 없이 미리보기만 한다
- * (`POST /api/compare`). 적용은 사람이 '이 종목으로 바꾸기'를 누를 때 결과 화면의 확인창을 거쳐 일어난다
- * (C12a-9-2). 숫자는 모두 서버 display 문자열이고, 종목은 상품명 대신 화면 이름으로만 보여 준다(CP-06).
+ * 열면 서버가 정한 종목(`GET /api/etf-products`)을 카드 한 장씩, 한 번에 보여 준다. 지금 종목이 아닌 종목의 결과는
+ * 열 때 `POST /api/compare`로 미리 받아 카드에 채운다. 카드를 누르면 확인창 없이 바로 내 계획에 적용하고(되돌리기
+ * 토스트로 돌아간다), 적용한 뒤에는 바뀐 조건과 이전 조건을 비교해 보여 준다. 숫자는 모두 서버 display 문자열이고,
+ * 종목은 상품명 대신 화면 이름으로만 보여 준다(CP-06).
  */
 export function EtfCompareSection({
-  currentProductName,
-  currentProductCode,
-  scenarioMethod,
-  revision,
-  onApply,
-  deps,
+    currentProductName,
+    currentProductCode,
+    revision,
+    onApply,
+    deps,
 }: EtfCompareSectionProps) {
-  const transport = deps ?? DEFAULT_DEPS;
-  const [open, setOpen] = useState(false);
-  const [products, setProducts] = useState<EtfProduct[] | null>(null);
-  const [listError, setListError] = useState<string | null>(null);
-  const [picked, setPicked] = useState<string | null>(null);
-  const [comparing, setComparing] = useState(false);
-  // 비교 결과는 그때의 revision과 함께 둔다. 내 계획이 바뀌면 표의 '현재' 열이 지금 계획과 달라 보여 주지 않는다
-  const [result, setResult] = useState<{
-    view: ComparisonView;
-    revision: number | null;
-    productCode: string;
-  } | null>(null);
-  const [compareError, setCompareError] = useState<string | null>(null);
-  // 비교를 요청할 때마다 올린다. 먼저 보낸 요청의 늦은 응답이 나중에 고른 종목의 결과를 덮어쓰지 않게 한다
-  const generation = useRef(0);
-  // 목록 요청이 날아가 있는 동안 또 보내지 않는다(응답 전에 닫고 다시 열거나 다시 시도를 두 번 눌러도 한 번이다)
-  const loadingProducts = useRef(false);
-  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const transport = deps ?? DEFAULT_DEPS
+    const [open, setOpen] = useState(false)
+    const [products, setProducts] = useState<EtfProduct[] | null>(null)
+    const [options, setOptions] = useState<Options | null>(null)
+    const [loading, setLoading] = useState(false)
+    const [listError, setListError] = useState<string | null>(null)
+    const [choosing, setChoosing] = useState(false)
+    const [applied, setApplied] = useState<Applied | null>(null)
+    // 받아 오기를 시작할 때마다 올린다. 늦게 온 응답이 더 나중 상태를 덮어쓰지 않게 한다
+    const generation = useRef(0)
+    // 요청이 날아가 있는 동안 또 보내지 않는다(응답 전에 닫고 다시 열거나 다시 시도를 두 번 눌러도 한 번이다)
+    const loadingRef = useRef(false)
+    // 적용 요청이 날아가 있는 동안 다른 카드를 눌러도 보내지 않는다
+    const choosingRef = useRef(false)
 
-  useEffect(() => () => clearTimeout(debounce.current ?? undefined), []);
+    async function loadOptions() {
+        if (loadingRef.current) return
+        loadingRef.current = true
+        setLoading(true)
+        setListError(null)
+        generation.current += 1
+        const mine = generation.current
+        const loadedAt = revision
 
-  // 종목 코드가 기준이다. 이름은 서버 두 곳(display와 종목 목록)이 글자까지 같아야 맞아서 코드가 없을 때만 쓴다
-  const currentProduct =
-    products?.find((product) => product.code === currentProductCode) ??
-    products?.find((product) => product.displayName === currentProductName);
+        // 종목 목록은 한 번만 받는다. 종목은 자주 바뀌지 않는다
+        const listed =
+            products !== null
+                ? { ok: true as const, products }
+                : await fetchEtfProducts(transport)
+        if (!listed.ok) {
+            loadingRef.current = false
+            setLoading(false)
+            setListError(listed.message)
+            return
+        }
+        setProducts(listed.products)
 
-  function clearResult() {
-    generation.current += 1;
-    setResult(null);
-    setCompareError(null);
-  }
-
-  async function loadProducts() {
-    if (loadingProducts.current) return;
-    loadingProducts.current = true;
-    setListError(null);
-    const loaded = await fetchEtfProducts(transport);
-    loadingProducts.current = false;
-    if (loaded.ok) {
-      setProducts(loaded.products);
-      return;
+        const currentCode = findCurrent(
+            listed.products,
+            currentProductCode,
+            currentProductName,
+        )?.code
+        const others = listed.products.filter(
+            (product) => product.code !== currentCode,
+        )
+        const compared = await Promise.all(
+            others.map(
+                async (product) =>
+                    [
+                        product.code,
+                        await requestEtfComparison(transport, product.code),
+                    ] as const,
+            ),
+        )
+        loadingRef.current = false
+        setLoading(false)
+        if (generation.current !== mine) return
+        setOptions({ revision: loadedAt, byCode: Object.fromEntries(compared) })
     }
-    setListError(loaded.message);
-  }
 
-  function openSection() {
-    setOpen(true);
-    // 목록은 처음 열 때만 가져온다. 종목은 자주 바뀌지 않는다
-    if (products === null) void loadProducts();
-  }
-
-  async function compare(productCode: string) {
-    const mine = generation.current;
-    const comparedAt = revision;
-    const compared = await requestEtfComparison(transport, productCode);
-    if (generation.current !== mine) return;
-    setComparing(false);
-    if (compared.ok) {
-      setResult({ view: compared.view, revision: comparedAt, productCode });
-      return;
+    function openSection() {
+        setOpen(true)
+        // 같은 계획에서 이미 받아 둔 결과가 있으면 다시 받지 않는다
+        if (options === null || options.revision !== revision) {
+            void loadOptions()
+        }
     }
-    setCompareError(compared.message);
-  }
 
-  function pick(productCode: string) {
-    setPicked(productCode);
-    clearTimeout(debounce.current ?? undefined);
-    clearResult();
-    if (productCode === currentProduct?.code) {
-      setComparing(false);
-      return;
+    async function choose(product: EtfProduct) {
+        const option = freshOptions?.byCode[product.code]
+        if (
+            choosingRef.current ||
+            freshOptions === null ||
+            freshOptions.revision === null ||
+            option?.ok !== true
+        ) {
+            return
+        }
+        choosingRef.current = true
+        setChoosing(true)
+        const newRevision = await onApply({
+            changes: { etfProductCode: product.code },
+            revision: freshOptions.revision,
+        })
+        choosingRef.current = false
+        setChoosing(false)
+        if (newRevision === null) return
+        generation.current += 1
+        setApplied({ view: option.view, revision: newRevision })
+        setOptions(null)
+        setOpen(false)
     }
-    setComparing(true);
-    debounce.current = setTimeout(() => void compare(productCode), COMPARE_DEBOUNCE_MS);
-  }
 
-  if (!currentProductName) return null;
+    if (!currentProductName) return null
 
-  const label = COPY["etfCompare.sectionLabel"];
+    // 받아 둔 결과는 그때의 revision과 함께 둔다. 내 계획이 바뀌면 '지금 종목'이 달라져 쓰지 않는다
+    const freshOptions =
+        options !== null && options.revision === revision ? options : null
+    const isStale = options !== null && options.revision !== revision
+    // 적용 직후 비교는 그 적용으로 생긴 revision에서만 보여 준다(그 뒤 되돌리기 등으로 바뀌면 지운다)
+    const shownApplied =
+        applied !== null && applied.revision === revision ? applied : null
+    const currentProduct =
+        products === null
+            ? undefined
+            : findCurrent(products, currentProductCode, currentProductName)
+    // 지금 종목 카드의 값은 어느 비교든 current 쪽에 들어 있다
+    const currentView =
+        Object.values(freshOptions?.byCode ?? {}).find(
+            (option): option is { ok: true; view: ComparisonView } =>
+                option.ok,
+        )?.view ?? null
+    const label = COPY['etfCompare.sectionLabel']
 
-  if (!open) {
+    if (!open) {
+        return (
+            <section
+                aria-label={label}
+                className="flex flex-col items-start gap-3 rounded-xl border border-border bg-surface p-5"
+            >
+                <p className="text-sm text-text-muted">
+                    {COPY['etfCompare.current'].replace(
+                        '{product}',
+                        currentProductName,
+                    )}
+                </p>
+                <Button variant="secondary" onClick={openSection}>
+                    {COPY['etfCompare.open']}
+                </Button>
+                {shownApplied !== null && (
+                    <div className="flex w-full flex-col gap-2">
+                        <p
+                            role="status"
+                            className="text-sm font-semibold text-text"
+                        >
+                            {COPY['etfCompare.appliedTitle']}
+                        </p>
+                        <CompareTable
+                            view={shownApplied.view}
+                            variant="applied"
+                        />
+                    </div>
+                )}
+            </section>
+        )
+    }
+
     return (
-      <section aria-label={label} className="flex flex-col items-start gap-3 rounded-xl border border-border bg-surface p-5">
-        <p className="text-sm text-text-muted">{COPY["etfCompare.current"].replace("{product}", currentProductName)}</p>
-        <Button variant="secondary" onClick={openSection}>
-          {COPY["etfCompare.open"]}
-        </Button>
-      </section>
-    );
-  }
+        <section
+            aria-label={label}
+            className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-5"
+        >
+            <div>
+                <h2 className="text-base font-semibold text-text">
+                    {COPY['etfCompare.title']}
+                </h2>
+                <p className="mt-1 text-xs leading-relaxed text-text-muted">
+                    {COPY['etfCompare.notice']}
+                </p>
+            </div>
 
-  const selected = picked ?? currentProduct?.code ?? null;
-  // 안내는 사람이 직접 지금 종목을 고른 뒤에만 보여 준다(처음 열면 지금 종목이 이미 선택돼 있다)
-  const isCurrentPicked = picked !== null && picked === currentProduct?.code;
-  const fresh = result !== null && result.revision === revision ? result : null;
-  // 결과는 남아 있는데 계획이 바뀌었다면 표의 '현재' 열이 더 이상 내 계획이 아니다
-  const isStale = result !== null && result.revision !== revision;
-  // 계획이 없으면(revision null) 적용할 곳이 없다
-  const applyRequest: EtfApplyRequest | null =
-    fresh !== null && fresh.revision !== null
-      ? { comparison: fresh.view, changes: { etfProductCode: fresh.productCode }, revision: fresh.revision }
-      : null;
-  const comparison = fresh?.view ?? null;
-  const methodText = scenarioMethodLine(scenarioMethod, comparison?.changed?.assumptions?.etfProductName ?? undefined);
-  const hasChoices = products !== null && products.length > 1;
+            {listError !== null && (
+                <div className="flex flex-col items-start gap-2">
+                    <p role="status" className="text-sm text-text-muted">
+                        {listError}
+                    </p>
+                    <Button
+                        variant="secondary"
+                        onClick={() => void loadOptions()}
+                    >
+                        {COPY['etfCompare.retry']}
+                    </Button>
+                </div>
+            )}
 
-  return (
-    <section aria-label={label} className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-5">
-      <div>
-        <h2 className="text-base font-semibold text-text">{COPY["etfCompare.title"]}</h2>
-        <p className="mt-1 text-xs leading-relaxed text-text-muted">{COPY["etfCompare.notice"]}</p>
-      </div>
+            {loading && (
+                <p role="status" className="text-sm text-text-muted">
+                    {COPY['etfCompare.loading']}
+                </p>
+            )}
 
-      {listError !== null && (
-        <div className="flex flex-col items-start gap-2">
-          <p role="status" className="text-sm text-text-muted">
-            {listError}
-          </p>
-          <Button variant="secondary" onClick={() => void loadProducts()}>
-            {COPY["etfCompare.retry"]}
-          </Button>
-        </div>
-      )}
+            {isStale && !loading && (
+                <div className="flex flex-col items-start gap-2">
+                    <p role="status" className="text-sm text-text-muted">
+                        {COPY['etfCompare.planChanged']}
+                    </p>
+                    <Button
+                        variant="secondary"
+                        onClick={() => void loadOptions()}
+                    >
+                        {COPY['etfCompare.retry']}
+                    </Button>
+                </div>
+            )}
 
-      {hasChoices && (
-        <ChipGroup
-          label={COPY["etfCompare.pickLabel"]}
-          options={products.map((product) => ({ value: product.code, label: product.displayName }))}
-          value={selected}
-          onChange={pick}
-        />
-      )}
+            {products !== null && products.length <= 1 && (
+                <p role="status" className="text-sm text-text-muted">
+                    {COPY['etfCompare.onlyOne']}
+                </p>
+            )}
 
-      {products !== null && !hasChoices && (
-        <p role="status" className="text-sm text-text-muted">
-          {COPY["etfCompare.onlyOne"]}
-        </p>
-      )}
+            {products !== null &&
+                products.length > 1 &&
+                freshOptions !== null && (
+                    <div
+                        role="group"
+                        aria-label={COPY['etfCompare.pickLabel']}
+                        className="grid gap-4 sm:grid-cols-3"
+                    >
+                        {products.map((product) => {
+                            const isCurrent = product.code === currentProduct?.code
+                            const option = freshOptions.byCode[product.code]
+                            return (
+                                <EtfOptionCard
+                                    key={product.code}
+                                    product={product}
+                                    isCurrent={isCurrent}
+                                    view={
+                                        isCurrent
+                                            ? currentView
+                                            : option?.ok
+                                              ? option.view
+                                              : null
+                                    }
+                                    failure={
+                                        option !== undefined && !option.ok
+                                            ? option.message
+                                            : null
+                                    }
+                                    disabled={choosing}
+                                    onChoose={() => void choose(product)}
+                                />
+                            )
+                        })}
+                    </div>
+                )}
 
-      {hasChoices && isCurrentPicked && (
-        <p role="status" className="text-sm text-text-muted">
-          {COPY["etfCompare.sameProduct"]}
-        </p>
-      )}
-
-      {isStale && (
-        <p role="status" className="text-sm text-text-muted">
-          {COPY["etfCompare.planChanged"]}
-        </p>
-      )}
-
-      {comparing && (
-        <p role="status" className="text-sm text-text-muted">
-          {COPY["etfCompare.comparing"]}
-        </p>
-      )}
-
-      {compareError !== null && (
-        <p role="alert" className="text-sm text-danger">
-          {compareError}
-        </p>
-      )}
-
-      {comparison !== null && (
-        <div className="flex flex-col items-start gap-3">
-          {methodText && <p className="text-xs text-text-muted">{methodText}</p>}
-          <CompareTable view={comparison} />
-          {applyRequest !== null && (
-            <Button onClick={() => onApply(applyRequest)}>{COPY["etfCompare.apply"]}</Button>
-          )}
-        </div>
-      )}
-
-      <Button variant="ghost" className="self-start" onClick={() => setOpen(false)}>
-        {COPY["etfCompare.close"]}
-      </Button>
-    </section>
-  );
+            <Button
+                variant="ghost"
+                className="self-start"
+                onClick={() => setOpen(false)}
+            >
+                {COPY['etfCompare.close']}
+            </Button>
+        </section>
+    )
 }
