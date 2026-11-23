@@ -42,9 +42,17 @@ _KO_DIGIT_VALUES = dict(zip("일이삼사오육칠팔구", range(1, 10), strict=
 _KO_UNIT_VALUES = {"십": 10, "백": 100, "천": 1000}
 # 억·만 앞의 숫자+한글 단위 혼합(5천, 1천5백, 오천)과 한글 한 자리+억(일억)을 아라비아 숫자로 바꾼다(#231).
 # 억·만이 바로 뒤에 올 때만 바꿔서 "이번", "천천히" 같은 말은 건드리지 않는다. "1억5천만"의 5천처럼 억 바로 뒤는 허용한다
+# "만들다"의 만과 "천만에요"는 단위가 아니다(#236)
 _MIXED_NUMERAL = re.compile(
-    rf"(?:(?<=억)|(?<![\d.가-힣]))(?:(?:(?:\d+|{_KO_DIGIT})?[십백천])+(?:\d+|{_KO_DIGIT})?(?=\s*[억만])"
+    rf"(?:(?<=억)|(?<![\d.가-힣])){_KO_IDIOM}"
+    rf"(?:(?:(?:\d+|{_KO_DIGIT})?[십백천])+(?:\d+|{_KO_DIGIT})?(?=\s*(?:억|만(?!들)))"
     rf"|{_KO_DIGIT}(?=\s*억))"
+)
+# 억 뒤의 천·백은 만을 생략해도 천만·백만이다("1억 2천", "1억 이천오백"). _MIXED_NUMERAL 앞에서 만을 채운다(#236).
+# 천·백으로 끝나고 조사·원이나 한글 아닌 글자가 뒤따를 때만 채워서 "1억 천천히", "1억 백세", "1억 십년"은 건드리지 않는다
+_EOK_OMITTED_MAN = re.compile(
+    rf"(?<=억)(\s*(?:(?:\d+|{_KO_DIGIT})?[천백])+)"
+    r"(?=\s*원|으로|로|이|가|은|는|을|를|도|면|쯤|까지|정도|짜리|에(?!요)|(?![\d가-힣]))"
 )
 _AMOUNT_EXPR = re.compile(
     rf"({_NUMBER.pattern})\s*(?:억\s*(?:({_NUMBER.pattern})\s*만\s*원?)?|만\s*원?|원)?"
@@ -89,7 +97,8 @@ def _mixed_numeral_value(token: str) -> int:
 
 def _candidate_krw_amounts(text: str) -> set[int]:
     """발화의 숫자·단위 표현에서 나올 수 있는 원 단위 금액 후보 집합(기존 _NUMBER·_THOUSANDS_COMMA 재사용)."""
-    cleaned = _MIXED_NUMERAL.sub(lambda m: str(_mixed_numeral_value(m.group(0))), _THOUSANDS_COMMA.sub("", text))
+    cleaned = _EOK_OMITTED_MAN.sub(r"\1만", _THOUSANDS_COMMA.sub("", text))
+    cleaned = _MIXED_NUMERAL.sub(lambda m: str(_mixed_numeral_value(m.group(0))), cleaned)
     candidates: set[int] = set()
     for match in _AMOUNT_EXPR.finditer(cleaned):
         full = match.group(0)
