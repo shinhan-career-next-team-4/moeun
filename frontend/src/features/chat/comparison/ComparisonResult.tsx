@@ -1,13 +1,81 @@
 import type { ChatMessage } from "../types";
-import { ACHIEVEMENT_CHANGE_LABELS, APPLY_LABEL, COLLAPSED_LABEL, CONDITION_LABELS, GOAL_LABEL, LOAD_FAILED } from "./copy";
+import {
+  ACHIEVEMENT_CHANGE_LABELS,
+  APPLY_LABEL,
+  COLLAPSED_LABEL,
+  CONDITION_LABELS,
+  DIRECTION_COPY,
+  ETF_LABEL,
+  GOAL_LABEL,
+  LOAD_FAILED,
+} from "./copy";
 import { isApplyActive } from "./controller";
-import { GOAL_KEY, conditionKeysOf, type Comparison, type ComparisonSideKey } from "./types";
+import {
+  ETF_KEY,
+  GOAL_KEY,
+  conditionDisplayKey,
+  conditionKeysOf,
+  type Comparison,
+  type ComparisonSideKey,
+  type Direction,
+} from "./types";
 import type { ComparisonState } from "./useComparison";
 import { COPY } from "../../../shared/copy/copy";
 
 const ROW = "flex flex-wrap gap-2";
 // 바뀐 조건은 굵게, 배경색으로 눈에 띄게 한다(조건 없는 class라 평소 화면에 바로 적용된다).
 const CHANGED_ROW = `${ROW} font-bold bg-primary-soft`;
+
+// 결과의 변화 방향(#284). 클수록 좋은 값(예상 자산·목표 대비)만 쓴다. 색만으로 구분하지 않게 기호와 낭독 문구를 함께 둔다
+const RESULT_TONE: Record<Direction, { className: string; mark: string; spoken: string }> = {
+  up: { className: "text-success", mark: "▲", spoken: DIRECTION_COPY.better },
+  down: { className: "text-danger", mark: "▼", spoken: DIRECTION_COPY.worse },
+  same: { className: "text-text-muted", mark: "–", spoken: DIRECTION_COPY.same },
+};
+// 조건 자체에는 좋고 나쁨이 없다. 늘림·줄임만 중립 강조색으로 보인다
+const CONDITION_MARK: Record<Direction, { mark: string; spoken: string }> = {
+  up: { mark: "▲", spoken: DIRECTION_COPY.increased },
+  down: { mark: "▼", spoken: DIRECTION_COPY.decreased },
+  same: { mark: "–", spoken: DIRECTION_COPY.same },
+};
+
+function labelOf(key: string): string {
+  if (key === GOAL_KEY) return GOAL_LABEL;
+  if (key === ETF_KEY) return ETF_LABEL;
+  return CONDITION_LABELS[key];
+}
+
+/** 실제로 바뀐 항목만 카드 행 순서대로 잇는다(#284). */
+function titleOf(data: Comparison): string {
+  const changed = conditionKeysOf(data.changedKeys).filter((key) => data.changedKeys.has(key));
+  return DIRECTION_COPY.title.replace("{conditions}", changed.map(labelOf).join("·"));
+}
+
+/**
+ * 결과 값의 변화. 값 칸(testId)에는 서버 display 문자열만 둔다. text가 없으면(목표가 바뀐 목표 대비: 서버에 차이 값이
+ * 없다) 방향만 보인다.
+ */
+function ResultChange({ testId, direction, text }: { testId: string; direction: Direction; text?: string }) {
+  const tone = RESULT_TONE[direction];
+  return (
+    <span data-testid={`${testId}-tone`} data-direction={direction} className={`font-semibold ${tone.className}`}>
+      <span aria-hidden="true">{tone.mark} </span>
+      {text !== undefined && <span data-testid={testId}>{text}</span>}
+      <span className="sr-only">{tone.spoken}</span>
+    </span>
+  );
+}
+
+function ConditionChange({ direction }: { direction: Direction | undefined }) {
+  if (direction === undefined) return null;
+  const mark = CONDITION_MARK[direction];
+  return (
+    <span data-testid="chat-comparison-condition-direction" data-direction={direction} className="text-primary-strong">
+      <span aria-hidden="true">{mark.mark}</span>
+      <span className="sr-only">{mark.spoken}</span>
+    </span>
+  );
+}
 
 function ApplyButton({ comparison, messageId, active }: { comparison: ComparisonState; messageId: number; active: boolean }) {
   if (comparison.hideApply) return null;
@@ -53,8 +121,12 @@ function ExceededSides({ data, exceeded }: { data: Comparison; exceeded: Compari
 
 function Details({ data }: { data: Comparison }) {
   const note = goalNote(data);
+  const goalChanged = data.changedKeys.has(GOAL_KEY);
   return (
     <>
+      <p data-testid="chat-comparison-title" className="font-semibold">
+        {titleOf(data)}
+      </p>
       {conditionKeysOf(data.changedKeys).map((key) => {
         const changed = data.changedKeys.has(key);
         return (
@@ -65,21 +137,32 @@ function Details({ data }: { data: Comparison }) {
             data-changed={changed ? "true" : "false"}
             className={changed ? CHANGED_ROW : ROW}
           >
-            <span data-testid="chat-comparison-label">{key === GOAL_KEY ? GOAL_LABEL : CONDITION_LABELS[key]}</span>
-            <span data-testid="chat-comparison-current">{data.display[`conditions.current.${key}`]}</span>
+            <span data-testid="chat-comparison-label">{labelOf(key)}</span>
+            <span data-testid="chat-comparison-current">{data.display[conditionDisplayKey("current", key)]}</span>
             <span aria-hidden="true">→</span>
-            <span data-testid="chat-comparison-changed">{data.display[`conditions.changed.${key}`]}</span>
+            <span data-testid="chat-comparison-changed">{data.display[conditionDisplayKey("changed", key)]}</span>
+            {changed && <ConditionChange direction={data.conditionDirections[key]} />}
           </div>
         );
       })}
-      {data.scenarios.map(({ scenario, achievementChange }) => (
+      {data.scenarios.map(({ scenario, achievementChange, assetDirection, gapDirection }) => (
         <div key={scenario} data-testid="chat-comparison-scenario" data-scenario={scenario} className={ROW}>
           <span>{COPY[`scenario.${scenario}` as keyof typeof COPY] ?? scenario}</span>
           <span data-testid="chat-comparison-current">{data.display[`current.${scenario}.afterTaxAsset`]}</span>
           <span aria-hidden="true">→</span>
           <span data-testid="chat-comparison-changed">{data.display[`changed.${scenario}.afterTaxAsset`]}</span>
-          <span data-testid="chat-comparison-delta">{data.display[`diff.${scenario}.afterTaxAssetDelta`]}</span>
+          <ResultChange
+            testId="chat-comparison-delta"
+            direction={assetDirection}
+            text={data.display[`diff.${scenario}.afterTaxAssetDelta`]}
+          />
           <span data-testid="chat-comparison-gap">{data.display[`changed.${scenario}.gapToGoal`]}</span>
+          {/* 목표가 그대로면 목표 대비 차이 = 예상 자산 차이(목표 대비 = 자산 − 목표). 목표가 바뀌면 서버에 차이 값이 없어 방향만 */}
+          <ResultChange
+            testId="chat-comparison-gap-delta"
+            direction={gapDirection}
+            text={goalChanged ? undefined : data.display[`diff.${scenario}.afterTaxAssetDelta`]}
+          />
           <span data-testid="chat-comparison-achievement">{ACHIEVEMENT_CHANGE_LABELS[achievementChange] ?? ""}</span>
         </div>
       ))}
