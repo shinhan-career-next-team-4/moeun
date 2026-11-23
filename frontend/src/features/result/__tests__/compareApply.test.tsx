@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { planStore } from "../../../api";
+import NavigateBridge from "../../../app/NavigateBridge";
 import { INPUT_PATH, LOGIN_PATH, RESULT_PATH } from "../../../app/routes";
 import comparisonMock from "../../../mocks/chat/get-comparison.200.json";
 import afterApplyMock from "../../../mocks/plan/get-plan.200-after-apply.json";
@@ -55,6 +56,7 @@ function stubServer(applyResponse: () => Response) {
 function renderResult() {
   render(
     <MemoryRouter initialEntries={[RESULT_PATH]}>
+      <NavigateBridge />
       <Routes>
         <Route path={RESULT_PATH} element={<ResultPage />} />
         <Route path={INPUT_PATH} element={<div>입력화면</div>} />

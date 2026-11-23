@@ -124,6 +124,19 @@ describe("비교 영역 (#65, FR-CMP-01~03)", () => {
     expect((screen.getByRole("checkbox", { name: "월 저축액" }) as HTMLInputElement).checked).toBe(false);
   });
 
+  it("체크를 풀어 숨긴 조건의 입력값은 보내지 않는다(적용까지 이어지므로)", () => {
+    const { onCompare } = renderSection();
+
+    pick("월 저축액");
+    fireEvent.change(field("월 저축액"), { target: { value: "50" } });
+    pick("목표 기간");
+    fireEvent.change(field("목표 기간"), { target: { value: "48" } });
+    pick("월 저축액");
+    fireEvent.click(screen.getByRole("button", { name: "비교하기" }));
+
+    expect(onCompare).toHaveBeenCalledWith({ targetPeriodMonths: 48 });
+  });
+
   it("조건을 고르지 않으면 비교하기를 누를 수 없다", () => {
     renderSection();
 

@@ -306,15 +306,11 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
     })
 
     // 비교 영역 연결(#65, FR-CMP-02)
-    it('결과 화면에 비교 영역이 있고 실서버 모드에서는 비교 대신 안내를 보여 준다', async () => {
-        vi.stubGlobal(
-            'fetch',
-            vi
-                .fn()
-                .mockResolvedValue(
-                    jsonResponse(200, planMock.responses[0].body),
-                ),
-        )
+    it('결과 화면에 비교 영역이 있고 실서버 모드에서는 POST /api/compare로 비교한다(#68)', async () => {
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValue(jsonResponse(200, planMock.responses[0].body))
+        vi.stubGlobal('fetch', fetchMock)
         renderResult()
 
         expect(await screen.findByLabelText('조건 변경 비교')).toBeTruthy()
@@ -328,9 +324,11 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
         )
 
         await waitFor(() => {
-            expect(screen.getByRole('status').textContent).toContain(
-                '조건 변경 비교 API',
-            )
+            const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/api/compare'))
+            expect(call?.[1]?.method).toBe('POST')
+            expect(JSON.parse(String(call?.[1]?.body))).toEqual({
+                conditionChanges: { monthlySavingAmount: 1500000 },
+            })
         })
     })
     // 목표 대비 가로 막대 연결(#146)

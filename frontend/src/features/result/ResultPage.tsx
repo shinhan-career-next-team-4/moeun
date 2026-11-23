@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { api, planStore } from "../../api";
 import { resolveApiMode } from "../../api/client";
 import { ApiError } from "../../api/errors";
@@ -6,7 +6,14 @@ import { COPY } from "../../shared/copy/copy";
 import { Button } from "../../shared/ui";
 import { AlternativeSection, demoAlternatives } from "../alternative";
 import type { AlternativeValues } from "../alternative/types";
-import { CompareSection, requestComparison, type ComparisonView, type ConditionChanges } from "../compare";
+import {
+  applyComparison,
+  CompareSection,
+  ConfirmApplyDialog,
+  requestComparison,
+  type ComparisonView,
+  type ConditionChanges,
+} from "../compare";
 import { AssumptionsSection } from "./AssumptionsSection";
 import { Disclaimer } from "./Disclaimer";
 import { GoalBar } from "./GoalBar";
@@ -14,6 +21,7 @@ import { PlanConditionBar } from "./PlanConditionBar";
 import { ResultLayout } from "./ResultLayout";
 import { ResultChart } from "./ResultChart";
 import { ScenarioCards } from "./ScenarioCards";
+import { UndoToast } from "./UndoToast";
 import type { ResultPlanView } from "./types";
 
 const subscribe = (listener: () => void) => planStore.subscribe(listener);
@@ -21,7 +29,7 @@ const getSnapshot = () => planStore.getState();
 
 /** 결과 화면(#49·#50, C12a-7). 모든 숫자 문자열은 display를 그대로 쓴다. */
 export function ResultPage() {
-  const { view } = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const { view, revision } = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const [loadError, setLoadError] = useState(false);
   // 비교 영역(#65)은 프론트 상태만 쓴다. 적용 전까지 내 계획은 바뀌지 않는다(FR-CMP-02)
   const [comparison, setComparison] = useState<ComparisonView | null>(null);
@@ -29,27 +37,95 @@ export function ResultPage() {
   const [compareError, setCompareError] = useState<string | null>(null);
   // 대안 '비교하기'가 채워 넣는 조건. 바뀔 때마다 비교 영역을 다시 그린다
   const [prefill, setPrefill] = useState<{ seq: number; changes: ConditionChanges } | null>(null);
+  // 지금 보이는 비교를 만든 조건과 그때의 revision. 내 계획이 바뀌면 그 비교는 적용할 수 없다(C12a-9-2)
+  const [compared, setCompared] = useState<{ changes: ConditionChanges; revision: number } | null>(null);
+  // 적용 확인창(#68). 적용에 성공하면 비교 영역을 비우려고 seq를 올려 다시 그린다
+  const [confirming, setConfirming] = useState<ConditionChanges | null>(null);
+  const [applying, setApplying] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [applyFeedback, setApplyFeedback] = useState<string | null>(null);
+  const [resetSeq, setResetSeq] = useState(0);
+  // 되돌리기 토스트(#51). 적용마다 id를 올려 이전 토스트의 늦은 종료가 새 토스트를 닫지 못하게 한다
+  const [undo, setUndo] = useState<{ revision: number; id: number } | null>(null);
+  const dismissUndo = useCallback(() => setUndo(null), []);
 
   async function compare(changes: ConditionChanges) {
+    const comparedAt = planStore.getState().revision;
     setComparing(true);
     setCompareError(null);
+    setApplyFeedback(null);
     const result = await requestComparison(
-      { mode: resolveApiMode(import.meta.env), request: (method, path) => api.request(method as "GET", path) },
+      { mode: resolveApiMode(import.meta.env), request: (method, path, body) => api.request(method, path, body) },
       changes,
     );
     setComparing(false);
     if (result.ok) {
       setComparison(result.view);
+      setCompared(comparedAt === null ? null : { changes, revision: comparedAt });
       return;
     }
     setComparison(null);
+    setCompared(null);
     setCompareError(result.message);
   }
 
   function resetComparison() {
     setComparison(null);
+    setCompared(null);
     setCompareError(null);
     setPrefill(null);
+  }
+
+  function openConfirm(changes: ConditionChanges) {
+    setConfirmError(null);
+    setConfirming(changes);
+  }
+
+  function closeConfirm() {
+    setConfirming(null);
+    setConfirmError(null);
+  }
+
+  /** P-6 적용(#68, C12a-9-2). 코드별 동작은 대화 적용(F-5, C12b-7-2)과 같다 */
+  async function confirmApply() {
+    if (confirming === null || compared === null || applying) return;
+    const sent = compared.revision;
+    setApplying(true);
+    setConfirmError(null);
+    const outcome = await applyComparison(
+      { request: (method, path, body) => api.request(method, path, body) },
+      { expectedRevision: sent, changes: confirming },
+    );
+    setApplying(false);
+    switch (outcome.kind) {
+      case "applied":
+        closeConfirm();
+        resetComparison();
+        setResetSeq((seq) => seq + 1);
+        planStore.acceptRevision(outcome.revision);
+        setUndo((prev) => ({ revision: outcome.revision, id: (prev?.id ?? 0) + 1 }));
+        planStore.loadPlan({ fresh: true }).catch(() => {});
+        return;
+      case "planChanged":
+        closeConfirm();
+        setApplyFeedback(COPY["toast.applyPlanChanged"]);
+        planStore.loadPlan({ fresh: true }).catch(() => {});
+        return;
+      case "noPlan":
+        closeConfirm();
+        planStore.acceptNoPlan(sent);
+        return;
+      case "notApplicable":
+        closeConfirm();
+        setCompared(null);
+        setApplyFeedback(COPY["toast.applyNotApplicable"]);
+        return;
+      case "unauthenticated":
+        closeConfirm();
+        return;
+      case "failed":
+        setConfirmError(COPY["toast.applyFailed"]);
+    }
   }
 
   /** 대안 카드의 '비교하기'. 비교 영역에 조건만 채우고 저장은 하지 않는다(FR-ALT-04, D-046) */
@@ -166,7 +242,7 @@ export function ResultPage() {
             />
             {/* 비교 영역(#65). 조건을 바꿔 현재 조건과 나란히 본다 */}
             <CompareSection
-              key={prefill?.seq ?? 0}
+              key={`${prefill?.seq ?? 0}-${resetSeq}`}
               initialChanges={prefill?.changes}
               currentDisplay={display}
               comparison={comparison}
@@ -174,13 +250,31 @@ export function ResultPage() {
               error={compareError}
               onCompare={compare}
               onReset={resetComparison}
+              comparedChanges={compared?.changes ?? null}
+              applyEnabled={compared !== null && compared.revision === revision}
+              onApply={openConfirm}
             />
+            {applyFeedback && (
+              <p role="status" className="text-sm text-text-muted">
+                {applyFeedback}
+              </p>
+            )}
           </>
         )}
 
         <AssumptionsSection assumptions={result.assumptions} display={display} />
         <Disclaimer />
       </div>
+      {confirming !== null && comparison !== null && (
+        <ConfirmApplyDialog
+          comparison={comparison}
+          applying={applying}
+          error={confirmError}
+          onCancel={closeConfirm}
+          onConfirm={() => void confirmApply()}
+        />
+      )}
+      <UndoToast key={undo?.id ?? 0} appliedRevision={undo?.revision ?? null} onDismiss={dismissUndo} onFeedback={setApplyFeedback} />
     </ResultLayout>
   );
 }

@@ -24,6 +24,11 @@ interface CompareSectionProps {
   onReset(): void;
   /** 대안 카드의 '비교하기'가 채워 넣은 조건. 바뀌면 ResultPage가 key로 다시 그린다 */
   initialChanges?: ConditionChanges;
+  /** 지금 보이는 비교 결과를 만든 조건. 입력이 이것과 같을 때만 적용할 수 있다(C12a-9-2) */
+  comparedChanges?: ConditionChanges | null;
+  /** 부모가 적용을 허용하는지(비교한 뒤 내 계획이 그대로이고 적용이 거절되지 않음) */
+  applyEnabled?: boolean;
+  onApply?(changes: ConditionChanges): void;
 }
 
 type Inputs = Partial<Record<ConditionKey, string>>;
@@ -63,6 +68,11 @@ function toChanges(inputs: Inputs, ratio: RatioInput, useRatio: boolean): Condit
 
   if (Object.keys(changes).length === 0) return { error: COPY["compare.noChanges"] };
   return changes;
+}
+
+function sameChanges(a: ConditionChanges, b: ConditionChanges): boolean {
+  const keys = Object.keys(a) as ConditionKey[];
+  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
 }
 
 /** 넘겨받은 조건을 입력칸 문자열로 되돌린다. 단위 변환만 한다(C12a-5-6). */
@@ -117,6 +127,9 @@ export function CompareSection({
   onCompare,
   onReset,
   initialChanges,
+  comparedChanges = null,
+  applyEnabled = false,
+  onApply,
 }: CompareSectionProps) {
   const copy: CopyMap = COPY;
   const initial = initialChanges ?? {};
@@ -125,13 +138,22 @@ export function CompareSection({
   const [ratio, setRatio] = useState<RatioInput>(() => toRatio(initial));
   const [inputError, setInputError] = useState<string | null>(null);
   const useRatio = picked.includes("savingsRatioPct");
+  // 고른 조건만 요청 값이 된다. 입력을 고치면 다시 비교할 때까지 적용할 수 없다
+  const pickedInputs = Object.fromEntries(Object.entries(inputs).filter(([key]) => picked.includes(key as ConditionKey)));
+  const currentChanges = toChanges(pickedInputs, ratio, useRatio);
+  const canApply =
+    applyEnabled &&
+    comparison?.applicable === true &&
+    comparedChanges !== null &&
+    !("error" in currentChanges) &&
+    sameChanges(currentChanges, comparedChanges);
 
   function toggle(key: ConditionKey) {
     setPicked((prev) => (prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]));
   }
 
   function compare() {
-    const result = toChanges(inputs, ratio, useRatio);
+    const result = currentChanges;
     if ("error" in result) {
       setInputError(result.error);
       return;
@@ -220,7 +242,13 @@ export function CompareSection({
         <Button variant="secondary" onClick={reset}>
           {COPY["compare.reset"]}
         </Button>
-        <Button variant="ghost" disabled title={COPY["compare.applyPending"]}>
+        <Button
+          variant="ghost"
+          disabled={!canApply}
+          onClick={() => {
+            if (canApply && comparedChanges) onApply?.(comparedChanges);
+          }}
+        >
           {COPY["compare.apply"]}
         </Button>
       </div>
