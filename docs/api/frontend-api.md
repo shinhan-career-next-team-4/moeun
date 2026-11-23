@@ -525,7 +525,7 @@ FR-PLAN-05·06, FR-RES-01~07, FR-INP-11, NFR-INT-02, D-010, D-062, D-072.
 | 3구간(FR-RES-03, #50) | `["GOOD","AVG","BAD"]` 고정 순서로 돌며 `result.scenarios`에 있는 것만 그린다. 칸마다 `display["<S>.afterTaxAsset"]`, `["<S>.gapToGoal"]`, 도달 시점은 `isAchieved`면 `display["<S>.goalReachMonth"]`, 아니면 문구표 `result.notReachedInPeriod`. 아래 고지 한 줄은 `result.scenarioNotice`(D-029) | 시나리오 수(1이면 ETF 0%), `isAchieved` |
 | 그래프(FR-RES-04, #50) | 목표선 라벨 `display["goalAmount"]`, 가로축 양 끝 `display["calcStartMonth"]`·`display["targetMonth"]`, 시나리오 최종값 라벨 `display["S.afterTaxAsset"]`. 세로축 눈금 숫자·툴팁·점별 월 라벨은 없다(R-5) | `monthlyPoints[].afterTaxAsset`(점 위치), `result.goalAmount`(목표선 높이) |
 | 초과 안내(FR-RES-01, #49) | **문구표 `result.alreadyExceeded`**(결과 화면용) 안에 `display["goalAmount"]`, `display["conditions.heldAssets"]`. 초과 금액 없음 | `view.status === "ALREADY_EXCEEDED"` → 요약·3구간·그래프·대안 숨김, F-3 안 부름(D-062) |
-| 가정 보기(FR-RES-06, #49) | `display["assumptions.taxRatePct"]` + 문구표 `tax.note`(D-067), **추가(#150, 프론트 합의 대기)** `display["assumptions.etfProductName"]`·`["assumptions.etfGainTaxRatePct"]`(ETF가 있을 때만), `display["conditions.savingsRateInputPct"]`, `display["assumptions.savingsRateBaseMonth"]`·`["assumptions.sp500BaseDate"]`(없으면 줄 생략), 문구표 `excluded.<CODE>`, `scenarioMethod.<CODE>` | `result.assumptions.excludedItems`, `scenarioMethod`, `isDefaultSavingsRate` |
+| 가정 보기(FR-RES-06, #49) | `display["assumptions.taxRatePct"]` + 문구표 `tax.note`(D-067), **추가(#150)** `display["assumptions.etfProductName"]`·`["assumptions.etfGainTaxRatePct"]`(ETF가 있을 때만), `display["conditions.savingsRateInputPct"]`, `display["assumptions.savingsRateBaseMonth"]`·`["assumptions.sp500BaseDate"]`(없으면 줄 생략), 문구표 `excluded.<CODE>`, `scenarioMethod.<CODE>` | `result.assumptions.excludedItems`, `scenarioMethod`, `isDefaultSavingsRate` |
 | 면책(FR-RES-07, #49) | 문구표 `disclaimer` | — |
 | 입력 수정 채우기(FR-INP-11, #51) | 입력칸 값: `plan.*` → C12a-5-6 (d)(e). 현재 비중 읽기 전용 한 줄: `input.currentRatioLabel` + `display["conditions.savingsRatioPct"]`. 재로그인 보유 자산 안내: `input.heldAssetsRecheck`(D-035) + `display["calcStartMonth"]` | `plan.savingsRateInputPct === null`이면 금리 칸 비움 |
 
@@ -676,7 +676,7 @@ FR-PLAN-01·02, FR-ALT-04, FR-CMP-02, D-016, D-041, D-046, CP-07.
 - **적용**: `PlanApplyService.apply(memberId, COMPARE, {"etfProductCode": …}, expectedRevision, null)`이 새 plan_version에 종목을 저장하고 `PlanChanged`를 발행한다. 되돌리기는 직전 종목으로 돌아간다. 화면은 카드를 누르면 P-6 `POST /api/plan/apply`를 `{"path": "COMPARE", "expectedRevision": …, "conditionChanges": {"etfProductCode": "069500"}}`로 **확인창 없이** 부른다. `expectedRevision`은 그 카드를 받았을 때의 `revision`이다. 응답별 동작은 C12a-9-2 표와 같고, 확인창이 없으므로 다시 시도할 수 있는 실패(`INTERNAL_ERROR`·네트워크)는 `toast.applyFailed`로 알리고 카드는 그대로 둔다.
 - **적용 뒤**: 계획을 다시 읽어(`loadPlan`) 그래프·3구간·요약·가정 보기가 새 종목 기준이 되고, 바뀐 종목이 지금 종목이 되도록 나머지 두 종목의 미리보기를 새 계획 기준으로 다시 받는다. 열려 있는 동안 `revision`이 바뀌면(되돌리기·대화 적용 등) 받아 둔 카드는 쓰지 않고 "다시 시도"로 새로 받는다.
 - **고를 수 있는 종목**: 데이터를 적재한 종목만이다(`GET /api/etf-products`와 같은 목록). 아니거나 문자열이 아니면 `422 VALIDATION_FAILED`, `errors[0] = {"field": "etfProductCode", "reason": "NOT_AVAILABLE"}`이고 아무것도 계산·저장하지 않는다.
-- **대화(CHAT)·대안(ALTERNATIVE)**: 아직 종목을 바꿀 수 없다(`NOT_CHANGEABLE`). 대화는 D-040 개정(#160) 뒤에 연다.
+- **대화(CHAT)**: 대화로 바꾼 종목도 같은 기준으로 적용한다(F-5, C12b-7. D-097, #154). **대안(ALTERNATIVE)** 은 종목을 바꿀 수 없다(`NOT_CHANGEABLE`).
 
 ### C12a-10. 오류 공통 규칙과 코드 표
 
@@ -1119,7 +1119,7 @@ record PlanUndoResult(long planVersionId, long revision) {}
 **`applicable` 판정**(D-041, 서버 힌트)
 1. 이 메시지가 그 회원의 `COMPLETED` `RECALC_RESULT` 중 id가 가장 크고,
 2. 그 `calc_run.plan_version_id` = 지금 `plan.current_version_id`일 때 `true`.
-3. **[D-097, #268]** 단 저장된 바꾼 조건에 `etfProductCode`가 있으면(계획과 같은 종목이어도) **#154 전까지 항상 `false`** 다. F-5도 같은 비교를 `422 FIELD_NOT_CHANGEABLE`(field `etfProductCode`)로 거절한다. #154 뒤 대화 경로에 종목을 허용할 때 이 줄을 지운다. 종목을 바꾼 비교에는 `conditions.current`·`conditions.changed`에 `etfProductCode`가, `display`에 `conditions.<side>.etfProductName`이 더해진다(internal-calc C2-3·C2-6, #267). 바꾸지 않은 비교에는 키가 없다.
+3. **[D-097, #154]** 저장된 바꾼 조건에 `etfProductCode`가 있어도 1·2와 같이 판정한다(#268의 "항상 `false`"는 #154에서 없앴다). F-5는 그 종목을 새 `plan_version`에 저장한다(C12b-7-1의 6·7). 종목을 바꾼 비교에는 `conditions.current`·`conditions.changed`에 `etfProductCode`가, `display`에 `conditions.<side>.etfProductName`이 더해진다(internal-calc C2-3·C2-6, #267). 바꾸지 않은 비교에는 키가 없다.
 - 되돌리기 뒤에도 이 값이 정확한 것은 되돌리기가 새 버전을 만들기 때문이다 [D-068](C12b-7-4).
 - `currentVersionId`는 plan 공개 현재 계획 조회(#19)에서 얻는다(chat → plan).
 
@@ -1173,7 +1173,7 @@ record PlanUndoResult(long planVersionId, long revision) {}
 | 4 | chat → calc | `ChatComparisonQuery.findChatRunPlanVersion` = **기준 버전** | (실패 없음. FK로 보장) |
 | 5 | plan 서비스 | `plan` 행 없음 | `409 NO_PLAN` |
 | 6 | plan 서비스 | `ConditionValidator.validate(ChangePath.CHAT, conditionChanges)`. 허용 밖 키 | `422 FIELD_NOT_CHANGEABLE` |
-| 7 | plan 서비스 | 같은 검증의 범위·정수·소수 자릿수 | `422 VALIDATION_FAILED`(`min`·`max`·`unit`·`scale`, `minDisplay`·`maxDisplay` 없음) |
+| 7 | plan 서비스 | 같은 검증의 범위·정수·소수 자릿수. `etfProductCode`는 적재된 종목인지(#154, C12a-9-3) | `422 VALIDATION_FAILED`(`min`·`max`·`unit`·`scale`, `minDisplay`·`maxDisplay` 없음. 종목은 `reason: NOT_AVAILABLE`) |
 | 8 | plan 서비스 | `plan.revision ≠ expectedRevision` | `409 PLAN_CHANGED` |
 | 9 | plan 서비스 | `plan.current_version_id ≠ 기준 버전` | `409 STALE_COMPARISON` |
 | 10 | plan 서비스 | `plan_version` INSERT(현재 버전 복사 + 변경 키 + `source='CHAT'`, `calc_start_month`는 현재 값, D-013) → `UPDATE plan ... WHERE member_id=? AND revision=?` → **0행이면 `PlanChangedException`(런타임 예외)으로 트랜잭션 롤백** → `PlanChanged(APPLY)` 발행 | `200` |

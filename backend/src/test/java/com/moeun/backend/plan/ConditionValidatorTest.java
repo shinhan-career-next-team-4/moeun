@@ -71,11 +71,13 @@ class ConditionValidatorTest {
     }
 
     @Test
-    void chatAndAlternativeCannotChangeEtfProductYet() {
-        // 대화 경로는 D-040 개정(#160) 뒤에 연다
+    void chatCanChangeEtfProductButAlternativeCannot() {
+        // 대화 경로도 결과 화면과 같은 기준으로 종목을 바꾼다(D-097, #154)
         assertThat(validator.validateChanges(ChangePath.CHAT,
-                productChange(JsonNodeFactory.instance.stringNode("069500"))))
-                .containsExactly(FieldError.notChangeable("etfProductCode"));
+                productChange(JsonNodeFactory.instance.stringNode("069500")))).isEmpty();
+        assertThat(validator.validateChanges(ChangePath.CHAT,
+                productChange(JsonNodeFactory.instance.stringNode("999999"))))
+                .containsExactly(FieldError.notAvailable("etfProductCode"));
         assertThat(validator.validateChanges(ChangePath.ALTERNATIVE,
                 productChange(JsonNodeFactory.instance.stringNode("069500"))))
                 .containsExactly(FieldError.notChangeable("etfProductCode"));
