@@ -8,13 +8,23 @@ interface ScenarioCardsProps {
   display: Record<string, string>;
   /** 구간을 어떻게 나눴는지 가리키는 문구표 키(`result.scenarioMethodShort.<코드>`). 모르는 코드면 줄을 숨긴다. */
   scenarioMethod: string | null;
+  /** 계산에 쓴 ETF 종목의 화면 이름(`display["assumptions.etfProductName"]`). 없으면 산정 방식만 보인다(#156). */
+  productName?: string;
+}
+
+/** 산정 방식 문구 앞에 기준 종목을 붙인다. 종목 이름이 없으면 산정 방식만 돌려준다(#156). */
+function methodLine(scenarioMethod: string | null, productName: string | undefined): string | undefined {
+  const method = scenarioMethod
+    ? COPY[`result.scenarioMethodShort.${scenarioMethod}` as keyof typeof COPY]
+    : undefined;
+  if (!method) return undefined;
+  if (!productName) return method;
+  return `${COPY["result.scenarioMethodProduct"].replace("{product}", productName)} · ${method}`;
 }
 
 /** 3구간 비교 카드(FR-RES-03, #50, C12a-7). */
-export function ScenarioCards({ scenarios, display, scenarioMethod }: ScenarioCardsProps) {
-  const methodText = scenarioMethod
-    ? COPY[`result.scenarioMethodShort.${scenarioMethod}` as keyof typeof COPY]
-    : undefined;
+export function ScenarioCards({ scenarios, display, scenarioMethod, productName }: ScenarioCardsProps) {
+  const methodText = methodLine(scenarioMethod, productName);
   const byCode = new Map(scenarios.map((s) => [s.scenario, s]));
   const ordered = SCENARIO_ORDER.map((code) => byCode.get(code)).filter(
     (s): s is ScenarioResult => s !== undefined,

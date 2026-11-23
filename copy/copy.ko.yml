@@ -245,9 +245,11 @@ result:
   # W-06 와이어프레임: 3구간 머리글
   scenarioHeading: "ETF가 포함된 결과는 시기에 따라 달라요"
   # W-06 와이어프레임: 3구간 머리글 둘째 줄. 긴 설명은 '가정 보기'에 있으므로 여기서는 짧게 가리킨다
+  # 종목 이름은 화면이 display의 assumptions.etfProductName으로 조립한다(#156). 문구에 지수 이름을 박지 않는다
+  scenarioMethodProduct: "기준 종목 {product}"
   scenarioMethodShort:
-    CAGR: "기준 지수 S&P500 · 과거 데이터의 연평균 수익률로 세 구간을 나눠 계산 (가정 보기 참고)"
-    ROLLING_DISTRIBUTION: "기준 지수 S&P500 · 과거 10년 수익률로 1만 가지 경우를 계산해 세 구간 (가정 보기 참고)"
+    CAGR: "과거 데이터의 연평균 수익률로 세 구간을 나눠 계산 (가정 보기 참고)"
+    ROLLING_DISTRIBUTION: "과거 10년 수익률로 1만 가지 경우를 계산해 세 구간 (가정 보기 참고)"
   # W-04 와이어프레임: 그래프 범례
   chartLegendAvg: "평균"
   chartLegendBand: "좋았던 때~나빴던 때 범위"

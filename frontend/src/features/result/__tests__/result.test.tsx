@@ -138,8 +138,8 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
       renderResult();
 
       expect(await screen.findByText("ETF가 포함된 결과는 시기에 따라 달라요")).toBeTruthy();
-      // assumptions.scenarioMethod = ROLLING_DISTRIBUTION에 대응하는 짧은 문구표 문장
-      expect(screen.getByText(/기준 지수 S&P500 · 과거 10년 수익률로 1만 가지 경우를 계산해 세 구간/)).toBeTruthy();
+      // assumptions.scenarioMethod = ROLLING_DISTRIBUTION에 대응하는 짧은 문구표 문장(종목 이름은 #156에서 앞에 붙는다)
+      expect(screen.getByText(/과거 10년 수익률로 1만 가지 경우를 계산해 세 구간/)).toBeTruthy();
     });
 
     it("(W-06 예외) scenarioMethod가 null이면 설명 줄만 숨긴다", async () => {
@@ -151,7 +151,7 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
       renderResult();
 
       expect(await screen.findByText("ETF가 포함된 결과는 시기에 따라 달라요")).toBeTruthy();
-      expect(screen.queryByText(/기준 지수 S&P500/)).toBeNull();
+      expect(screen.queryByText(/과거 10년 수익률로 1만 가지 경우를 계산해 세 구간/)).toBeNull();
     });
 
     it("(W-26) 가로축 양 끝은 display 값이고 중간 눈금은 1년 간격이다", async () => {

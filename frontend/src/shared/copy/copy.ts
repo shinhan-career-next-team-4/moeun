@@ -42,9 +42,11 @@ export const COPY = {
   "toast.applyFailed": "적용하지 못했어요",
   "result.principalAndGain": "원금 {principal} + 이자·수익 {gain}(세후)",
   "result.scenarioHeading": "ETF가 포함된 결과는 시기에 따라 달라요",
-  "result.scenarioMethodShort.CAGR": "기준 지수 S&P500 · 과거 데이터의 연평균 수익률로 세 구간을 나눠 계산 (가정 보기 참고)",
+  // 종목 이름은 display["assumptions.etfProductName"]로 조립한다(#156). 문구에 지수 이름을 박지 않는다
+  "result.scenarioMethodProduct": "기준 종목 {product}",
+  "result.scenarioMethodShort.CAGR": "과거 데이터의 연평균 수익률로 세 구간을 나눠 계산 (가정 보기 참고)",
   "result.scenarioMethodShort.ROLLING_DISTRIBUTION":
-    "기준 지수 S&P500 · 과거 10년 수익률로 1만 가지 경우를 계산해 세 구간 (가정 보기 참고)",
+    "과거 10년 수익률로 1만 가지 경우를 계산해 세 구간 (가정 보기 참고)",
   "result.chartLegendAvg": "평균",
   "result.chartLegendBand": "좋았던 때~나빴던 때 범위",
   "result.chartLegendGoal": "목표선",
