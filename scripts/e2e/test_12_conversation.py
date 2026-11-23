@@ -5,6 +5,7 @@
   #231 '1억5천만원'·금액만 답하기를 못 알아들음 → 여러 금액 표현, 되묻기 뒤 금액만 답해도 계산
   #229 묻지 않은 것까지 길게 답함              → 값 조회는 짧게, 조건 변경 답도 짧게
   #233 세금 안내 문장이 대화마다 반복          → 대화 답에 세금 안내 없음
+  #239 역할 단어 없는 후속 금액에 되묻기 반복   → 직전 대화의 조건으로 계산
 LLM 문장은 매번 달라서 글자를 비교하지 않는다. 메시지 종류, F-4 conditions, 문장 수, 금지 문장만 본다.
 실패 메시지에는 본문 전체를 넣어 프롬프트 문제인지 바로 판단할 수 있게 한다.
 """
@@ -101,6 +102,40 @@ def test_s8_3_follow_up_amount_without_condition_word(api, fresh):
     assert cmp["conditions"]["changed"]["goalAmount"] == ONE_AND_HALF_EOK, cmp["conditions"]["changed"]
     # 비교의 기준은 늘 내 계획이다(D-041). 앞 턴의 1억을 기준으로 쌓지 않는다
     assert cmp["conditions"]["current"]["goalAmount"] == fresh["plan"]["goalAmount"]
+
+
+# ---------- #239 역할 단어 없는 후속 금액 ----------
+
+ONE_EOK = 100_000_000
+
+
+def assert_goal_recalc(api, msg, amount):
+    assert msg["messageType"] == "RECALC_RESULT", f"{msg['messageType']}: {msg['content']}"
+    cmp = comparison(api, msg["id"])
+    assert cmp["changedKeys"] == ["goalAmount"], cmp["changedKeys"]
+    assert cmp["conditions"]["changed"]["goalAmount"] == amount, cmp["conditions"]["changed"]
+
+
+def test_s8_8a_amount_after_goal_lookup(api, fresh):
+    """목표 금액을 물은 바로 뒤 '1억으로 바꿀게'는 되묻지 않고 목표 금액으로 계산한다(#239)."""
+    first = ask(api, "목표금액 얼마로 해뒀지?")
+    assert first["messageType"] == "ANSWER", f"{first['messageType']}: {first['content']}"
+    assert_goal_recalc(api, ask(api, "1억으로 바꿀게"), ONE_EOK)
+
+
+def test_s8_8b_condition_only_answer_to_role_question(api, fresh):
+    """대화 첫 발화의 역할 없는 금액은 되묻고(보유 자산은 선택지에 없음), 조건만 답하면 그 금액으로 계산한다(#239)."""
+    first = ask(api, "1억으로 바꿀게")
+    assert first["messageType"] == "CLARIFY", f"{first['messageType']}: {first['content']}"
+    assert "보유 자산" not in first["content"], f"바꿀 수 없는 보유 자산을 선택지로 냄(D-090)\n{first['content']}"
+    assert_goal_recalc(api, ask(api, "목표 금액"), ONE_EOK)
+
+
+def test_s8_8c_omitted_man_amount_after_value_question(api, fresh):
+    """목표 금액 값을 되물은 뒤 '1억 2천'만 답해도 목표 금액 1억 2천만원으로 계산한다(#236, #239)."""
+    first = ask(api, "목표 금액을 바꿔 보고 싶어요")
+    assert first["messageType"] == "CLARIFY", f"{first['messageType']}: {first['content']}"
+    assert_goal_recalc(api, ask(api, "1억 2천"), 120_000_000)
 
 
 # ---------- #229 답 길이 · #233 세금 안내 ----------
