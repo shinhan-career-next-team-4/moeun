@@ -44,7 +44,7 @@ class ConditionResolverTest {
     /** 3월에 처음 저장한 계획. 금리·비중은 인자로 정한다(null = 사용자가 비움). */
     private static PlanView createPlan(BigDecimal savingsRateInputPct, Integer savingsRatioPct) {
         return new PlanView(101L, GoalType.HOUSE, null, 30_000_000L, 36, 5_000_000L, 300_000L,
-                savingsRateInputPct, savingsRatioPct, "2026-03", "AVG", 3L, false,
+                savingsRateInputPct, savingsRatioPct, "SP500", "2026-03", "AVG", 3L, false,
                 Instant.parse("2026-05-20T00:00:00Z"));
     }
 
@@ -178,7 +178,7 @@ class ConditionResolverTest {
     @DisplayName("저장된 계획에 필수 값이 비어 있으면 계산하지 않고 이유가 담긴 예외로 막는다")
     void rejectsPlanWithMissingRequiredValue() {
         PlanView broken = new PlanView(101L, GoalType.HOUSE, null, null, 36, 5_000_000L, 300_000L,
-                null, null, "2026-03", "AVG", 3L, false, Instant.parse("2026-05-20T00:00:00Z"));
+                null, null, "SP500", "2026-03", "AVG", 3L, false, Instant.parse("2026-05-20T00:00:00Z"));
 
         assertThatIllegalStateException()
                 .isThrownBy(() -> resolver.resolve(broken, DEFAULT_RATE, PARAMS))

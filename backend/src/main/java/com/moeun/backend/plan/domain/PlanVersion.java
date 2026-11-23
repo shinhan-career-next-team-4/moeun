@@ -59,6 +59,9 @@ public class PlanVersion {
     @Column(name = "savings_ratio_pct")
     private Integer savingsRatioPct;
 
+    @Column(name = "etf_product_code", nullable = false, length = 20)
+    private String etfProductCode;
+
     @Column(name = "source", nullable = false, length = 20)
     private String source;
 
@@ -71,7 +74,8 @@ public class PlanVersion {
     @SuppressWarnings("checkstyle:ParameterNumber")
     public PlanVersion(Long memberId, GoalType goalType, String goalCustomName, Long goalAmount,
             Integer targetPeriodMonths, LocalDate calcStartMonth, Long heldAssets, Long monthlySaving,
-            BigDecimal savingsRatePct, Integer savingsRatioPct, String source, Instant createdAt) {
+            BigDecimal savingsRatePct, Integer savingsRatioPct, String etfProductCode, String source,
+            Instant createdAt) {
         this.memberId = memberId;
         this.goalType = goalType;
         this.goalCustomName = goalCustomName;
@@ -82,6 +86,7 @@ public class PlanVersion {
         this.monthlySaving = monthlySaving;
         this.savingsRatePct = savingsRatePct;
         this.savingsRatioPct = savingsRatioPct;
+        this.etfProductCode = etfProductCode;
         this.source = source;
         this.createdAt = createdAt;
     }
@@ -128,6 +133,10 @@ public class PlanVersion {
 
     public Integer getSavingsRatioPct() {
         return savingsRatioPct;
+    }
+
+    public String getEtfProductCode() {
+        return etfProductCode;
     }
 
     public String getSource() {

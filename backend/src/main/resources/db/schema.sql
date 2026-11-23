@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS plan_version (
     savings_rate_input_pct         NUMERIC(6,3),            -- NULL = 기본금리
     existing_monthly_contribution  BIGINT,                  -- 항상 NULL(계약 C12a-5-1). 컬럼만 남겨 둔다
     savings_ratio_pct              SMALLINT,                -- NULL = 규칙으로 산출(토글/기본값). 사용자가 직접 정한 비중만 저장
+    etf_product_code               VARCHAR(20)  NOT NULL DEFAULT 'SP500',   -- ETF 종목 코드(#154). 새 계획은 대표 상품
     source                         VARCHAR(20)  NOT NULL,   -- 이 버전을 만든 경로. 되돌리기로 복사한 버전은 복사한 원본의 경로
     created_at                     TIMESTAMPTZ  NOT NULL DEFAULT now(),
     CONSTRAINT ck_pv_goal_amount CHECK (goal_amount > 0),
@@ -257,3 +258,5 @@ INSERT INTO etf_product_version (data_version_id, product_code, display_name, ga
     SELECT id, 'SP500', 'S&P500 추종 ETF', 15.4 FROM data_version
     WHERE data_kind = 'ETF_PRICE' AND product_code = 'SP500'
     ON CONFLICT (data_version_id) DO NOTHING;
+-- #154: 계획의 ETF 종목. 종목 칸이 없던 옛 계획은 대표 상품(SP500)으로 채운다
+ALTER TABLE plan_version ADD COLUMN IF NOT EXISTS etf_product_code VARCHAR(20) NOT NULL DEFAULT 'SP500';

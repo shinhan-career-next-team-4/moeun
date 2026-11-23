@@ -57,12 +57,13 @@ record PlanResultResponse(long revision, long calcRunId, Scenario baselineResult
 
     /** 사용자가 입력한 원래 값(원 단위, nullable 그대로). 기본금리·기본 비중을 채우기 전 값이다. */
     record PlanValues(GoalType goalType, String goalCustomName, Long goalAmount, Integer targetPeriodMonths,
-            Long heldAssets, Long monthlySavingAmount, BigDecimal savingsRateInputPct, Integer savingsRatioPct) {
+            Long heldAssets, Long monthlySavingAmount, BigDecimal savingsRateInputPct, Integer savingsRatioPct,
+            String etfProductCode) {
 
         static PlanValues from(PlanView plan) {
             return new PlanValues(plan.goalType(), plan.goalCustomName(), plan.goalAmount(),
                     plan.targetPeriodMonths(), plan.heldAssets(), plan.monthlySavingAmount(),
-                    plan.savingsRateInputPct(), plan.savingsRatioPct());
+                    plan.savingsRateInputPct(), plan.savingsRatioPct(), plan.etfProductCode());
         }
     }
 
