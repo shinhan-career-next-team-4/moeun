@@ -18,7 +18,6 @@ import com.moeun.backend.calc.Scenario;
 import com.moeun.backend.calc.domain.CalcRun;
 import com.moeun.backend.calc.domain.CalcRunRepository;
 import com.moeun.backend.calc.domain.RunType;
-import com.moeun.backend.plan.ConditionOverride;
 import com.moeun.backend.plan.PlanSaveService;
 import com.moeun.backend.plan.PlanView;
 import com.moeun.backend.refdata.CalcParams;
@@ -114,12 +113,13 @@ public class PlanContextProviderImpl implements PlanContextProvider, ChatCompari
             Map<String, JsonNode> conditionChanges) {
         Objects.requireNonNull(conditionChanges, "conditionChanges");
         return findOwnedRun(memberId, calcRunId, RunType.CHAT).map(owned -> {
-            ConditionOverride changes = toOverride(conditionChanges);
+            ConditionChanges.Conversion changes = toConversion(conditionChanges);
             // calc_run에는 기준 시나리오가 없어 지금 계획의 기준 시나리오를 쓴다. 해커톤 범위에는 기준 시나리오를 바꾸는
             // 기능이 없어 /internal/calc 때와 같다. 그 기능이 생기면 대화 메시지에 저장한 값을 인자로 받아야 한다
             RecordedData data = loadRecordedData(owned.run());
             CompareConditionsUseCase.ComputedComparison computed = compareConditionsUseCase.computeComparison(
-                    owned.plan(), changes, data.params(), data.sp500(), data.changedEtf(), data.defaultRate());
+                    owned.plan(), changes.override(), data.params(), data.sp500(), data.changedEtf(),
+                    changes.etfProductCode(), data.defaultRate());
             return new ChatComparisonView(owned.run().getPlanVersionId(), computed.comparison(), computed.display());
         });
     }
@@ -159,23 +159,23 @@ public class PlanContextProviderImpl implements PlanContextProvider, ChatCompari
      * 저장된 대화의 바꾼 조건을 타입만 바꾼다. 범위는 검사하지 않는다(C12b-6). null 값은 바꾸지 않은 것으로 본다.
      * 변환은 {@code /internal/calc}와 같은 {@link ConditionChanges}를 쓰고, 맞지 않는 값은 모두 예외로 낸다.
      *
-     * @throws IllegalArgumentException 허용 5개 밖의 키, 숫자가 아닌 값, 정수 자리의 소수, 타입 범위를 넘는 정수
+     * @throws IllegalArgumentException 허용 6개 밖의 키, 타입이 맞지 않는 값, 정수 자리의 소수, 타입 범위를 넘는 정수
      */
-    private static ConditionOverride toOverride(Map<String, JsonNode> conditionChanges) {
+    private static ConditionChanges.Conversion toConversion(Map<String, JsonNode> conditionChanges) {
         Map<String, JsonNode> changes = ConditionChanges.withoutNulls(conditionChanges);
         if (!ConditionChanges.unchangeableKeys(changes).isEmpty()) {
             throw new IllegalArgumentException("condition is not changeable: "
                     + ConditionChanges.unchangeableKeys(changes));
         }
-        if (!ConditionChanges.allFiniteNumbers(changes)) {
-            throw new IllegalArgumentException("condition value is not a number");
+        if (!ConditionChanges.allValuesWellTyped(changes)) {
+            throw new IllegalArgumentException("condition value has a wrong type");
         }
         ConditionChanges.Conversion conversion = ConditionChanges.convert(changes);
         if (!conversion.isExact()) {
             throw new IllegalArgumentException("condition value cannot be converted: "
                     + conversion.notIntegerKeys() + conversion.outOfTypeRangeKeys());
         }
-        return conversion.override();
+        return conversion;
     }
 
     private record OwnedRun(CalcRun run, PlanView plan) {

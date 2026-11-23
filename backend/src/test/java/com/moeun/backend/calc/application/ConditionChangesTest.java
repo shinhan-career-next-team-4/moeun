@@ -38,7 +38,7 @@ class ConditionChangesTest {
     }
 
     @Test
-    @DisplayName("허용 5개(목표 금액·월 저축액·비중·적금 금리·기간) 밖의 키만 골라 요청 순서로 돌려준다")
+    @DisplayName("허용 6개(목표 금액·월 저축액·비중·적금 금리·기간·ETF 종목) 밖의 키만 골라 요청 순서로 돌려준다")
     void findsUnchangeableKeys() {
         Map<String, JsonNode> changes = new LinkedHashMap<>();
         changes.put("goalAmount", NODES.numberNode(1));
@@ -47,7 +47,7 @@ class ConditionChangesTest {
 
         assertThat(ConditionChanges.unchangeableKeys(changes)).containsExactly("heldAssets");
         assertThat(ConditionChanges.CHANGEABLE_KEYS).containsExactlyInAnyOrder("goalAmount", "monthlySavingAmount",
-                "savingsRatioPct", "savingsRateInputPct", "targetPeriodMonths");
+                "savingsRatioPct", "savingsRateInputPct", "targetPeriodMonths", "etfProductCode");
     }
 
     @Test
@@ -63,10 +63,10 @@ class ConditionChangesTest {
     @Test
     @DisplayName("값이 모두 유한한 JSON 숫자인지 본다. 문자열·무한대는 아니다")
     void checksFiniteNumbers() {
-        assertThat(ConditionChanges.allFiniteNumbers(Map.of("monthlySavingAmount", NODES.numberNode(1)))).isTrue();
-        assertThat(ConditionChanges.allFiniteNumbers(Map.of("monthlySavingAmount", NODES.stringNode("1"))))
+        assertThat(ConditionChanges.allValuesWellTyped(Map.of("monthlySavingAmount", NODES.numberNode(1)))).isTrue();
+        assertThat(ConditionChanges.allValuesWellTyped(Map.of("monthlySavingAmount", NODES.stringNode("1"))))
                 .isFalse();
-        assertThat(ConditionChanges.allFiniteNumbers(
+        assertThat(ConditionChanges.allValuesWellTyped(
                 Map.of("savingsRateInputPct", NODES.numberNode(Double.POSITIVE_INFINITY)))).isFalse();
     }
 
@@ -121,5 +121,30 @@ class ConditionChangesTest {
         assertThat(conversion.override().monthlySavingAmount()).isEqualTo(Long.MIN_VALUE);
         assertThat(conversion.outOfTypeRangeKeys()).containsExactly("targetPeriodMonths", "monthlySavingAmount");
         assertThat(conversion.isExact()).isFalse();
+    }
+
+    @Test
+    @DisplayName("ETF 종목 코드만 문자열이어야 하고, 숫자·불리언이면 타입이 맞지 않는다(D-097)")
+    void checksEtfProductCodeType() {
+        assertThat(ConditionChanges.allValuesWellTyped(Map.of("etfProductCode", NODES.stringNode("069500"))))
+                .isTrue();
+        assertThat(ConditionChanges.allValuesWellTyped(Map.of("etfProductCode", NODES.numberNode(133690))))
+                .isFalse();
+        assertThat(ConditionChanges.allValuesWellTyped(Map.of("etfProductCode", NODES.booleanNode(true))))
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("ETF 종목 코드는 바꾼 조건(override) 밖에 문자열 그대로 돌려주고, 있는 종목인지는 보지 않는다")
+    void convertsEtfProductCode() {
+        Map<String, JsonNode> changes = new LinkedHashMap<>();
+        changes.put("etfProductCode", NODES.stringNode("999999"));
+        changes.put("monthlySavingAmount", NODES.numberNode(500_000));
+
+        ConditionChanges.Conversion conversion = ConditionChanges.convert(changes);
+
+        assertThat(conversion.etfProductCode()).isEqualTo("999999");
+        assertThat(conversion.override().monthlySavingAmount()).isEqualTo(500_000L);
+        assertThat(conversion.isExact()).isTrue();
     }
 }
