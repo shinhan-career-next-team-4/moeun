@@ -357,11 +357,14 @@ export function ResultPage() {
                 {applyFeedback}
               </p>
             )}
-
-            <AssumptionsSection assumptions={result.assumptions} display={display} />
-            <Disclaimer />
           </div>
         </ResultLayout>
+        <AssumptionsSection
+          assumptions={result.assumptions}
+          display={display}
+          planSavingsRatioPct={data.plan.savingsRatioPct}
+        />
+        <Disclaimer />
       </div>
       {confirming !== null && (
         <ConfirmApplyDialog

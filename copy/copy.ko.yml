@@ -162,6 +162,10 @@ excluded:
   HELD_ASSET_RETURN: "보유 자산의 수익은 반영하지 않았어요"
   SAVINGS_REDEPOSIT: "적금 만기 후 재예치는 반영하지 않았어요"
 
+# 가정 보기의 비중 안내(CF-08 ②, D-088). 금액을 적지 않는다
+assumptions:
+  ratioAppliedToAll: "월 저축 가능 금액 전체를 아래 비중대로 나눠 계산했어요"
+
 # 3구간 산정 방식(G-14). ScenarioMethod enum의 모든 코드에 문장이 있어야 한다. TBD-01 전 임시
 scenarioMethod:
   CAGR: "과거 데이터의 연평균 수익률을 기준으로 세 구간을 나눠 계산했어요"
@@ -184,7 +188,7 @@ achievementChange:
 
 # 적용 토스트(F-5)와 비교 카드 실패(F-4)
 toast:
-  applyStaleComparison: "가장 최근 비교 결과만 적용할 수 있어요"
+  applyStaleComparison: "계획이 바뀌었거나 더 최근 비교가 있어요. 최신 비교를 다시 받아 적용해 주세요"
   applyPlanChanged: "계획이 다른 곳에서 바뀌었어요"
   applyNotApplicable: "지금 기준으로는 적용할 수 없는 값이에요"
   applyFailed: "적용하지 못했어요"
@@ -204,6 +208,13 @@ input:
   saveFailed: "입력을 저장하지 못했어요. 다시 시도해 주세요"
   invalidAmountFormat: "금액은 숫자로 입력해 주세요"
   currentRatioLabel: "현재 비중"
+  # 지금 하고 있는 저축 토글(FR-INP-08, D-085·D-086). 납입액은 비중을 정하는 데만 쓰고 저장하지 않는다(D-043)
+  existingSavingToggle: "지금 하고 있는 저축이 있어요"
+  existingSavingBank: "적금 월 납입액"
+  existingSavingEtf: "ETF 월 납입액"
+  existingSavingHelp: "납입액은 적금과 ETF의 비중을 정하는 데만 쓰고 저장하지 않아요. 끄면 기본 비중으로 계산해요"
+  # 토글 ON인데 납입액 칸이 비었을 때(D-089 복원)
+  ratioKept: "납입액을 비워 두면 지금 비중을 그대로 써요"
   # D-035
   heldAssetsRecheck: "보유 자산이 {calcStartMonth} 기준이 맞는지 다시 확인해 주세요"
   # D-084 입력 화면 추천 채움. 수익·이자를 뺀 대략값이라 '대략'을 꼭 밝힌다
@@ -261,6 +272,8 @@ validation:
   TOO_MANY_DECIMALS: "소수 {scale}자리까지 입력할 수 있어요"
 unit:
   manwon: "{v}만원"
+  # 비중 422 문구. unit.pct를 쓰면 "연 100%"가 된다(C12a-5-6 (f))
+  ratioPct: "{v}%"
   won: "{v}원"
   month: "{y}년 {m}개월"
   pct: "연 {v}%"

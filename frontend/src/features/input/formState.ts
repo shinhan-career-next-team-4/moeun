@@ -9,6 +9,7 @@ import {
   wonToManwon,
 } from "../../shared/units/units";
 import type { ResultPlanBody } from "../result/types";
+import { savingsRatioFromAmounts } from "../../shared/units/savingsRatio";
 import type { FormErrors, FormField, GoalType, PlanForm, PutPlanRequest } from "./types";
 
 export const FIELD_ORDER: FormField[] = [
@@ -18,6 +19,7 @@ export const FIELD_ORDER: FormField[] = [
   "heldAssets",
   "monthlySavingAmount",
   "savingsRateInputPct",
+  "existingSaving",
 ];
 
 /** D-082: 보유 자산 칸은 0으로 시작하고, 나머지 금액·기간 칸은 비워 둔다. */
@@ -32,6 +34,9 @@ export function emptyForm(): PlanForm {
     heldAssets: "0",
     monthlySavingAmount: "",
     savingsRateInputPct: "",
+    existingSavingOn: false,
+    existingSavingBank: "",
+    existingSavingEtf: "",
   };
 }
 
@@ -48,6 +53,10 @@ export function formFromPlan(plan: ResultPlanBody): PlanForm {
     heldAssets: wonToManwon(plan.heldAssets),
     monthlySavingAmount: wonToManwon(plan.monthlySavingAmount),
     savingsRateInputPct: plan.savingsRateInputPct === null ? "" : String(plan.savingsRateInputPct),
+    // D-089: 저장된 비중이 있으면(50이어도) 토글 ON으로 복원한다. 납입액은 저장하지 않으므로 칸은 비운다(D-043)
+    existingSavingOn: plan.savingsRatioPct !== null,
+    existingSavingBank: "",
+    existingSavingEtf: "",
   };
 }
 
@@ -76,10 +85,35 @@ export function validateClientForm(form: PlanForm): FormErrors {
   if (!isBlank(form.savingsRateInputPct) && !parseDecimalInput(form.savingsRateInputPct).ok) {
     errors.savingsRateInputPct = COPY["input.invalidAmountFormat"];
   }
+
+  // 납입액 두 칸은 비어도 오류가 아니다(C12a-5-6 (g)). 형식만 본다
+  if (form.existingSavingOn && savingsRatioFromAmounts(form.existingSavingBank, form.existingSavingEtf).kind === "invalid") {
+    errors.existingSaving = COPY["input.invalidAmountFormat"];
+  }
   return errors;
 }
 
-export function buildPutPlanBody(form: PlanForm, expectedRevision: number | null): PutPlanRequest {
+/**
+ * 요청의 savingsRatioPct(계약 C12a-5-6 (h), D-086).
+ *
+ * | 토글 | 납입액 칸 | 값 |
+ * |---|---|---|
+ * | OFF | — | `null`(기본 비중으로 돌아간다) |
+ * | ON | 채움 | 산출값 |
+ * | ON | 비움 | 가장 최근 응답의 비중을 그대로 되보낸다(없으면 `null`) |
+ */
+export function requestSavingsRatioPct(form: PlanForm, latestRatioPct: number | null): number | null {
+  if (!form.existingSavingOn) return null;
+  const result = savingsRatioFromAmounts(form.existingSavingBank, form.existingSavingEtf);
+  if (result.kind === "ratio") return result.savingsRatioPct;
+  return latestRatioPct;
+}
+
+export function buildPutPlanBody(
+  form: PlanForm,
+  expectedRevision: number | null,
+  latestRatioPct: number | null = null,
+): PutPlanRequest {
   if (form.goalType === null) throw new Error("goalType is required");
   const goalAmount = manwonToWon(form.goalAmount);
   const heldAssets = manwonToWon(form.heldAssets);
@@ -104,5 +138,6 @@ export function buildPutPlanBody(form: PlanForm, expectedRevision: number | null
     heldAssets: heldAssets.won,
     monthlySavingAmount: monthlySaving.won,
     savingsRateInputPct: rate,
+    savingsRatioPct: requestSavingsRatioPct(form, latestRatioPct),
   };
 }

@@ -14,6 +14,7 @@ import { INPUT_PATH, LOGIN_PATH, RESULT_PATH } from '../../../app/routes'
 import etf0Mock from '../../../mocks/plan/get-plan.200-etf0.json'
 import exceededMock from '../../../mocks/plan/get-plan.200-exceeded.json'
 import planMock from '../../../mocks/plan/get-plan.200.json'
+import ratio83Mock from '../../../mocks/plan/get-plan.200-ratio83.json'
 import { ResultPage } from '../ResultPage'
 
 function jsonResponse(
@@ -366,4 +367,24 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
             screen.queryByRole('img', { name: '목표 대비 예상 자산' }),
         ).toBeNull()
     })
+
+  // 가정 보기의 비중 안내(#127, CF-08 ②, D-088)
+  it("저장된 비중이 있으면 가정 보기에 금액 없는 비중 안내가 보인다", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, ratio83Mock.responses[0].body)));
+    renderResult();
+
+    const assumptions = await screen.findByLabelText("계산 가정");
+    expect(assumptions.textContent).toContain("월 저축 가능 금액 전체를 아래 비중대로 나눠 계산했어요");
+    expect(assumptions.textContent).toContain("적금 83 : ETF 17");
+    // 금액(차액)은 쓰지 않는다
+    expect(assumptions.textContent).not.toContain("차액");
+  });
+
+  it("저장된 비중이 없으면 비중 안내가 없다", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
+    renderResult();
+
+    const assumptions = await screen.findByLabelText("계산 가정");
+    expect(assumptions.textContent).not.toContain("월 저축 가능 금액 전체를");
+  });
 })

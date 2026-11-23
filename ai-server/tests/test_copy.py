@@ -114,7 +114,7 @@ VERBATIM: list[tuple[str, dict[str, str], str]] = [
     ("condition.savingsRatioPct", {}, "저축 비중"),
     ("condition.savingsRateInputPct", {}, "적금 금리"),
     ("condition.targetPeriodMonths", {}, "목표 기간"),
-    ("toast.applyStaleComparison", {}, "가장 최근 비교 결과만 적용할 수 있어요"),
+    ("toast.applyStaleComparison", {}, "계획이 바뀌었거나 더 최근 비교가 있어요. 최신 비교를 다시 받아 적용해 주세요"),
     ("toast.applyPlanChanged", {}, "계획이 다른 곳에서 바뀌었어요"),
     ("toast.applyNotApplicable", {}, "지금 기준으로는 적용할 수 없는 값이에요"),
     ("toast.applyFailed", {}, "적용하지 못했어요"),

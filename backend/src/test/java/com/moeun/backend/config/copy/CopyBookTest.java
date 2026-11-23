@@ -103,7 +103,7 @@ class CopyBookTest {
                 Arguments.of("condition.savingsRatioPct", Map.of(), "저축 비중"),
                 Arguments.of("condition.savingsRateInputPct", Map.of(), "적금 금리"),
                 Arguments.of("condition.targetPeriodMonths", Map.of(), "목표 기간"),
-                Arguments.of("toast.applyStaleComparison", Map.of(), "가장 최근 비교 결과만 적용할 수 있어요"),
+                Arguments.of("toast.applyStaleComparison", Map.of(), "계획이 바뀌었거나 더 최근 비교가 있어요. 최신 비교를 다시 받아 적용해 주세요"),
                 Arguments.of("toast.applyPlanChanged", Map.of(), "계획이 다른 곳에서 바뀌었어요"),
                 Arguments.of("toast.applyNotApplicable", Map.of(), "지금 기준으로는 적용할 수 없는 값이에요"),
                 Arguments.of("toast.applyFailed", Map.of(), "적용하지 못했어요"),

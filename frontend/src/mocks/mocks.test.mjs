@@ -68,6 +68,7 @@ const PLAN_FILES = [
   "get-plan.200-exceeded.json",
   "get-plan.200-after-apply.json",
   "get-plan.200-after-undo.json",
+  "get-plan.200-ratio83.json",
   "get-plan.409-no-plan.json",
   "get-plan.401.json",
   "get-plan.500.json",
@@ -134,7 +135,7 @@ test("목 파일 개수: chat 38, auth 6, plan 30, refdata 1, alternative 6", ()
     assert.deepEqual(actual, [...names].sort(), `${dir}/ 파일 목록이 계약 표와 다르다`);
   }
   assert.equal(CHAT_FILES.length, 38);
-  assert.equal(AUTH_FILES.length + PLAN_FILES.length, 36);
+  assert.equal(AUTH_FILES.length + PLAN_FILES.length, 31);
   assert.equal(REFDATA_FILES.length, 1);
   assert.equal(ALTERNATIVE_FILES.length, 6);
 });

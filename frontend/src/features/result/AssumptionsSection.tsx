@@ -5,10 +5,16 @@ import type { Assumptions } from "./types";
 interface AssumptionsSectionProps {
   assumptions: Assumptions;
   display: Record<string, string>;
+  /** 계획에 저장된 비중(plan.savingsRatioPct). null이 아니면 비중 안내를 보여 준다(D-088) */
+  planSavingsRatioPct?: number | null;
 }
 
 /** 가정 보기(FR-RES-06, C12a-7). */
-export function AssumptionsSection({ assumptions, display }: AssumptionsSectionProps) {
+export function AssumptionsSection({
+  assumptions,
+  display,
+  planSavingsRatioPct = null,
+}: AssumptionsSectionProps) {
   const copyMap: CopyMap = COPY;
   const methodText = assumptions.scenarioMethod ? copyMap[`scenarioMethod.${assumptions.scenarioMethod}`] : null;
 
@@ -37,6 +43,13 @@ export function AssumptionsSection({ assumptions, display }: AssumptionsSectionP
           </div>
         )}
       </dl>
+      {/* CF-08 ②, D-088: 사용자가 정한 비중이 있으면 금액 없는 고정 문장 + 현재 비중 */}
+      {planSavingsRatioPct !== null && (
+        <p className="text-xs leading-relaxed text-text-muted">
+          {COPY["assumptions.ratioAppliedToAll"]}{" "}
+          <strong className="text-text">{display["conditions.savingsRatioPct"]}</strong>
+        </p>
+      )}
       <p className="text-xs leading-relaxed text-text-muted">{taxNoteFor(assumptions.etfGainTaxRatePct)}</p>
       {methodText && <p className="text-xs text-text-muted">{methodText}</p>}
       {assumptions.excludedItems.length > 0 && (

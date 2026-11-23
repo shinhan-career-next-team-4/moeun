@@ -4,6 +4,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { planStore } from "../../../api";
 import { INPUT_PATH, LOGIN_PATH, RESULT_PATH } from "../../../app/routes";
+import planMock from "../../../mocks/plan/get-plan.200.json";
+import ratio83Mock from "../../../mocks/plan/get-plan.200-ratio83.json";
 import { PlanInputPage } from "../PlanInputPage";
 
 function jsonResponse(status: number, body: unknown, contentType = "application/json"): Response {
@@ -204,6 +206,7 @@ describe("PlanInputPage (#48, C12a-5)", () => {
           "heldAssets",
           "monthlySavingAmount",
           "savingsRateInputPct",
+          "savingsRatioPct",
         ].sort(),
       );
     });
@@ -275,6 +278,7 @@ describe("PlanInputPage (#48, C12a-5)", () => {
       heldAssets: 5_000_000,
       monthlySavingAmount: 345_000,
       savingsRateInputPct: null,
+      savingsRatioPct: null,
     });
   });
 
@@ -368,5 +372,84 @@ describe("PlanInputPage (#48, C12a-5)", () => {
     expect((screen.getByLabelText(/적금 금리/) as HTMLInputElement).value).toBe("");
     expect(screen.getByText(/보유 자산이 2026년 11월 기준이 맞는지 다시 확인해 주세요/)).toBeTruthy();
     expect(screen.getByText(/적금 50 : ETF 50/)).toBeTruthy();
+  });
+  // 지금 하고 있는 저축 토글(#127, FR-INP-08, D-085·D-086·D-089)
+  describe("지금 하고 있는 저축 토글 (#127)", () => {
+    function noPlan() {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(jsonResponse(409, { code: "NO_PLAN", errors: [] }, "application/problem+json")),
+      );
+    }
+
+    it("기본은 꺼져 있고 납입액 두 칸이 비활성이며 안내가 상시 보인다", async () => {
+      noPlan();
+      renderInput();
+
+      await screen.findByText("어떤 목돈을 모으고 싶으세요?");
+      const toggle = screen.getByLabelText("지금 하고 있는 저축이 있어요") as HTMLInputElement;
+      expect(toggle.checked).toBe(false);
+      expect((screen.getByLabelText("적금 월 납입액") as HTMLInputElement).disabled).toBe(true);
+      expect((screen.getByLabelText("ETF 월 납입액") as HTMLInputElement).disabled).toBe(true);
+      expect(screen.getByText(/끄면 기본 비중으로 계산해요/)).toBeTruthy();
+    });
+
+    it("켜면 두 칸이 열리고, 칸이 비어 있는 동안 현재 비중을 쓴다는 도움말이 보인다", async () => {
+      noPlan();
+      renderInput();
+
+      await screen.findByText("어떤 목돈을 모으고 싶으세요?");
+      fireEvent.click(screen.getByLabelText("지금 하고 있는 저축이 있어요"));
+
+      expect((screen.getByLabelText("적금 월 납입액") as HTMLInputElement).disabled).toBe(false);
+      expect(screen.getByText("납입액을 비워 두면 지금 비중을 그대로 써요")).toBeTruthy();
+
+      fireEvent.change(screen.getByLabelText("적금 월 납입액"), { target: { value: "100" } });
+      expect(screen.queryByText("납입액을 비워 두면 지금 비중을 그대로 써요")).toBeNull();
+    });
+
+    it("납입액을 적고 저장하면 산출한 비중을 보낸다", async () => {
+      const fetchSpy = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(409, { code: "NO_PLAN", errors: [] }, "application/problem+json"))
+        .mockResolvedValueOnce(jsonResponse(200, planMock.responses[0].body));
+      vi.stubGlobal("fetch", fetchSpy);
+      renderInput();
+
+      await screen.findByText("어떤 목돈을 모으고 싶으세요?");
+      fireEvent.click(screen.getByRole("radio", { name: "내 집 마련" }));
+      fireEvent.change(screen.getByLabelText(/목표 금액/), { target: { value: "2000" } });
+      fireEvent.change(screen.getByLabelText("년"), { target: { value: "3" } });
+      fireEvent.change(screen.getByLabelText(/월 저축 가능 금액/), { target: { value: "30" } });
+      fireEvent.click(screen.getByLabelText("지금 하고 있는 저축이 있어요"));
+      fireEvent.change(screen.getByLabelText("적금 월 납입액"), { target: { value: "100" } });
+      fireEvent.change(screen.getByLabelText("ETF 월 납입액"), { target: { value: "20" } });
+      fireEvent.click(screen.getByRole("button", { name: "결과 보기" }));
+
+      await waitFor(() => {
+        expect(fetchSpy.mock.calls.length).toBe(2);
+      });
+      expect(JSON.parse(fetchSpy.mock.calls[1][1].body as string).savingsRatioPct).toBe(83);
+    });
+
+    it("저장된 비중이 있으면 토글이 켜진 채 열리고, 그대로 저장하면 그 비중을 되보낸다", async () => {
+      const fetchSpy = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(200, ratio83Mock.responses[0].body))
+        .mockResolvedValueOnce(jsonResponse(200, ratio83Mock.responses[0].body));
+      vi.stubGlobal("fetch", fetchSpy);
+      await planStore.loadPlan();
+      renderInput();
+
+      await screen.findByText("입력 수정");
+      expect((screen.getByLabelText("지금 하고 있는 저축이 있어요") as HTMLInputElement).checked).toBe(true);
+      expect((screen.getByLabelText("적금 월 납입액") as HTMLInputElement).value).toBe("");
+
+      fireEvent.click(screen.getByRole("button", { name: "결과 보기" }));
+      await waitFor(() => {
+        expect(fetchSpy.mock.calls.length).toBe(2);
+      });
+      expect(JSON.parse(fetchSpy.mock.calls[1][1].body as string).savingsRatioPct).toBe(83);
+    });
   });
 });

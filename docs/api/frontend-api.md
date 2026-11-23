@@ -844,6 +844,7 @@ record PlanUndoResult(long planVersionId, long revision) {}
 | `plan/get-plan.200-exceeded.json` | P-4 | 200 | plan-context A-3(`542`), `ALREADY_EXCEEDED`, `scenarios: []`, `baselineResultScenario: null` |
 | `plan/get-plan.200-after-apply.json` | P-4 | 200 | `rev 13`, `553` |
 | `plan/get-plan.200-after-undo.json` | P-4 | 200 | `rev 14`, `554` |
+| `plan/get-plan.200-ratio83.json` | P-4 | 200 | **[v4]** `plan.savingsRatioPct: 83`, `display["conditions.savingsRatioPct"]` "적금 83 : ETF 17". 나머지는 기본 목(A-1) 복사. `useMock` 전용 — 토글 ON 복원·되보내기 시험용 |
 | `plan/get-plan.409-no-plan.json` | P-4 | 409 | `NO_PLAN` |
 | `plan/get-plan.401.json` | P-4 | 401 | `UNAUTHENTICATED` |
 | `plan/get-plan.500.json` | P-4 | 500 | `INTERNAL_ERROR` |
@@ -868,8 +869,8 @@ record PlanUndoResult(long planVersionId, long revision) {}
 | `plan/post-plan-apply.422-field-not-changeable.json` | P-6 | 422 | ALTERNATIVE에 `goalAmount` → `NOT_CHANGEABLE` |
 | `plan/post-plan-apply.500.json` | P-6 | 500 | `INTERNAL_ERROR` |
 
-- **총 36개**(auth 6, plan 30). P-6 목 6개는 #68이 더했다. 파일 이름 접두어는 대화 적용(`chat/post-apply`)과 겹치지 않게 `post-plan-apply`다. 공통 401은 대화 절의 `chat/common.401-unauthenticated.json`을 재사용한다.
-- **[개수 정정]** 최종본 본문은 "29개(plan 23)"로 적었지만 위 표는 30행이다. `put-plan.422-custom-name`(D-074)이 개수 문장에 반영되지 않은 것으로 보여 표를 기준으로 30개를 만든다. 대화 목 35개와 합쳐 65개다.
+- **[v4] 총 31개**(auth 6, plan 25). P-6 목은 없다(#68). 공통 401은 대화 절의 `chat/common.401-unauthenticated.json`을 재사용한다.
+- **[개수 정정]** 최종본 본문은 "29개(plan 23)"로 적었지만 위 표는 30행이었다. `put-plan.422-custom-name`(D-074)이 개수 문장에 반영되지 않은 것으로 보여 표를 기준으로 했고, v4에서 `plan/get-plan.200-ratio83.json`을 더해 31개다. 대화 목 35개와 합쳐 66개다.
 - 9번 뒤의 GET은 마지막 응답(`rev 14`)을 반복한다. C12a-6-7 규칙 1로 무시되어 화면은 `rev 15`를 유지한다.
 - Issue #12 수용 기준 "정상, 422, 401, 409": P-1(200·422·401), P-3(200·422·409), P-4(200·409·401), P-5(200·409). 400·500도 있다.
 
