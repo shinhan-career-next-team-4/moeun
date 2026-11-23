@@ -43,6 +43,7 @@
 | | `test_etf_tax_wrong_note.py` | 모델이 쓴 단서는 계획과 맞든 다르든 지우고 붙이지 않음 |
 | | `tax_note/test_tax_note_removed.py` | #233 수용 테스트: 세금 단서를 답에 붙이지 않고 모델이 쓴 두 단서를 지움, P-6 |
 | | `chat_response/test_chat_response_prompt.py` | #252 대화 응답 기준표 규칙: 고지 반복 금지, 수익 약속 미언급, 결과 설명 조건 나열 금지·3문장 |
+| | `error_log/test_agent_error_log.py` | #256 /chat 실패 때 오류 코드(와 거부 사유)만 로그에 남기고 본문은 남기지 않음 |
 | | `test_etf_note_join.py` | 단서를 지워도 양옆 글자가 이어져 새 인용이 생기지 않음 |
 | | `test_etf_name_correction.py` | 계획 종목 표기 검사·교정 지시 |
 | | `test_etf_plan_name_claims.py` | 2라운드 리뷰 재현: 계획 종목 표기 거부(B3), 세율 인용 경계·줄바꿈 단서 제거·빈 본문 거부(B1·B2·B5), 코스피 계획에서 상품명 통과(B6) |
