@@ -176,7 +176,8 @@ export function EtfCompareSection({
     const transport = deps ?? DEFAULT_DEPS
     const [products, setProducts] = useState<EtfProduct[] | null>(null)
     const [options, setOptions] = useState<Options | null>(null)
-    const [loading, setLoading] = useState(false)
+    // 고를 종목이 있는 계획이면 처음부터 받는 중이다(마운트 효과가 곧바로 받아 온다)
+    const [loading, setLoading] = useState(Boolean(currentProductName))
     const [listError, setListError] = useState<string | null>(null)
     const [choosing, setChoosing] = useState(false)
     // 받아 오기를 시작할 때마다 올린다. 늦게 온 응답이 더 나중 상태를 덮어쓰지 않게 한다
@@ -190,13 +191,12 @@ export function EtfCompareSection({
      * 종목 목록과, 지금 종목이 아닌 종목마다의 비교를 받는다.
      * 적용 직후에는 계획이 아직 다시 읽히기 전이라 새 revision과 새 지금 종목을 직접 넘긴다.
      */
-    async function loadOptions(
-        at: { revision: number | null; currentCode?: string } = { revision },
-    ) {
+    async function fetchOptions(at: {
+        revision: number | null
+        currentCode?: string
+    }) {
         if (loadingRef.current) return
         loadingRef.current = true
-        setLoading(true)
-        setListError(null)
         generation.current += 1
         const mine = generation.current
 
@@ -239,9 +239,19 @@ export function EtfCompareSection({
         })
     }
 
+    /** 다시 받기. 진행 표시를 켜고 받아 온다(이벤트 처리기에서 부른다) */
+    function loadOptions(
+        at: { revision: number | null; currentCode?: string } = { revision },
+    ) {
+        if (loadingRef.current) return
+        setLoading(true)
+        setListError(null)
+        void fetchOptions(at)
+    }
+
     // 화면이 뜨면 바로 받는다. ETF 0% 계획(종목 이름 없음)은 고를 종목이 없어 받지 않는다
     useEffect(() => {
-        if (currentProductName) void loadOptions()
+        if (currentProductName) void fetchOptions({ revision })
         // 처음 한 번만. 그 뒤의 계획 변화는 아래 isStale 안내와 적용 직후 다시 받기가 다룬다
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
@@ -266,7 +276,7 @@ export function EtfCompareSection({
         setChoosing(false)
         if (newRevision === null) return
         // 바뀐 종목이 지금 종목이 되었으니 나머지 두 종목의 결과를 새 계획 기준으로 다시 받는다
-        void loadOptions({ revision: newRevision, currentCode: product.code })
+        loadOptions({ revision: newRevision, currentCode: product.code })
     }
 
     if (!currentProductName) return null
@@ -309,7 +319,7 @@ export function EtfCompareSection({
                     </p>
                     <Button
                         variant="secondary"
-                        onClick={() => void loadOptions()}
+                        onClick={() => loadOptions()}
                     >
                         {COPY['etfCompare.retry']}
                     </Button>
@@ -329,7 +339,7 @@ export function EtfCompareSection({
                     </p>
                     <Button
                         variant="secondary"
-                        onClick={() => void loadOptions()}
+                        onClick={() => loadOptions()}
                     >
                         {COPY['etfCompare.retry']}
                     </Button>
