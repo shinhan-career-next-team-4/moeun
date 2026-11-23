@@ -1,0 +1,18 @@
+{
+  "responses": [
+    {
+      "status": 409,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "계획이 바뀌었어요",
+        "status": 409,
+        "instance": "/api/plan/apply",
+        "code": "PLAN_CHANGED",
+        "errors": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "responses": [
+    {
+      "status": 422,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "대화로 바꿀 수 없는 항목이에요",
+        "status": 422,
+        "detail": "goalAmount: NOT_CHANGEABLE",
+        "instance": "/api/plan/apply",
+        "code": "FIELD_NOT_CHANGEABLE",
+        "errors": [
+          {
+            "field": "goalAmount",
+            "reason": "NOT_CHANGEABLE"
+          }
+        ]
+      }
+    }
+  ]
+}

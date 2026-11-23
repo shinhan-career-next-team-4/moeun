@@ -16,7 +16,7 @@
 | P-3 | `PUT /api/plan` | `200 PlanView` | `calc.web`(A) | 예 | C12a-5 |
 | P-4 | `GET /api/plan` | `200 PlanView` | `calc.web`(A) | 예 | C12a-6 |
 | P-5 | `POST /api/plan/undo` | `200 {revision}` | `plan.web`(A) | 예 | C12a-8 |
-| P-6 | `POST /api/plan/apply` | `200 {revision}` | `plan.web`(A) | 예 | C12a-9 (경로 예약만, 요청 모양·오류·목은 #68이 확정) |
+| P-6 | `POST /api/plan/apply` | `200 {revision}` | `plan.web`(A) | 예 | C12a-9 (#68 확정) |
 | F-1 | `POST /api/chat/messages` | `202 {userMessageId, assistantMessageId}` | `chat`(B) | 예 | C12b-4 |
 | F-2 | `GET /api/chat/messages?afterId={id}` | `200 {messages, hasPending, answerPending}` | `chat`(B) | 아니오(`@SkipRenewal`) | C12b-5 |
 | F-3 | `POST /api/chat/explanations` | `202 {}` | `chat`(B) | 예 | C12b-3a |
@@ -60,7 +60,7 @@ chat ──▶ calc ──▶ plan
 
 ### 1-4. #12-a 상태
 
-로그인·로그아웃·입력 저장·현재 계획·되돌리기(`NOTHING_TO_UNDO` 포함)와 쿠키 이름(`moeun_at`)은 **계약 완료**다(최종본 `frontend-api-plan.md`, 결정 D-074~076). P-6 `POST /api/plan/apply`는 경로만 예약하고 요청 모양·오류·목은 #68(Should)이 2주차 말에 확정한다. 쿠키 `Secure`·JWT 서명 키·허용 출처는 설정값이다(D-076, 임시: 원격 배포로 바뀔 수 있음). 쿠키 `Secure`는 기본 true이고 `local` 프로필만 false다.
+로그인·로그아웃·입력 저장·현재 계획·되돌리기(`NOTHING_TO_UNDO` 포함)와 쿠키 이름(`moeun_at`)은 **계약 완료**다(최종본 `frontend-api-plan.md`, 결정 D-074~076). P-6 `POST /api/plan/apply`는 #68에서 요청 모양·오류·목을 확정했다(C12a-9). 쿠키 `Secure`·JWT 서명 키·허용 출처는 설정값이다(D-076, 임시: 원격 배포로 바뀔 수 있음). 쿠키 `Secure`는 기본 true이고 `local` 프로필만 false다.
 
 ---
 
@@ -113,7 +113,7 @@ chat ──▶ calc ──▶ plan
 | P-3 | `PUT /api/plan` | 입력 저장(새 목표 세우기·입력 수정): 검증 → 저장 → 계산 → 결과, **한 트랜잭션** | `200 PlanView` | `calc.web`(A) | 예 | Must |
 | P-4 | `GET /api/plan` | 현재 계획·결과 조회 | `200 PlanView` | `calc.web`(A) | 예 | Must |
 | P-5 | `POST /api/plan/undo` | 되돌리기(직전 1단계) | `200 {revision}` | `plan.web`(A) | 예 | Must |
-| P-6 | `POST /api/plan/apply` | 대안·비교 결과 적용 | `200 {revision}` | `plan.web`(A) | 예 | Should(경로 예약만, #68) |
+| P-6 | `POST /api/plan/apply` | 대안·비교 결과 적용 | `200 {revision}` | `plan.web`(A) | 예 | Should(#68) |
 
 - 대화 비교 적용은 F-5(#12-b)다. P-6은 대화와 무관하다.
 - `/api/auth/me`는 두지 않는다. 왜: 앱 시작·새로고침 때 P-4 하나로 "로그인 여부(401) / 계획 없음(409) / 결과(200)"가 갈린다.
@@ -598,10 +598,65 @@ FR-PLAN-04, D-013, D-041, D-044, D-068, C12b-7-4.
 
 - 토스트가 들고 있는 값은 직전 적용 응답(F-5, P-6)의 `revision`. 되돌리기 토스트는 적용 직후에만 띄운다(P-3 뒤에는 없음).
 
-### C12a-9. P-6 대안·비교 적용 `POST /api/plan/apply` — Should, 경로 예약만
+### C12a-9. P-6 대안·비교 적용 `POST /api/plan/apply` — Should, #68 확정
 
-- 경로 `POST /api/plan/apply`, 성공 `200 {revision}`, `plan.web`, `PlanApplyService.apply(…, expectedBaseVersionId=null)` 재사용만 예약한다. 요청 모양·오류·목은 **#68**(Should)에서 2주차 말에 확정한다. #33(Must)은 P-6을 들고 있지 않다. 왜: Should를 Must Issue에 두면 Must 완료를 막는다.
-- 대화 적용은 F-5뿐이다.
+FR-PLAN-01·02, FR-ALT-04, FR-CMP-02, D-016, D-041, D-046, CP-07.
+
+결과 화면의 비교 영역(`POST /api/compare`, #64)이나 대안 카드에서 본 조건을 확인창을 거쳐 내 계획에 적용한다. 대화 적용은 F-5뿐이고 P-6과 무관하다(확인창 없음, D-016).
+
+요청:
+```json
+{ "path": "COMPARE", "expectedRevision": 13, "conditionChanges": { "monthlySavingAmount": 1500000 } }
+```
+
+응답 `200`:
+```json
+{ "revision": 14 }
+```
+
+| 필드 | 뜻 |
+|---|---|
+| `path` | `COMPARE`(비교 영역) 또는 `ALTERNATIVE`(대안 카드). 경로마다 바꿀 수 있는 조건과 개수가 다르고(`rules.yml › change-paths`, CP-07), 새 `plan_version.source`에 그대로 남는다. `CHAT`·`INPUT_EDIT`은 받지 않는다 |
+| `expectedRevision` | 비교를 만든 시점에 프론트가 들고 있던 `revision`(공유 계획 상태, C12a-6-7) |
+| `conditionChanges` | 바꾼 조건. camelCase 키(`goalAmount`·`monthlySavingAmount`·`savingsRatioPct`·`savingsRateInputPct`·`targetPeriodMonths`), 원 단위 정수·퍼센트. `POST /api/compare`에 보낸 객체와 같다. 값이 `null`인 키는 바꾸지 않음 |
+| `revision` | 새 revision. 공유 상태 갱신과 되돌리기 토스트(P-5)가 쓴다. F-5·P-5와 같은 모양 |
+
+- 서비스는 `PlanApplyService.apply(memberId, path, conditionChanges, expectedRevision, expectedBaseVersionId=null)`를 재사용한다. 컨트롤러는 `plan.web`이고 plan → chat 의존은 없다.
+- **기준 버전 검사(`STALE_COMPARISON`)는 없다.** 비교 결과를 저장하지 않으므로(#64) 비교 뒤 계획이 바뀌었는지는 `expectedRevision`으로만 본다.
+
+#### C12a-9-1. 서버 검사 순서
+
+| 순서 | 검사 | 결과 |
+|---|---|---|
+| 0 | 토큰 | `401 UNAUTHENTICATED` |
+| 1 | 본문이 객체가 아님, `expectedRevision`이 정수가 아님, `path`가 `COMPARE`·`ALTERNATIVE`가 아님, `conditionChanges`가 객체가 아님 | `400 MALFORMED_REQUEST` |
+| 2 | `plan` 행 없음 | `409 NO_PLAN` |
+| 3 | `ConditionValidator.validateChanges(path, …)`: 허용 밖 키(경로가 허용하지 않는 조건, 알 수 없는 키) | `422 FIELD_NOT_CHANGEABLE`(`reason: NOT_CHANGEABLE`) |
+| 4 | 같은 검증: 바꾼 조건 없음(`REQUIRED`), 개수 초과(ALTERNATIVE는 1개), 숫자 아님·범위·소수 자릿수, 합친 계획의 입력 검증 | `422 VALIDATION_FAILED`(`min`·`max`·`unit`·`scale`) |
+| 5 | `plan.revision ≠ expectedRevision` | `409 PLAN_CHANGED` |
+| 6 | 현재 버전 복사 + 변경 키로 `plan_version` INSERT(`source = path`, `calc_start_month`는 현재 값, D-013) → `UPDATE plan ... WHERE member_id=? AND revision=?` → 0행이면 롤백하고 `409 PLAN_CHANGED` → `PlanChanged(APPLY)` | `200 {revision}` |
+
+- 2~6은 plan의 한 트랜잭션이다. 순서와 0행 롤백은 F-5(C12b-7-1의 5~10)와 같다.
+- 중복 클릭: 두 번째 요청은 5에서 `PLAN_CHANGED`. 프론트는 요청 중 버튼을 막는다.
+
+#### C12a-9-2. 프론트 흐름
+
+1. **버튼 활성**: 비교 결과가 있고 `applicable=true`이며, 비교한 뒤 입력값과 공유 상태의 `revision`이 바뀌지 않았을 때만. 입력을 고치면 다시 비교할 때까지 비활성.
+2. **확인창**(D-016, FR-PLAN-01): 바뀌는 조건을 "지금 값 → 바꿀 값"으로 보여 준다. 값은 비교 응답의 `display` 문자열 그대로다(NFR-INT-01). 확인창이 떠 있는 동안 내 계획은 그대로다.
+3. **취소**: 아무 요청도 보내지 않는다.
+4. **적용하기**: P-6을 부른다. 응답별 동작은 아래 표.
+
+| `code` | 프론트 동작(문구표 키) |
+|---|---|
+| (성공) | 공유 상태 `revision` ← 응답 값 → 되돌리기 토스트 10초(그 `revision`을 들고 있음, D-041) → `loadPlan()` → 비교 영역 초기화 |
+| `PLAN_CHANGED` | 확인창 닫기 + `toast.applyPlanChanged` + `loadPlan()` |
+| `NO_PLAN` | 확인창 닫기 + `acceptNoPlan(expectedRevision)` → 입력 화면 |
+| `VALIDATION_FAILED` / `FIELD_NOT_CHANGEABLE` | 확인창 닫기 + `toast.applyNotApplicable`. 다시 비교할 때까지 버튼 비활성 |
+| `INTERNAL_ERROR` / 네트워크 / `MALFORMED_REQUEST` | `toast.applyFailed`. 확인창과 버튼은 그대로(재시도 가능) |
+| `UNAUTHENTICATED` | 로그인 화면 |
+
+- 성공 뒤 F-3은 여기서 부르지 않는다. 결과 화면의 `calcRunId`가 바뀌면 #54가 한 곳에서 부른다(C12b-7-3과 같다).
+- 대화창의 적용 버튼은 `revision` 구독으로 모두 비활성된다(C12b-7-4, D-069). P-6 쪽에서 따로 부를 함수는 없다.
 
 ### C12a-10. 오류 공통 규칙과 코드 표
 
@@ -614,11 +669,11 @@ FR-PLAN-04, D-013, D-041, D-044, D-068, C12b-7-4.
 | 401 | `INVALID_CREDENTIALS` | P-1 | 아이디 없음·비밀번호 틀림 | `[]` |
 | 404 | `NOT_FOUND` | 없는 경로 | | `[]` |
 | 405 / 415 | `METHOD_NOT_ALLOWED` / `UNSUPPORTED_MEDIA_TYPE` | 전부 | 프론트는 쓰지 않음 | `[]` |
-| 409 | `NO_PLAN` | P-4, P-5, (P-6) | 저장된 계획 없음 | `[]` |
-| 409 | `PLAN_CHANGED` | P-3, P-5, (P-6) | `expectedRevision` 불일치, 쓰기 0행 | `[]` |
+| 409 | `NO_PLAN` | P-4, P-5, P-6 | 저장된 계획 없음 | `[]` |
+| 409 | `PLAN_CHANGED` | P-3, P-5, P-6 | `expectedRevision` 불일치, 쓰기 0행 | `[]` |
 | 409 | `NOTHING_TO_UNDO` | P-5 | `previous_version_id` 없음 | `[]` |
-| 422 | `VALIDATION_FAILED` | P-1, P-3, (P-6) | 필드 검증 실패 | 1개 이상 |
-| 422 | `FIELD_NOT_CHANGEABLE` | (P-6) | 경로 밖 키 | 1개 이상 |
+| 422 | `VALIDATION_FAILED` | P-1, P-3, P-6 | 필드 검증 실패 | 1개 이상 |
+| 422 | `FIELD_NOT_CHANGEABLE` | P-6 | 경로가 허용하지 않는 키, 알 수 없는 키 | 1개 이상 |
 | 500 | `INTERNAL_ERROR` | 전부 | 예상하지 못한 오류, 결과 계산 실패, 대화 삭제 실패. **P-3의 500은 "저장되지 않았다"** | `[]` |
 
 - `CALC_FAILED`는 이 계약에 나오지 않는다(`/internal/calc` 컨트롤러 한정).
@@ -792,8 +847,14 @@ record PlanUndoResult(long planVersionId, long revision) {}
 | `plan/post-undo.409-plan-changed.json` | P-5 | 409 | `PLAN_CHANGED` |
 | `plan/post-undo.409-no-plan.json` | P-5 | 409 | `NO_PLAN` |
 | `plan/post-undo.500.json` | P-5 | 500 | `INTERNAL_ERROR` |
+| `plan/post-plan-apply.200.json` (기본) | P-6 | 200 | `{revision: 14}` |
+| `plan/post-plan-apply.409-plan-changed.json` | P-6 | 409 | `PLAN_CHANGED` |
+| `plan/post-plan-apply.409-no-plan.json` | P-6 | 409 | `NO_PLAN` |
+| `plan/post-plan-apply.422-validation.json` | P-6 | 422 | `monthlySavingAmount` `OUT_OF_RANGE`(`min 10000, max 10000000, unit KRW`) |
+| `plan/post-plan-apply.422-field-not-changeable.json` | P-6 | 422 | ALTERNATIVE에 `goalAmount` → `NOT_CHANGEABLE` |
+| `plan/post-plan-apply.500.json` | P-6 | 500 | `INTERNAL_ERROR` |
 
-- **총 30개**(auth 6, plan 24). P-6 목은 없다(#68). 공통 401은 대화 절의 `chat/common.401-unauthenticated.json`을 재사용한다.
+- **총 36개**(auth 6, plan 30). P-6 목 6개는 #68이 더했다. 파일 이름 접두어는 대화 적용(`chat/post-apply`)과 겹치지 않게 `post-plan-apply`다. 공통 401은 대화 절의 `chat/common.401-unauthenticated.json`을 재사용한다.
 - **[개수 정정]** 최종본 본문은 "29개(plan 23)"로 적었지만 위 표는 30행이다. `put-plan.422-custom-name`(D-074)이 개수 문장에 반영되지 않은 것으로 보여 표를 기준으로 30개를 만든다. 대화 목 35개와 합쳐 65개다.
 - 9번 뒤의 GET은 마지막 응답(`rev 14`)을 반복한다. C12a-6-7 규칙 1로 무시되어 화면은 `rev 15`를 유지한다.
 - Issue #12 수용 기준 "정상, 422, 401, 409": P-1(200·422·401), P-3(200·422·409), P-4(200·409·401), P-5(200·409). 400·500도 있다.

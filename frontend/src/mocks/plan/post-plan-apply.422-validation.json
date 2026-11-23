@@ -1,0 +1,27 @@
+{
+  "responses": [
+    {
+      "status": 422,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "입력값을 확인해 주세요",
+        "status": 422,
+        "detail": "monthlySavingAmount: OUT_OF_RANGE",
+        "instance": "/api/plan/apply",
+        "code": "VALIDATION_FAILED",
+        "errors": [
+          {
+            "field": "monthlySavingAmount",
+            "reason": "OUT_OF_RANGE",
+            "min": 10000,
+            "max": 10000000,
+            "unit": "KRW"
+          }
+        ]
+      }
+    }
+  ]
+}
