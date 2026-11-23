@@ -13,7 +13,8 @@ import { api, planStore, polling } from "../../api";
 import { ApiError } from "../../api/errors";
 import { ComparisonNotices, ComparisonResult, useComparison, useComparisonController, type ComparisonPlanStore } from "./comparison";
 import { COPY, unitChar } from "./copy";
-import { Citations } from "./explanation/Citations";
+import { Citations, EtfRiskCitations } from "./explanation/Citations";
+import { planHasNoEtf } from "./planEtf";
 import { postExplanation, useExplanationRequest } from "./explanation/useExplanationRequest";
 import type { ChatDeps } from "./index";
 import { useRetryExplanation } from "./retry/useRetryExplanation";
@@ -64,9 +65,18 @@ interface BubbleProps {
   /** 실패한 설명 아래에 [다시 시도]를 그릴 때만 준다. "설명 다시 요청"과 같은 동작이다. */
   onRetry?: () => void;
   retryDisabled?: boolean;
+  /** 계획이 ETF 0%면 결과 설명의 ETF 위험 설명을 그리지 않는다(#283). */
+  planHasNoEtf?: boolean;
 }
 
-function Bubble({ message, onRetry, retryDisabled }: BubbleProps) {
+function BubbleCitations({ message, planHasNoEtf }: { message: ChatMessage; planHasNoEtf: boolean }) {
+  if (message.status !== "COMPLETED" || message.citations.length === 0) return null;
+  // 질문 답·비교 답의 출처는 그대로 보이고, 결과 설명의 근거만 ETF 위험 설명으로 접는다.
+  if (message.messageType !== "EXPLANATION") return <Citations citations={message.citations} />;
+  return planHasNoEtf ? null : <EtfRiskCitations citations={message.citations} />;
+}
+
+function Bubble({ message, onRetry, retryDisabled, planHasNoEtf = false }: BubbleProps) {
   const className = message.role === "USER" ? BUBBLE_USER : BUBBLE_ASSISTANT;
   if (message.status === "PENDING") {
     return (
@@ -92,7 +102,7 @@ function Bubble({ message, onRetry, retryDisabled }: BubbleProps) {
         className={className}
       >
         {message.content}
-        {message.status === "COMPLETED" && message.citations.length > 0 && <Citations citations={message.citations} />}
+        <BubbleCitations message={message} planHasNoEtf={planHasNoEtf} />
       </div>
       {onRetry && (
         <button
@@ -143,6 +153,7 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, onAssi
   const settledStatus = useSyncExternalStore(subscribe, () => store.getState().settledStatus);
   const etfProductCode = useSyncExternalStore(subscribe, () => planEtfProductCode(store.getState()));
   const etfProducts = useEtfProducts(deps.api, etfProductCode);
+  const noEtf = useSyncExternalStore(subscribe, () => planHasNoEtf(store.getState()));
 
   const comparison = useComparison(comparisonController, chat.messages, settledStatus === "ALREADY_EXCEEDED");
 
@@ -278,6 +289,7 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, onAssi
               message={message}
               onRetry={message.id === lastFailureId && canRetry ? retryExplanation.retry : undefined}
               retryDisabled={retryExplanation.disabled}
+              planHasNoEtf={noEtf}
             />
             <ComparisonResult comparison={comparison} message={message} />
           </Fragment>

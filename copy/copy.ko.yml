@@ -54,6 +54,8 @@ chat:
   # 다른 ETF 종목으로 비교하는 버튼(#275, D-097). 지금 계획 종목은 빼고 보여 준다. 권하는 말은 쓰지 않는다(CP-06)
   etfChipsLabel: "다른 종목으로 비교해 보기"
   etfChipQuestion: "{name}로 바꾸면 어때요?"
+  # 결과 설명의 ETF 위험 설명(근거·출처) 접기 제목(#283). ETF 비중이 있을 때만 보이고 기본은 접는다
+  etfRiskTitle: "ETF 위험 설명"
   # 질문 예시 버튼(D-064, D-090). 값·변화량 없이 조건만 고른다
   exampleQuestion:
     goalAmount: "목표 금액을 바꿔 보고 싶어요"

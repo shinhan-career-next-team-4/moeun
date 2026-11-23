@@ -1,6 +1,6 @@
 // Issue #54 수용 테스트 공용 도구. 잠긴 파일이라 구현 쪽에서 고치지 않는다.
 // 공개 인터페이스(ChatWindow + deps {api, polling, planStore}, 공유 store #13)만 쓴다. 구현 내부 이름에는 의존하지 않는다.
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { vi } from "vitest";
 import { planView } from "../../../../api/__tests__/helpers";
@@ -74,8 +74,14 @@ export function chatMarkup(): string {
 /** 출처 영역(data-testid="chat-citations")을 뺀 말풍선 본문 텍스트. */
 export function bodyTextWithoutCitations(el: HTMLElement): string {
   const clone = el.cloneNode(true) as HTMLElement;
-  clone.querySelectorAll('[data-testid="chat-citations"]').forEach((node) => node.remove());
+  clone.querySelectorAll('[data-testid="chat-citations"], [data-testid="chat-etf-risk"]').forEach((node) => node.remove());
   return clone.textContent ?? "";
+}
+
+/** 결과 설명의 접힌 ETF 위험 설명을 펼친다(#283). 접기 단추가 없는 메시지는 그대로 둔다. */
+export function expandEtfRisk(el: HTMLElement): void {
+  const toggle = el.querySelector<HTMLButtonElement>('[data-testid="chat-etf-risk"] button[aria-expanded="false"]');
+  if (toggle) act(() => fireEvent.click(toggle));
 }
 
 // ---------------------------------------------------------------- 메시지
