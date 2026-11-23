@@ -1,0 +1,18 @@
+{
+  "responses": [
+    {
+      "status": 409,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "아직 계획이 없어요",
+        "status": 409,
+        "instance": "/api/alternatives",
+        "code": "NO_PLAN",
+        "errors": []
+      }
+    }
+  ]
+}

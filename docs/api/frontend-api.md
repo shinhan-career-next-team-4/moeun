@@ -17,6 +17,7 @@
 | P-4 | `GET /api/plan` | `200 PlanView` | `calc.web`(A) | 예 | C12a-6 |
 | P-5 | `POST /api/plan/undo` | `200 {revision}` | `plan.web`(A) | 예 | C12a-8 |
 | P-6 | `POST /api/plan/apply` | `200 {revision}` | `plan.web`(A) | 예 | C12a-9 (#68 확정) |
+| A-1 | `POST /api/alternatives` | `200 {hasAlternatives, alternatives}` | `chat.web.alternative`(B) | 예 | 5절 A-1 (#66, #258) |
 | F-1 | `POST /api/chat/messages` | `202 {userMessageId, assistantMessageId}` | `chat`(B) | 예 | C12b-4 |
 | F-2 | `GET /api/chat/messages?afterId={id}` | `200 {messages, hasPending, answerPending}` | `chat`(B) | 아니오(`@SkipRenewal`) | C12b-5 |
 | F-3 | `POST /api/chat/explanations` | `202 {}` | `chat`(B) | 예 | C12b-3a |
@@ -1607,3 +1608,92 @@ public record PlanApplyResult(long planVersionId, Long previousVersionId, long r
 - 가격 데이터가 적재되지 않은 종목은 목록에 없다(계산할 수 없으므로). 하나도 없으면 `200 {"products": []}`
 - 오류: 로그인하지 않으면 `401 UNAUTHENTICATED`(C3-1). 서버의 기준 데이터가 어긋나면(종목 정보 누락 등) 공통 `500 INTERNAL_ERROR`. 그 밖의 오류 코드는 없다
 - 목: `refdata/get-etf-products.200.json`
+
+---
+
+## 5. 대안 절 (#66, #258)
+
+결과 화면 대안 영역(FR-ALT-01~04, 와이어프레임 03)이 쓰는 대안 값 API. 백엔드는 #66에서 구현했고 이 절은 #258에서 화면 연결을 위해 적었다. 카드 값과 본문은 **D-096**(Q-089·Q-103)을 따른다.
+
+### A-1. `POST /api/alternatives`
+
+현재 계획에서 조건 **하나만** 바꾼 대안 3개를 계산해 돌려준다. 내 계획과 calc_run은 바뀌지 않는다.
+
+요청(본문은 비어 있어도 된다):
+```json
+{ "targetPeriodMonths": 48 }
+```
+
+| 필드 | 뜻 |
+|---|---|
+| `targetPeriodMonths` | '기한을 늘리면' 카드에 쓸 원하는 기간(개월). 없으면 그 카드는 입력 전의 빈 카드다(D-020·D-039) |
+
+응답 `200`:
+```json
+{
+  "hasAlternatives": true,
+  "alternatives": [
+    { "key": "monthlySavingAmount", "changes": { "monthlySavingAmount": 330000 },
+      "conditions": { "current": { "...": "5개 조건" }, "changed": { "...": "" } },
+      "current": { "...": "CalcResultView" }, "changed": { "...": "CalcResultView" }, "diff": { "...": "" },
+      "display": { "conditions.current.monthlySavingAmount": "약 30만원", "conditions.changed.monthlySavingAmount": "약 33만원",
+                   "diff.AVG.afterTaxAssetDelta": "약 117만원 증가", "changed.AVG.afterTaxAsset": "약 1,788만원",
+                   "changed.AVG.gapToGoal": "-약 212만원 미달", "...": "비교 display(C12b-6)와 같은 키" } },
+    { "key": "targetPeriodMonths", "changes": {}, "conditions": null, "current": null, "changed": null, "diff": null, "display": {} },
+    { "key": "savingsRatioPct", "changes": { "savingsRatioPct": 40 }, "...": "" }
+  ]
+}
+```
+
+| 필드 | 뜻 |
+|---|---|
+| `hasAlternatives` | 대안을 보여줄지. 기준 시나리오로 목표를 달성했거나 이미 넘은 계획이면 `false`이고 `alternatives`는 빈 배열 |
+| `alternatives[]` | 항상 `monthlySavingAmount`·`targetPeriodMonths`·`savingsRatioPct` 순서의 3장. 순서는 우열이 아니다(FR-ALT-02) |
+| `key` | 바꾼 조건 |
+| `changes` | `{key: 바꾼 값}`. '비교하기'가 비교 영역에 채우고, '내 계획으로 적용'이 P-6 `conditionChanges`로 보낸다. 빈 카드면 `{}` |
+| `display` | 비교 display(C12b-6)와 같은 키. 빈 카드면 `{}` |
+
+- 대안 값(D-096 ①): 월 저축액은 현재의 **+10%**, 비중은 적금 **−10%p**(ETF +10%p)를 서버가 정한다. 기한은 사용자가 입력한다.
+- 바꿀 값이 없는 카드(기한 입력 전 등)는 `changes`가 비고 나머지가 `null`·`{}`인 빈 카드다.
+
+#### A-1-1. 카드 본문과 display 키 (D-096 ②)
+
+| 카드 줄 | display 키 |
+|---|---|
+| 바뀌는 조건 | `conditions.current.<key>` → `conditions.changed.<key>` (문구표 형식으로 잇기만 한다) |
+| 변화 | `diff.AVG.afterTaxAssetDelta` (평균 세후 자산 변화) |
+| 예상 자산(평균) | `changed.AVG.afterTaxAsset` |
+| 목표 대비 | `changed.AVG.gapToGoal` |
+| 나빴던 때 | `changed.BAD.afterTaxAsset` · `changed.BAD.gapToGoal` (ETF 0%면 키가 없어 줄을 그리지 않는다) |
+
+- 프론트는 숫자를 만들지 않는다(NFR-INT-01). 키가 없는 줄은 그리지 않는다.
+- 변동 경고(W-10)는 서버 값이 없어 그리지 않는다(D-096 ③).
+
+#### A-1-2. 오류
+
+| HTTP | `code` | 언제 | 프론트 동작 |
+|---|---|---|---|
+| 401 | `UNAUTHENTICATED` | 쿠키 없음·만료 | 로그인 화면(래퍼) |
+| 409 | `NO_PLAN` | 계획 없음 | 입력 화면 |
+| 422 | `VALIDATION_FAILED` | `targetPeriodMonths`가 허용 범위 밖(`errors[0] = {field: "targetPeriodMonths", reason: "OUT_OF_RANGE", min: 1, max: 360, unit: "MONTH"}`) | 기한 카드에 범위 안내, 다른 카드는 그대로 |
+| 500 | `INTERNAL_ERROR` | 그 밖 | 카드를 비우고 안내. 적용 버튼 비활성 |
+
+#### A-1-3. 화면 흐름
+
+1. 결과 화면이 열리면 본문 없이 부른다. `hasAlternatives: false`면 대안 영역을 그리지 않는다.
+2. 기한 카드에 개월 수를 적으면 `{targetPeriodMonths}`로 다시 불러 카드를 채운다.
+3. 내 계획 `revision`이 바뀌면(적용·되돌리기·입력 수정) 다시 부른다. 이전 revision으로 받은 카드는 적용할 수 없다.
+4. '내 계획으로 적용'은 확인창(C12a-9-2)을 거쳐 P-6을 `{path: "ALTERNATIVE", expectedRevision, conditionChanges: card.changes}`로 부른다. 응답별 동작은 C12a-9-2 표와 같다.
+
+#### A-1-4. 목(mock) JSON (`frontend/src/mocks/alternative/`)
+
+목은 요청 키(메서드 + 경로)로만 고르므로 본문으로 응답을 나누지 않는다. 기본 파일은 순서 파일이다.
+
+| 파일 | 응답 | 내용 |
+|---|---|---|
+| `alternative/post-alternatives.seq.json` (기본) | 200 → 200 | 첫 요청은 기한 카드 빈 응답, 그다음(반복)은 기한 48개월 응답 |
+| `alternative/post-alternatives.200.json` | 200 | 기한 카드 빈 응답 |
+| `alternative/post-alternatives.200-period.json` | 200 | `{targetPeriodMonths: 48}` 응답(REST Docs `alternative-find`와 같은 값) |
+| `alternative/post-alternatives.200-none.json` | 200 | `{hasAlternatives: false, alternatives: []}` |
+| `alternative/post-alternatives.422-period.json` | 422 | `targetPeriodMonths` `OUT_OF_RANGE` |
+| `alternative/post-alternatives.409-no-plan.json` | 409 | `NO_PLAN` |

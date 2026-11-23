@@ -8,7 +8,7 @@ import { createApiClient } from "../client";
 import { createPlanStore } from "../planStore";
 
 export const MOCKS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../mocks");
-const MOCK_FOLDERS = ["chat", "auth", "plan"] as const;
+const MOCK_FOLDERS = ["chat", "auth", "plan", "alternative"] as const;
 
 export type MockResponse = {
   status: number;

@@ -157,7 +157,7 @@ test("chat/get-messages.200-restore-pending.json 있음, post-explanations.seq-r
 test("계약 문서의 목 표와 실제 파일 이름이 같다", () => {
   const doc = fs.readFileSync(docPath, "utf8");
   const found = new Set();
-  for (const m of doc.matchAll(/`((?:auth|plan|chat|refdata)\/)?([a-z0-9][a-z0-9.-]*\.json)`/g)) {
+  for (const m of doc.matchAll(/`((?:auth|plan|chat|refdata|alternative)\/)?([a-z0-9][a-z0-9.-]*\.json)`/g)) {
     const dir = m[1] ? m[1].slice(0, -1) : "chat";
     found.add(`${dir}/${m[2]}`);
   }
