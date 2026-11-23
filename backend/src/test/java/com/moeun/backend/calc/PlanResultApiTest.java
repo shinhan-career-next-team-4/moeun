@@ -139,9 +139,10 @@ class PlanResultApiTest {
                 "baselineResultScenario", "plan", "result", "display");
         assertThat(body.get("plan").propertyNames()).containsExactlyInAnyOrder("goalType", "goalCustomName",
                 "goalAmount", "targetPeriodMonths", "heldAssets", "monthlySavingAmount", "savingsRateInputPct",
-                "savingsRatioPct");
+                "savingsRatioPct", "etfProductCode");
         assertThat(body.get("plan").has("savingsRateInputPct")).isTrue();
         assertThat(body.get("plan").get("savingsRatioPct").isNull()).isTrue();
+        assertThat(body.get("plan").get("etfProductCode").asString()).isEqualTo("SP500");   // 새 계획은 대표 상품(#154)
         assertThat(body.get("result").propertyNames()).containsExactlyInAnyOrder("status", "goalAmount",
                 "calcStartMonth", "targetMonth", "scenarios", "assumptions");
         JsonNode scenario = body.get("result").get("scenarios").get(0);

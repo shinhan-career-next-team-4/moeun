@@ -42,7 +42,7 @@ class CompareTwoProductsTest {
 
     private static PlanView plan(int savingsRatioPct) {
         return new PlanView(1L, GoalType.HOUSE, null, 30_000_000L, 36, 0L, 300_000L, new BigDecimal("2.84"),
-                savingsRatioPct, "2026-11", "AVG", 1L, false, Instant.parse("2026-11-20T00:00:00Z"));
+                savingsRatioPct, "SP500", "2026-11", "AVG", 1L, false, Instant.parse("2026-11-20T00:00:00Z"));
     }
 
     private static EtfSeries kospi200() {

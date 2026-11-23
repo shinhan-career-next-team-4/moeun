@@ -150,7 +150,8 @@ public class PlanContextProviderImpl implements PlanContextProvider, ChatCompari
     private static PlanView withBaselineScenario(PlanView plan, Scenario baselineScenario) {
         return new PlanView(plan.currentVersionId(), plan.goalType(), plan.goalCustomName(), plan.goalAmount(),
                 plan.targetPeriodMonths(), plan.heldAssets(), plan.monthlySavingAmount(), plan.savingsRateInputPct(),
-                plan.savingsRatioPct(), plan.calcStartMonth(), baselineScenario.name(), plan.revision(),
+                plan.savingsRatioPct(), plan.etfProductCode(), plan.calcStartMonth(), baselineScenario.name(),
+                plan.revision(),
                 plan.canUndo(), plan.updatedAt());
     }
 

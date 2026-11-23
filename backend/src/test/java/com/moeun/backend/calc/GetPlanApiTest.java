@@ -9,7 +9,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.io.InputStream;
+import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.LinkedHashMap;
@@ -23,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
@@ -30,6 +34,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.moeun.backend.auth.application.JwtTokenService;
 import com.moeun.backend.config.TestcontainersConfig;
+import com.moeun.backend.refdata.DataVersionInfo;
+import com.moeun.backend.refdata.EtfProduct;
+import com.moeun.backend.refdata.application.ReferenceDataLoader;
+import com.moeun.backend.refdata.application.VersionSpec;
 
 import jakarta.servlet.http.Cookie;
 import tools.jackson.databind.JsonNode;
@@ -47,6 +55,8 @@ class GetPlanApiTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final Duration EVENT_WAIT = Duration.ofSeconds(20);
+    /** 같은 DB를 쓰는 다른 테스트 클래스의 069500 라벨("test-kospi", "test-kospi-chat")과 겹치지 않게 둔다. */
+    private static final String KOSPI_LABEL = "test-kospi-get-plan";
 
     @Autowired
     MockMvc mockMvc;
@@ -59,6 +69,9 @@ class GetPlanApiTest {
 
     @Autowired
     TransactionTemplate transactions;
+
+    @Autowired
+    ReferenceDataLoader loader;
 
     Cookie cookie;
     long memberId;
@@ -137,6 +150,7 @@ class GetPlanApiTest {
         assertThat(plan.get("monthlySavingAmount").asLong()).isEqualTo(300_000L);
         assertThat(plan.get("savingsRateInputPct").isNull()).isTrue();
         assertThat(plan.get("savingsRatioPct").isNull()).isTrue();
+        assertThat(plan.get("etfProductCode").asString()).isEqualTo("SP500");
         assertThat(current.get("result")).isEqualTo(saved.get("result"));
         assertThat(current.get("display")).isEqualTo(saved.get("display"));
         // 결과 화면 배지(#224): 같은 응답의 gapToGoal·isAchieved에서 기대 문자열을 따로 만들어 전체를 비교한다
@@ -204,7 +218,7 @@ class GetPlanApiTest {
 
         assertThat(current.get("plan").propertyNames()).containsExactlyInAnyOrder("goalType", "goalCustomName",
                 "goalAmount", "targetPeriodMonths", "heldAssets", "monthlySavingAmount", "savingsRateInputPct",
-                "savingsRatioPct");
+                "savingsRatioPct", "etfProductCode");
         assertThat(current.get("result").propertyNames()).containsExactlyInAnyOrder("status", "goalAmount",
                 "calcStartMonth", "targetMonth", "scenarios", "assumptions");
         assertThat(current.toString()).doesNotContain("heldAssetsRecheck", "annualReturnPct", "currentVersionId",
@@ -280,6 +294,35 @@ class GetPlanApiTest {
         long currentVersionId = jdbc.sql("SELECT current_version_id FROM plan").query(Long.class).single();
         assertThat(jdbc.sql("SELECT plan_version_id FROM calc_run WHERE id = ?")
                 .param(current.get("calcRunId").asLong()).query(Long.class).single()).isEqualTo(currentVersionId);
+    }
+
+    @Test
+    @DisplayName("계획의 종목이 069500이면 그 종목의 시계열·세율로 계산하고 응답 plan에도 그 종목이 있다(#154)")
+    void calculatesWithEtfProductOfPlan() throws Exception {
+        savePlan(5_000_000L);
+        long kospi = loadKospi200();
+        // 종목을 바꾸는 적용 경로가 아직 없어(#154 2단계) 행을 직접 고치고, 이 버전의 기존 기록을 지워 다시 계산하게 한다
+        jdbc.sql("UPDATE plan_version SET etf_product_code = '069500'").update();
+        jdbc.sql("DELETE FROM calc_run").update();
+
+        JsonNode current = getPlan(cookie);
+
+        assertThat(current.get("plan").get("etfProductCode").asString()).isEqualTo("069500");
+        assertThat(current.get("result").get("assumptions").get("etfProductCode").asString()).isEqualTo("069500");
+        assertThat(jdbc.sql("SELECT sp500_version_id FROM calc_run WHERE id = ?")
+                .param(current.get("calcRunId").asLong()).query(Long.class).single()).isEqualTo(kospi);
+    }
+
+    /** 대표 상품과 같은 가짜 종가에 종목 정보만 069500(비과세)으로 둔 가격 버전 id. 이미 있으면 그 버전을 쓴다. */
+    private long loadKospi200() throws Exception {
+        try (InputStream csv = new ClassPathResource("refdata/test-sp500-2016-10-to-2026-10.csv").getInputStream()) {
+            return loader.loadEtf(new EtfProduct("069500", "코스피200 추종 ETF", BigDecimal.ZERO),
+                    new VersionSpec(KOSPI_LABEL, LocalDate.of(2026, 10, 31), "테스트용 가짜 데이터"), csv)
+                    .map(DataVersionInfo::id)
+                    .orElseGet(() -> jdbc.sql("SELECT id FROM data_version WHERE data_kind = 'ETF_PRICE' "
+                            + "AND product_code = '069500' AND version_label = ?").param(KOSPI_LABEL)
+                            .query(Long.class).single());
+        }
     }
 
     @Test

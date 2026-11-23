@@ -98,7 +98,7 @@ public class CurrentPlanResultService {
         CalcParams params = referenceDataService.findActiveCalcParams()
                 .orElseThrow(() -> new IllegalStateException("active calc params are not loaded"));
         // S&P500은 레포에 없어 각자 적재한다(A안). 없으면 ETF가 든 계획만 엔진이 이유를 담아 막는다
-        // 계획의 ETF 종목(#150). 계획에 종목 칸이 생기기 전까지는 대표 상품이다
+        // 계획에 저장된 ETF 종목(#150, #154). 새 계획과 옛 계획은 대표 상품이다
         EtfSeries sp500 = referenceDataService.findActiveEtfSeries(EtfProductSelector.productCodeOf(plan))
                 .orElse(null);
         SavingsAvgRateData defaultRate = referenceDataService.findActiveSavingsAvgRate().orElse(null);
