@@ -302,7 +302,7 @@ class ChatAgent:
         # calc_run_id는 누적 값으로 계산된 채 condition_changes만 달라진다)
         dropped: list[str] = []
         if turn.req.text and turn.req.history:
-            filtered = drop_carried_conditions(turn.req.text, changes)
+            filtered = drop_carried_conditions(turn.req.text, changes, turn.req.history)
             dropped = sorted(changes.changed().keys() - filtered.changed().keys())
             if dropped:
                 log.info("dropped carried conditions for message %s: %s", turn.req.message_id, dropped)

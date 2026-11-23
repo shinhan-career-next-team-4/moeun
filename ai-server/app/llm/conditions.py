@@ -1,6 +1,7 @@
 import re
+from collections.abc import Sequence
 
-from app.schemas import ConditionChanges
+from app.schemas import ConditionChanges, HistoryItem
 
 # 이번 발화가 그 조건을 가리키는지 보는 느슨한 표현. 자연어를 해석하거나 계산하지 않고, 표현이 없을 때만 값을 뺀다.
 # "개월"의 월, "원래"의 원, "한 달"의 달처럼 다른 조건의 글자가 겹치지 않게 정규식으로 가린다(M-3)
@@ -153,13 +154,31 @@ def _stated_conditions(text: str) -> set[str]:
     return {name for name, hit in stated.items() if hit}
 
 
-def drop_carried_conditions(text: str, changes: ConditionChanges) -> ConditionChanges:
+def _pointed_amounts(text: str, history: Sequence[HistoryItem]) -> set[int]:
+    """가리키는 답("그거요", "모으는 돈이요")이 고른 금액. 없으면 빈 집합(#270).
+
+    직전 답이 되묻기(물음표)이고 이번 발화에 숫자도 조건 낱말도 없으면, 되묻기 바로 앞 사용자 발화의 금액이
+    하나일 때만 그 금액을 가리킨다고 본다. 조건 고르기 답 규칙(#239)과 같은 범위이고 더 앞 턴은 보지 않는다(D-041).
+    """
+    if len(history) < 2 or _count_numbers(text) or _stated_conditions(text):
+        return set()
+    before, last = history[-2], history[-1]
+    if before.role != "user" or last.role != "assistant" or "?" not in last.content:
+        return set()
+    amounts = _candidate_krw_amounts(before.content.lower())
+    return amounts if len(amounts) == 1 else set()
+
+
+def drop_carried_conditions(
+    text: str, changes: ConditionChanges, history: Sequence[HistoryItem] = ()
+) -> ConditionChanges:
     """history에서 이어받은 조건을 도구 인자에서 뺀다. 비교 기준은 항상 내 계획이다(FR-AI-06, D-041).
 
     사용자가 말한 값을 지우는 쪽이 이어받은 값이 남는 쪽보다 나쁘므로, 모호하면 남긴다. 발화의 숫자가
     인식한 조건보다 많으면("50으로 하고 기간은 3년") 단위를 못 알아본 값이 있다고 보고 그대로 둔다.
     쉼표 금액과 한 기간의 복수 단위는 숫자 하나로 센다.
-    표현도 숫자도 없으면 말한 값이 없으므로 전부 뺀다.
+    표현도 숫자도 없으면 말한 값이 없으므로 전부 뺀다. 단, 되묻기에 가리키는 말로 답했으면 되묻기 바로 앞 발화의
+    금액 하나는 남긴다(#270).
     """
     lowered = text.lower()
     stated = _stated_conditions(lowered)
@@ -167,7 +186,8 @@ def drop_carried_conditions(text: str, changes: ConditionChanges) -> ConditionCh
         return changes
     # 되묻기에 금액만 답한 발화("15000만원")는 조건 낱말이 없어도 그 금액을 이번에 말한 것이다(#231).
     # 이 필터는 앞 턴에서 이어받은 값을 빼는 것이므로, 이번 발화에 그대로 있는 금액은 남긴다
-    said_amounts = _candidate_krw_amounts(lowered)
+    # 되묻기에 가리키는 말로 답한 발화는 되묻기 바로 앞 발화의 금액을 고른 것이다(#270)
+    said_amounts = _candidate_krw_amounts(lowered) | _pointed_amounts(lowered, history)
     return ConditionChanges.model_validate({
         k: v for k, v in changes.changed().items()
         if k in stated or (k in _MONEY_FIELDS and v in said_amounts)

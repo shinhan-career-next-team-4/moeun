@@ -154,6 +154,21 @@ def test_s8_8b_condition_only_answer_to_role_question(api, fresh):
     assert_goal_recalc(api, ask(api, "목표 금액"), ONE_EOK)
 
 
+def test_s8_8e_pointer_answer_to_role_question(api, fresh):
+    """역할 없는 금액을 되물은 뒤 '모으는 돈이요'처럼 가리키는 말로 답해도 목표 금액으로 계산한다(#270)."""
+    first = ask(api, "1억으로 바꿀게")
+    assert first["messageType"] == "CLARIFY", f"{first['messageType']}: {first['content']}"
+    assert_goal_recalc(api, ask(api, "모으는 돈이요"), ONE_EOK)
+
+
+def test_s8_8f_bare_pointer_after_listed_choices_asks_again(api, fresh):
+    """두 조건 이상을 나열한 되묻기에 '그거요'만 답하면 어느 것인지 몰라 다시 되묻는다(#270)."""
+    first = ask(api, "1억으로 바꿀게")
+    assert first["messageType"] == "CLARIFY", f"{first['messageType']}: {first['content']}"
+    second = ask(api, "그거요")
+    assert second["messageType"] == "CLARIFY", f"{second['messageType']}: {second['content']}"
+
+
 def test_s8_8d_follow_up_amount_does_not_carry_previous_value(api, fresh):
     """앞에서 월 저축액을 바꿔 본 뒤 목표 금액을 묻고 '1억으로 바꿀게'면 목표 금액만 바꾼다(누적 없음, D-041, #239)."""
     first = ask(api, "매달 150만원으로 하면요?")
