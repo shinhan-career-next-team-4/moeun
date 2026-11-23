@@ -52,7 +52,7 @@
 
 - `baselineScenario`를 계획에서 읽는 이유: 원천이 한 곳이고 같은 `plan` 행이라 비용이 없다. 해커톤에서는 항상 AVG(FR-RES-09 Should)라 ai-server 동작은 바뀌지 않는다. ai-server는 지금 코드를 고치지 않아도 된다.
 
-`conditionChanges` 허용 키 (D-090·D-092, CP-07 — **5개**):
+`conditionChanges` 허용 키 (D-090·D-092·#160, CP-07 — **6개**):
 
 | 키 | JSON 타입 | 단위 | 대응 컬럼(`plan_version`) |
 |---|---|---|---|
@@ -61,6 +61,14 @@
 | `savingsRatioPct` | integer | PCT (적금 비중, 나머지 ETF) | `savings_ratio_pct` |
 | `savingsRateInputPct` | number | PCT (연, 세전) | `savings_rate_input_pct` |
 | `targetPeriodMonths` | integer | MONTH | `target_period_months` |
+| `etfProductCode` | **string** | — (활성 ETF 종목 코드. 지금 `SP500`, `069500`, `133690`) | 계획의 ETF 종목(#154). #154 전에는 항상 `SP500` |
+
+`etfProductCode` 규칙 (#160 합의):
+- 허용 값은 활성 ETF 종목 목록(ETF 목록 API와 같은 출처)이다. ai-server는 코드 목록을 하드코딩하지 않는다.
+- 계획과 같은 종목을 보내면 바꾸지 않은 것으로 본다(`calc_run.changed_etf_version_id`도 NULL, C2-7).
+- `changed`의 ETF 비중이 0%(`savingsRatioPct=100`)여도 거절하지 않는다. ETF를 쓰지 않으니 종목 차이는 없고 정상 비교(`200`)로 내려준다. ai-server는 "ETF 비중이 0%라서 종목을 바꿔도 결과는 같아요." 한 문장으로 답한다(B팀 후속).
+- 종목 이름은 지수 이름(예 "코스피200 추종 ETF")으로만 쓰고 운용사 상품명이나 "추천" 표현은 쓰지 않는다(CP-06).
+- 종목을 바꾼 비교는 #154(계획에 종목 저장)가 끝날 때까지 **적용할 수 없다**. F-4에서 `applicable: false`로 내리고 적용 버튼을 숨긴다(chat 모듈, B팀). 다른 조건만 바꾼 비교는 지금처럼 적용할 수 있다.
 
 **받는 방식**: Spring은 `memberId`와 `conditionChanges`를 타입 있는 record가 아니라 `JsonNode`(`conditionChanges`는 `Map<String, JsonNode>`)로 받는다. `memberId`는 `JsonNode.isIntegralNumber()`로 정수인지 검사하고, `conditionChanges`는 `plan.ConditionValidator.validate(ChangePath.CHAT, …)`에서 검사한다. 왜: Boot 기본값(`FAIL_ON_UNKNOWN_PROPERTIES=false`, `ACCEPT_FLOAT_AS_INT=true`)으로는 `goalAmount`가 조용히 버려지고 `500000.5`·`memberId: 7.5`가 잘려, 아래 거절 규칙을 지킬 수 없다.
 
@@ -71,10 +79,10 @@
 | 0 | 내부 키 | 없음·불일치 → `401 INVALID_INTERNAL_KEY` |
 | 1 | 본문 JSON 파싱, `memberId`가 정수인지(`isIntegralNumber()`, `7.5`·`"7"`은 실패), `conditionChanges`가 객체인지 | 실패 → `400 MALFORMED_REQUEST` |
 | 2 | 값이 `null`인 키를 먼저 지운다 | — |
-| 3 | 허용 5개 밖의 키(`heldAssets`, `existingMonthlyContribution`, 오타 키 등) | 하나라도 있으면 **요청 전체 거절** `422 FIELD_NOT_CHANGEABLE`. `errors`에는 허용 밖 키만 담는다 |
-| 4 | 허용 키의 값이 JSON 숫자가 아님(문자열·불리언·객체·배열) | `400 MALFORMED_REQUEST` |
+| 3 | 허용 6개 밖의 키(`heldAssets`, `existingMonthlyContribution`, 오타 키 등) | 하나라도 있으면 **요청 전체 거절** `422 FIELD_NOT_CHANGEABLE`. `errors`에는 허용 밖 키만 담는다 |
+| 4 | 허용 키의 값이 JSON 숫자가 아님(문자열·불리언·객체·배열). **예외: `etfProductCode`는 JSON 문자열이 아니면**(숫자·불리언·객체·배열) | `400 MALFORMED_REQUEST` |
 | 5 | 남은 키가 0개 | `422 VALIDATION_FAILED`, `errors=[{field:"conditionChanges", reason:"REQUIRED"}]` |
-| 6 | 범위(`OUT_OF_RANGE`), 정수 아님(`NOT_INTEGER`, 예 `500000.5`), 소수 자릿수 초과(`TOO_MANY_DECIMALS`) | `422 VALIDATION_FAILED`. **걸린 키를 모두** `errors`에 담는다 |
+| 6 | 범위(`OUT_OF_RANGE`), 정수 아님(`NOT_INTEGER`, 예 `500000.5`), 소수 자릿수 초과(`TOO_MANY_DECIMALS`). `etfProductCode`가 활성 종목 목록에 없음(`OUT_OF_RANGE`, `min`·`max`·`unit`·`minDisplay`·`maxDisplay` 없음) | `422 VALIDATION_FAILED`. **걸린 키를 모두** `errors`에 담는다 |
 | 7 | 그 회원의 `plan` 행 없음 | `409 NO_PLAN` |
 | 8 | `current`와 `changed` 모두 이미 목표 초과(보유 자산 ≥ 각 목표 금액, FR-RES-01, D-092) | `409 ALREADY_EXCEEDED` (한쪽만 초과이면 `200` 비대칭 비교) |
 | 9 | 계산 | 성공 `200` / 서버 오류 `500 CALC_FAILED` |
@@ -89,7 +97,7 @@
 | 필드 | 타입 | 뜻 |
 |---|---|---|
 | `calcRunId` | integer | 이번 계산의 `calc_run(run_type=CHAT)` id(C2-7). ai-server는 이 값을 `/chat` 응답의 `calcRunId`로 넘긴다. **ai-server가 반드시 쓰는 유일한 식별자** |
-| `conditions.current` / `conditions.changed` | object | 대화로 바꿀 수 있는 5개 조건(`goalAmount` 포함)의 **계산에 실제 쓴 값**(기본금리·기본비중이 채워진 뒤). |
+| `conditions.current` / `conditions.changed` | object | 대화로 바꿀 수 있는 숫자 조건 5개(`goalAmount` 포함)의 **계산에 실제 쓴 값**(기본금리·기본비중이 채워진 뒤). 요청이 종목을 바꿨을 때만 `etfProductCode`(그쪽 계산에 쓴 종목 코드)가 더해진다(#160). 바꾸지 않았으면 키가 없고 종목은 `current.assumptions.etfProductCode`로 본다 |
 | `current` / `changed` | object | C2-4 |
 | `diff` | object | C2-5 |
 | `display` | object | C2-6 |
@@ -126,7 +134,7 @@
 - `goalReachMonth`: 기간 안에 처음 목표 이상이 되는 달, 없으면 `null`.
 - `baselineScenario`: `plan.baseline_scenario`. `current`·`changed` 같은 값.
 - 소비자가 쓰지 않는 필드(무시해도 됨, **`/internal/calc` 한정**): `status`, `requiredMonthlySaving`(해커톤에서 항상 `null`, D-045), `dataVersions`, `assumptions.excludedItems`. planContext 계약은 `excludedItems`를 쓴다(ai-server가 문구표 문장으로 바꿔 모델에 넣음). 두 계약의 모델을 공유할 때 이 필드를 지우지 않는다.
-- **추가(#150)** `assumptions.etfProductCode`·`etfProductName`·`etfGainTaxRatePct`: 계산에 쓴 ETF 종목과 그 매매차익 세율(ETF 0%면 null). 지금은 소비자가 쓰지 않는다(무시해도 됨). 비교 응답 display에는 종목 키를 만들지 않는다. 공유 예시(`docs/api/examples`)에는 아직 넣지 않았다(프론트 목·ai-server 테스트가 같은 파일을 읽음, 합의 뒤 반영)
+- **추가(#150)** `assumptions.etfProductCode`·`etfProductName`·`etfGainTaxRatePct`: 계산에 쓴 ETF 종목과 그 매매차익 세율(ETF 0%면 null). 종목을 바꾸지 않은 비교에서는 소비자가 쓰지 않는다(무시해도 됨). 종목을 바꾼 비교의 display 키는 C2-6 `conditions.<side>.etfProductName`이다(#160). 공유 예시(`docs/api/examples`)에는 아직 넣지 않았다(프론트 목·ai-server 테스트가 같은 파일을 읽음, 합의 뒤 반영)
 
 ### C2-5. `diff`
 
@@ -166,6 +174,7 @@ CP-04 형식(`Formatter`)으로 Spring이 만든 문자열의 **평평한 맵**(
 | `conditions.<side>.targetPeriodMonths` | `n년 n개월` | |
 | `conditions.<side>.savingsRatioPct` | `적금 a : ETF b` | 비중 표시는 이 형식 하나만 쓴다(CP-04). `errors[].minDisplay`·`maxDisplay`도 같다(C3-1) |
 | `conditions.<side>.savingsRateInputPct` | `연 N.NN%` (소수 둘째 자리까지, 끝의 0은 지우지 않음) | CP-04에 없는 형식(금리) |
+| `conditions.<side>.etfProductName` | 종목 화면 이름(지수 이름, 예 `코스피200 추종 ETF`) | **요청이 종목을 바꿨을 때만** 키를 만든다(#160). 값은 `assumptions.etfProductName`과 같다. 운용사 상품명·"추천" 표현 금지(CP-06) |
 
 경계 형식 두 표. 첫 표는 차이·목표 대비 경계로 **[D-055]**에서 확정했고, 둘째 표는 일반 금액 경계로 **[D-061]**(음수 줄은 planContext 협상 합의)에서 확정했다. 두 표를 합치지 않는다. 같은 값(예: 0원)이라도 차이와 금액의 형식이 다르다.
 
@@ -196,7 +205,7 @@ CP-04 형식(`Formatter`)으로 Spring이 만든 문자열의 **평평한 맵**(
 ### C2-7. 계산 기록
 
 - 성공한 요청 1건마다 `calc_run` **1행**을 INSERT한다: `plan_version_id` = 현재 계획 버전, `run_type = 'CHAT'`, 데이터 버전 3종과 `engine_version`. 그 `id`가 `calcRunId`.
-- `current`와 `changed`는 **같은 데이터 버전·같은 엔진 버전**으로 계산하고 그 버전을 이 행에 남긴다. **예외(#157, 제안: B팀 합의 대기)**: 두 쪽이 서로 다른 ETF 종목을 쓰면 `changed.dataVersions.sp500VersionId`는 changed 종목의 가격 버전이고, 이 행의 `changed_etf_version_id`에 따로 남긴다(JSON 키는 늘지 않음). 대화로 종목을 바꾸는 조건(D-040 개정 대기) 전에는 생기지 않는다. `current`용 행은 따로 만들지 않는다. 왜: 차이가 조건 변경에서만 나오고, F-4(#44)가 이 행 + `chat_message.condition_changes`만으로 같은 결과를 다시 계산할 수 있다(ADR-002 결과 미저장).
+- `current`와 `changed`는 **같은 데이터 버전·같은 엔진 버전**으로 계산하고 그 버전을 이 행에 남긴다. **예외(#160 합의)**: 두 쪽이 서로 다른 ETF 종목을 쓰면 `changed.dataVersions.sp500VersionId`는 changed 종목의 가격 버전이고, 이 행의 `changed_etf_version_id`에 따로 남긴다(JSON 키는 늘지 않음). 키 이름은 `sp500VersionId`지만 뜻은 "그쪽 계산에 쓴 ETF 가격 버전"이다. 같은 종목이면 `changed_etf_version_id`는 NULL이다. `current`용 행은 따로 만들지 않는다. 왜: 차이가 조건 변경에서만 나오고, F-4(#44)가 이 행 + `chat_message.condition_changes`만으로 같은 결과를 다시 계산할 수 있다(ADR-002 결과 미저장).
 - 해커톤에서는 활성 데이터 버전을 쓴다(D-045: D-038 범위 밖).
 - **실패하면 기록하지 않는다**: C3의 모든 오류에서 `calc_run`을 만들지 않는다(500은 롤백). 그래서 `calcRunId`가 없으면 `RECALC_RESULT`도 없다(D-033).
 - **[D-057]** 성공했지만 ai-server가 그 뒤 실패하거나 `OUT_OF_SCOPE`로 끝나면 `chat_message`가 참조하지 않는 CHAT 행이 남는다. **남기고 정리하지 않는다(D-057).** moeun ADR-002 §2-2 문장을 이에 맞게 고친다(후속 Issue).
@@ -228,7 +237,7 @@ Spring 내장 `ProblemDetail`(RFC 9457)에 확장 필드 `code`, `errors`를 더
 | `errors` | array | 예(`VALIDATION_FAILED`·`FIELD_NOT_CHANGEABLE`은 1개 이상, 그 밖은 `[]`) | 필드별 오류. **걸린 필드를 모두** 담는다 |
 | `errors[].field` | string | 예 | 요청 `conditionChanges`의 키(camelCase) 또는 `conditionChanges` |
 | `errors[].reason` | string | 예 | `OUT_OF_RANGE` / `REQUIRED` / `NOT_INTEGER` / `TOO_MANY_DECIMALS` / `NOT_CHANGEABLE` |
-| `errors[].min`, `errors[].max` | number | `OUT_OF_RANGE`일 때 | 허용 범위(양끝 포함). 요청 값과 같은 단위 |
+| `errors[].min`, `errors[].max` | number | `OUT_OF_RANGE`일 때(단 `field = etfProductCode`면 없음, #160) | 허용 범위(양끝 포함). 요청 값과 같은 단위 |
 | `errors[].unit` | `KRW` / `MONTH` / `PCT` | `min`·`max`가 있을 때 | |
 | `errors[].minDisplay`, `errors[].maxDisplay` | string | `OUT_OF_RANGE`일 때. **`/internal/calc`에서만 보장**(프론트 API에는 없음) | `Formatter`가 만든 표시 문자열. 경계값은 정확한 값이므로 `약`을 붙이지 않는다. 금액 `1만원`·`1,000만원`, 기간 `0년 1개월`·`30년 0개월`, 금리 `연 20.00%`, 비중 `적금 0 : ETF 100`·`적금 100 : ETF 0`(C2-6과 같은 형식) |
 | `errors[].scale` | integer | `TOO_MANY_DECIMALS`일 때 | 허용 소수 자릿수(금리 2, TBD-09) |
@@ -238,6 +247,7 @@ Spring 내장 `ProblemDetail`(RFC 9457)에 확장 필드 `code`, `errors`를 더
 - **`minDisplay`·`maxDisplay`를 붙이는 곳은 calc다.** plan의 `ConditionValidator`(#17)는 `min`·`max`·`unit`·`scale`만 담은 `plan.ConditionViolationException`을 던진다. `/internal/calc` 컨트롤러가 있는 `calc.web`(#32)이 이 예외를 잡아 `Formatter`로 `minDisplay`·`maxDisplay`를 붙이고 `calc.CalcRejectedException`으로 다시 던진다. 왜: plan은 다른 모듈에 의존하지 않고(`allowedDependencies = {}`) 의존 방향이 calc → plan이라, plan이 calc의 `Formatter`를 부르면 순환 의존이 되어 `ModularityTests`가 실패한다.
 - 그래서 `minDisplay`·`maxDisplay`는 이 경로에서만 보장한다. 같은 `ConditionValidator`를 쓰는 프론트 API(#30)의 오류 본문에는 없다(프론트는 `min`·`max`·`unit`과 자기 화면 단위로 표시한다).
 - #32는 #28(Formatter)에 의존하므로 `/internal/calc`가 동작하는 시점에는 항상 이 두 필드가 있다. ai-server는 범위를 말할 때 `minDisplay`·`maxDisplay`만 인용한다(원 → 만원 나눗셈 금지). 방어 규칙: 그래도 없으면(계약 위반) 숫자 없이 "허용 범위를 벗어났어요"라고만 말하고 다시 묻는다.
+- **`etfProductCode`의 `OUT_OF_RANGE`는 계약 위반이 아니다**(#160). 범위가 아니라 목록이라 `min`·`max`·`minDisplay`·`maxDisplay`가 없다. ai-server는 범위를 말하지 않고 "그 종목은 계산할 수 없어요"처럼 되묻는다(문장은 B팀 후속).
 
 예시는 부록 A-2~A-5.
 
@@ -254,13 +264,13 @@ Spring 내장 `ProblemDetail`(RFC 9457)에 확장 필드 `code`, `errors`를 더
 | 500 | `CALC_FAILED` | 엔진 예외, 기준 데이터 없음 등 | 없음(롤백) | `AgentError("CALC_FAILED")` → `FAILED` |
 
 - `chat.noPlan`·`chat.alreadyExceeded`는 planContext 경로(계획 없음, 초과 계획 EXPLAIN)도 **같은 키**를 쓴다. 두 경로의 사용자 문장이 글자까지 같다.
-- 보유 자산·목표 종류·기존 납입액 변경은 두 겹으로 막는다: (1) ai-server 도구 스키마에 5개 키만 있고(#21), 프롬프트가 변경 불가 조건 의도에 위 고정 문장으로 답한다. (2) 그래도 들어오면 Spring이 `FIELD_NOT_CHANGEABLE`로 거절한다. **두 경로의 사용자 결과(같은 문장, 같은 `messageType`, 비교 없음)는 같아야 한다.**
+- 보유 자산·목표 종류·기존 납입액 변경은 두 겹으로 막는다: (1) ai-server 도구 스키마에 허용 키만 있고(#21, 종목 키는 #160 B팀 후속), 프롬프트가 변경 불가 조건 의도에 위 고정 문장으로 답한다. (2) 그래도 들어오면 Spring이 `FIELD_NOT_CHANGEABLE`로 거절한다. **두 경로의 사용자 결과(같은 문장, 같은 `messageType`, 비교 없음)는 같아야 한다.**
 - `ALREADY_EXCEEDED`를 409로 둔 이유: 양쪽(`current`·`changed`) 모두 초과이면 비교가 의미 없기 때문이다(D-092). 한쪽만 초과인 비대칭 비교는 `200`으로 내려준다. HTTP 숫자보다 `code`가 계약의 기준이다.
 - 이 문서가 확정하는 코드는 위 7개뿐이다.
 
 ### C3-3. 범위 수치의 출처 (수치는 임시)
 
-- 허용 범위는 **`backend/src/main/resources/config/rules.yml` › `input.fields.<FIELD>.{required,min,max,unit,scale}`** 한 곳에 두고 plan 모듈 `@ConfigurationProperties`로 읽는다. 대화 경로 허용 키는 `rules.yml › change-paths.CHAT.fields`(5개). 검사는 `ConditionValidator.validate(ChangePath.CHAT, values)`. `InputField` enum ↔ camelCase 키 매핑을 둔다.
+- 허용 범위는 **`backend/src/main/resources/config/rules.yml` › `input.fields.<FIELD>.{required,min,max,unit,scale}`** 한 곳에 두고 plan 모듈 `@ConfigurationProperties`로 읽는다. 대화 경로 허용 키는 `rules.yml › change-paths.CHAT.fields`(숫자 키 5개. `etfProductCode`는 범위 대신 활성 종목 목록으로 검사, #157). 검사는 `ConditionValidator.validate(ChangePath.CHAT, values)`. `InputField` enum ↔ camelCase 키 매핑을 둔다.
 - 지금은 Spring 전용이다. `db/moved-to-code.md`의 "두 서버가 함께 읽는 `config/rules.yml`"은 이 위치로 고친다(ai-server는 오류 본문으로 받으므로 읽을 필요가 없다). 필요해지면 repo 루트로 옮긴다.
 - 오류 본문의 `min`·`max`·`unit`·`scale`은 **이 설정 값을 그대로** 내보낸다. **ai-server는 범위 수치를 하드코딩하지 않는다.**
 - 지금 쓸 값(**임시**, TBD-09·TBD-10 확정 시 `rules.yml`만 바꾼다):
@@ -306,6 +316,8 @@ Spring 내장 `ProblemDetail`(RFC 9457)에 확장 필드 `code`, `errors`를 더
 | A-5 | 409 `NO_PLAN` | — | `no-plan-response.json` |
 | A-5 | 409 `ALREADY_EXCEEDED` | — | `already-exceeded-response.json` |
 | A-5 | 400 `MALFORMED_REQUEST` | — | `malformed-request-response.json` |
+| A-6 | 422 `VALIDATION_FAILED` — 없는 ETF 종목 코드(#160) | `validation-failed-unknown-etf-request.json` | `validation-failed-unknown-etf-response.json` |
+| A-7 | 400 `MALFORMED_REQUEST` — 종목 코드가 문자열이 아님(#160) | `malformed-etf-code-request.json` | `malformed-request-response.json` |
 | A-5 | 401 `INVALID_INTERNAL_KEY` (필터가 쓰므로 `instance` 없음) | — | `invalid-internal-key-response.json` |
 | A-5 | 500 `CALC_FAILED` | — | `calc-failed-response.json` |
 

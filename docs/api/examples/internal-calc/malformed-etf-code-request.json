@@ -1,0 +1,7 @@
+{
+  "memberId": 7,
+  "baselineScenario": "AVG",
+  "conditionChanges": {
+    "etfProductCode": 133690
+  }
+}
