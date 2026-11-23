@@ -18,6 +18,7 @@ const KEY_BY_PREFIX: Record<string, Key> = {
   "get-plan": ["GET", "/api/plan"],
   "put-plan": ["PUT", "/api/plan"],
   "post-undo": ["POST", "/api/plan/undo"],
+  "post-plan-apply": ["POST", "/api/plan/apply"],
 };
 
 const prefixOf = (file: string) => file.split(".")[0];
@@ -37,6 +38,7 @@ const DEFAULTS: Array<[Key, string]> = [
   [["GET", "/api/plan"], "get-plan.seq-full-flow.json"],
   [["PUT", "/api/plan"], "put-plan.seq-full-flow.json"],
   [["POST", "/api/plan/undo"], "post-undo.200.json"],
+  [["POST", "/api/plan/apply"], "post-plan-apply.200.json"],
 ];
 
 beforeEach(() => resetMocks());
@@ -61,11 +63,11 @@ describe("AC-2·AC-11 기본 파일: 키마다 기본 파일이 하나 있고 �
   });
 });
 
-describe("AC-5·AC-11 useMock: 같은 키의 다른 파일을 고른다 (파일 68개 전부)", () => {
+describe("AC-5·AC-11 useMock: 같은 키의 다른 파일을 고른다 (파일 74개 전부)", () => {
   const files = allMockFiles().filter((f) => prefixOf(f) !== "common");
 
-  it("목 파일은 chat 38 + auth 6 + plan 24 = 68개이고, 공통 파일 1개를 뺀 나머지가 위 접두어 표에 모두 속한다", () => {
-    expect(allMockFiles()).toHaveLength(68);
+  it("목 파일은 chat 38 + auth 6 + plan 30 = 74개이고, 공통 파일 1개를 뺀 나머지가 위 접두어 표에 모두 속한다", () => {
+    expect(allMockFiles()).toHaveLength(74);
     expect(files.every((f) => prefixOf(f) in KEY_BY_PREFIX)).toBe(true);
   });
 
