@@ -28,6 +28,7 @@ _GOAL = re.compile(r"목표(?!\s*(?:기간|기한|일|까지))|모으려|모을"
 _HELD = re.compile(r"보유|가진|모아\s?둔|모았|이미|지금\s*있는")
 _MONTHLY_EXPLICIT = re.compile(r"(?<!개)월|매달|한\s?달|저축(?!\s*기간)|납입|적립")
 _MONTHLY = re.compile(rf"{_MONTHLY_EXPLICIT.pattern}|\d\s*만|{_KO_MAN}|만원|\d\s*원")
+_QUESTION = re.compile(r"[?\uff1f]")  # 반각·전각 물음표
 _PERIOD = re.compile(r"기간|기한|개월|년|\d\s*달")
 # 적금·예금 바로 뒤에 금리 단어가 오면 상품 이름이 아니라 금리를 꾸미는 말이다
 _RATIO_WORDS = re.compile(r"비중|비율|반반|etf|주식|배분|(?:예금|적금)(?!\s*(?:금리|이율|이자))")
@@ -155,17 +156,23 @@ def _stated_conditions(text: str) -> set[str]:
 
 
 def _pointed_amounts(text: str, history: Sequence[HistoryItem]) -> set[int]:
-    """가리키는 답("그거요", "모으는 돈이요")이 고른 금액. 없으면 빈 집합(#270).
+    """가리키는 답("모으는 돈이요")이 고른 금액. 없으면 빈 집합(#270).
 
-    직전 답이 되묻기(물음표)이고 이번 발화에 숫자도 조건 낱말도 없으면, 되묻기 바로 앞 사용자 발화의 금액이
-    하나일 때만 그 금액을 가리킨다고 본다. 조건 고르기 답 규칙(#239)과 같은 범위이고 더 앞 턴은 보지 않는다(D-041).
+    조건 고르기 답 규칙(#239)과 같은 범위만 본다: 역할 낱말 없이 금액만 말한 발화 → 물음표가 있는 답(되묻기)
+    → 숫자도 조건 낱말도 없는 이번 발화. 그때 앞 발화의 금액이 하나면 그 금액을 고른 것으로 본다.
+    앞 발화에 역할 낱말이 있으면 모델이 되묻지 않고 계산했으므로 뒤 답의 물음표는 되묻기가 아니다(D-041).
+    history에 message_type이 없어 되묻기를 물음표로 가늠하므로, 물음표 없는 되묻기에는 금액을 남기지 않는다
+    (값을 지우는 쪽으로 틀린다). 금액이 어느 조건인지는 거르지 않는다. 역할은 모델이 정한다(D-073).
     """
     if len(history) < 2 or _count_numbers(text) or _stated_conditions(text):
         return set()
     before, last = history[-2], history[-1]
-    if before.role != "user" or last.role != "assistant" or "?" not in last.content:
+    if before.role != "user" or last.role != "assistant" or not _QUESTION.search(last.content):
         return set()
-    amounts = _candidate_krw_amounts(before.content.lower())
+    said_before = before.content.lower()
+    if _GOAL.search(said_before) or _HELD.search(said_before) or _MONTHLY_EXPLICIT.search(said_before):
+        return set()
+    amounts = _candidate_krw_amounts(said_before)
     return amounts if len(amounts) == 1 else set()
 
 
