@@ -295,6 +295,10 @@ const A1_ASSUMPTIONS = {
   excludedItems: ["ETF_TOTAL_EXPENSE", "EXCHANGE_RATE", "ETF_DISTRIBUTION", "HELD_ASSET_RETURN", "SAVINGS_REDEPOSIT"],
 };
 
+// 화면 전용 키 <S>.gapBadge(#224)는 plan-context에 없다. 공유 display만 글자까지 비교하려고 뺀다.
+const withoutGapBadges = (display) => Object.fromEntries(Object.entries(display).filter(([key]) => !key.endsWith(".gapBadge")));
+const gapBadgeKeys = (display) => Object.keys(display).filter((key) => key.endsWith(".gapBadge")).sort();
+
 // plan-context 부록 A-1의 result·display (글자까지 같아야 한다)
 const A1_SCENARIOS = [
   { scenario: "GOOD", afterTaxAsset: 18450000, principal: 15800000, afterTaxGain: 2650000, gapToGoal: -1550000, isAchieved: false, goalReachMonth: null },
@@ -426,7 +430,8 @@ test("get-plan.200: 기준 계획 A-1의 result·display가 plan-context 부록 
   );
   for (const s of v.result.scenarios) assert.equal(s.monthlyPoints.length, 37);
   assert.deepEqual(v.result.assumptions, A1_ASSUMPTIONS);
-  assert.deepEqual(v.display, A1_DISPLAY);
+  assert.deepEqual(withoutGapBadges(v.display), A1_DISPLAY);
+  assert.deepEqual(gapBadgeKeys(v.display), ["AVG.gapBadge", "BAD.gapBadge", "GOOD.gapBadge"]);
 });
 
 test("monthlyPoints 공식: heldAssets + monthlySavingAmount × k + round(afterTaxGain × k / N)", () => {
@@ -454,7 +459,8 @@ test("get-plan.200-etf0: A-2, 541, AVG 1개, savingsRatioPct 100", () => {
   assert.deepEqual(v.result.assumptions, {
     ...A1_ASSUMPTIONS, savingsRatioPct: 100, scenarioMethod: null, sp500BaseDate: null,
   });
-  assert.deepEqual(v.display, {
+  assert.deepEqual(gapBadgeKeys(v.display), ["AVG.gapBadge"]);
+  assert.deepEqual(withoutGapBadges(v.display), {
     goalAmount: "약 2,000만원",
     calcStartMonth: "2026년 11월",
     targetMonth: "2029년 11월",

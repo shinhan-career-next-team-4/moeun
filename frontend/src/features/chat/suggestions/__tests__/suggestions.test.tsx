@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { deferred } from "../../../../api/__tests__/helpers";
 import { ChatWindow } from "../../index";
-import { copy, flush, makeDeps, makeFakeApi, page, pendingMsg, userMsg } from "../../__tests__/helpers";
+import { copy, flush, makeDeps, makeFakeApi, page, pendingMsg } from "../../__tests__/helpers";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -23,6 +23,9 @@ const ACCEPTED = { userMessageId: 1030, assistantMessageId: 1031 };
 const questions = Object.entries(copy)
   .filter(([key]) => key.startsWith(PREFIX))
   .map(([, value]) => value);
+
+// 빈 대화창에 보이는 예시(앞쪽 세 개)
+const visible = questions.slice(0, 3);
 
 async function mount(replies: Parameters<typeof makeFakeApi>[0]) {
   const api = makeFakeApi(replies);
@@ -57,15 +60,17 @@ describe("AC-4 예시 문구", () => {
 describe("AC-1 대화창을 열면 예시 버튼이 보인다", () => {
   it("문구표의 예시 문장이 모두 버튼 글자로 그대로 보인다", async () => {
     await mount({ get: [page([], false)] });
-    for (const text of questions) {
+    for (const text of visible) {
       expect(exampleButton(text).textContent, text).toBe(text);
     }
-    expect(exampleButton(ETF_RISK)).toBeTruthy();
+    // 빈 대화창에는 계획 값을 바꾸는 질문 앞쪽 세 개만 보인다(#224)
+    expect(visible).toHaveLength(3);
+    expect(screen.queryByRole("button", { name: ETF_RISK })).toBeNull();
   });
 
   it("화면에 보이는 모든 글에 '추천'이 없다(고지문 제외)", async () => {
     await mount({ get: [page([], false)] });
-    for (const text of questions) {
+    for (const text of visible) {
       expect(exampleButton(text).textContent).not.toContain("추천");
     }
   });
@@ -83,12 +88,12 @@ describe("AC-2 예시 버튼을 누르면 그 문장이 질문으로 전송된�
     expect(user?.textContent).toContain(questions[1]);
   });
 
-  it("ETF 위험 예시도 그 문장 그대로 전송된다", async () => {
+  it("세 번째 예시도 그 문장 그대로 전송된다", async () => {
     const api = await mount({ get: [page([], false)], post: [ACCEPTED] });
-    fireEvent.click(exampleButton(ETF_RISK));
+    fireEvent.click(exampleButton(visible[2]));
     await flush();
     expect(api.posts()).toHaveLength(1);
-    expect(api.posts()[0].body).toEqual({ text: ETF_RISK });
+    expect(api.posts()[0].body).toEqual({ text: visible[2] });
   });
 });
 
@@ -99,7 +104,7 @@ describe("AC-3 전송 중·답변 대기 중에는 예시 버튼이 막힌다", 
     fireEvent.click(exampleButton(questions[0]));
     await flush();
     expect(api.posts()).toHaveLength(1);
-    for (const text of questions) expect(exampleButton(text).disabled, text).toBe(true);
+    for (const text of visible) expect(exampleButton(text).disabled, text).toBe(true);
     fireEvent.click(exampleButton(questions[2]));
     await flush();
     expect(api.posts()).toHaveLength(1);
@@ -110,16 +115,16 @@ describe("AC-3 전송 중·답변 대기 중에는 예시 버튼이 막힌다", 
   });
 
   it("답변 대기 중(answerPending=true)에는 예시 버튼이 비활성이고 눌러도 POST가 없다", async () => {
-    const api = await mount({ get: [page([userMsg(1030), pendingMsg(1031)], true, true)] });
-    for (const text of questions) expect(exampleButton(text).disabled, text).toBe(true);
+    const api = await mount({ get: [page([pendingMsg(1031)], true, true)] });
+    for (const text of visible) expect(exampleButton(text).disabled, text).toBe(true);
     fireEvent.click(exampleButton(questions[0]));
     await flush();
     expect(api.posts()).toHaveLength(0);
   });
 
   it("설명 대기만 있으면(answerPending=false) 예시 버튼은 눌린다", async () => {
-    const api = await mount({ get: [page([userMsg(1030), pendingMsg(1031)], true, false)], post: [ACCEPTED] });
-    for (const text of questions) expect(exampleButton(text).disabled, text).toBe(false);
+    const api = await mount({ get: [page([pendingMsg(1031)], true, false)], post: [ACCEPTED] });
+    for (const text of visible) expect(exampleButton(text).disabled, text).toBe(false);
     fireEvent.click(exampleButton(questions[0]));
     await flush();
     expect(api.posts()).toHaveLength(1);
@@ -128,10 +133,10 @@ describe("AC-3 전송 중·답변 대기 중에는 예시 버튼이 막힌다", 
   it("입력창에 써 둔 글은 예시 버튼으로 보내도 지워지지 않고, 보낸 것은 버튼 문장이다", async () => {
     const api = await mount({ get: [page([], false)], post: [ACCEPTED] });
     fireEvent.change(input(), { target: { value: "써 두던 질문" } });
-    fireEvent.click(exampleButton(questions[3]));
+    fireEvent.click(exampleButton(visible[2]));
     await flush();
     expect(api.posts()).toHaveLength(1);
-    expect(api.posts()[0].body).toEqual({ text: questions[3] });
+    expect(api.posts()[0].body).toEqual({ text: visible[2] });
     expect(input().value).toBe("써 두던 질문");
   });
 });

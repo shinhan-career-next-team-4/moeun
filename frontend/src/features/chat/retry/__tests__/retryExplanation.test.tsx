@@ -106,3 +106,27 @@ describe("AC-2 설명이 PENDING이면 다시 요청이 막힌다", () => {
     expect(button().disabled).toBe(true);
   });
 });
+
+describe("#224 실패한 설명 아래 [다시 시도]", () => {
+  it("실패한 설명(FAILURE) 아래에 보이고, 누르면 '설명 다시 요청'과 같은 F-3을 보낸다", async () => {
+    const { calcRunId, f3Bodies } = await mountWithResult({
+      get: [chatPage([explanationFailed(4503, "설명을 만들지 못했어요")], false)],
+      post: [{}, {}],
+    });
+
+    const failureRetry = screen.getByTestId("chat-retry-failure");
+    expect(failureRetry.textContent).toBe("다시 시도");
+    // 말풍선 본문은 서버 문장 그대로다(단추는 말풍선 밖)
+    expect(bubble(4503)?.textContent).toBe("설명을 만들지 못했어요");
+
+    fireEvent.click(failureRetry);
+    await flush();
+
+    expect(f3Bodies()).toEqual([{ calcRunId }, { calcRunId, retryOfMessageId: 4503 }]);
+  });
+
+  it("완료된 설명에는 [다시 시도]가 없다", async () => {
+    await mountWithResult({ get: [chatPage([explanationDone(4503, "앞 설명")], false)], post: [{}] });
+    expect(screen.queryByTestId("chat-retry-failure")).toBeNull();
+  });
+});
