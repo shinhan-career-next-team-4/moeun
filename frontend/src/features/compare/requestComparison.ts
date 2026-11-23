@@ -10,6 +10,9 @@ import type { ComparisonView, ConditionChanges } from "./types";
  */
 const MOCK_COMPARISON_PATH = "/api/chat/messages/1031/comparison";
 
+/** 조건 변경 비교 경로(#64). ETF 종목 비교(#156)도 같은 경로를 쓴다. */
+export const COMPARE_PATH = "/api/compare";
+
 export interface ComparisonRequestDeps {
   mode: "mock" | "live";
   request(method: "GET" | "POST", path: string, body?: unknown): Promise<unknown>;
@@ -35,7 +38,7 @@ export async function requestComparison(
     const body =
       deps.mode === "mock"
         ? await deps.request("GET", MOCK_COMPARISON_PATH)
-        : await deps.request("POST", "/api/compare", { conditionChanges: changes });
+        : await deps.request("POST", COMPARE_PATH, { conditionChanges: changes });
     return { ok: true, view: body as ComparisonView };
   } catch (error) {
     return { ok: false, message: failureMessage(error) };

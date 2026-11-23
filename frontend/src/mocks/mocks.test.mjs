@@ -39,6 +39,8 @@ const CHAT_FILES = [
   "get-comparison.400.json",
   "get-comparison.404.json",
   "get-comparison.500.json",
+  "post-compare.200-etf.json",
+  "post-compare.422-not-available.json",
   "post-apply.200.json",
   "post-apply.409-plan-changed.json",
   "post-apply.409-stale.json",
@@ -127,14 +129,14 @@ function allFiles() {
 
 // ---------------------------------------------------------------- 파일 목록
 
-test("목 파일 개수: chat 38, auth 6, plan 30, refdata 1, alternative 6", () => {
+test("목 파일 개수: chat 40, auth 6, plan 30, refdata 1, alternative 6", () => {
   for (const [dir, names] of Object.entries(DIRS)) {
     const actual = fs.existsSync(path.join(here, dir))
       ? fs.readdirSync(path.join(here, dir)).filter((f) => f.endsWith(".json")).sort()
       : [];
     assert.deepEqual(actual, [...names].sort(), `${dir}/ 파일 목록이 계약 표와 다르다`);
   }
-  assert.equal(CHAT_FILES.length, 38);
+  assert.equal(CHAT_FILES.length, 40);
   assert.equal(AUTH_FILES.length + PLAN_FILES.length, 31);
   assert.equal(REFDATA_FILES.length, 1);
   assert.equal(ALTERNATIVE_FILES.length, 6);
@@ -240,6 +242,7 @@ const ERROR_CODES = {
   "chat/get-comparison.400.json": [400, "MALFORMED_REQUEST"],
   "chat/get-comparison.404.json": [404, "NOT_FOUND"],
   "chat/get-comparison.500.json": [500, "INTERNAL_ERROR"],
+  "chat/post-compare.422-not-available.json": [422, "VALIDATION_FAILED"],
   "chat/post-apply.409-plan-changed.json": [409, "PLAN_CHANGED"],
   "chat/post-apply.409-stale.json": [409, "STALE_COMPARISON"],
   "chat/post-apply.409-no-plan.json": [409, "NO_PLAN"],

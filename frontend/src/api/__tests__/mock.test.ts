@@ -12,6 +12,7 @@ const KEY_BY_PREFIX: Record<string, Key> = {
   "get-messages": ["GET", "/api/chat/messages"],
   "post-explanations": ["POST", "/api/chat/explanations"],
   "get-comparison": ["GET", "/api/chat/messages/1031/comparison"],
+  "post-compare": ["POST", "/api/compare"],
   "post-apply": ["POST", "/api/chat/messages/1031/apply"],
   "post-login": ["POST", "/api/auth/login"],
   "post-logout": ["POST", "/api/auth/logout"],
@@ -33,6 +34,7 @@ const DEFAULTS: Array<[Key, string]> = [
   [["GET", "/api/chat/messages/1031/comparison"], "get-comparison.200.json"],
   [["GET", "/api/chat/messages/1027/comparison"], "get-comparison.200-not-applicable.json"],
   [["GET", "/api/chat/messages/1033/comparison"], "get-comparison.200-etf0.json"],
+  [["POST", "/api/compare"], "post-compare.200-etf.json"],
   [["POST", "/api/chat/messages/1031/apply"], "post-apply.200.json"],
   [["POST", "/api/auth/login"], "post-login.200.json"],
   [["POST", "/api/auth/logout"], "post-logout.200.json"],
@@ -65,11 +67,11 @@ describe("AC-2·AC-11 기본 파일: 키마다 기본 파일이 하나 있고 �
   });
 });
 
-describe("AC-5·AC-11 useMock: 같은 키의 다른 파일을 고른다 (파일 81개 전부)", () => {
+describe("AC-5·AC-11 useMock: 같은 키의 다른 파일을 고른다 (파일 83개 전부)", () => {
   const files = allMockFiles().filter((f) => prefixOf(f) !== "common");
 
-  it("목 파일은 chat 38 + auth 6 + plan 31 + alternative 6 = 81개이고, 공통 파일 1개를 뺀 나머지가 위 접두어 표에 모두 속한다", () => {
-    expect(allMockFiles()).toHaveLength(81);
+  it("목 파일은 chat 40 + auth 6 + plan 31 + alternative 6 = 83개이고, 공통 파일 1개를 뺀 나머지가 위 접두어 표에 모두 속한다", () => {
+    expect(allMockFiles()).toHaveLength(83);
     expect(files.every((f) => prefixOf(f) in KEY_BY_PREFIX)).toBe(true);
   });
 

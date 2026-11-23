@@ -119,6 +119,18 @@ export const COPY = {
   "compare.rowPrincipal": "총 납입 원금",
   "compare.rowGoalReachMonth": "목표 도달 시점",
   "compare.notApplicable": "지금 기준으로는 비교할 수 없는 값이에요",
+  // 결과 화면 ETF 종목 비교(#156, C12a-9-3). 상품명 대신 화면 이름만 쓴다(CP-06)
+  "etfCompare.open": "다른 ETF 종목으로 비교해 보기",
+  "etfCompare.title": "다른 ETF 종목으로 비교",
+  "etfCompare.notice": "고른 종목으로 계산만 해 봐요. 내 계획은 그대로예요",
+  "etfCompare.current": "지금 종목: {product}",
+  "etfCompare.pickLabel": "ETF 종목",
+  "etfCompare.sameProduct": "지금 계획과 같은 종목이에요. 다른 종목을 골라 보세요",
+  "etfCompare.onlyOne": "지금은 비교할 다른 종목이 없어요",
+  "etfCompare.notAvailable": "그 종목은 아직 계산할 수 없어요",
+  "etfCompare.listFailed": "종목 목록을 불러오지 못했어요. 다시 시도해 주세요",
+  "etfCompare.retry": "다시 시도",
+  "etfCompare.close": "닫기",
   "alt.title": "목표에 닿으려면 이렇게 바꿀 수 있어요",
   "alt.header":
     "세 대안은 같은 기준(평균, 세후)으로 계산했어요. 순서는 우열이 아니며, 서비스는 하나를 추천하지 않아요.",
