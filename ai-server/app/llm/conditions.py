@@ -39,9 +39,17 @@ _THOUSANDS_COMMA = re.compile(r"(?<=\d),(?=\d{3})")
 _PERIOD_COMPOUND = re.compile(r"\d+\s*년\s*\(?\s*\d+\s*개월\s*\)?|\d+\s*개월\s*\(?\s*\d+\s*년\s*\)?")
 _KO_DIGIT_VALUES = dict(zip("일이삼사오육칠팔구", range(1, 10), strict=True))
 _KO_UNIT_VALUES = {"십": 10, "백": 100, "천": 1000}
+# 숫자+천·백은 뒤에 만·억이 올 때만 한 덩어리로 읽는다("5천만원"). 만 없는 "3천"은 3천만인지 알 수 없어 그대로 둔다
+_ARABIC = r"\d+(?:\.\d+)?"
+_SCALED = rf"{_ARABIC}\s*[천백](?=\s*[만억])"
+# 억 뒤의 천·백은 만을 생략해도 천만·백만이다("1억 2천", "1억 이천"). 만 없는 맨 숫자("1억 30")는 붙이지 않는다
+_EOK_REST = rf"{_ARABIC}(?:\s*[천백])?|{_KO_TENS}"
+_EOK_REST_SCALED = rf"{_ARABIC}\s*[천백]|{_KO_TENS}"
 _AMOUNT_EXPR = re.compile(
-    rf"({_NUMBER.pattern})\s*(?:억\s*(?:({_NUMBER.pattern})\s*만\s*원?)?|만\s*원?|원)?"
+    rf"({_SCALED}|{_NUMBER.pattern})\s*"
+    rf"(?:억(?:\s*(?:({_EOK_REST})\s*만|({_EOK_REST_SCALED})))?\s*원?|만\s*원?|원)?"
 )
+_ARABIC_SCALE_VALUES = {"천": 1000, "백": 100}
 
 
 def _parse_ko_numeral(token: str) -> float | None:
@@ -65,19 +73,32 @@ def _parse_ko_numeral(token: str) -> float | None:
     return float(total + current)
 
 
+def _parse_amount_number(token: str) -> float | None:
+    """금액 앞 숫자. 아라비아 숫자+천·백("5천", "2 백")은 곱해서 읽고 나머지는 _parse_ko_numeral에 맡긴다."""
+    token = token.replace(" ", "")
+    scale = _ARABIC_SCALE_VALUES.get(token[-1:])
+    if scale is not None and token[:-1]:
+        try:
+            return float(token[:-1]) * scale
+        except ValueError:
+            pass
+    return _parse_ko_numeral(token)
+
+
 def _candidate_krw_amounts(text: str) -> set[int]:
     """발화의 숫자·단위 표현에서 나올 수 있는 원 단위 금액 후보 집합(기존 _NUMBER·_THOUSANDS_COMMA 재사용)."""
     cleaned = _THOUSANDS_COMMA.sub("", text)
     candidates: set[int] = set()
     for match in _AMOUNT_EXPR.finditer(cleaned):
         full = match.group(0)
-        n1 = _parse_ko_numeral(match.group(1))
+        n1 = _parse_amount_number(match.group(1))
         if n1 is None:
             continue
         if "억" in full:
             total = round(n1 * 100_000_000)
-            if match.group(2):
-                n2 = _parse_ko_numeral(match.group(2))
+            rest = match.group(2) or match.group(3)
+            if rest:
+                n2 = _parse_amount_number(rest)
                 if n2 is not None:
                     total += round(n2 * 10_000)
             candidates.add(total)
