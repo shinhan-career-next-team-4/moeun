@@ -16,7 +16,7 @@ Java 21 · Spring Boot 4.1 · Spring Modulith 2.1(이벤트 기반) · PostgreSQ
 | 모듈 | 책임 | 테이블 | 의존 가능 |
 |---|---|---|---|
 | `auth` | 데모 계정, JWT 발급·검증 | member | — |
-| `plan` | 계획 조건 스냅샷, 적용·되돌리기, 조건 검증 | plan_version, plan | — |
+| `plan` | 계획 조건 스냅샷, 적용·되돌리기, 조건 검증 | plan_version, plan | — (종목 확인 포트 `EtfProductCatalog`는 calc가 구현) |
 | `refdata` | 기준 데이터와 버전(ETF 가격은 종목별) | data_version, savings_avg_rate, etf_monthly, etf_product_version, calc_param | — |
 | `calc` | 계산 엔진, 계산 기록, 내 계획 조회·입력 저장 REST, `/internal/calc` | calc_run | plan, refdata, config(copy) |
 | `rag` | 인용 출처 조회(읽기 전용) | source_org, rag_document, rag_chunk, chunk_embedding | — |

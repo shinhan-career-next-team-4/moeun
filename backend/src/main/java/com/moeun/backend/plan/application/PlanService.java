@@ -140,7 +140,9 @@ public class PlanService implements PlanSaveService, PlanApplyService, PlanUndoS
         PlanInput merged = merge(current, changes);
         throwIfInvalid(inputValidator.validate(merged));
         Integer ratio = changes.savingsRatioPct() != null ? changes.savingsRatioPct() : current.getSavingsRatioPct();
-        PlanVersion saved = versionRepository.save(newVersion(memberId, merged, ratio, current.getEtfProductCode(),
+        String etfProductCode = firstNonNull(textField(conditionChanges, InputField.ETF_PRODUCT_CODE),
+                current.getEtfProductCode());
+        PlanVersion saved = versionRepository.save(newVersion(memberId, merged, ratio, etfProductCode,
                 current.getCalcStartMonth(), path.name()));
         if (planRepository.replaceCurrent(memberId, saved.getId(), expectedRevision) == 0) {
             throw new PlanChangedException();   // 롤백해 방금 INSERT한 plan_version을 남기지 않는다
@@ -258,6 +260,11 @@ public class PlanService implements PlanSaveService, PlanApplyService, PlanUndoS
     private static Long longField(Map<String, JsonNode> fields, InputField field) {
         JsonNode node = fields.get(field.apiName());
         return node == null || node.isNull() ? null : node.longValue();
+    }
+
+    private static String textField(Map<String, JsonNode> fields, InputField field) {
+        JsonNode node = fields.get(field.apiName());
+        return node == null || node.isNull() ? null : node.asString();
     }
 
     private static Integer intField(Map<String, JsonNode> fields, InputField field) {

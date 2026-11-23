@@ -23,9 +23,11 @@ public class ConditionValidator {
     private static final String CHANGES = "conditionChanges";
 
     private final PlanRules rules;
+    private final EtfProductCatalog etfProducts;
 
-    public ConditionValidator(PlanRules rules) {
+    public ConditionValidator(PlanRules rules, EtfProductCatalog etfProducts) {
         this.rules = rules;
+        this.etfProducts = etfProducts;
     }
 
     public List<FieldError> validate(ChangePath path, ConditionOverride changes) {
@@ -35,6 +37,7 @@ public class ConditionValidator {
     /**
      * 적용 경로가 쓰는 검증(계약 C12b-7-1 검사 6·7). 키는 API와 같은 camelCase다.
      * 허용 밖 키나 숫자로 읽을 수 없는 값이 하나라도 있으면 일부만 적용하지 않고 전체를 거절한다.
+     * 종목 코드({@code etfProductCode})만 문자열이고, 적재된 종목인지로 검증한다(#154).
      */
     public List<FieldError> validateChanges(ChangePath path, Map<String, JsonNode> changes) {
         if (changes == null || changes.isEmpty()) {
@@ -42,23 +45,54 @@ public class ConditionValidator {
         }
         Map<InputField, BigDecimal> changed = new LinkedHashMap<>();
         List<FieldError> keyErrors = new ArrayList<>();
-        changes.forEach((key, value) -> {
+        JsonNode etfProduct = null;
+        for (Map.Entry<String, JsonNode> entry : changes.entrySet()) {
+            String key = entry.getKey();
+            JsonNode value = entry.getValue();
             if (value == null || value.isNull()) {
-                return;
+                continue;
             }
             InputField field = fieldOf(key);
             if (field == null) {
                 keyErrors.add(FieldError.notChangeable(key));
+            } else if (field == InputField.ETF_PRODUCT_CODE) {
+                etfProduct = value;
             } else if (!isFiniteNumber(value)) {
                 keyErrors.add(FieldError.notInteger(key));
             } else {
                 changed.put(field, value.decimalValue());
             }
-        });
+        }
         if (!keyErrors.isEmpty()) {
             return keyErrors;
         }
-        return validateChanged(path, changed);
+        if (etfProduct == null) {
+            return validateChanged(path, changed);
+        }
+        return validateWithEtfProduct(path, changed, etfProduct);
+    }
+
+    /**
+     * 종목을 함께 바꾼 경우. 숫자 항목과 같이 바꾼 개수를 먼저 보고, 그다음 경로 허용 → 적재된 종목 순서로 본다.
+     * 종목 오류를 앞에 두고 숫자 항목 오류를 뒤에 붙인다.
+     */
+    private List<FieldError> validateWithEtfProduct(ChangePath path, Map<InputField, BigDecimal> changed,
+            JsonNode etfProduct) {
+        PlanRules.PathRule pathRule = rules.changePaths().get(path);
+        String name = InputField.ETF_PRODUCT_CODE.apiName();
+        if (pathRule.maxFields() > 0 && changed.size() + 1 > pathRule.maxFields()) {
+            return List.of(FieldError.tooManyChanges(CHANGES));
+        }
+        List<FieldError> errors = new ArrayList<>();
+        if (!pathRule.allows(InputField.ETF_PRODUCT_CODE)) {
+            errors.add(FieldError.notChangeable(name));
+        } else if (!etfProduct.isString() || !etfProducts.isAvailable(etfProduct.asString())) {
+            errors.add(FieldError.notAvailable(name));
+        }
+        if (!changed.isEmpty()) {
+            errors.addAll(validateChanged(path, changed));
+        }
+        return errors;
     }
 
     private static InputField fieldOf(String apiName) {
