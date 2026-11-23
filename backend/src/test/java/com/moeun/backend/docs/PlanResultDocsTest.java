@@ -80,6 +80,8 @@ class PlanResultDocsTest {
                                 fieldWithPath("calcRunId").description("이 결과의 calc_run(PLAN) id. 같은 revision 동안 같다"),
                                 fieldWithPath("baselineResultScenario").description("결과 요약 시나리오. 초과면 null")
                                         .optional(),
+                                fieldWithPath("undoAvailable")
+                                        .description("되돌릴 직전 계획이 있는지('직전 계획으로 되돌리기' 버튼, D-095)"),
                                 subsectionWithPath("plan").description("사용자가 입력한 원래 값(원 단위, nullable 그대로)"),
                                 fieldWithPath("result.status").description("CALCULATED / ALREADY_EXCEEDED"),
                                 fieldWithPath("result.goalAmount").description("목표 금액(그래프 목표선)"),
@@ -112,6 +114,8 @@ class PlanResultDocsTest {
                                 fieldWithPath("calcRunId").description("이 결과의 calc_run(PLAN) id"),
                                 fieldWithPath("baselineResultScenario").description("결과 요약 시나리오. 초과면 null")
                                         .optional(),
+                                fieldWithPath("undoAvailable")
+                                        .description("되돌릴 직전 계획이 있는지('직전 계획으로 되돌리기' 버튼, D-095)"),
                                 subsectionWithPath("plan").description("저장된 입력값(원 단위, nullable 그대로)"),
                                 fieldWithPath("result.status").description("CALCULATED / ALREADY_EXCEEDED"),
                                 fieldWithPath("result.goalAmount").description("목표 금액(그래프 목표선)"),
