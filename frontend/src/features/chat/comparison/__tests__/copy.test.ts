@@ -12,6 +12,11 @@ describe("비교 카드 문구 상수는 copy/copy.ko.yml과 같다", () => {
     for (const [key, value] of Object.entries(CONDITION_LABELS)) expect(value, key).toBe(copy[`condition.${key}`]);
   });
 
+  it("목표 금액 행 라벨은 condition.goalAmount (D-090)", async () => {
+    const { GOAL_LABEL } = await loadCopy();
+    expect(GOAL_LABEL).toBe(copy["condition.goalAmount"]);
+  });
+
   it("achievementChange.* 4개", async () => {
     const { ACHIEVEMENT_CHANGE_LABELS } = await loadCopy();
     expect(Object.keys(ACHIEVEMENT_CHANGE_LABELS)).toHaveLength(4);

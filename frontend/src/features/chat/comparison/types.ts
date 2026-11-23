@@ -16,6 +16,14 @@ export interface Comparison {
 
 export const CONDITION_KEYS = ["monthlySavingAmount", "savingsRatioPct", "savingsRateInputPct", "targetPeriodMonths"] as const;
 
+/** 목표 금액은 바꿨을 때만 카드 맨 앞 행으로 보인다(D-090). */
+export const GOAL_KEY = "goalAmount";
+
+/** 카드 조건 행 순서. 목표 금액을 바꾼 비교면 맨 앞에 목표 금액 행을 둔다. */
+export function conditionKeysOf(changedKeys: ReadonlySet<string>): string[] {
+  return changedKeys.has(GOAL_KEY) ? [GOAL_KEY, ...CONDITION_KEYS] : [...CONDITION_KEYS];
+}
+
 const SCENARIO_CODES: readonly string[] = ["GOOD", "AVG", "BAD"];
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -44,7 +52,9 @@ export function parseComparison(body: unknown): Comparison | null {
     if (!keys.every(shown)) return null;
     scenarios.push({ scenario, achievementChange: item.achievementChange });
   }
-  if (!Array.isArray(changedKeys) || !changedKeys.every((key) => CONDITION_KEYS.some((allowed) => allowed === key))) return null;
+  const allowedKeys: readonly string[] = [GOAL_KEY, ...CONDITION_KEYS];
+  if (!Array.isArray(changedKeys) || !changedKeys.every((key) => allowedKeys.includes(key))) return null;
+  if (changedKeys.includes(GOAL_KEY) && !(shown(`conditions.current.${GOAL_KEY}`) && shown(`conditions.changed.${GOAL_KEY}`))) return null;
   return {
     applicable: body.applicable === true,
     changedKeys: new Set<string>(changedKeys as string[]),

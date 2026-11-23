@@ -1,7 +1,7 @@
 import type { ChatMessage } from "../types";
-import { ACHIEVEMENT_CHANGE_LABELS, APPLY_LABEL, COLLAPSED_LABEL, CONDITION_LABELS, LOAD_FAILED } from "./copy";
+import { ACHIEVEMENT_CHANGE_LABELS, APPLY_LABEL, COLLAPSED_LABEL, CONDITION_LABELS, GOAL_LABEL, LOAD_FAILED } from "./copy";
 import { isApplyActive } from "./controller";
-import { CONDITION_KEYS, type Comparison } from "./types";
+import { GOAL_KEY, conditionKeysOf, type Comparison } from "./types";
 import type { ComparisonState } from "./useComparison";
 import { COPY } from "../../../shared/copy/copy";
 
@@ -23,10 +23,18 @@ function ApplyButton({ comparison, messageId, active }: { comparison: Comparison
   );
 }
 
+function goalNote(data: Comparison): string | null {
+  if (!data.changedKeys.has(GOAL_KEY)) return null;
+  return COPY["chat.goalAmountChangedNote"]
+    .replace("{currentGoal}", data.display[`conditions.current.${GOAL_KEY}`])
+    .replace("{changedGoal}", data.display[`conditions.changed.${GOAL_KEY}`]);
+}
+
 function Details({ data }: { data: Comparison }) {
+  const note = goalNote(data);
   return (
     <>
-      {CONDITION_KEYS.map((key) => {
+      {conditionKeysOf(data.changedKeys).map((key) => {
         const changed = data.changedKeys.has(key);
         return (
           <div
@@ -36,7 +44,7 @@ function Details({ data }: { data: Comparison }) {
             data-changed={changed ? "true" : "false"}
             className={changed ? CHANGED_ROW : ROW}
           >
-            <span data-testid="chat-comparison-label">{CONDITION_LABELS[key]}</span>
+            <span data-testid="chat-comparison-label">{key === GOAL_KEY ? GOAL_LABEL : CONDITION_LABELS[key]}</span>
             <span data-testid="chat-comparison-current">{data.display[`conditions.current.${key}`]}</span>
             <span aria-hidden="true">→</span>
             <span data-testid="chat-comparison-changed">{data.display[`conditions.changed.${key}`]}</span>
@@ -54,6 +62,7 @@ function Details({ data }: { data: Comparison }) {
           <span data-testid="chat-comparison-achievement">{ACHIEVEMENT_CHANGE_LABELS[achievementChange] ?? ""}</span>
         </div>
       ))}
+      {note !== null && <p data-testid="chat-comparison-goal-note">{note}</p>}
     </>
   );
 }
