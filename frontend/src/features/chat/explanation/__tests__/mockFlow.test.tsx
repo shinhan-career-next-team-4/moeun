@@ -7,7 +7,7 @@ import { resetMocks, useMock } from "../../../../api/mock";
 import { LOGIN_PATH } from "../../../../app/routes";
 import { ChatWindow } from "../../index";
 import { copy, makeMockEnv } from "../../__tests__/helpers";
-import { bubble, F3_PATH, freshId, view } from "./helpers";
+import { bubble, expandEtfRisk, F3_PATH, freshId, view } from "./helpers";
 
 beforeAll(async () => {
   await import("../../../../api/mock"); // 첫 동적 import가 테스트 시간 안에 끝나도록 미리 읽는다
@@ -75,6 +75,7 @@ describe("목 모드: 설명 성공", () => {
     const message = bubble(1032);
     expect(message?.getAttribute("data-message-type")).toBe("EXPLANATION");
     expect(message?.textContent).toContain("S&P500 추종 ETF");
+    expandEtfRisk(message!);
     const links = within(message!).getAllByRole("link");
     expect(links.map((a) => a.textContent)).toEqual(["KODEX 미국S&P500 투자설명서", "TIGER 미국S&P500 투자설명서"]);
     expect(links.map((a) => a.getAttribute("href"))).toEqual([

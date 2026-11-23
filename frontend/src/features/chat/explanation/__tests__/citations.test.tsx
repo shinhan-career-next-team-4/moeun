@@ -4,7 +4,7 @@
 import { cleanup, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { copy, userMsg } from "../../__tests__/helpers";
-import { bodyTextWithoutCitations, bubble, chatPage, explanationDone, explanationFailed, makeStore, mountChat } from "./helpers";
+import { bodyTextWithoutCitations, bubble, chatPage, explanationDone, explanationFailed, expandEtfRisk, makeStore, mountChat } from "./helpers";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -39,7 +39,13 @@ const CONTENT =
 
 async function mountWith(messages: Parameters<typeof chatPage>[0]) {
   const { store } = makeStore(); // view가 없어 F-3은 나가지 않는다. 복원(F-2)으로 받은 메시지만 그린다.
-  return mountChat(store, { get: [chatPage(messages, false)] });
+  const mounted = await mountChat(store, { get: [chatPage(messages, false)] });
+  // 결과 설명의 출처는 접혀서 나온다(#283). 링크 표기를 보려고 모두 펼친다.
+  for (const message of messages) {
+    const el = bubble(message.id);
+    if (el) expandEtfRisk(el);
+  }
+  return mounted;
 }
 
 const items = (el: HTMLElement) => within(el).queryAllByTestId("chat-citation");
