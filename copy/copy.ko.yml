@@ -141,6 +141,7 @@ etfCompare:
   notAvailable: "그 종목은 아직 계산할 수 없어요"
   listFailed: "종목 목록을 불러오지 못했어요. 다시 시도해 주세요"
   retry: "다시 시도"
+  apply: "이 종목으로 바꾸기"
   close: "닫기"
 
 # 표시 템플릿(Formatter #28이 읽는다). 금액·비중은 Formatter가 붙인다.

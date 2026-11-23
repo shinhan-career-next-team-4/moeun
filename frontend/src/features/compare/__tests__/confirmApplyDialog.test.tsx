@@ -2,10 +2,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import comparisonMock from "../../../mocks/chat/get-comparison.200.json";
+import etfCompareMock from "../../../mocks/chat/post-compare.200-etf.json";
 import { ConfirmApplyDialog } from "../ConfirmApplyDialog";
 import type { ComparisonView } from "../types";
 
 const view = comparisonMock.responses[0].body as unknown as ComparisonView;
+const etfView = etfCompareMock.responses[0].body as unknown as ComparisonView;
 
 function renderDialog(props: Partial<Parameters<typeof ConfirmApplyDialog>[0]> = {}) {
   const onCancel = vi.fn();
@@ -16,6 +18,14 @@ function renderDialog(props: Partial<Parameters<typeof ConfirmApplyDialog>[0]> =
 
 describe("적용 확인창 (#68, FR-PLAN-01·02, C12a-9-2)", () => {
   afterEach(cleanup);
+
+  it("ETF 종목을 바꾸면 두 계산의 종목 이름으로 한 줄을 보여 준다(#156)", () => {
+    renderDialog({ comparison: etfView });
+
+    const dialog = screen.getByRole("dialog", { name: "바꾼 조건을 내 계획에 적용할까요?" });
+    const row = within(dialog).getByText("ETF 종목").closest("li") as HTMLElement;
+    expect(row.textContent).toContain("S&P500 추종 ETF → 코스피200 추종 ETF");
+  });
 
   it("바뀌는 조건을 '지금 값 → 바꿀 값'으로 서버 display 그대로 보여 준다", () => {
     renderDialog();

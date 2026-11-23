@@ -14,6 +14,7 @@ import {
   requestComparison,
   type ComparisonView,
   type ConditionChanges,
+  type EtfApplyRequest,
 } from "../compare";
 import { AssumptionsSection } from "./AssumptionsSection";
 import { Disclaimer } from "./Disclaimer";
@@ -120,6 +121,12 @@ export function ResultPage() {
     if (comparison === null || compared === null) return;
     setConfirmError(null);
     setConfirming({ comparison, changes: compared.changes, revision: compared.revision, path: "COMPARE" });
+  }
+
+  /** ETF 종목 미리보기의 '이 종목으로 바꾸기'. 확인창부터는 비교 영역 적용과 같은 흐름이다(C12a-9-2) */
+  function openEtfConfirm(request: EtfApplyRequest) {
+    setConfirmError(null);
+    setConfirming(request);
   }
 
   function closeConfirm() {
@@ -327,9 +334,12 @@ export function ResultPage() {
                 <ResultChart scenarios={result.scenarios} goalAmount={result.goalAmount} display={display} />
                 {/* ETF 종목 비교(#156). 종목을 골라 저장 없이 미리본다. ETF 0%면 스스로 숨는다 */}
                 <EtfCompareSection
+                  // 적용에 성공하면 비교 영역과 함께 처음 상태(접힌 입구)로 돌아간다
+                  key={resetSeq}
                   currentProductName={display["assumptions.etfProductName"] ?? ""}
                   scenarioMethod={result.assumptions.scenarioMethod}
                   revision={revision}
+                  onApply={openEtfConfirm}
                 />
                 {/* 대안 영역(#67). 기준 시나리오가 미달일 때만 보인다(FR-ALT-01) */}
                 <AlternativeSection

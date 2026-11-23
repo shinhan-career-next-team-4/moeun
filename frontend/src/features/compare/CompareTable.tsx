@@ -1,4 +1,5 @@
 import { COPY, type CopyMap } from "../../shared/copy/copy";
+import { conditionValues } from "./conditionValues";
 import type { ComparedKey, ComparisonView } from "./types";
 
 const CONDITION_LABEL_KEY: Record<ComparedKey, string> = {
@@ -19,23 +20,6 @@ interface Row {
 }
 
 const DASH = "—";
-
-/**
- * 조건 한 줄의 현재·바꾼 값. 숫자 조건은 서버 display 문자열을 쓰고, ETF 종목만 두 계산의
- * 가정에 담긴 화면 이름을 쓴다. 비교 display에는 `assumptions.*` 키가 없기 때문이다(계약 C2-6).
- */
-function conditionValues(view: ComparisonView, key: ComparedKey): { current?: string; changed?: string } {
-  if (key === "etfProductCode") {
-    return {
-      current: view.current?.assumptions?.etfProductName ?? undefined,
-      changed: view.changed?.assumptions?.etfProductName ?? undefined,
-    };
-  }
-  return {
-    current: view.display[`conditions.current.${key}`],
-    changed: view.display[`conditions.changed.${key}`],
-  };
-}
 
 function conditionRows(view: ComparisonView, copy: CopyMap): Row[] {
   return [...view.changedKeys].sort().map((key) => ({

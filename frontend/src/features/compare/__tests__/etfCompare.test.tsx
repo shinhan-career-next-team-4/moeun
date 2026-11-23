@@ -32,16 +32,18 @@ function renderSection(
   props: { currentProductName?: string; revision?: number | null } = {},
 ) {
   const fake = deps(handlers);
+  const onApply = vi.fn();
   const view = render(
     <EtfCompareSection
       currentProductName={props.currentProductName ?? CURRENT}
       scenarioMethod="ROLLING_DISTRIBUTION"
       revision={props.revision ?? 12}
+      onApply={onApply}
       deps={fake}
     />,
   );
   const callsTo = (path: string) => fake.request.mock.calls.filter((call) => call[1] === path);
-  return { request: fake.request, callsTo, view };
+  return { request: fake.request, callsTo, onApply, view };
 }
 
 /** 칩이 그려질 때까지 기다린다(목록은 영역을 열 때 가져온다). */
@@ -213,6 +215,30 @@ describe("ETF 종목 비교 영역 (#156, C12a-9-3)", () => {
 
     expect(await screen.findByText("지금은 비교할 다른 종목이 없어요")).toBeTruthy();
     expect(screen.queryByRole("radiogroup")).toBeNull();
+  });
+
+  it("비교표가 보이면 적용 단추가 함께 보이고, 누르면 고른 종목과 그때의 revision을 올린다", async () => {
+    const { onApply } = renderSection();
+    open();
+    await waitForChips();
+    pick(KOSPI);
+    await screen.findByRole("rowheader", { name: "ETF 종목" });
+
+    fireEvent.click(screen.getByRole("button", { name: "이 종목으로 바꾸기" }));
+
+    expect(onApply).toHaveBeenCalledWith({
+      comparison: expect.objectContaining({ changedKeys: ["etfProductCode"] }),
+      changes: { etfProductCode: "069500" },
+      revision: 12,
+    });
+  });
+
+  it("비교표가 없으면 적용 단추도 없다", async () => {
+    renderSection();
+    open();
+    await waitForChips();
+
+    expect(screen.queryByRole("button", { name: "이 종목으로 바꾸기" })).toBeNull();
   });
 
   it("ETF 0% 계획(종목 이름 없음)에서는 아무것도 그리지 않는다", () => {

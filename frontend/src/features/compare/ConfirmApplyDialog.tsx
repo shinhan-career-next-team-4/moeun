@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { COPY, type CopyMap } from "../../shared/copy/copy";
 import { Button } from "../../shared/ui";
-import type { ComparisonView } from "./types";
+import { conditionValues } from "./conditionValues";
+import type { ComparedKey, ComparisonView } from "./types";
 
 interface ConfirmApplyDialogProps {
   comparison: ComparisonView;
@@ -13,10 +14,9 @@ interface ConfirmApplyDialogProps {
   onConfirm(): void;
 }
 
-/** 바뀌는 조건 한 줄. 값은 비교 응답의 display 문자열 그대로다(NFR-INT-01) */
-function changeText(display: Record<string, string>, key: string): string | null {
-  const current = display[`conditions.current.${key}`];
-  const changed = display[`conditions.changed.${key}`];
+/** 바뀌는 조건 한 줄. 값은 비교 응답이 준 것 그대로다(NFR-INT-01) */
+function changeText(view: ComparisonView, key: ComparedKey): string | null {
+  const { current, changed } = conditionValues(view, key);
   if (!changed) return null;
   if (!current) return changed;
   return COPY["compare.confirmChange"].replace("{current}", current).replace("{changed}", changed);
@@ -53,7 +53,7 @@ export function ConfirmApplyDialog({ comparison, applying = false, error = null,
   }, [applying, onCancel]);
 
   const rows = comparison.changedKeys.flatMap((key) => {
-    const text = changeText(comparison.display, key);
+    const text = changeText(comparison, key);
     return text === null ? [] : [{ key, label: copy[`condition.${key}`] ?? key, text }];
   });
 

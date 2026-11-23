@@ -5,7 +5,14 @@ import { scenarioMethodLine } from "../../shared/copy/scenarioMethod";
 import { Button, ChipGroup } from "../../shared/ui";
 import { CompareTable } from "./CompareTable";
 import { fetchEtfProducts, requestEtfComparison, type EtfCompareDeps, type EtfProduct } from "./requestEtfComparison";
-import type { ComparisonView } from "./types";
+import type { ComparisonView, ConditionChanges } from "./types";
+
+/** 적용할 거리: 미리본 비교와 그 비교가 쓴 조건·revision(C12a-9-2의 확인창이 그대로 쓴다) */
+export interface EtfApplyRequest {
+  comparison: ComparisonView;
+  changes: ConditionChanges;
+  revision: number;
+}
 
 interface EtfCompareSectionProps {
   /** 내 계획의 종목 이름(`display["assumptions.etfProductName"]`). 비면 ETF 0%라 영역을 그리지 않는다 */
@@ -14,6 +21,8 @@ interface EtfCompareSectionProps {
   scenarioMethod: string | null;
   /** 내 계획의 revision. 바뀌면 표가 가리키는 '현재'가 더 이상 내 계획이 아니라서 결과를 지운다 */
   revision: number | null;
+  /** 미리본 종목을 내 계획에 적용한다. 확인창과 P-6 호출은 결과 화면이 맡는다(C12a-9-2) */
+  onApply(request: EtfApplyRequest): void;
   /** 테스트에서 바꿔 끼운다. 기본은 앱의 API 래퍼 */
   deps?: EtfCompareDeps;
 }
@@ -29,14 +38,24 @@ const DEFAULT_DEPS: EtfCompareDeps = {
  * (`POST /api/compare`). 내 계획은 바뀌지 않는다(FR-CMP-02). 숫자는 모두 서버 display 문자열이고,
  * 종목은 상품명 대신 화면 이름으로만 보여 준다(CP-06). 적용(저장)은 #68 확인 흐름 뒤에 붙인다.
  */
-export function EtfCompareSection({ currentProductName, scenarioMethod, revision, deps }: EtfCompareSectionProps) {
+export function EtfCompareSection({
+  currentProductName,
+  scenarioMethod,
+  revision,
+  onApply,
+  deps,
+}: EtfCompareSectionProps) {
   const transport = deps ?? DEFAULT_DEPS;
   const [open, setOpen] = useState(false);
   const [products, setProducts] = useState<EtfProduct[] | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   // 비교 결과는 그때의 revision과 함께 둔다. 내 계획이 바뀌면 표의 '현재' 열이 지금 계획과 달라 보여 주지 않는다
-  const [result, setResult] = useState<{ view: ComparisonView; revision: number | null } | null>(null);
+  const [result, setResult] = useState<{
+    view: ComparisonView;
+    revision: number | null;
+    productCode: string;
+  } | null>(null);
   const [compareError, setCompareError] = useState<string | null>(null);
   // 비교를 요청할 때마다 올린다. 먼저 보낸 요청의 늦은 응답이 나중에 고른 종목의 결과를 덮어쓰지 않게 한다
   const generation = useRef(0);
@@ -72,7 +91,7 @@ export function EtfCompareSection({ currentProductName, scenarioMethod, revision
     const compared = await requestEtfComparison(transport, productCode);
     if (generation.current !== mine) return;
     if (compared.ok) {
-      setResult({ view: compared.view, revision: comparedAt });
+      setResult({ view: compared.view, revision: comparedAt, productCode });
       return;
     }
     setCompareError(compared.message);
@@ -102,7 +121,13 @@ export function EtfCompareSection({ currentProductName, scenarioMethod, revision
 
   const selected = picked ?? currentProduct?.code ?? null;
   const isCurrentPicked = selected !== null && selected === currentProduct?.code;
-  const comparison = result !== null && result.revision === revision ? result.view : null;
+  const fresh = result !== null && result.revision === revision ? result : null;
+  const comparison = fresh?.view ?? null;
+  // 계획이 없으면(revision null) 적용할 곳이 없다
+  const applyRequest: EtfApplyRequest | null =
+    fresh !== null && fresh.revision !== null
+      ? { comparison: fresh.view, changes: { etfProductCode: fresh.productCode }, revision: fresh.revision }
+      : null;
   const methodText = scenarioMethodLine(scenarioMethod, comparison?.changed?.assumptions?.etfProductName ?? undefined);
   const hasChoices = products !== null && products.length > 1;
 
@@ -152,9 +177,12 @@ export function EtfCompareSection({ currentProductName, scenarioMethod, revision
       )}
 
       {comparison !== null && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col items-start gap-3">
           {methodText && <p className="text-xs text-text-muted">{methodText}</p>}
           <CompareTable view={comparison} />
+          {applyRequest !== null && (
+            <Button onClick={() => onApply(applyRequest)}>{COPY["etfCompare.apply"]}</Button>
+          )}
         </div>
       )}
 

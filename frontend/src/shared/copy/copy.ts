@@ -131,6 +131,7 @@ export const COPY = {
   "etfCompare.notAvailable": "그 종목은 아직 계산할 수 없어요",
   "etfCompare.listFailed": "종목 목록을 불러오지 못했어요. 다시 시도해 주세요",
   "etfCompare.retry": "다시 시도",
+  "etfCompare.apply": "이 종목으로 바꾸기",
   "etfCompare.close": "닫기",
   "alt.title": "목표에 닿으려면 이렇게 바꿀 수 있어요",
   "alt.header":
