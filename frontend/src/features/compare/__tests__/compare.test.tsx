@@ -225,6 +225,12 @@ describe("적용 버튼 활성 조건 (#68, C12a-9-2)", () => {
     expect(applyButton().disabled).toBe(true);
   });
 
+  it("비교 요청 중에는 누를 수 없다", () => {
+    renderCompared({ loading: true });
+
+    expect(applyButton().disabled).toBe(true);
+  });
+
   it("applicable이 false면 누를 수 없다", () => {
     renderCompared({ comparison: notApplicable });
 

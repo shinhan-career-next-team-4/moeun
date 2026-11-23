@@ -1,4 +1,4 @@
-import { useEffect, useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { COPY, type CopyMap } from "../../shared/copy/copy";
 import { Button } from "../../shared/ui";
 import type { ComparisonView } from "./types";
@@ -29,6 +29,20 @@ function changeText(display: Record<string, string>, key: string): string | null
 export function ConfirmApplyDialog({ comparison, applying = false, error = null, onCancel, onConfirm }: ConfirmApplyDialogProps) {
   const copy: CopyMap = COPY;
   const titleId = useId();
+  const listId = useId();
+  const noticeId = useId();
+
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  // 창을 연 버튼은 렌더 중에 기억한다. 커밋되면 배경이 inert가 되어 브라우저가 그 버튼의 포커스를 먼저 풀기 때문이다
+  const [opener] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null));
+
+  // 열리면 취소에 포커스를 두고, 닫히면 창을 연 버튼으로 돌려준다. 배경의 inert가 풀린 뒤라 포커스를 받을 수 있다
+  useEffect(() => {
+    cancelRef.current?.focus();
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [opener]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -49,12 +63,13 @@ export function ConfirmApplyDialog({ comparison, applying = false, error = null,
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-describedby={`${listId} ${noticeId}`}
         className="flex w-full max-w-md flex-col gap-4 rounded-xl border border-border bg-surface p-6 shadow-lg"
       >
         <h2 id={titleId} className="text-base font-semibold text-text">
           {COPY["compare.confirmTitle"]}
         </h2>
-        <ul className="flex flex-col gap-2 text-sm">
+        <ul id={listId} className="flex flex-col gap-2 text-sm">
           {rows.map(({ key, label, text }) => (
             <li key={key} className="flex justify-between gap-3 rounded-lg bg-surface-muted px-3 py-2">
               <span className="text-text-muted">{label}</span>
@@ -62,14 +77,16 @@ export function ConfirmApplyDialog({ comparison, applying = false, error = null,
             </li>
           ))}
         </ul>
-        <p className="text-xs leading-relaxed text-text-muted">{COPY["compare.confirmNotice"]}</p>
+        <p id={noticeId} className="text-xs leading-relaxed text-text-muted">
+          {COPY["compare.confirmNotice"]}
+        </p>
         {error && (
           <p role="alert" className="text-sm text-danger">
             {error}
           </p>
         )}
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" disabled={applying} onClick={onCancel} autoFocus>
+          <Button ref={cancelRef} variant="secondary" disabled={applying} onClick={onCancel}>
             {COPY["compare.confirmCancel"]}
           </Button>
           <Button loading={applying} onClick={onConfirm}>

@@ -141,7 +141,9 @@ export function CompareSection({
   // 고른 조건만 요청 값이 된다. 입력을 고치면 다시 비교할 때까지 적용할 수 없다
   const pickedInputs = Object.fromEntries(Object.entries(inputs).filter(([key]) => picked.includes(key as ConditionKey)));
   const currentChanges = toChanges(pickedInputs, ratio, useRatio);
+  // 비교 요청 중에는 지금 보이는 결과가 곧 바뀔 수 있어 적용하지 않는다
   const canApply =
+    !loading &&
     applyEnabled &&
     comparison?.applicable === true &&
     comparedChanges !== null &&

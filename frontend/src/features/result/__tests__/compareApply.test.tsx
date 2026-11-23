@@ -33,7 +33,7 @@ interface Call {
 }
 
 /** 경로별 응답. GET /api/plan은 적용 전·후 두 번을 차례로 돌려준다. */
-function stubServer(applyResponse: () => Response) {
+function stubServer(applyResponse: () => Response | Promise<Response>) {
   const calls: Call[] = [];
   let planReads = 0;
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -47,6 +47,7 @@ function stubServer(applyResponse: () => Response) {
     }
     if (method === "POST" && url.pathname === "/api/compare") return jsonResponse(200, comparisonBody);
     if (method === "POST" && url.pathname === "/api/plan/apply") return applyResponse();
+    if (method === "POST" && url.pathname === "/api/plan/undo") return jsonResponse(200, { revision: 14 });
     return jsonResponse(200, { messages: [], hasPending: false });
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -137,8 +138,60 @@ describe("결과 화면 비교 → 적용 (#68, C12a-9-2)", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     await waitFor(() => expect(server.planReads()).toBe(2));
     expect(planStore.getState().revision).toBe(13);
-    // 적용한 비교는 끝났다. 비교 영역을 비우고 버튼은 다시 비교할 때까지 꺼진다
-    expect(applyButton().disabled).toBe(true);
+    // 적용한 비교는 끝났다. 비교 표와 입력을 비운다
+    const section = screen.getByRole("region", { name: "조건 변경 비교" });
+    expect(within(section).queryByRole("table")).toBeNull();
+    expect((within(section).getByRole("checkbox", { name: "월 저축액" }) as HTMLInputElement).checked).toBe(false);
+    // 되돌리기 토스트는 적용 응답의 revision을 들고 P-5를 부른다
+    fireEvent.click(screen.getByRole("button", { name: "되돌리기" }));
+    await waitFor(() =>
+      expect(server.calls).toContainEqual({ method: "POST", path: "/api/plan/undo", body: { expectedRevision: 13 } }),
+    );
+  });
+
+  it("확인창이 떠 있는 동안 배경을 막고 닫으면 풀며 포커스를 적용 버튼으로 돌려준다", async () => {
+    stubServer(() => jsonResponse(200, { revision: 13 }));
+    renderResult();
+    await compareMonthly50();
+
+    applyButton().focus();
+    fireEvent.click(applyButton());
+    const background = screen.getByRole("region", { name: "조건 변경 비교" }).closest("[data-dialog-background]");
+    expect(background?.hasAttribute("inert")).toBe(true);
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(background?.hasAttribute("inert")).toBe(false);
+    expect(document.activeElement).toBe(applyButton());
+  });
+
+  it("확인창을 연 뒤 비교가 비워지면 창을 닫고, 다음 비교에서 저절로 다시 뜨지 않는다", async () => {
+    stubServer(() => jsonResponse(200, { revision: 13 }));
+    renderResult();
+    await compareMonthly50();
+    fireEvent.click(applyButton());
+
+    // 실제 브라우저에서는 inert로 막히지만, 어떤 경로로든 비교가 비워지면 확인 대기도 버린다
+    fireEvent.click(screen.getByRole("button", { name: "원래대로" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await compareMonthly50();
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("적용 요청 중에 계획 상태가 비워지면(다른 계정 로그인) 늦은 성공 응답을 반영하지 않는다", async () => {
+    let respond: (response: Response) => void = () => {};
+    stubServer(() => new Promise<Response>((resolve) => (respond = resolve)));
+    renderResult();
+    await compareMonthly50();
+    await openAndConfirm();
+
+    planStore.clear();
+    respond(jsonResponse(200, { revision: 13 }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(planStore.getState().revision).toBeNull();
+    expect(screen.queryByText("조건을 적용했어요.")).toBeNull();
   });
 
   it("PLAN_CHANGED면 창을 닫고 안내한 뒤 계획을 다시 불러온다", async () => {

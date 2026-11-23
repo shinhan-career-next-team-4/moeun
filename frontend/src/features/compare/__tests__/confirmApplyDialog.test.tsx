@@ -27,6 +27,26 @@ describe("적용 확인창 (#68, FR-PLAN-01·02, C12a-9-2)", () => {
     expect(within(dialog).queryByText("목표 기간")).toBeNull();
   });
 
+  it("변경 목록과 안내를 창 설명으로 연결하고 열리면 취소에 포커스를 둔다", () => {
+    renderDialog();
+
+    const dialog = screen.getByRole("dialog");
+    const describedBy = dialog.getAttribute("aria-describedby") ?? "";
+    expect(describedBy.split(" ").length).toBe(2);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "취소" }));
+  });
+
+  it("Esc를 누르면 onCancel을 부르지만 적용 중에는 부르지 않는다", () => {
+    const { onCancel } = renderDialog();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    cleanup();
+
+    const applying = renderDialog({ applying: true });
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(applying.onCancel).not.toHaveBeenCalled();
+  });
+
   it("취소를 누르면 onCancel만 부른다", () => {
     const { onCancel, onConfirm } = renderDialog();
 
