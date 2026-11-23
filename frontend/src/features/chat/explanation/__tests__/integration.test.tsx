@@ -108,8 +108,8 @@ describe("AC-3 설명이 FAILED여도 결과 화면은 그대로다 (FR-AI-04)",
   });
 });
 
-describe("AC-7 되돌리기(#51) 진입점은 F-3을 부르지 않고, 재조회로 바뀐 calcRunId를 대화창 effect가 한 번 보낸다 (H-11c, 결정 3 T-4)", () => {
-  it("되돌리기 성공 → revision 갱신 → 재조회 응답 전에는 F-3이 없고, 재조회로 view가 바뀐 뒤 새 calcRunId로 한 번만 나간다", async () => {
+describe("AC-7 되돌리기(#51) 진입점은 F-3을 부르지 않고, 처음 설명 뒤 되돌린 결과로도 보내지 않는다 (H-11c, 결정 3 T-4, #280)", () => {
+  it("되돌리기 성공 → revision 갱신 → 재조회로 view가 바뀌어도 F-3은 처음 결과의 한 번뿐이다", async () => {
     const x = freshId();
     const y = freshId();
     const reload = deferred<Response>();
@@ -137,8 +137,8 @@ describe("AC-7 되돌리기(#51) 진입점은 F-3을 부르지 않고, 재조회
     expect(net.f3Bodies()).toEqual([{ calcRunId: x }]); // store의 view가 바뀌기 전: 되돌리기 코드도, effect도 보내지 않는다
 
     reload.resolve(json(200, view(14, "CALCULATED", y)));
-    await waitFor(() => expect(net.f3Bodies()).toEqual([{ calcRunId: x }, { calcRunId: y }]));
+    await waitFor(() => expect(planStore.getState().view?.calcRunId).toBe(y));
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(net.f3Bodies()).toEqual([{ calcRunId: x }, { calcRunId: y }]);
+    expect(net.f3Bodies()).toEqual([{ calcRunId: x }]); // 처음 설명 뒤라 되돌린 결과로는 보내지 않는다(#280)
   });
 });
