@@ -13,7 +13,7 @@ import re
 
 import pytest
 
-from conftest import ask, expect, save_plan_ok
+from conftest import ask, expect, explain, save_plan_ok
 from oracle import unknown_numbers
 
 pytestmark = [pytest.mark.ai, pytest.mark.usefixtures("ai_ready")]
@@ -25,8 +25,28 @@ _SERVER_NOTES = [
     re.compile(r"목표 금액이 .+?(?:으로|로) 바뀌어, 달성 여부는 각각 자기 목표 기준이에요\.?"),
     re.compile(r"이 조건으로 적용하면 이미 목표를 넘은 상태가 돼요\.?"),
 ]
-# 문구표 tax.note·tax.noteEtfTaxFree의 앞부분. 대화 답에 나오면 안 된다(#233)
-_TAX_NOTES = ("세금은 일반 과세를 기준으로 가정했어요", "매매차익은 비과세로, 적금 이자는 일반 과세를 기준으로")
+# 화면이 고정으로 고지하는 내용(docs/chat-response-guide.md 1절). 대화 답에 나오면 안 된다(#233, #254).
+# 같은 뜻을 말을 바꿔 쓴 것까지 다 잡지는 못한다(기준표 Q2). 새 고지 문구가 생기면 여기에 한 줄 더한다.
+# "원금 손실"은 ETF 위험 설명에 필요한 답이라 넣지 않는다
+_NOTICE_PHRASES = (
+    "세금은 일반 과세를 기준으로 가정했어요",                 # tax.note
+    "매매차익은 비과세로, 적금 이자는 일반 과세를 기준으로",   # tax.noteEtfTaxFree
+    "과거 데이터로 만든 추정",                                # disclaimer와 같은 뜻
+    "수익을 약속하지 않",
+    "수익을 보장하지 않",
+    "결과를 보장하지 않",
+    "모의 계산",
+    "투자 결정은 본인",
+    "참고용",
+    "미래를 예측한 값이 아니",                                # result.scenarioNotice
+)
+# 결과 설명이 나열하면 안 되는 입력 조건의 display 키(조건 바에 있다, 기준표 Q3). 목표 금액은 '목표 대비'에 쓰일 수 있어 뺀다
+_CONDITION_KEYS = (
+    "conditions.monthlySavingAmount",
+    "conditions.targetPeriodMonths",
+    "conditions.savingsRatioPct",
+    "conditions.savingsRateInputPct",
+)
 
 
 def body_sentences(content: str) -> list[str]:
@@ -37,9 +57,9 @@ def body_sentences(content: str) -> list[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
-def assert_no_tax_note(msg: dict) -> None:
-    for note in _TAX_NOTES:
-        assert note not in msg["content"], f"대화 답에 세금 안내가 붙음(#233)\n{msg['content']}"
+def assert_no_notice(msg: dict) -> None:
+    found = [p for p in _NOTICE_PHRASES if p in msg["content"]]
+    assert not found, f"화면 고정 고지를 대화 답에서 반복함 {found}(기준표 1절)\n{msg['content']}"
 
 
 def comparison(api, message_id):
@@ -158,7 +178,7 @@ def test_s8_4_value_lookup_is_short(api, fresh, q):
     assert msg["messageType"] == "ANSWER", f"[{q}] → {msg['messageType']}: {msg['content']}"
     sentences = body_sentences(msg["content"])
     assert len(sentences) <= 2, f"[{q}] 값 하나를 묻는데 {len(sentences)}문장(#229)\n{msg['content']}"
-    assert_no_tax_note(msg)
+    assert_no_notice(msg)
     bad = unknown_numbers(msg["content"], fresh["display"], q)
     assert not bad, f"[{q}] 계획에 없는 금액 {sorted(bad)}만원\n{msg['content']}"
 
@@ -169,7 +189,7 @@ def test_s8_5_recalc_answer_is_short(api, fresh, q):
     assert msg["messageType"] == "RECALC_RESULT", f"[{q}] → {msg['messageType']}: {msg['content']}"
     sentences = body_sentences(msg["content"])
     assert len(sentences) <= 3, f"[{q}] 조건 변경 답이 {len(sentences)}문장(#229)\n{msg['content']}"
-    assert_no_tax_note(msg)
+    assert_no_notice(msg)
 
 
 # ---------- ETF 종목 (S&P500·나스닥100·코스피200) ----------
@@ -181,7 +201,7 @@ def test_s8_6_other_etf_risk_has_sources(api, fresh, q):
     assert msg["messageType"] == "ANSWER", f"[{q}] → {msg['messageType']}: {msg['content']}"
     assert msg["citations"], f"[{q}] 출처 없음. 공시 4건을 적재했는지 확인(scripts/ingest/ingest.sh)\n{msg['content']}"
     assert "찾을 수 있는 자료가 없" not in msg["content"], msg["content"]
-    assert_no_tax_note(msg)
+    assert_no_notice(msg)
 
 
 def test_s8_7_etf_product_change_is_not_recalculated_yet(api, fresh):
@@ -189,3 +209,28 @@ def test_s8_7_etf_product_change_is_not_recalculated_yet(api, fresh):
     이 기능이 생기면 기대값을 RECALC_RESULT로 바꾼다."""
     msg = ask(api, "ETF를 나스닥으로 바꾸고 싶어")
     assert msg["messageType"] != "RECALC_RESULT", f"종목 변경을 계산함: {msg['content']}"
+
+
+# ---------- #254 대화 응답 기준표: 결과 설명·수익 질문 ----------
+
+def test_s8_9_explanation_is_short_without_inputs_or_notice(api, fresh):
+    """결과 화면의 자동 설명은 평균 결과·목표 대비·달성 여부만 3문장 이하로(기준표 3절, Q3)."""
+    msg = explain(api, fresh["calcRunId"])
+    assert msg["messageType"] == "EXPLANATION", f"{msg['messageType']}: {msg['content']}"
+    sentences = body_sentences(msg["content"])
+    assert len(sentences) <= 3, f"결과 설명이 {len(sentences)}문장\n{msg['content']}"
+    listed = [k for k in _CONDITION_KEYS if fresh["display"].get(k) and fresh["display"][k] in msg["content"]]
+    assert not listed, f"입력 조건을 나열함 {listed}(조건 바와 중복)\n{msg['content']}"
+    assert_no_notice(msg)
+    bad = unknown_numbers(msg["content"], fresh["display"])
+    assert not bad, f"계산 결과에 없는 금액 {sorted(bad)}만원\n{msg['content']}"
+
+
+@pytest.mark.parametrize("q", ["수익이 얼마나 나요?", "ETF 수익률은 몇 %예요?"])
+def test_s8_10_return_question_without_promise(api, fresh, q):
+    """수익을 물어도 약속·보장 여부는 본문에 쓰지 않는다(기준표 Q1). 연 수익률 숫자도 말하지 않는다."""
+    msg = ask(api, q)
+    assert msg["messageType"] == "ANSWER", f"[{q}] → {msg['messageType']}: {msg['content']}"
+    sentences = body_sentences(msg["content"])
+    assert len(sentences) <= 2, f"[{q}] {len(sentences)}문장\n{msg['content']}"
+    assert_no_notice(msg)
