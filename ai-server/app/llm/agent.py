@@ -17,7 +17,15 @@ from anthropic.types.beta import (
 from pydantic import ValidationError
 
 from app.core.config import Effort
-from app.core.contract import CHANGED_SIDE, CURRENT_SIDE, GOAL_AMOUNT, SAVINGS_RATIO, calc_condition_key
+from app.core.contract import (
+    CALC_SIDES,
+    CHANGED_SIDE,
+    CURRENT_SIDE,
+    ETF_NAME,
+    GOAL_AMOUNT,
+    SAVINGS_RATIO,
+    calc_condition_key,
+)
 from app.core.copy import load_copy
 from app.core.errors import ErrorCode
 from app.llm.assemble import (
@@ -44,6 +52,7 @@ from app.llm.judge import LlmStockJudge
 from app.llm.plan import plan_etf_name
 from app.llm.prompts import SYSTEM_PROMPT
 from app.llm.tools import FINAL_FORMAT, TOOLS, Calculator, DocumentSearch, FinalAnswer
+from app.rag.etf_codes import REPRESENTATIVE_PRODUCT
 from app.schemas import (
     ChatMode,
     ChatRequest,
@@ -321,7 +330,9 @@ class ChatAgent:
             if dropped:
                 log.info("dropped carried conditions for message %s: %s", turn.req.message_id, dropped)
             changes = filtered
-        if changes.etf_product_code is not None and changes.etf_product_code == plan_product(turn.req):
+        # ETF 0% 계획은 planContext에 종목 코드가 없지만 Spring은 #154 전까지 대표 상품으로 본다(internal-calc C2-2)
+        planned = plan_product(turn.req) or (REPRESENTATIVE_PRODUCT if turn.req.plan_context is not None else None)
+        if changes.etf_product_code is not None and changes.etf_product_code == planned:
             # 계획과 같은 종목은 바꾸지 않은 것이다(D-097). 키를 남기면 F-4·F-5가 적용할 수 없는 비교로 본다(#268)
             changes = changes.model_copy(update={"etf_product_code": None})
             if not changes.changed():
@@ -343,6 +354,9 @@ class ChatAgent:
         display = result.get("display")
         if isinstance(display, dict):
             turn.number_evidence.extend(v for v in display.values() if isinstance(v, str))
+            if changes.etf_product_code is not None:
+                names = (display.get(calc_condition_key(side, ETF_NAME)) for side in CALC_SIDES)
+                turn.compared_etf_names = tuple(n for n in names if isinstance(n, str))
             if "goal_amount" in turn.condition_changes:
                 cur_goal = display.get(calc_condition_key(CURRENT_SIDE, GOAL_AMOUNT))
                 chg_goal = display.get(calc_condition_key(CHANGED_SIDE, GOAL_AMOUNT))
@@ -351,7 +365,8 @@ class ChatAgent:
         if dropped:
             # 모델이 뺀 조건을 계산에 쓴 것처럼 답하지 않게 알린다(서버 사실 원칙)
             result = {**result, "excludedConditions": dropped, "note": EXCLUDED_NOTE}
-        if changes.etf_product_code is not None and _changed_savings_ratio(result) == _ALL_SAVINGS_PCT:
+        # 종목만 바꿨고 그 비교가 ETF를 쓰지 않을 때만 붙인다. 다른 조건도 바꿨으면 결과가 달라지므로 붙이지 않는다
+        if changes.changed().keys() == {"etf_product_code"} and _changed_savings_ratio(result) == _ALL_SAVINGS_PCT:
             result = {**result, "etfNote": ETF_ZERO_NOTE}
         return json.dumps(result, ensure_ascii=False)
 

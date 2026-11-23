@@ -6,6 +6,7 @@ from typing import Any, Protocol
 from app.core.contract import DISPLAY_KEY_LEAK
 from app.core.copy import load_copy
 from app.core.errors import ErrorCode
+from app.llm.conditions import mentions_etf_product
 from app.llm.errors import AgentError, ForbiddenAnswer, ForbiddenReason
 from app.llm.number_check import NumberMismatch, check_numbers
 from app.llm.plan import ETF_TAX_RATE_KEY, TAX_RATE_KEY, plan_etf_name, plan_without_etf
@@ -157,6 +158,7 @@ class Turn:
     validation_failed: bool = False   # 이번 요청에서 VALIDATION_FAILED를 받았다. 다시 계산하지 않는다
     fixed_copy_key: str | None = None   # 문구표 고정 문장으로 끝내는 거절을 받았다
     goal_changed_note_params: tuple[str, str] | None = None
+    compared_etf_names: tuple[str, ...] = ()   # 종목을 바꾼 비교의 두 쪽 종목 이름(계산 display, D-097)
     changed_already_exceeded: bool = False
     # 이번 요청의 계산 200 응답 display 값과 422 minDisplay·maxDisplay. 숫자 대조의 근거다(요청마다 따로, FR-AI-02)
     number_evidence: list[str] = field(default_factory=list)
@@ -248,18 +250,31 @@ def _mask_notes(content: str) -> str:
     return content
 
 
-def _checked_body(req: ChatRequest, content: str, product_changed: bool = False) -> str:
+def _checked_body(req: ChatRequest, content: str, etf_names: tuple[str, ...] | None = None) -> str:
     """계획 종목 표기 검사(#155). ETF 상품명은 허용(CF-07)이라 바꾸지 않는다. 개별 종목 추천은 이미 run·_retry가
     assemble 앞에서 거른다(_check_body). 거부할 표현이면 _ForbiddenAnswer를 올린다.
-    대화로 종목을 바꾼 비교(D-097)는 다른 종목을 말하는 것이 답이므로 계획 종목 검사를 하지 않는다."""
+    대화로 종목을 바꾸는 답(D-097)은 다른 종목을 말하는 것이 답이므로 계획 종목 검사 대신 etf_names 밖의 허용 ETF
+    표현이 없는지만 본다."""
     try:
         check_display_keys(content)
         check_internal_leak(content)
-        if not product_changed:
+        if etf_names is None:
             _check_plan_etf(req, content)
+        elif any(name in content for name in ALLOWED_ETF_NAMES if name not in etf_names):
+            raise ForbiddenExpression(ForbiddenReason.PRODUCT_NAME)
     except ForbiddenExpression as e:
         raise ForbiddenAnswer(ForbiddenReason(str(e))) from e
     return content
+
+
+def _etf_names_in_play(turn: Turn, message_type: MessageType) -> tuple[str, ...] | None:
+    """종목을 바꾸는 답에서 말해도 되는 종목 이름. 종목을 바꾼 비교는 두 쪽 이름, 종목을 말한 발화에 되묻는 답은
+    고를 수 있는 세 이름이다(목록 밖 종목·422 되묻기, D-097). 그 밖은 None(계획 종목 검사, #155)."""
+    if turn.compared_etf_names:
+        return turn.compared_etf_names
+    if message_type == "CLARIFY" and mentions_etf_product(turn.req.text):
+        return ALLOWED_ETF_NAMES
+    return None
 
 
 def _check_plan_etf(req: ChatRequest, content: str) -> None:
@@ -323,12 +338,12 @@ def assemble(turn: Turn, final: FinalAnswer) -> ChatResponse:
         tax_copy = load_copy().get("outOfScope.tax")
         content = tax_copy if tax_copy in final.content else out_of_scope_content()
     else:
-        product_changed = "etf_product_code" in (turn.condition_changes or {})
-        body = _checked_body(req, _fixed_copy(req, final.content), product_changed)
+        etf_names = _etf_names_in_play(turn, message_type)
+        body = _checked_body(req, _fixed_copy(req, final.content), etf_names)
         _check_numbers(turn, body)   # PR-04. 종목 추천·계획 종목 검사 뒤에 본문을 대조한다
         # 단서를 지우면 양옆 글자가 이어져 종목명·숫자가 새로 생길 수 있어 보정한 본문을 다시 검사한다(#155).
         # 숫자는 단서 자리를 끊고 본다. 단서 안의 숫자는 본문 숫자가 아니다
-        content = _checked_body(req, without_tax_notes(req, body), product_changed)
+        content = _checked_body(req, without_tax_notes(req, body), etf_names)
         _check_numbers(turn, _mask_notes(content))
         if not content.strip():
             # 단서 보정 뒤 본문이 비면 정상 응답이 아니다(#155, P-10)

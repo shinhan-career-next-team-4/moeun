@@ -36,9 +36,15 @@ _RATIO_WORDS = re.compile(r"비중|비율|반반|etf|주식|배분|(?:예금|적
 _RATE_WORDS = re.compile(r"금리|이율|이자율|(?<![가-힣])이자|(?<=금)이자")
 _PERCENT = re.compile(r"%|퍼센트|프로|퍼")
 # ETF 종목을 가리키는 말(D-097). 지수 이름 뒤의 숫자(코스피200·나스닥100·S&P500)는 금액·기간이 아니라 이름이다
-_INDEX_NAME = r"(?:코스피|kospi|나스닥|nasdaq|s\s*&\s*p|에스\s*앤\s*피|에스\s*엔\s*피)"
+# 목록 밖 지수(코스닥·다우 등)도 종목을 말한 것으로 본다. 'ETF'만으로는 보지 않는다(ETF 0% 계획의 이름 나열 금지, #155 P-4)
+_INDEX_NAME = r"(?:코스피|kospi|나스닥|nasdaq|s\s*&\s*p|에스\s*앤\s*피|에스\s*엔\s*피|코스닥|kosdaq|다우|니케이|항셍|러셀)"
 _ETF_PRODUCT_WORDS = re.compile(rf"{_INDEX_NAME}|종목")
 _INDEX_NAME_NUMBER = re.compile(rf"({_INDEX_NAME})\s*\d+")
+
+
+def mentions_etf_product(text: str | None) -> bool:
+    """발화가 ETF 종목(지수 이름·'종목')을 말한다(D-097)."""
+    return text is not None and bool(_ETF_PRODUCT_WORDS.search(text.lower()))
 _NUMBER = re.compile(rf"\d+(?:\.\d+)?|{_KO_NUMERAL}")
 _MONEY_FIELDS = ("goal_amount", "monthly_saving_amount")
 _THOUSANDS_COMMA = re.compile(r"(?<=\d),(?=\d{3})")

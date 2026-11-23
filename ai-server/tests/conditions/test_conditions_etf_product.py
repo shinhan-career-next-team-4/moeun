@@ -18,6 +18,7 @@ from app.llm.agent import ETF_ZERO_NOTE, ETF_ZERO_SENTENCE, TOOLS, ChatAgent
 from app.llm.conditions import drop_carried_conditions
 from app.llm.prompts import SYSTEM_PROMPT
 from app.schemas import ChatRequest, ConditionChanges, DocType, HistoryItem, RetrievedChunk
+from app.tools.calc import CalcRejected
 from tests.fakes import SUCCESS_RESPONSE, FakeCalc
 from tests.paths import REPO
 
@@ -27,6 +28,7 @@ NULLS: dict[str, Any] = dict.fromkeys(
      "etf_product_code"]
 )
 KOSPI = "코스피200 추종 ETF"
+NASDAQ = "나스닥100 추종 ETF"
 
 
 def text_resp(message_type: str, content: str) -> SimpleNamespace:
@@ -74,14 +76,14 @@ def plan(savings_ratio_pct: int | None = None) -> dict[str, Any]:
     return json.loads((PLAN_DIR / name).read_text(encoding="utf-8"))
 
 
-def kospi_response(changed_ratio: int = 50) -> dict[str, Any]:
-    """종목을 069500으로 바꾼 /internal/calc 응답(C2-3·C2-6). 숫자는 부록 A-1 그대로다."""
+def kospi_response(changed_ratio: int = 50, code: str = "069500", name: str = KOSPI) -> dict[str, Any]:
+    """종목을 바꾼 /internal/calc 응답(C2-3·C2-6). 숫자는 부록 A-1 그대로다."""
     response = json.loads(SUCCESS_RESPONSE.read_text(encoding="utf-8"))
     response["conditions"]["current"]["etfProductCode"] = "SP500"
-    response["conditions"]["changed"]["etfProductCode"] = "069500"
+    response["conditions"]["changed"]["etfProductCode"] = code
     response["conditions"]["changed"]["savingsRatioPct"] = changed_ratio
     response["display"]["conditions.current.etfProductName"] = "S&P500 추종 ETF"
-    response["display"]["conditions.changed.etfProductName"] = KOSPI
+    response["display"]["conditions.changed.etfProductName"] = name
     return response
 
 
@@ -132,7 +134,7 @@ async def test_product_and_monthly_saving_change_together():
     _, _, calc = await run(
         tool_resp({"etf_product_code": "133690", "monthly_saving_amount": 500_000}),
         text_resp("RECALC_RESULT", "나스닥100 추종 ETF로 바꾸고 월 50만원으로 계산했어요."),
-        text="나스닥100으로 바꾸고 월 50만원 넣으면?",
+        text="나스닥100으로 바꾸고 월 50만원 넣으면?", calc=FakeCalc(kospi_response(code="133690", name=NASDAQ)),
     )
     assert calc.calls == [{"etf_product_code": "133690", "monthly_saving_amount": 500_000}]
 
@@ -171,12 +173,34 @@ def test_carried_condition_is_dropped_but_the_product_stays():
 # ---- ETF 0% (D-097 합의 4) ----
 
 async def test_etf_zero_comparison_gets_the_one_sentence_note():
+    """ETF 0% 계획에서 종목만 바꾸면 결과가 같다는 한 문장 안내를 붙인다"""
     _, claude, _ = await run(
-        tool_resp({"etf_product_code": "069500", "savings_ratio_pct": 100}),
-        text_resp("RECALC_RESULT", ETF_ZERO_SENTENCE),
-        text="적금 100으로 하고 코스피200으로 바꾸면?", calc=FakeCalc(kospi_response(changed_ratio=100)),
+        tool_resp({"etf_product_code": "069500"}), text_resp("RECALC_RESULT", ETF_ZERO_SENTENCE),
+        text="코스피200으로 바꾸면?", calc=FakeCalc(kospi_response(changed_ratio=100)),
+        plan_context=plan(savings_ratio_pct=100),
     )
     assert any(ETF_ZERO_NOTE in r for r in claude.tool_results())
+
+
+async def test_etf_zero_note_is_absent_when_another_condition_also_changes():
+    """비중·월 저축액을 함께 바꿨으면 결과가 달라지므로 '결과는 같아요' 안내를 붙이지 않는다"""
+    _, claude, _ = await run(
+        tool_resp({"etf_product_code": "069500", "savings_ratio_pct": 100}),
+        text_resp("RECALC_RESULT", "적금 100으로 바꿔 계산했어요."),
+        text="적금 100으로 하고 코스피200으로 바꾸면?", calc=FakeCalc(kospi_response(changed_ratio=100)),
+    )
+    assert not any("etfNote" in r for r in claude.tool_results())
+
+
+async def test_etf_zero_plan_treats_sp500_as_the_plan_product():
+    """ETF 0% 계획은 planContext에 종목 코드가 없지만 Spring은 #154 전까지 S&P500으로 본다. 같은 종목이므로 뺀다"""
+    resp, _, calc = await run(
+        tool_resp({"etf_product_code": "SP500", "monthly_saving_amount": 500_000}),
+        text_resp("RECALC_RESULT", "월 50만원으로 계산했어요."),
+        text="S&P500으로 하고 월 50만원 넣으면?", calc=FakeCalc(), plan_context=plan(savings_ratio_pct=100),
+    )
+    assert calc.calls == [{"monthly_saving_amount": 500_000}]
+    assert resp.condition_changes == {"monthly_saving_amount": 500_000}
 
 
 async def test_etf_note_is_absent_when_the_changed_side_uses_etf():
@@ -207,6 +231,34 @@ async def test_etf_zero_plan_may_name_products_after_changing_ratio_and_product(
     assert resp.content == answer
 
 
+async def test_comparison_answer_may_not_name_a_third_product():
+    """종목을 바꾼 비교의 답은 두 쪽 종목 이름만 쓴다. 비교에 없는 종목 이름이 나오면 거부하고 다시 쓰게 한다"""
+    bad = f"{NASDAQ}로 바꾸면 세후 자산이 약 789만원 증가해요."
+    good = f"{KOSPI}로 바꾸면 세후 자산이 약 789만원 증가해요."
+    resp, _, _ = await run(tool_resp({"etf_product_code": "069500"}), text_resp("RECALC_RESULT", bad),
+                           text_resp("RECALC_RESULT", good), text="코스피200으로 바꾸면?")
+    assert resp.content == good
+
+
+async def test_clarify_after_an_unlisted_product_may_list_the_choices_even_in_an_etf_zero_plan():
+    """목록 밖 종목을 말한 발화에 고를 수 있는 세 종목을 들어 되물어도 ETF 0% 계획의 종목 언급 거부에 걸리지 않는다"""
+    ask = f"S&P500 추종 ETF, {KOSPI}, {NASDAQ} 중 무엇으로 바꿔 볼까요?"
+    resp, _, calc = await run(text_resp("CLARIFY", ask), text="코스닥150으로 바꾸면?",
+                              plan_context=plan(savings_ratio_pct=100))
+    assert (resp.message_type, resp.content, calc.calls) == ("CLARIFY", ask, [])
+
+
+async def test_unknown_product_rejection_becomes_clarify_without_range_numbers():
+    """(예외) 422 etfProductCode OUT_OF_RANGE(min·max 없음)는 계약 위반이 아니다. 모델에 넘기고 CLARIFY로 끝난다"""
+    rejected = CalcRejected("VALIDATION_FAILED", [{"field": "etfProductCode", "reason": "OUT_OF_RANGE"}])
+    ask = f"{KOSPI}와 {NASDAQ} 중 무엇으로 바꿔 볼까요?"
+    resp, claude, _ = await run(tool_resp({"etf_product_code": "133690"}), text_resp("RECALC_RESULT", ask),
+                                text="나스닥으로 바꾸면?", calc=FakeCalc(error=rejected))
+    assert (resp.message_type, resp.content) == ("CLARIFY", ask)
+    assert resp.calc_run_id is None and resp.condition_changes is None
+    assert any('"etfProductCode"' in r and "minDisplay" not in r for r in claude.tool_results())
+
+
 # ---- 프롬프트 ----
 
 def test_system_prompt_lists_six_conditions_and_product_rules():
@@ -215,3 +267,4 @@ def test_system_prompt_lists_six_conditions_and_product_rules():
     assert "conditions.changed.etfProductName" in SYSTEM_PROMPT
     assert "etfNote" in SYSTEM_PROMPT
     assert "권하지 않습니다" in SYSTEM_PROMPT
+    assert "field가 etfProductCode이면" in SYSTEM_PROMPT

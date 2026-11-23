@@ -192,7 +192,7 @@ public class ChatAnswerListener {
         }
     }
 
-    /** ai-server의 snake_case 조건 키를 camelCase로 바꾼다. 허용 5키 밖의 키는 그대로 둔다. */
+    /** ai-server의 snake_case 조건 키를 camelCase로 바꾼다. 허용 6키(D-097) 밖의 키는 그대로 둔다. */
     private String conditionChangesJson(JsonNode changes) {
         if (changes == null) {
             return null;

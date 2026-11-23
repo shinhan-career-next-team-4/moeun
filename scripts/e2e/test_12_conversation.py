@@ -253,11 +253,19 @@ def test_s8_11b_follow_up_product_does_not_carry_previous_value(api, fresh):
 
 
 def test_s8_11c_etf_zero_says_product_does_not_matter(api, fresh):
-    """ETF 비중이 0%면 종목을 바꿔도 결과가 같다고 한 문장으로 답한다(D-097 합의 4)."""
-    msg = ask(api, "적금 100%로 하고 코스피200으로 바꾸면?")
+    """ETF 0% 계획에서 종목만 바꾸면 결과가 같다고 한 문장으로 답한다(D-097 합의 4)."""
+    save_plan_ok(api, savingsRatioPct=100)
+    msg = ask(api, "코스피200으로 바꾸면?")
     assert msg["messageType"] == "RECALC_RESULT", f"{msg['messageType']}: {msg['content']}"
     assert "결과는 같" in msg["content"], msg["content"]
     assert len(body_sentences(msg["content"])) <= 2, msg["content"]
+
+
+def test_s8_11f_etf_zero_with_ratio_change_explains_the_result(api, fresh):
+    """비중을 함께 바꿔 ETF 0%가 된 비교는 결과가 달라지므로 '결과는 같아요'로 끝내지 않는다."""
+    msg = ask(api, "적금 100%로 하고 코스피200으로 바꾸면?")
+    assert msg["messageType"] == "RECALC_RESULT", f"{msg['messageType']}: {msg['content']}"
+    assert "결과는 같" not in msg["content"], msg["content"]
 
 
 @pytest.mark.parametrize("q", ["코스닥150으로 바꾸면?", "삼성전자로 바꿔 줘"])
