@@ -4,8 +4,8 @@ import { resolveApiMode } from "../../api/client";
 import { ApiError } from "../../api/errors";
 import { COPY } from "../../shared/copy/copy";
 import { Button } from "../../shared/ui";
-import { AlternativeSection, demoAlternatives } from "../alternative";
-import type { AlternativeValues } from "../alternative/types";
+import { AlternativeSection, requestAlternatives, toAlternativeValues } from "../alternative";
+import type { AlternativeValues, AlternativeValuesByKey } from "../alternative/types";
 import {
   applyComparison,
   CompareSection,
@@ -45,7 +45,15 @@ export function ResultPage() {
     comparison: ComparisonView;
     changes: ConditionChanges;
     revision: number;
+    path: "COMPARE" | "ALTERNATIVE";
   } | null>(null);
+  // 대안 카드(#258, A-1). 받은 시점의 revision이 지금과 같을 때만 적용할 수 있다
+  const [alternatives, setAlternatives] = useState<{
+    revision: number;
+    hasAlternatives: boolean;
+    values: AlternativeValuesByKey;
+  } | null>(null);
+  const [periodMonths, setPeriodMonths] = useState<number | undefined>(undefined);
   const [applying, setApplying] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [applyFeedback, setApplyFeedback] = useState<string | null>(null);
@@ -84,10 +92,22 @@ export function ResultPage() {
     setPrefill(null);
   }
 
+  /** 대안 카드의 '내 계획으로 적용'(#258). 확인창을 거쳐 P-6 ALTERNATIVE로 적용한다 */
+  function openAlternativeConfirm(values: AlternativeValues) {
+    if (alternatives === null || !values.comparison || !values.changes) return;
+    setConfirmError(null);
+    setConfirming({
+      comparison: values.comparison,
+      changes: values.changes,
+      revision: alternatives.revision,
+      path: "ALTERNATIVE",
+    });
+  }
+
   function openConfirm() {
     if (comparison === null || compared === null) return;
     setConfirmError(null);
-    setConfirming({ comparison, changes: compared.changes, revision: compared.revision });
+    setConfirming({ comparison, changes: compared.changes, revision: compared.revision, path: "COMPARE" });
   }
 
   function closeConfirm() {
@@ -98,12 +118,12 @@ export function ResultPage() {
   /** P-6 적용(#68, C12a-9-2). 코드별 동작은 대화 적용(F-5, C12b-7-2)과 같다 */
   async function confirmApply() {
     if (confirming === null || applying) return;
-    const { changes, revision: sent } = confirming;
+    const { changes, revision: sent, path } = confirming;
     setApplying(true);
     setConfirmError(null);
     const outcome = await applyComparison(
       { request: (method, path, body) => api.request(method, path, body) },
-      { expectedRevision: sent, changes },
+      { expectedRevision: sent, changes, path },
     );
     setApplying(false);
     switch (outcome.kind) {
@@ -157,6 +177,35 @@ export function ResultPage() {
       setLoadError(true);
     });
   }
+
+  // 대안은 계획이 바뀔 때마다(적용·되돌리기·입력 수정) 다시 받는다. 기한 카드에 적은 기간도 함께 보낸다(A-1-3)
+  useEffect(() => {
+    if (revision === null) return;
+    let active = true;
+    const fetchedAt = revision;
+    requestAlternatives({ request: (method, path, body) => api.request(method, path, body) }, periodMonths).then((result) => {
+      if (!active) return;
+      if (result.ok) {
+        setAlternatives({
+          revision: fetchedAt,
+          hasAlternatives: result.response.hasAlternatives,
+          values: toAlternativeValues(result.response),
+        });
+        return;
+      }
+      if (result.kind === "periodInvalid") {
+        setApplyFeedback(COPY["alt.periodInvalid"]);
+        setPeriodMonths(undefined);
+      } else if (result.kind === "noPlan") {
+        planStore.acceptNoPlan(fetchedAt);
+      } else if (result.kind === "failed") {
+        setAlternatives(null);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [revision, periodMonths]);
 
   useEffect(() => {
     if (planStore.getState().view === null) {
@@ -253,9 +302,12 @@ export function ResultPage() {
                 <ResultChart scenarios={result.scenarios} goalAmount={result.goalAmount} display={display} />
                 {/* 대안 영역(#67). 기준 시나리오가 미달일 때만 보인다(FR-ALT-01) */}
                 <AlternativeSection
-                  isAchieved={baseline?.isAchieved ?? false}
-                  values={demoAlternatives(resolveApiMode(import.meta.env))}
+                  isAchieved={(baseline?.isAchieved ?? false) || alternatives?.hasAlternatives === false}
+                  values={alternatives?.values}
                   onCompare={prefillComparison}
+                  onApply={openAlternativeConfirm}
+                  applyEnabled={alternatives !== null && alternatives.revision === revision}
+                  onPeriodSubmit={setPeriodMonths}
                 />
                 {/* 비교 영역(#65). 조건을 바꿔 현재 조건과 나란히 본다 */}
                 <CompareSection

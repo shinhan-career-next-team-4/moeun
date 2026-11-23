@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { planStore } from "../../../api";
 import NavigateBridge from "../../../app/NavigateBridge";
@@ -151,7 +151,7 @@ describe("결과 화면 대안 카드 (#258, A-1, D-096)", () => {
     await waitFor(() => expect(apply().disabled).toBe(false));
     const before = server.alternativeCalls().length;
 
-    planStore.acceptRevision(13);
+    act(() => planStore.acceptRevision(13));
 
     expect(apply().disabled).toBe(true);
     await waitFor(() => expect(server.alternativeCalls().length).toBe(before + 1));

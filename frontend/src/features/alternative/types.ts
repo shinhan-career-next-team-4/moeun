@@ -1,10 +1,10 @@
-import type { ConditionChanges } from "../compare";
+import type { ComparisonView, ConditionChanges } from "../compare";
 
 /**
  * 대안 영역(FR-ALT-01~04, 와이어프레임 03). 카드 본문 값은 모두 서버가 만든 display 문자열이다.
  *
- * 대안 산출 API(#66)는 아직 없고, 카드 본문 4줄의 값 출처도 Q-089·Q-103 결정 대기다.
- * 그래서 여기 모양은 화면이 받을 문자열 자리만 정하고, 값이 없으면 카드는 빈 카드로 그린다.
+ * 값은 대안 API(A-1 `POST /api/alternatives`, #66)의 display에서 오고 줄별 키는 D-096을 따른다(requestAlternatives).
+ * 값이 없으면 카드는 빈 카드로 그린다.
  * 프론트는 어떤 값도 계산하지 않고 어떤 판정도 하지 않는다(NFR-INT-01).
  */
 export type AlternativeKey = "monthlySavingAmount" | "targetPeriodMonths" | "savingsRatioPct";
@@ -23,8 +23,10 @@ export interface AlternativeValues {
   badAfterTaxAsset?: string;
   /** 서버가 변동이 커진다고 알려 준 대안(W-10). 판정은 화면이 하지 않는다 */
   volatilityWarning?: boolean;
-  /** '비교하기'가 비교 영역에 채워 넣을 조건 */
+  /** '비교하기'가 비교 영역에 채우고 '내 계획으로 적용'이 P-6으로 보낼 조건 */
   changes?: ConditionChanges;
+  /** 적용 확인창이 그릴 비교 모양(바뀐 조건과 display) */
+  comparison?: ComparisonView;
 }
 
 export type AlternativeValuesByKey = Partial<Record<AlternativeKey, AlternativeValues>>;

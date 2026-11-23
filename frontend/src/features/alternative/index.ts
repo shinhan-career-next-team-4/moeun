@@ -1,3 +1,3 @@
 export { AlternativeSection } from "./AlternativeSection";
-export { demoAlternatives } from "./demoAlternatives";
+export { requestAlternatives, toAlternativeValues } from "./requestAlternatives";
 export type { AlternativeKey, AlternativeValues, AlternativeValuesByKey } from "./types";

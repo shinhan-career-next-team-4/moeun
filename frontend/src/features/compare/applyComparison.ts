@@ -42,11 +42,15 @@ function outcomeOf(error: unknown): ApplyOutcome {
 
 export async function applyComparison(
   deps: ApplyComparisonDeps,
-  { expectedRevision, changes }: { expectedRevision: number; changes: ConditionChanges },
+  {
+    expectedRevision,
+    changes,
+    path = "COMPARE",
+  }: { expectedRevision: number; changes: ConditionChanges; path?: "COMPARE" | "ALTERNATIVE" },
 ): Promise<ApplyOutcome> {
   try {
     const body = await deps.request("POST", "/api/plan/apply", {
-      path: "COMPARE",
+      path,
       expectedRevision,
       conditionChanges: changes,
     });

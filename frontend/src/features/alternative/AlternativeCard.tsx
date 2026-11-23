@@ -8,6 +8,10 @@ interface AlternativeCardProps {
   values?: AlternativeValues;
   /** '비교하기'. 이 대안의 조건을 비교 영역에 채운다(프론트 상태만, 저장 없음) */
   onCompare?: (values: AlternativeValues) => void;
+  /** '내 계획으로 적용'. 확인창을 거쳐 P-6 ALTERNATIVE로 적용한다(#258) */
+  onApply?: (values: AlternativeValues) => void;
+  /** 부모가 적용을 허용하는지(대안을 받은 뒤 내 계획이 그대로) */
+  applyEnabled?: boolean;
   /** 기한 카드에서 사용자가 적은 기간(개월). D-020·D-039: 기간은 사용자가 정한다 */
   onPeriodSubmit?: (months: number) => void;
 }
@@ -67,7 +71,14 @@ function PeriodInput({ onSubmit }: { onSubmit: (months: number) => void }) {
 }
 
 /** 대안 카드 하나(FR-ALT-02). 서버 값이 없는 줄은 그리지 않고, 하나도 없으면 안내만 보여 준다. */
-export function AlternativeCard({ alternativeKey, values, onCompare, onPeriodSubmit }: AlternativeCardProps) {
+export function AlternativeCard({
+  alternativeKey,
+  values,
+  onCompare,
+  onApply,
+  applyEnabled = false,
+  onPeriodSubmit,
+}: AlternativeCardProps) {
   const hasValues =
     values !== undefined && Object.values(values).some((value) => typeof value === "string" && value.length > 0);
 
@@ -100,8 +111,13 @@ export function AlternativeCard({ alternativeKey, values, onCompare, onPeriodSub
         >
           {COPY["alt.compare"]}
         </Button>
-        {/* 적용은 A팀 확인·저장 흐름(FR-PLAN-01, D-046)으로 넘긴다. 그 흐름이 붙기 전에는 비활성 */}
-        <Button variant="secondary" className="h-9 flex-1 px-2" disabled title={COPY["alt.applyPending"]}>
+        {/* 적용은 확인창(FR-PLAN-01)을 거쳐 P-6 ALTERNATIVE로 한다(#258) */}
+        <Button
+          variant="secondary"
+          className="h-9 flex-1 px-2"
+          disabled={!hasValues || !onApply || !applyEnabled}
+          onClick={() => values && onApply?.(values)}
+        >
           {COPY["alt.apply"]}
         </Button>
       </div>
