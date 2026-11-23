@@ -64,6 +64,19 @@ class FormatterTest {
         assertThat(formatter.formatGapToGoal(gap, isAchieved)).isEqualTo(expected);
     }
 
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+        "1500000|true|달성 · 목표 +150만 원",
+        "-200000|false|미달 · 목표 −20만 원",
+        "0|true|달성 · 목표 0원",
+        "-3000|false|미달 · 목표 −1만 원 미만",
+        "3000|true|달성 · 목표 +1만 원 미만"
+    })
+    @DisplayName("결과 화면 배지는 판정 라벨 + 목표 +/−N만 원이다(약 없음, 라벨은 엔진 판정을 따른다, #224)")
+    void formatsGapBadge(long gap, boolean isAchieved, String expected) {
+        assertThat(formatter.formatGapBadge(gap, isAchieved)).isEqualTo(expected);
+    }
+
     @Test
     @DisplayName("3천 원 부족하면 판정은 미달이고 표시도 미달이다(반올림하면 0만원이어도 '달성'처럼 보이지 않음)")
     void keepsLabelConsistentWithJudgementAtBoundary() {

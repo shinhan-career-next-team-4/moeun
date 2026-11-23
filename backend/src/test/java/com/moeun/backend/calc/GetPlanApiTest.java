@@ -139,6 +139,13 @@ class GetPlanApiTest {
         assertThat(plan.get("savingsRatioPct").isNull()).isTrue();
         assertThat(current.get("result")).isEqualTo(saved.get("result"));
         assertThat(current.get("display")).isEqualTo(saved.get("display"));
+        // 결과 화면 배지(#224): 시나리오마다 판정과 같은 라벨로 오고 "약"이 없다
+        for (JsonNode scenario : current.get("result").get("scenarios")) {
+            String code = scenario.get("scenario").asString();
+            String badge = current.get("display").get(code + ".gapBadge").asString();
+            assertThat(badge).startsWith(scenario.get("isAchieved").asBoolean() ? "달성 · 목표 " : "미달 · 목표 ")
+                    .doesNotContain("약");
+        }
         assertThat(current.get("result").get("calcStartMonth").asString())
                 .isEqualTo(YearMonth.now(ZoneId.of("Asia/Seoul")).toString());
         assertThat(count("calc_run")).isEqualTo(1);

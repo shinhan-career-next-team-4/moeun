@@ -513,7 +513,7 @@ FR-PLAN-05·06, FR-RES-01~07, FR-INP-11, NFR-INT-02, D-010, D-062, D-072.
 | 영역(SRS, Issue) | 문자열 출처 | 판단에 쓰는 raw |
 |---|---|---|
 | 조건 바(FR-RES-05, #49) | 목표명: 문구표 `goal.<goalType>`(없으면 코드 문자열) 또는 `plan.goalCustomName`(길어도 줄바꿈·말줄임으로 깨지지 않게). `display["goalAmount"]`, `["conditions.monthlySavingAmount"]`, `["conditions.targetPeriodMonths"]`, `["conditions.savingsRatioPct"]`, `["conditions.savingsRateInputPct"]`, `["conditions.heldAssets"]`, 기본 금리 표시 `result.defaultSavingsRate` | `result.assumptions.isDefaultSavingsRate` |
-| 결과 요약(FR-RES-02, #49) | `S = baselineResultScenario`일 때 `display["S.afterTaxAsset"]`, `["S.gapToGoal"]`, `["targetMonth"]`, 문구표 `scenario.<S>` | 그 시나리오 `isAchieved` |
+| 결과 요약(FR-RES-02, #49) | `S = baselineResultScenario`일 때 `display["S.afterTaxAsset"]`, `["S.gapToGoal"]`, `["targetMonth"]`. 상단 배지(#224)는 `display["S.gapBadge"]`(`달성 · 목표 +150만 원`/`미달 · 목표 −20만 원`, "약" 없음, 이 화면 응답에만 있고 planContext에는 없다), 문구표 `scenario.<S>` | 그 시나리오 `isAchieved` |
 | 3구간(FR-RES-03, #50) | `["GOOD","AVG","BAD"]` 고정 순서로 돌며 `result.scenarios`에 있는 것만 그린다. 칸마다 `display["<S>.afterTaxAsset"]`, `["<S>.gapToGoal"]`, 도달 시점은 `isAchieved`면 `display["<S>.goalReachMonth"]`, 아니면 문구표 `result.notReachedInPeriod`. 아래 고지 한 줄은 `result.scenarioNotice`(D-029) | 시나리오 수(1이면 ETF 0%), `isAchieved` |
 | 그래프(FR-RES-04, #50) | 목표선 라벨 `display["goalAmount"]`, 가로축 양 끝 `display["calcStartMonth"]`·`display["targetMonth"]`, 시나리오 최종값 라벨 `display["S.afterTaxAsset"]`. 세로축 눈금 숫자·툴팁·점별 월 라벨은 없다(R-5) | `monthlyPoints[].afterTaxAsset`(점 위치), `result.goalAmount`(목표선 높이) |
 | 초과 안내(FR-RES-01, #49) | **문구표 `result.alreadyExceeded`**(결과 화면용) 안에 `display["goalAmount"]`, `display["conditions.heldAssets"]`. 초과 금액 없음 | `view.status === "ALREADY_EXCEEDED"` → 요약·3구간·그래프·대안 숨김, F-3 안 부름(D-062) |
