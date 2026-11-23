@@ -608,7 +608,7 @@ FR-PLAN-04, D-013, D-041, D-044, D-068, C12b-7-4.
 
 FR-PLAN-01·02, FR-ALT-04, FR-CMP-02, D-016, D-041, D-046, CP-07.
 
-결과 화면의 비교 영역(`POST /api/compare`, #64)이나 대안 카드에서 본 조건을 확인창을 거쳐 내 계획에 적용한다. 대화 적용은 F-5뿐이고 P-6과 무관하다(확인창 없음, D-016).
+결과 화면의 비교 영역(`POST /api/compare`, #64)이나 대안 카드에서 본 조건을 확인창을 거쳐 내 계획에 적용한다. 대화 적용은 F-5뿐이고 P-6과 무관하다(확인창 없음, D-016). **예외: ETF 종목 카드(C12a-9-3)는 같은 P-6 `COMPARE` 경로를 쓰지만 확인창 없이 바로 적용한다**(사용자 결정 2026-11-23, #156). 되돌리기 토스트(D-041)가 안전망이다.
 
 요청:
 ```json
@@ -665,12 +665,16 @@ FR-PLAN-01·02, FR-ALT-04, FR-CMP-02, D-016, D-041, D-046, CP-07.
 - 성공 뒤 F-3은 여기서 부르지 않는다. 결과 화면의 `calcRunId`가 바뀌면 #54가 한 곳에서 부른다(C12b-7-3과 같다).
 - 대화창의 적용 버튼은 `revision` 구독으로 모두 비활성된다(C12b-7-4, D-069). P-6 쪽에서 따로 부를 함수는 없다.
 
-#### C12a-9-3. 결과 화면 ETF 종목 바꾸기 (#154)
+#### C12a-9-3. 결과 화면 ETF 종목 바꾸기 (#154, #156)
 
-화면 흐름: 종목을 고르면 **미리보기(비교)** → 사용자가 확인하면 **적용**. 둘 다 `COMPARE` 경로다(`rules.yml`).
+화면 흐름: 결과 화면에 **ETF 종목 3안 카드**가 열기 단계 없이 바로 보인다 → 카드를 누르면 **확인창 없이 바로 적용**한다. 적용과 미리보기는 모두 `COMPARE` 경로다(`rules.yml`).
 
-- **미리보기**: 조건 변경 비교 `POST /api/compare`의 `conditionChanges`에 `"etfProductCode": "069500"`을 넣는다. 다른 조건과 함께 바꿀 수 있다. `current`는 계획의 종목, `changed`는 바꾼 종목의 시계열·세율로 계산한다(`current.assumptions.etfProductCode`·`changed.assumptions.etfProductCode`). 내 계획과 calc_run은 바뀌지 않는다. `changedKeys`에 `etfProductCode`가 들어간다.
-- **적용**: `PlanApplyService.apply(memberId, COMPARE, {"etfProductCode": …}, expectedRevision, null)`이 새 plan_version에 종목을 저장하고 `PlanChanged`를 발행한다. 되돌리기는 직전 종목으로 돌아간다. 화면은 P-6 `POST /api/plan/apply`를 `{"path": "COMPARE", "expectedRevision": …, "conditionChanges": {"etfProductCode": "069500"}}`로 부른다. 확인창과 응답별 동작은 C12a-9-2와 같다.
+> **확인창을 거치지 않는 예외**(사용자 결정 2026-11-23, #156). C12a-9-2·FR-PLAN-01·D-016은 비교·대안 적용에 확인창을 요구하지만 ETF 종목 카드는 누르는 즉시 적용한다. 되돌리기 토스트(10초, D-041)와 '직전 계획으로 되돌리기'(P-5)로 돌아갈 수 있다. 비교 영역·대안 카드는 확인창을 그대로 쓴다.
+
+- **3안 카드**: 화면이 뜨면 `GET /api/etf-products`(R-1)의 종목을 카드 한 장씩 보여 준다. 지금 종목은 "지금 종목" 배지가 붙고 눌리지 않는다. 지금 종목이 아닌 종목마다 아래 미리보기를 한 번씩(종목 수 - 1) 받아 카드에 평균 자산·지금 종목 대비·목표 대비·나빴던 때를 채운다. 값은 모두 비교 응답의 `display` 문자열이다(NFR-INT-01). 내 계획의 종목은 응답 본문의 `assumptions.etfProductCode`로 찾는다(이름 문자열 비교가 아니다). ETF 비중 0%(종목 이름 키 없음)면 영역을 그리지 않는다.
+- **미리보기**: 조건 변경 비교 `POST /api/compare`의 `conditionChanges`에 `"etfProductCode": "069500"`을 넣는다. 다른 조건과 함께 바꿀 수 있다. `current`는 계획의 종목, `changed`는 바꾼 종목의 시계열·세율로 계산한다(`current.assumptions.etfProductCode`·`changed.assumptions.etfProductCode`). 내 계획과 calc_run은 바뀌지 않는다. `changedKeys`에 `etfProductCode`가 들어간다. 비교 응답의 `display`에는 `assumptions.*` 키가 없어 종목 이름은 본문 `current.assumptions.etfProductName`·`changed.assumptions.etfProductName`에서 읽는다.
+- **적용**: `PlanApplyService.apply(memberId, COMPARE, {"etfProductCode": …}, expectedRevision, null)`이 새 plan_version에 종목을 저장하고 `PlanChanged`를 발행한다. 되돌리기는 직전 종목으로 돌아간다. 화면은 카드를 누르면 P-6 `POST /api/plan/apply`를 `{"path": "COMPARE", "expectedRevision": …, "conditionChanges": {"etfProductCode": "069500"}}`로 **확인창 없이** 부른다. `expectedRevision`은 그 카드를 받았을 때의 `revision`이다. 응답별 동작은 C12a-9-2 표와 같고, 확인창이 없으므로 다시 시도할 수 있는 실패(`INTERNAL_ERROR`·네트워크)는 `toast.applyFailed`로 알리고 카드는 그대로 둔다.
+- **적용 뒤**: 계획을 다시 읽어(`loadPlan`) 그래프·3구간·요약·가정 보기가 새 종목 기준이 되고, 바뀐 종목이 지금 종목이 되도록 나머지 두 종목의 미리보기를 새 계획 기준으로 다시 받는다. 열려 있는 동안 `revision`이 바뀌면(되돌리기·대화 적용 등) 받아 둔 카드는 쓰지 않고 "다시 시도"로 새로 받는다.
 - **고를 수 있는 종목**: 데이터를 적재한 종목만이다(`GET /api/etf-products`와 같은 목록). 아니거나 문자열이 아니면 `422 VALIDATION_FAILED`, `errors[0] = {"field": "etfProductCode", "reason": "NOT_AVAILABLE"}`이고 아무것도 계산·저장하지 않는다.
 - **대화(CHAT)·대안(ALTERNATIVE)**: 아직 종목을 바꿀 수 없다(`NOT_CHANGEABLE`). 대화는 D-040 개정(#160) 뒤에 연다.
 
@@ -1524,7 +1528,7 @@ config ──▶ (auth, plan, calc, chat: 보안 필터 등록·예외 처리. �
 | `get-comparison.400.json` | F-4 | 400 | `MALFORMED_REQUEST` |
 | `get-comparison.404.json` | F-4 | 404 | `NOT_FOUND` |
 | `get-comparison.500.json` | F-4 | 500 | `INTERNAL_ERROR`(재계산 실패) |
-| `post-compare.200-etf.json` (기본) | `POST /api/compare` | 200 | 결과 화면 ETF 종목 미리보기(C12a-9-3). `changedKeys: ["etfProductCode"]`, current는 SP500·changed는 069500, 다섯 조건은 양쪽이 같다 |
+| `post-compare.200-etf.json` (기본) | `POST /api/compare` | 200 | 결과 화면 ETF 종목 3안 카드의 종목별 미리보기(C12a-9-3). `changedKeys: ["etfProductCode"]`, current는 SP500·changed는 069500, 다섯 조건은 양쪽이 같다 |
 | `post-compare.422-not-available.json` | `POST /api/compare` | 422 | `VALIDATION_FAILED`, `errors[0] = {"field": "etfProductCode", "reason": "NOT_AVAILABLE"}` |
 | `post-apply.200.json` (기본) | F-5 | 200 | `{revision: 13}` |
 | `post-apply.409-plan-changed.json` | F-5 | 409 | `PLAN_CHANGED` |
