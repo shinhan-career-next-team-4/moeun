@@ -131,6 +131,7 @@ compare:
   notApplicable: "지금 기준으로는 비교할 수 없는 값이에요"
 # 결과 화면 ETF 종목 비교(#156, C12a-9-3). 상품명 대신 화면 이름만 쓴다(CP-06)
 etfCompare:
+  sectionLabel: "ETF 종목 비교"
   open: "다른 ETF 종목으로 비교해 보기"
   title: "다른 ETF 종목으로 비교"
   notice: "고른 종목으로 계산만 해 봐요. 내 계획은 그대로예요"
@@ -138,6 +139,8 @@ etfCompare:
   pickLabel: "ETF 종목"
   sameProduct: "지금 계획과 같은 종목이에요. 다른 종목을 골라 보세요"
   onlyOne: "지금은 비교할 다른 종목이 없어요"
+  comparing: "고른 종목으로 계산하는 중이에요"
+  planChanged: "내 계획이 바뀌었어요. 종목을 다시 골라 주세요"
   notAvailable: "그 종목은 아직 계산할 수 없어요"
   listFailed: "종목 목록을 불러오지 못했어요. 다시 시도해 주세요"
   retry: "다시 시도"

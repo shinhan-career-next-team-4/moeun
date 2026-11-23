@@ -27,8 +27,10 @@ export type EtfProductsResult = { ok: true; products: EtfProduct[] } | { ok: fal
 
 export async function fetchEtfProducts(deps: EtfCompareDeps): Promise<EtfProductsResult> {
   try {
-    const body = (await deps.request("GET", PRODUCTS_PATH)) as { products: EtfProduct[] };
-    return { ok: true, products: body.products };
+    const body = (await deps.request("GET", PRODUCTS_PATH)) as { products?: unknown };
+    // 계약을 어긴 200(목록 없음)도 못 가져온 것으로 다룬다. 화면이 undefined를 들고 터지지 않게 한다
+    if (!Array.isArray(body?.products)) return { ok: false, message: COPY["etfCompare.listFailed"] };
+    return { ok: true, products: body.products as EtfProduct[] };
   } catch {
     return { ok: false, message: COPY["etfCompare.listFailed"] };
   }

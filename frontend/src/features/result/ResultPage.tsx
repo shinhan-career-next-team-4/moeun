@@ -126,7 +126,8 @@ export function ResultPage() {
   /** ETF 종목 미리보기의 '이 종목으로 바꾸기'. 확인창부터는 비교 영역 적용과 같은 흐름이다(C12a-9-2) */
   function openEtfConfirm(request: EtfApplyRequest) {
     setConfirmError(null);
-    setConfirming(request);
+    // 종목 바꾸기도 비교 경로다(C12a-9-3). 대안 적용만 ALTERNATIVE를 쓴다
+    setConfirming({ ...request, path: "COMPARE" });
   }
 
   function closeConfirm() {
@@ -337,6 +338,7 @@ export function ResultPage() {
                   // 적용에 성공하면 비교 영역과 함께 처음 상태(접힌 입구)로 돌아간다
                   key={resetSeq}
                   currentProductName={display["assumptions.etfProductName"] ?? ""}
+                  currentProductCode={result.assumptions.etfProductCode ?? undefined}
                   scenarioMethod={result.assumptions.scenarioMethod}
                   revision={revision}
                   onApply={openEtfConfirm}

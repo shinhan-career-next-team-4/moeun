@@ -18,6 +18,15 @@ interface Handlers {
   compare?: (code: string) => Promise<unknown>;
 }
 
+/** 수동으로 풀어 주는 약속. 응답이 날아오는 중의 조작을 재현한다 */
+function pending<T>() {
+  let release!: (value: T) => void;
+  const promise = new Promise<T>((resolve) => {
+    release = resolve;
+  });
+  return { promise, release };
+}
+
 function deps({ products: onProducts, compare: onCompare }: Handlers = {}) {
   const request = vi.fn(async (method: string, path: string, body?: unknown) => {
     if (path === "/api/etf-products") return onProducts ? await onProducts() : products;
@@ -29,13 +38,14 @@ function deps({ products: onProducts, compare: onCompare }: Handlers = {}) {
 
 function renderSection(
   handlers: Handlers = {},
-  props: { currentProductName?: string; revision?: number | null } = {},
+  props: { currentProductName?: string; currentProductCode?: string; revision?: number | null } = {},
 ) {
   const fake = deps(handlers);
   const onApply = vi.fn();
   const view = render(
     <EtfCompareSection
       currentProductName={props.currentProductName ?? CURRENT}
+      currentProductCode={props.currentProductCode}
       scenarioMethod="ROLLING_DISTRIBUTION"
       revision={props.revision ?? 12}
       onApply={onApply}
@@ -239,6 +249,99 @@ describe("ETF 종목 비교 영역 (#156, C12a-9-3)", () => {
     await waitForChips();
 
     expect(screen.queryByRole("button", { name: "이 종목으로 바꾸기" })).toBeNull();
+  });
+
+  it("목록을 가져오는 중에 닫고 다시 열어도 한 번만 가져온다", async () => {
+    const first = pending<unknown>();
+    const { callsTo } = renderSection({ products: () => first.promise });
+    open();
+    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
+    open();
+
+    first.release(products);
+    await waitForChips();
+
+    expect(callsTo("/api/etf-products")).toHaveLength(1);
+  });
+
+  it("다시 시도를 연달아 눌러도 목록 요청은 하나만 간다", async () => {
+    const first = pending<unknown>();
+    let attempt = 0;
+    const { callsTo } = renderSection({
+      products: () => {
+        attempt += 1;
+        return attempt === 1 ? Promise.reject(ApiError.network()) : first.promise;
+      },
+    });
+    open();
+    const retry = await screen.findByRole("button", { name: "다시 시도" });
+
+    fireEvent.click(retry);
+    fireEvent.click(retry);
+    first.release(products);
+    await waitForChips();
+
+    expect(callsTo("/api/etf-products")).toHaveLength(2);
+  });
+
+  it("방향키로 칩을 지나가도 지나간 종목마다 비교를 보내지 않는다", async () => {
+    const { request, callsTo } = renderSection();
+    open();
+    await waitForChips();
+
+    pick(KOSPI);
+    pick(NASDAQ);
+    expect(callsTo("/api/compare")).toHaveLength(0);
+
+    await screen.findByRole("rowheader", { name: "ETF 종목" });
+    expect(callsTo("/api/compare")).toHaveLength(1);
+    expect(request).toHaveBeenCalledWith("POST", "/api/compare", {
+      conditionChanges: { etfProductCode: "133690" },
+    });
+  });
+
+  it("지금 종목은 이름이 아니라 종목 코드로 찾는다", async () => {
+    renderSection({}, { currentProductName: "에스앤피500 추종 ETF", currentProductCode: "SP500" });
+    open();
+
+    expect((await screen.findByRole("radio", { name: CURRENT })).getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("처음 열 때는 같은 종목 안내를 보여 주지 않는다", async () => {
+    renderSection();
+    open();
+    await waitForChips();
+
+    expect(screen.queryByText("지금 계획과 같은 종목이에요. 다른 종목을 골라 보세요")).toBeNull();
+  });
+
+  it("내 계획이 바뀌면 표를 지우고 다시 고르라고 안내한다", async () => {
+    const { view, onApply } = renderSection();
+    open();
+    await waitForChips();
+    pick(KOSPI);
+    await screen.findByRole("rowheader", { name: "ETF 종목" });
+
+    view.rerender(
+      <EtfCompareSection
+        currentProductName={CURRENT}
+        scenarioMethod="ROLLING_DISTRIBUTION"
+        revision={13}
+        onApply={onApply}
+        deps={deps()}
+      />,
+    );
+
+    expect(screen.getByText("내 계획이 바뀌었어요. 종목을 다시 골라 주세요")).toBeTruthy();
+    expect(screen.queryByRole("rowheader", { name: "ETF 종목" })).toBeNull();
+  });
+
+  it("종목 목록 응답에 products가 없으면 목록 실패로 다룬다", async () => {
+    renderSection({ products: async () => ({}) });
+    open();
+
+    expect(await screen.findByText("종목 목록을 불러오지 못했어요. 다시 시도해 주세요")).toBeTruthy();
+    expect(screen.queryByRole("radiogroup")).toBeNull();
   });
 
   it("ETF 0% 계획(종목 이름 없음)에서는 아무것도 그리지 않는다", () => {
