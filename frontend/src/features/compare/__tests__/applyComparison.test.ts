@@ -22,6 +22,18 @@ describe("applyComparison: P-6 POST /api/plan/apply (#68, C12a-9)", () => {
     expect(outcome).toEqual({ kind: "applied", revision: 13 });
   });
 
+  it("대안 카드 적용은 path ALTERNATIVE로 보낸다(#258)", async () => {
+    const request = vi.fn().mockResolvedValue({ revision: 13 });
+
+    await applyComparison({ request }, { expectedRevision: 12, changes: { targetPeriodMonths: 48 }, path: "ALTERNATIVE" });
+
+    expect(request).toHaveBeenCalledWith("POST", "/api/plan/apply", {
+      path: "ALTERNATIVE",
+      expectedRevision: 12,
+      conditionChanges: { targetPeriodMonths: 48 },
+    });
+  });
+
   it("200이어도 정수 revision이 없으면 실패로 본다", async () => {
     const outcome = await applyComparison({ request: vi.fn().mockResolvedValue({}) }, { expectedRevision: 12, changes });
 

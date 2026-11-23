@@ -81,15 +81,20 @@ alt:
   periodLabel: "원하는 기한(개월)"
   periodSubmit: "확인"
   # 기한을 적은 뒤. 그 기간까지의 그래프는 서버 재계산(#66)이 있어야 그릴 수 있다
-  periodSubmitted: "기한 {months}개월로 적었어요. 그 기간까지의 그래프는 계산 서버에 연결하면 보여 드릴게요"
+  periodSubmitted: "기한 {months}개월로 계산했어요"
   # 비중 대안의 변동 경고(W-10). 판정은 서버가 하고 화면은 보여 주기만 한다
   volatilityWarning: "⚠ 변동 커짐"
   compare: "비교하기"
   apply: "내 계획으로 적용"
   # 적용 확인 흐름(FR-PLAN-01, D-046)이 붙기 전에는 누를 수 없다
-  applyPending: "적용은 확인 흐름이 붙은 뒤에 쓸 수 있어요"
+  # 나빴던 때 줄: changed.BAD.afterTaxAsset · changed.BAD.gapToGoal(D-096). 값은 display 그대로
+  badValue: "{asset} · {gap}"
+  # 기한 카드에 허용 범위 밖 기간을 적었을 때(A-1-2 422). 범위 숫자는 문구에 박지 않는다
+  periodInvalid: "적을 수 있는 기한을 벗어났어요. 기한을 다시 적어 주세요"
   # 대안 값 출처(#66)가 아직 없을 때. 프론트가 숫자를 만들지 않는다(NFR-INT-01)
-  valuePending: "대안 값은 계산 서버에 연결하면 보여 드릴게요"
+  valuePending: "아직 계산된 값이 없어요"
+  # 대안 API(A-1)가 실패했을 때(A-1-2). 계획이 바뀌면 다시 불러온다
+  loadFailed: "대안 값을 불러오지 못했어요"
 
 # 비교 영역(FR-CMP-01~03, 와이어프레임 03 W-13·W-23·W-25). 표의 숫자는 비교 응답 display 문자열만 쓴다
 compare:
@@ -109,7 +114,7 @@ compare:
   apply: "바꾼 조건을 내 계획으로 적용"
   # 적용 확인창(FR-PLAN-01·02, #68, 계약 C12a-9-2). 값은 비교 응답 display 그대로 넣는다
   confirmTitle: "바꾼 조건을 내 계획에 적용할까요?"
-  confirmNotice: "적용하면 결과 화면이 새 조건으로 바뀌어요. 적용한 뒤 10초 안에는 되돌릴 수 있어요."
+  confirmNotice: "적용하면 결과 화면이 새 조건으로 바뀌어요. 바꾼 뒤에도 결과 화면의 '직전 계획으로 되돌리기'로 되돌릴 수 있어요."
   confirmChange: "{current} → {changed}"
   confirmCancel: "취소"
   confirmApply: "적용하기"
