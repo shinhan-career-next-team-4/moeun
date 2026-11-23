@@ -113,11 +113,13 @@ interface ChatWindowProps {
   deps?: ChatDeps;
   /** 패널 머리글 오른쪽에 붙는 단추(접기·닫기). 배치는 부르는 쪽이 정한다. */
   headerAction?: ReactNode;
-  /** 완료된 어시스턴트 메시지가 새로 늘 때마다 부른다(서랍이 닫혀 있을 때 점 표시용). */
+  /** 대기 중이던 어시스턴트 메시지가 끝날 때마다 부른다(서랍이 닫혀 있을 때 점 표시용). 복원된 지난 대화는 부르지 않는다. */
   onAssistantMessage?: () => void;
+  /** 패널이 보이는 중인지. 숨겨진 동안은 스크롤이 먹지 않아서, 다시 보이는 순간 맨 아래로 내린다. */
+  visible?: boolean;
 }
 
-export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, onAssistantMessage }: ChatWindowProps) {
+export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, onAssistantMessage, visible = true }: ChatWindowProps) {
   // 같은 인스턴스를 담은 새 deps 객체로 다시 그려도 폴링·비교 상태가 초기화되지 않게 인스턴스 기준으로 안정화한다(P-67).
   const deps = useMemo<ChatDeps>(
     () => ({ api: givenDeps.api, polling: givenDeps.polling, planStore: givenDeps.planStore }),
@@ -158,19 +160,29 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, onAssi
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
-  const finishedAssistantCount = chat.messages.filter((m) => m.role === "ASSISTANT" && m.status !== "PENDING").length;
-  const previousFinishedRef = useRef(finishedAssistantCount);
+  const wasVisibleRef = useRef(true);
+  const pendingAssistantIdsRef = useRef(new Set<number>());
 
-  // 사용자가 위로 올려 읽는 중이면 내리지 않는다.
+  // 사용자가 위로 올려 읽는 중이면 내리지 않는다. 숨겨졌다가 다시 보일 때는 읽던 자리가 없으므로 맨 아래로 내린다.
   useEffect(() => {
     const box = scrollRef.current;
-    if (box && stickToBottomRef.current) box.scrollTop = box.scrollHeight;
-  }, [chat.messages]);
+    if (!box) return;
+    if (visible && !wasVisibleRef.current) stickToBottomRef.current = true;
+    wasVisibleRef.current = visible;
+    if (visible && stickToBottomRef.current) box.scrollTop = box.scrollHeight;
+  }, [chat.messages, visible]);
 
+  // 대기(PENDING)로 본 어시스턴트 메시지가 끝났을 때만 알린다. 새로고침으로 복원된 지난 답변은 대기를 거치지 않는다.
   useEffect(() => {
-    if (finishedAssistantCount > previousFinishedRef.current) onAssistantMessage?.();
-    previousFinishedRef.current = finishedAssistantCount;
-  }, [finishedAssistantCount, onAssistantMessage]);
+    const pending = pendingAssistantIdsRef.current;
+    let finished = false;
+    for (const message of chat.messages) {
+      if (message.role !== "ASSISTANT") continue;
+      if (message.status === "PENDING") pending.add(message.id);
+      else if (pending.delete(message.id)) finished = true;
+    }
+    if (finished) onAssistantMessage?.();
+  }, [chat.messages, onAssistantMessage]);
 
   function rememberScrollPosition() {
     const box = scrollRef.current;

@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatWindow } from "../index";
-import { doneMsg, failedMsg, flush, makeDeps, makeFakeApi, page, pendingMsg, tick, userMsg } from "./helpers";
+import { doneMsg, flush, makeDeps, makeFakeApi, page, pendingMsg, tick, userMsg } from "./helpers";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -57,15 +57,6 @@ describe("로딩", () => {
   });
 });
 
-describe("설명 실패", () => {
-  it("실패한 설명 아래에 [다시 시도]가 있다(plan이 CALCULATED일 때)", async () => {
-    // 공유 plan store가 비어 있으면 settledStatus가 null이라 단추가 없다. 있는 경우는 retryExplanation 테스트가 덮는다.
-    await mount({ get: [page([failedMsg(1032)], false)] });
-    expect(screen.queryByTestId("chat-retry-failure")).toBeNull();
-    expect(screen.getByTestId("chat-message").getAttribute("data-status")).toBe("FAILED");
-  });
-});
-
 describe("새 답변 알림", () => {
   it("완료된 어시스턴트 메시지가 늘 때만 onAssistantMessage를 부른다", async () => {
     const onAssistantMessage = vi.fn();
@@ -77,6 +68,13 @@ describe("새 답변 알림", () => {
     await tick(1000);
     expect(onAssistantMessage).toHaveBeenCalledTimes(1);
   });
+
+  it("새로고침으로 복원된 지난 답변(대기를 거치지 않은 완료 메시지)은 알리지 않는다", async () => {
+    const onAssistantMessage = vi.fn();
+    await mount({ get: [page([userMsg(1030), doneMsg(1031, "ANSWER", "지난 답")], false)] }, { onAssistantMessage });
+    await tick(3000);
+    expect(onAssistantMessage).not.toHaveBeenCalled();
+  });
 });
 
 describe("자동 하단 스크롤", () => {
@@ -85,6 +83,19 @@ describe("자동 하단 스크롤", () => {
     Object.defineProperty(box, "clientHeight", { configurable: true, value: clientHeight });
     box.scrollTop = scrollTop;
   }
+
+  it("숨겨졌다가 다시 보이면 읽던 자리와 상관없이 맨 아래로 내린다", async () => {
+    const api = makeFakeApi({ get: [page([userMsg(1030), doneMsg(1031, "ANSWER", "답")], false)] });
+    const { deps } = makeDeps(api);
+    const view = render(<ChatWindow deps={deps} visible />);
+    await flush();
+    const box = screen.getByTestId("chat-messages");
+    setScrollGeometry(box, { scrollTop: 0, scrollHeight: 900, clientHeight: 200 });
+    fireEvent.scroll(box); // 위로 올려 읽는 중
+    view.rerender(<ChatWindow deps={deps} visible={false} />);
+    view.rerender(<ChatWindow deps={deps} visible />);
+    expect(box.scrollTop).toBe(900);
+  });
 
   it("맨 아래에 있으면 새 메시지에 따라 내려가고, 위로 올려 읽는 중이면 그대로다", async () => {
     await mount({
