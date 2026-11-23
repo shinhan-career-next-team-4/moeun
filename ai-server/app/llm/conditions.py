@@ -1,6 +1,7 @@
 import re
+from collections.abc import Sequence
 
-from app.schemas import ConditionChanges
+from app.schemas import ConditionChanges, HistoryItem
 
 # 이번 발화가 그 조건을 가리키는지 보는 느슨한 표현. 자연어를 해석하거나 계산하지 않고, 표현이 없을 때만 값을 뺀다.
 # "개월"의 월, "원래"의 원, "한 달"의 달처럼 다른 조건의 글자가 겹치지 않게 정규식으로 가린다(M-3)
@@ -27,6 +28,7 @@ _GOAL = re.compile(r"목표(?!\s*(?:기간|기한|일|까지))|모으려|모을"
 _HELD = re.compile(r"보유|가진|모아\s?둔|모았|이미|지금\s*있는")
 _MONTHLY_EXPLICIT = re.compile(r"(?<!개)월|매달|한\s?달|저축(?!\s*기간)|납입|적립")
 _MONTHLY = re.compile(rf"{_MONTHLY_EXPLICIT.pattern}|\d\s*만|{_KO_MAN}|만원|\d\s*원")
+_QUESTION = re.compile(r"[?\uff1f]")  # 반각·전각 물음표
 _PERIOD = re.compile(r"기간|기한|개월|년|\d\s*달")
 # 적금·예금 바로 뒤에 금리 단어가 오면 상품 이름이 아니라 금리를 꾸미는 말이다
 _RATIO_WORDS = re.compile(r"비중|비율|반반|etf|주식|배분|(?:예금|적금)(?!\s*(?:금리|이율|이자))")
@@ -153,13 +155,45 @@ def _stated_conditions(text: str) -> set[str]:
     return {name for name, hit in stated.items() if hit}
 
 
-def drop_carried_conditions(text: str, changes: ConditionChanges) -> ConditionChanges:
+def _pointed_amounts(text: str, history: Sequence[HistoryItem]) -> set[int]:
+    """가리키는 답("모으는 돈이요")이 고른 금액. 없으면 빈 집합(#270).
+
+    조건 고르기 답 규칙(#239)과 같은 범위만 본다: 역할 낱말 없이 금액만 말한 발화 → 물음표가 있는 답(되묻기)
+    → 숫자도 조건 낱말도 없는 이번 발화. 그때 앞 발화의 금액이 하나면 그 금액을 고른 것으로 본다.
+    앞 발화에 역할 낱말이 있으면 모델이 되묻지 않고 계산했으므로 뒤 답의 물음표는 되묻기가 아니다(D-041).
+    history에 message_type이 없어 되묻기를 물음표로 가늠하므로, 물음표 없는 되묻기에는 금액을 남기지 않는다
+    (값을 지우는 쪽으로 틀린다). 금액이 어느 조건인지는 거르지 않는다. 역할은 모델이 정한다(D-073).
+    """
+    source = pointed_source(text, history)
+    return _candidate_krw_amounts(source.lower()) if source is not None else set()
+
+
+def pointed_source(text: str, history: Sequence[HistoryItem]) -> str | None:
+    """가리키는 답이 고른 금액을 말한 사용자 발화. 아니면 None(#270).
+
+    되묻기를 다시 할 때도 모델이 그 금액을 인용할 수 있으므로 호출자는 이 발화를 숫자 검사 근거에 더한다(#260과 같은 이유).
+    """
+    if len(history) < 2 or _count_numbers(text) or _stated_conditions(text):
+        return None
+    before, last = history[-2], history[-1]
+    if before.role != "user" or last.role != "assistant" or not _QUESTION.search(last.content):
+        return None
+    said_before = before.content.lower()
+    if _GOAL.search(said_before) or _HELD.search(said_before) or _MONTHLY_EXPLICIT.search(said_before):
+        return None
+    return before.content if len(_candidate_krw_amounts(said_before)) == 1 else None
+
+
+def drop_carried_conditions(
+    text: str, changes: ConditionChanges, history: Sequence[HistoryItem] = ()
+) -> ConditionChanges:
     """history에서 이어받은 조건을 도구 인자에서 뺀다. 비교 기준은 항상 내 계획이다(FR-AI-06, D-041).
 
     사용자가 말한 값을 지우는 쪽이 이어받은 값이 남는 쪽보다 나쁘므로, 모호하면 남긴다. 발화의 숫자가
     인식한 조건보다 많으면("50으로 하고 기간은 3년") 단위를 못 알아본 값이 있다고 보고 그대로 둔다.
     쉼표 금액과 한 기간의 복수 단위는 숫자 하나로 센다.
-    표현도 숫자도 없으면 말한 값이 없으므로 전부 뺀다.
+    표현도 숫자도 없으면 말한 값이 없으므로 전부 뺀다. 단, 되묻기에 가리키는 말로 답했으면 되묻기 바로 앞 발화의
+    금액 하나는 남긴다(#270).
     """
     lowered = text.lower()
     stated = _stated_conditions(lowered)
@@ -167,7 +201,8 @@ def drop_carried_conditions(text: str, changes: ConditionChanges) -> ConditionCh
         return changes
     # 되묻기에 금액만 답한 발화("15000만원")는 조건 낱말이 없어도 그 금액을 이번에 말한 것이다(#231).
     # 이 필터는 앞 턴에서 이어받은 값을 빼는 것이므로, 이번 발화에 그대로 있는 금액은 남긴다
-    said_amounts = _candidate_krw_amounts(lowered)
+    # 되묻기에 가리키는 말로 답한 발화는 되묻기 바로 앞 발화의 금액을 고른 것이다(#270)
+    said_amounts = _candidate_krw_amounts(lowered) | _pointed_amounts(lowered, history)
     return ConditionChanges.model_validate({
         k: v for k, v in changes.changed().items()
         if k in stated or (k in _MONEY_FIELDS and v in said_amounts)
