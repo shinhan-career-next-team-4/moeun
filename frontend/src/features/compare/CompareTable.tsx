@@ -1,12 +1,14 @@
 import { COPY, type CopyMap } from "../../shared/copy/copy";
-import type { ComparisonView, ConditionKey } from "./types";
+import { conditionValues } from "./conditionValues";
+import type { ComparedKey, ComparisonView } from "./types";
 
-const CONDITION_LABEL_KEY: Record<ConditionKey, string> = {
+const CONDITION_LABEL_KEY: Record<ComparedKey, string> = {
   goalAmount: "condition.goalAmount",
   monthlySavingAmount: "condition.monthlySavingAmount",
   savingsRatioPct: "condition.savingsRatioPct",
   savingsRateInputPct: "condition.savingsRateInputPct",
   targetPeriodMonths: "condition.targetPeriodMonths",
+  etfProductCode: "condition.etfProductCode",
 };
 
 /** 표의 한 줄. 값이 없는 칸은 '—'로 둔다(프론트가 값을 만들지 않는다). */
@@ -22,8 +24,7 @@ const DASH = "—";
 function conditionRows(view: ComparisonView, copy: CopyMap): Row[] {
   return [...view.changedKeys].sort().map((key) => ({
     label: copy[CONDITION_LABEL_KEY[key]] ?? key,
-    current: view.display[`conditions.current.${key}`],
-    changed: view.display[`conditions.changed.${key}`],
+    ...conditionValues(view, key),
     // 조건 자체의 변화량(`+30만 원`) display 키는 계약에 없다(W-15과 같은 이유)
     change: undefined,
   }));

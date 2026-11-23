@@ -1524,6 +1524,8 @@ config ──▶ (auth, plan, calc, chat: 보안 필터 등록·예외 처리. �
 | `get-comparison.400.json` | F-4 | 400 | `MALFORMED_REQUEST` |
 | `get-comparison.404.json` | F-4 | 404 | `NOT_FOUND` |
 | `get-comparison.500.json` | F-4 | 500 | `INTERNAL_ERROR`(재계산 실패) |
+| `post-compare.200-etf.json` (기본) | `POST /api/compare` | 200 | 결과 화면 ETF 종목 미리보기(C12a-9-3). `changedKeys: ["etfProductCode"]`, current는 SP500·changed는 069500, 다섯 조건은 양쪽이 같다 |
+| `post-compare.422-not-available.json` | `POST /api/compare` | 422 | `VALIDATION_FAILED`, `errors[0] = {"field": "etfProductCode", "reason": "NOT_AVAILABLE"}` |
 | `post-apply.200.json` (기본) | F-5 | 200 | `{revision: 13}` |
 | `post-apply.409-plan-changed.json` | F-5 | 409 | `PLAN_CHANGED` |
 | `post-apply.409-stale.json` | F-5 | 409 | `STALE_COMPARISON` |

@@ -129,6 +129,21 @@ compare:
   rowPrincipal: "총 납입 원금"
   rowGoalReachMonth: "목표 도달 시점"
   notApplicable: "지금 기준으로는 비교할 수 없는 값이에요"
+# 결과 화면 ETF 종목 비교(#156, C12a-9-3). 상품명 대신 화면 이름만 쓴다(CP-06)
+etfCompare:
+  sectionLabel: "ETF 종목 비교"
+  title: "다른 ETF 종목으로 비교"
+  notice: "종목을 누르면 바로 내 계획에 적용돼요. 되돌리기로 이전 종목으로 돌아갈 수 있어요"
+  pickLabel: "ETF 종목"
+  currentBadge: "지금 종목"
+  rowDelta: "지금 종목 대비"
+  choose: "누르면 바로 바꿔요"
+  loading: "종목별 결과를 계산하는 중이에요"
+  onlyOne: "지금은 비교할 다른 종목이 없어요"
+  planChanged: "내 계획이 바뀌었어요. 다시 비교해 주세요"
+  notAvailable: "그 종목은 아직 계산할 수 없어요"
+  listFailed: "종목 목록을 불러오지 못했어요. 다시 시도해 주세요"
+  retry: "다시 시도"
 
 # 표시 템플릿(Formatter #28이 읽는다). 금액·비중은 Formatter가 붙인다.
 # 금액 뒤에 붙는 짧은 라벨이다: "-약 288만원 미달", "약 789만원 증가"(계약 C2-6, D-055). 문장형으로 바꾸면 계약 fixture와 어긋난다
@@ -175,6 +190,7 @@ scenarioMethod:
 condition:
   goalAmount: "목표 금액"
   monthlySavingAmount: "월 저축액"
+  etfProductCode: "ETF 종목"
   savingsRatioPct: "저축 비중"
   savingsRateInputPct: "적금 금리"
   targetPeriodMonths: "목표 기간"
@@ -245,9 +261,11 @@ result:
   # W-06 와이어프레임: 3구간 머리글
   scenarioHeading: "ETF가 포함된 결과는 시기에 따라 달라요"
   # W-06 와이어프레임: 3구간 머리글 둘째 줄. 긴 설명은 '가정 보기'에 있으므로 여기서는 짧게 가리킨다
+  # 종목 이름은 화면이 display의 assumptions.etfProductName으로 조립한다(#156). 문구에 지수 이름을 박지 않는다
+  scenarioMethodProduct: "기준 종목 {product}"
   scenarioMethodShort:
-    CAGR: "기준 지수 S&P500 · 과거 데이터의 연평균 수익률로 세 구간을 나눠 계산 (가정 보기 참고)"
-    ROLLING_DISTRIBUTION: "기준 지수 S&P500 · 과거 10년 수익률로 1만 가지 경우를 계산해 세 구간 (가정 보기 참고)"
+    CAGR: "과거 데이터의 연평균 수익률로 세 구간을 나눠 계산 (가정 보기 참고)"
+    ROLLING_DISTRIBUTION: "과거 10년 수익률로 1만 가지 경우를 계산해 세 구간 (가정 보기 참고)"
   # W-04 와이어프레임: 그래프 범례
   chartLegendAvg: "평균"
   chartLegendBand: "좋았던 때~나빴던 때 범위"

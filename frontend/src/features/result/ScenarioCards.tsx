@@ -1,4 +1,5 @@
 import { COPY } from "../../shared/copy/copy";
+import { scenarioMethodLine } from "../../shared/copy/scenarioMethod";
 import type { ScenarioCode, ScenarioResult } from "./types";
 
 const SCENARIO_ORDER: readonly ScenarioCode[] = ["GOOD", "AVG", "BAD"];
@@ -8,13 +9,13 @@ interface ScenarioCardsProps {
   display: Record<string, string>;
   /** 구간을 어떻게 나눴는지 가리키는 문구표 키(`result.scenarioMethodShort.<코드>`). 모르는 코드면 줄을 숨긴다. */
   scenarioMethod: string | null;
+  /** 계산에 쓴 ETF 종목의 화면 이름(`display["assumptions.etfProductName"]`). 없으면 산정 방식만 보인다(#156). */
+  productName?: string;
 }
 
 /** 3구간 비교 카드(FR-RES-03, #50, C12a-7). */
-export function ScenarioCards({ scenarios, display, scenarioMethod }: ScenarioCardsProps) {
-  const methodText = scenarioMethod
-    ? COPY[`result.scenarioMethodShort.${scenarioMethod}` as keyof typeof COPY]
-    : undefined;
+export function ScenarioCards({ scenarios, display, scenarioMethod, productName }: ScenarioCardsProps) {
+  const methodText = scenarioMethodLine(scenarioMethod, productName);
   const byCode = new Map(scenarios.map((s) => [s.scenario, s]));
   const ordered = SCENARIO_ORDER.map((code) => byCode.get(code)).filter(
     (s): s is ScenarioResult => s !== undefined,
