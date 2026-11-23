@@ -41,6 +41,7 @@ public class ChatAnswerListener {
     private static final int HISTORY_LIMIT = 20;
     private static final String EXPLANATION = "EXPLANATION";
     private static final Map<String, String> CONDITION_KEYS = Map.of(
+            "goal_amount", "goalAmount",
             "monthly_saving_amount", "monthlySavingAmount",
             "savings_ratio_pct", "savingsRatioPct",
             "savings_rate_input_pct", "savingsRateInputPct",
@@ -190,7 +191,7 @@ public class ChatAnswerListener {
         }
     }
 
-    /** ai-server의 snake_case 조건 키를 camelCase로 바꾼다. 허용 4키 밖의 키는 그대로 둔다. */
+    /** ai-server의 snake_case 조건 키를 camelCase로 바꾼다. 허용 5키 밖의 키는 그대로 둔다. */
     private String conditionChangesJson(JsonNode changes) {
         if (changes == null) {
             return null;
