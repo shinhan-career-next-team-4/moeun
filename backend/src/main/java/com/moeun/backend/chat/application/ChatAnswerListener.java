@@ -45,7 +45,8 @@ public class ChatAnswerListener {
             "monthly_saving_amount", "monthlySavingAmount",
             "savings_ratio_pct", "savingsRatioPct",
             "savings_rate_input_pct", "savingsRateInputPct",
-            "target_period_months", "targetPeriodMonths");
+            "target_period_months", "targetPeriodMonths",
+            "etf_product_code", "etfProductCode");
 
     private final ChatMessageRepository messages;
     private final PlanContextPort planContexts;
@@ -191,7 +192,7 @@ public class ChatAnswerListener {
         }
     }
 
-    /** ai-server의 snake_case 조건 키를 camelCase로 바꾼다. 허용 5키 밖의 키는 그대로 둔다. */
+    /** ai-server의 snake_case 조건 키를 camelCase로 바꾼다. 허용 6키(D-097) 밖의 키는 그대로 둔다. */
     private String conditionChangesJson(JsonNode changes) {
         if (changes == null) {
             return null;

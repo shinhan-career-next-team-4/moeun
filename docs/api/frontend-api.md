@@ -1115,7 +1115,7 @@ record PlanUndoResult(long planVersionId, long revision) {}
 **`applicable` 판정**(D-041, 서버 힌트)
 1. 이 메시지가 그 회원의 `COMPLETED` `RECALC_RESULT` 중 id가 가장 크고,
 2. 그 `calc_run.plan_version_id` = 지금 `plan.current_version_id`일 때 `true`.
-3. **[D-097, #268]** 단 저장된 바꾼 조건에 `etfProductCode`가 있으면(계획과 같은 종목이어도) **#154 전까지 항상 `false`** 다. F-5도 같은 비교를 `422 FIELD_NOT_CHANGEABLE`(field `etfProductCode`)로 거절한다. #154 뒤 대화 경로에 종목을 허용할 때 이 줄을 지운다.
+3. **[D-097, #268]** 단 저장된 바꾼 조건에 `etfProductCode`가 있으면(계획과 같은 종목이어도) **#154 전까지 항상 `false`** 다. F-5도 같은 비교를 `422 FIELD_NOT_CHANGEABLE`(field `etfProductCode`)로 거절한다. #154 뒤 대화 경로에 종목을 허용할 때 이 줄을 지운다. 종목을 바꾼 비교에는 `conditions.current`·`conditions.changed`에 `etfProductCode`가, `display`에 `conditions.<side>.etfProductName`이 더해진다(internal-calc C2-3·C2-6, #267). 바꾸지 않은 비교에는 키가 없다.
 - 되돌리기 뒤에도 이 값이 정확한 것은 되돌리기가 새 버전을 만들기 때문이다 [D-068](C12b-7-4).
 - `currentVersionId`는 plan 공개 현재 계획 조회(#19)에서 얻는다(chat → plan).
 

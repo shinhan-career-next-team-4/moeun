@@ -22,6 +22,7 @@
 | | `conditions/test_conditions_amount_units.py` | 목표 금액 단위 대조가 억 뒤 만 생략(1억 2천)·숫자+천·백(5천만원)을 읽음 |
 | | `conditions/test_conditions_carry_kind.py` | 역할 단어 없는 후속 금액을 직전 대화의 조건으로 계산(프롬프트 규칙, 서버가 막지 않음) |
 | | `conditions/test_conditions_carried_amount_evidence.py` | #260 이어받아 계산한 금액의 출처 발화만 숫자 근거로 더함 |
+| | `conditions/test_conditions_etf_product.py` | #267 대화로 ETF 종목 바꾸기: 도구 enum, 같은 종목은 변경 아님, 이어받은 값 거르기, ETF 0% 안내, 계획 종목 검사 제외 |
 | | `test_agent_tools.py` | 도구 스키마, 조건 4개 축소, 되묻기 규칙 |
 | **대화 흐름** | `test_agent.py` | 기본 흐름(조건 변경, 인용 제한, 거절, 입력 검사) |
 | | `test_explain.py` | EXPLAIN·QUESTION 흐름, 검사 순서, 프롬프트 규칙, 로그 |

@@ -66,13 +66,17 @@ class ChatEtfProductApplyTest extends ChatComparisonTestSupport {
     }
 
     @Test
-    @DisplayName("종목을 바꾼 가장 최근 비교는 F-4 applicable이 false다")
+    @DisplayName("종목을 바꾼 가장 최근 비교는 F-4 applicable이 false이고 conditions에 두 쪽 종목 코드가 있다")
     void marksEtfProductComparisonNotApplicable() throws Exception {
         savePlan(memberId, null, 300_000L);
         long messageId = recalcWithEtfProduct("069500",
                 "{\"etfProductCode\":\"069500\",\"monthlySavingAmount\":500000}");
 
         assertThat(applicable(messageId)).isFalse();
+        String body = comparison(cookie, messageId).andReturn().getResponse().getContentAsString();
+        JsonNode conditions = json.readTree(body).get("conditions");
+        assertThat(conditions.get("current").get("etfProductCode").asString()).isEqualTo("SP500");
+        assertThat(conditions.get("changed").get("etfProductCode").asString()).isEqualTo("069500");
     }
 
     @Test

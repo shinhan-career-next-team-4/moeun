@@ -17,7 +17,15 @@ from anthropic.types.beta import (
 from pydantic import ValidationError
 
 from app.core.config import Effort
-from app.core.contract import CHANGED_SIDE, CURRENT_SIDE, GOAL_AMOUNT, calc_condition_key
+from app.core.contract import (
+    CALC_SIDES,
+    CHANGED_SIDE,
+    CURRENT_SIDE,
+    ETF_NAME,
+    GOAL_AMOUNT,
+    SAVINGS_RATIO,
+    calc_condition_key,
+)
 from app.core.copy import load_copy
 from app.core.errors import ErrorCode
 from app.llm.assemble import (
@@ -39,11 +47,12 @@ from app.llm.conditions import (
 )
 from app.llm.context import build_messages, check_plan_context, plan_model_input
 from app.llm.errors import AgentError, ForbiddenAnswer, ForbiddenReason
-from app.llm.etf import search_etf_codes
+from app.llm.etf import plan_product, search_etf_codes
 from app.llm.judge import LlmStockJudge
 from app.llm.plan import plan_etf_name
 from app.llm.prompts import SYSTEM_PROMPT
 from app.llm.tools import FINAL_FORMAT, TOOLS, Calculator, DocumentSearch, FinalAnswer
+from app.rag.etf_codes import REPRESENTATIVE_PRODUCT
 from app.schemas import (
     ChatMode,
     ChatRequest,
@@ -89,6 +98,12 @@ logging.getLogger("anthropic._base_client").addFilter(_RedactRequestBody())
 
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 EXCLUDED_NOTE = "excludedConditions는 이번 발화에 없어 계산에서 뺐습니다. 답변에서 이 조건의 값을 말하지 마세요."
+# 종목을 바꿨지만 비교의 ETF 비중이 0%라 종목이 결과에 영향이 없을 때 모델에게 붙이는 안내(D-097 합의 4)
+ETF_ZERO_SENTENCE = "ETF 비중이 0%라서 종목을 바꿔도 결과는 같아요."
+ETF_ZERO_NOTE = (
+    f"바꾼 쪽의 ETF 비중이 0%라 종목은 결과에 영향이 없습니다. 종목 소개 없이 '{ETF_ZERO_SENTENCE}' 한 문장으로 답하세요."
+)
+_ALL_SAVINGS_PCT = 100
 
 # Spring이 모델 없이 고정 문장으로 답하라고 거절한 코드 → 문구표 키(D-056)
 _FIXED_COPY_KEYS: dict[str, str] = {
@@ -315,6 +330,13 @@ class ChatAgent:
             if dropped:
                 log.info("dropped carried conditions for message %s: %s", turn.req.message_id, dropped)
             changes = filtered
+        # ETF 0% 계획은 planContext에 종목 코드가 없지만 Spring은 #154 전까지 대표 상품으로 본다(internal-calc C2-2)
+        planned = plan_product(turn.req) or (REPRESENTATIVE_PRODUCT if turn.req.plan_context is not None else None)
+        if changes.etf_product_code is not None and changes.etf_product_code == planned:
+            # 계획과 같은 종목은 바꾸지 않은 것이다(D-097). 키를 남기면 F-4·F-5가 적용할 수 없는 비교로 본다(#268)
+            changes = changes.model_copy(update={"etf_product_code": None})
+            if not changes.changed():
+                raise CalcError("이미 계획의 종목입니다. 계산하지 말고 지금 계획이 이미 그 종목이라고만 답하세요.")
         if not changes.changed():
             raise CalcError("바꿀 조건이 없습니다. 무엇을 바꿀지 사용자에게 되물으세요.")
         if turn.req.text and not check_amount_units(turn.req.text, changes):
@@ -332,6 +354,9 @@ class ChatAgent:
         display = result.get("display")
         if isinstance(display, dict):
             turn.number_evidence.extend(v for v in display.values() if isinstance(v, str))
+            if changes.etf_product_code is not None:
+                names = (display.get(calc_condition_key(side, ETF_NAME)) for side in CALC_SIDES)
+                turn.compared_etf_names = tuple(n for n in names if isinstance(n, str))
             if "goal_amount" in turn.condition_changes:
                 cur_goal = display.get(calc_condition_key(CURRENT_SIDE, GOAL_AMOUNT))
                 chg_goal = display.get(calc_condition_key(CHANGED_SIDE, GOAL_AMOUNT))
@@ -340,6 +365,9 @@ class ChatAgent:
         if dropped:
             # 모델이 뺀 조건을 계산에 쓴 것처럼 답하지 않게 알린다(서버 사실 원칙)
             result = {**result, "excludedConditions": dropped, "note": EXCLUDED_NOTE}
+        # 종목만 바꿨고 그 비교가 ETF를 쓰지 않을 때만 붙인다. 다른 조건도 바꿨으면 결과가 달라지므로 붙이지 않는다
+        if changes.changed().keys() == {"etf_product_code"} and _changed_savings_ratio(result) == _ALL_SAVINGS_PCT:
+            result = {**result, "etfNote": ETF_ZERO_NOTE}
         return json.dumps(result, ensure_ascii=False)
 
     async def _search_documents(self, turn: Turn, args: dict[str, Any]) -> str:
@@ -359,6 +387,13 @@ class ChatAgent:
             )
         payload = [c.model_dump(by_alias=False, exclude={"distance"}) for c in chunks]
         return json.dumps(payload, ensure_ascii=False)
+
+
+def _changed_savings_ratio(result: dict[str, Any]) -> object:
+    """계산 응답 conditions.changed.savingsRatioPct(C2-3). 없으면 None."""
+    conditions = result.get("conditions")
+    changed = conditions.get(CHANGED_SIDE) if isinstance(conditions, dict) else None
+    return changed.get(SAVINGS_RATIO) if isinstance(changed, dict) else None
 
 
 def _errors_for_model(errors: list[dict[str, Any]]) -> list[dict[str, Any]]:

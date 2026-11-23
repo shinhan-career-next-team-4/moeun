@@ -370,7 +370,7 @@ def test_ac8_doc_says_etf_unused_plans_do_not_mention_the_product():
 def test_ac11_doc_records_the_allowed_etf_set_and_replacement_examples():
     """허용 ETF 세 표현과 대체 예 허용 정책을 적는다. 수정 전 CP-06·D-028과 다르다는 점도 남긴다(결정 13)."""
     doc = doc_text()
-    for name in ("코스피200 추종 ETF", "S&P500 추종 ETF", "나스닥 추종 ETF"):
+    for name in ("코스피200 추종 ETF", "S&P500 추종 ETF", "나스닥100 추종 ETF"):
         assert name in doc, name
     lines = [x for x in doc.splitlines() if "ALLOWED_ETF_NAMES" in x or ("허용" in x and "대체 예" in x)]
     assert lines, "허용 ETF 집합과 대체 예 문장이 없다"

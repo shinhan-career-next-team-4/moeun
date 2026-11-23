@@ -194,6 +194,7 @@ condition:
   savingsRatioPct: "저축 비중"
   savingsRateInputPct: "적금 금리"
   targetPeriodMonths: "목표 기간"
+  etfProductCode: "ETF 종목"
 
 # diff.byScenario[].achievementChange 4값(internal-calc C2-5)
 achievementChange:

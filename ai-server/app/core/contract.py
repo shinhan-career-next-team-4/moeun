@@ -35,7 +35,8 @@ SCENARIO_FIELDS = (AFTER_TAX_ASSET, "principal", "afterTaxGain", "gapToGoal", GO
 REQUIRED_SCENARIO_FIELDS = tuple(f for f in SCENARIO_FIELDS if f != GOAL_REACH_MONTH)
 
 HELD_ASSETS = "heldAssets"
-CONDITION_FIELDS = (HELD_ASSETS, "monthlySavingAmount", "targetPeriodMonths", "savingsRatioPct", "savingsRateInputPct")
+SAVINGS_RATIO = "savingsRatioPct"
+CONDITION_FIELDS = (HELD_ASSETS, "monthlySavingAmount", "targetPeriodMonths", SAVINGS_RATIO, "savingsRateInputPct")
 
 TAX_RATE = "taxRatePct"
 ETF_NAME = "etfProductName"

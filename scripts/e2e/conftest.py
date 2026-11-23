@@ -34,6 +34,7 @@ WIREFRAME_PLAN = {
     "heldAssets": 6_000_000,
     "monthlySavingAmount": 1_200_000,
     "savingsRateInputPct": 3.2,
+    "savingsRatioPct": None,   # #241부터 키 필수. null이면 기본 비중(5:5)
 }
 
 
