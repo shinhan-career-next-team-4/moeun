@@ -71,6 +71,7 @@ class UndoAvailableApiTest {
         body.put("heldAssets", 5_000_000L);
         body.put("monthlySavingAmount", monthlySaving);
         body.put("savingsRateInputPct", null);
+        body.put("savingsRatioPct", null);   // #241부터 키 필수(null이면 기본 비중)
         String response = mockMvc.perform(put("/api/plan").cookie(cookie).contentType(MediaType.APPLICATION_JSON)
                         .content(JSON.writeValueAsString(body)))
                 .andExpect(status().isOk())
