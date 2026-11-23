@@ -134,7 +134,7 @@
 - `goalReachMonth`: 기간 안에 처음 목표 이상이 되는 달, 없으면 `null`.
 - `baselineScenario`: `plan.baseline_scenario`. `current`·`changed` 같은 값.
 - 소비자가 쓰지 않는 필드(무시해도 됨, **`/internal/calc` 한정**): `status`, `requiredMonthlySaving`(해커톤에서 항상 `null`, D-045), `dataVersions`, `assumptions.excludedItems`. planContext 계약은 `excludedItems`를 쓴다(ai-server가 문구표 문장으로 바꿔 모델에 넣음). 두 계약의 모델을 공유할 때 이 필드를 지우지 않는다.
-- **추가(#150)** `assumptions.etfProductCode`·`etfProductName`·`etfGainTaxRatePct`: 계산에 쓴 ETF 종목과 그 매매차익 세율(ETF 0%면 null). 종목을 바꾸지 않은 비교에서는 소비자가 쓰지 않는다(무시해도 됨). 종목을 바꾼 비교의 display 키는 C2-6 `conditions.<side>.etfProductName`이다(#160). 공유 예시(`docs/api/examples`)에는 아직 넣지 않았다(프론트 목·ai-server 테스트가 같은 파일을 읽음, 합의 뒤 반영)
+- **추가(#150)** `assumptions.etfProductCode`·`etfProductName`·`etfGainTaxRatePct`: 계산에 쓴 ETF 종목과 그 매매차익 세율(ETF 0%면 null). 지금은 소비자가 쓰지 않는다(무시해도 됨). 비교 응답 display에는 종목 키를 만들지 않는다. 공유 예시(`docs/api/examples`)에도 들어 있다(#155에서 합의, 547102f). 프론트 목·ai-server 테스트가 같은 파일을 읽으므로, 이 세 칸을 고칠 때는 F-4 목(`frontend/src/mocks/chat/get-comparison.200*.json`)도 같은 PR에서 함께 맞춘다(#222)
 
 ### C2-5. `diff`
 
