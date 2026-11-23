@@ -357,7 +357,7 @@ const A1_DISPLAY = {
   "assumptions.taxRatePct": "15.4%",
 };
 
-const PLAN_VIEW_KEYS = ["revision", "calcRunId", "baselineResultScenario", "plan", "result", "display"];
+const PLAN_VIEW_KEYS = ["revision", "calcRunId", "baselineResultScenario", "undoAvailable", "plan", "result", "display"];
 const PLAN_KEYS = [
   "goalType", "goalCustomName", "goalAmount", "targetPeriodMonths", "heldAssets",
   "monthlySavingAmount", "savingsRateInputPct", "savingsRatioPct",
@@ -368,7 +368,7 @@ const SCENARIO_KEYS = [
 ];
 const NOT_EXPORTED = [
   "conditions", "annualReturnPct", "requiredMonthlySaving", "dataVersions", "currentVersionId",
-  "previousVersionId", "undoAvailable", "memberId", "baselineScenario", "calcStartMonth_plan",
+  "previousVersionId", "memberId", "baselineScenario", "calcStartMonth_plan",
 ];
 
 const PLAN_VIEW_FILES = [
@@ -408,6 +408,31 @@ test("PlanView 모양: 정해진 키만 있고 내보내지 않는 키는 없다
     }
     assert.ok(!("calcStartMonth" in v.plan), where);
     assert.ok(!text.includes("minDisplay"), where);
+  }
+});
+
+// undoAvailable(D-095, #263): 첫 저장·되돌린 직후 false, 적용·입력 수정 저장 뒤 true
+const UNDO_AVAILABLE = [
+  ["get-plan.200.json", 0, false],
+  ["get-plan.200-etf0.json", 0, false],
+  ["get-plan.200-exceeded.json", 0, false],
+  ["get-plan.200-after-apply.json", 0, true],
+  ["get-plan.200-after-undo.json", 0, false],
+  ["get-plan.seq-full-flow.json", 2, true],
+  ["get-plan.seq-full-flow.json", 3, false],
+  ["get-plan.seq-exceeded-toggle.json", 0, false],
+  ["get-plan.seq-exceeded-toggle.json", 1, true],
+  ["get-plan.seq-exceeded-toggle.json", 2, false],
+  ["put-plan.200.json", 0, false],
+  ["put-plan.200-exceeded.json", 0, false],
+  ["put-plan.seq-full-flow.json", 0, false],
+  ["put-plan.seq-full-flow.json", 1, true],
+];
+
+test("undoAvailable: 시나리오 흐름(첫 저장·적용·되돌리기·입력 수정)과 맞는다", () => {
+  assert.equal(UNDO_AVAILABLE.length, PLAN_VIEW_FILES.length);
+  for (const [name, i, expected] of UNDO_AVAILABLE) {
+    assert.equal(body("plan", name, i).undoAvailable, expected, `${name}[${i}]`);
   }
 });
 
