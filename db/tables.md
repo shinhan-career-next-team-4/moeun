@@ -49,6 +49,7 @@ INSERT만 하는 이력이다. 적용하거나 입력을 수정할 때마다 새
 | `savings_rate_input_pct` | 원본: 사용자가 넣은 적금 금리. NULL이면 기본금리(FR-INP-07) |
 | `existing_monthly_contribution` | 항상 NULL(계약 C12a-5-1). 컬럼만 남아 있고 앱은 읽지도 쓰지도 않는다 |
 | `savings_ratio_pct` | 원본: 사용자가 직접 정한 비중만 저장한다. 대안·비교·대화로 바꿔 적용한 경우다. NULL이면 `RatioResolver`가 규칙으로 산출 |
+| `etf_product_code` | 원본: 계산에 쓸 ETF 종목 코드(#154). 사용자가 고른 값이라 다시 만들 수 없다. 새 계획과 칸이 없던 옛 계획은 대표 상품 `SP500`. 종목 이름·세율은 refdata `etf_product_version`에 있고 여기에는 코드만 둔다 |
 | `source` | 원본: 이 버전을 만든 경로(INPUT/ALTERNATIVE/COMPARE/CHAT). 적용 출처 표시용. 되돌리기로 복사한 버전은 복사한 원본의 경로를 그대로 쓴다(D-068) |
 | `created_at` | 원본: 버전이 생긴 시각 |
 

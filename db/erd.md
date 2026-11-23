@@ -65,6 +65,7 @@ erDiagram
         numeric savings_rate_input_pct "NULL=기본금리"
         bigint existing_monthly_contribution "항상 NULL"
         smallint savings_ratio_pct "NULL=규칙 산출"
+        varchar etf_product_code "기본 SP500"
         varchar source
         timestamptz created_at
     }
@@ -261,6 +262,7 @@ CREATE TABLE plan_version (
     savings_rate_input_pct         NUMERIC(6,3),            -- NULL = 기본금리
     existing_monthly_contribution  BIGINT,                  -- 항상 NULL(계약 C12a-5-1). 컬럼만 남겨 둔다
     savings_ratio_pct              SMALLINT,                -- NULL = 규칙으로 산출(토글/기본값). 사용자가 직접 정한 비중만 저장
+    etf_product_code               VARCHAR(20)  NOT NULL DEFAULT 'SP500',   -- ETF 종목 코드(#154). 새 계획은 대표 상품
     source                         VARCHAR(20)  NOT NULL,   -- 이 버전을 만든 경로
     created_at                     TIMESTAMPTZ  NOT NULL DEFAULT now(),
     CONSTRAINT ck_pv_goal_amount CHECK (goal_amount > 0),
