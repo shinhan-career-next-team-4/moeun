@@ -59,7 +59,8 @@ def test_role_question_does_not_offer_held_assets():
 
 def test_condition_only_answer_to_role_question_uses_pending_value():
     """어느 조건인지 되물은 뒤 조건만 고르면, 되묻기 바로 앞 사용자 발화의 값으로 계산한다"""
-    rule = bullet("되묻기 바로 앞")
+    rule = bullet("조건 고르기 답 규칙:")
+    assert "되묻기 바로 앞" in rule
     assert "recalculate" in rule
     assert "쌓는 것이 아닙니다" in rule
 
@@ -68,13 +69,25 @@ def test_no_accumulate_rule_is_kept():
     """(예외) 앞 턴에서 계산해 본 값은 여전히 이어받지 않는다 (D-041)"""
     rule = bullet("history의 앞선 턴에 나온 값은 다시 넣지 않습니다")
     assert "쌓지 않습니다" in rule
+    # 조건 고르기 답의 예외를 누적 금지 불릿 안에 직접 적어 두 규칙이 글자로 충돌하지 않게 한다(리뷰 중간 1)
+    assert "조건 고르기 답 규칙" in rule
+
+
+def test_condition_only_answer_rule_is_named():
+    """다른 불릿이 이름으로 가리킬 수 있게 조건 고르기 답 규칙에 이름을 붙인다"""
+    assert bullet("조건 고르기 답 규칙:").startswith("조건 고르기 답 규칙:")
+
+
+def test_role_rule_only_decides_condition_not_units():
+    """(예외) 직전 조건을 이어받아도 역할만 정하고 단위·상대 표현 규칙은 그대로 따른다(리뷰 낮음 3)"""
+    assert "단위·상대 표현 규칙은 그대로" in bullet("역할 규칙")
 
 
 def test_condition_only_sentence_still_asks_value_unless_answering_role_question():
     """(예외) 값 없이 조건만 고르는 문장은 여전히 값을 되묻되, 어느 조건인지 되물은 답이면 예외다"""
-    rule = bullet("조건 고르기")
+    rule = bullet("같은 조건 고르기")
     assert "CLARIFY" in rule
-    assert "어느 조건인지" in rule
+    assert "조건 고르기 답 규칙" in rule
 
 
 # ---- 수용 기준 6: 규칙대로 부른 계산을 서버가 막지 않는다 ----

@@ -107,6 +107,8 @@ def test_s8_3_follow_up_amount_without_condition_word(api, fresh):
 # ---------- #239 역할 단어 없는 후속 금액 ----------
 
 ONE_EOK = 100_000_000
+# 보유 자산을 가리키는 말. "바꿀 수 없다"는 안내 속 언급은 선택지가 아니다
+_HELD_ASSETS = re.compile(r"보유\s*자산|이미\s*모은\s*돈|모아\s*둔\s*돈")
 
 
 def assert_goal_recalc(api, msg, amount):
@@ -127,8 +129,18 @@ def test_s8_8b_condition_only_answer_to_role_question(api, fresh):
     """대화 첫 발화의 역할 없는 금액은 되묻고(보유 자산은 선택지에 없음), 조건만 답하면 그 금액으로 계산한다(#239)."""
     first = ask(api, "1억으로 바꿀게")
     assert first["messageType"] == "CLARIFY", f"{first['messageType']}: {first['content']}"
-    assert "보유 자산" not in first["content"], f"바꿀 수 없는 보유 자산을 선택지로 냄(D-090)\n{first['content']}"
+    offers_held = _HELD_ASSETS.search(first["content"]) and "바꿀 수 없" not in first["content"]
+    assert not offers_held, f"바꿀 수 없는 보유 자산을 선택지로 냄(D-090)\n{first['content']}"
     assert_goal_recalc(api, ask(api, "목표 금액"), ONE_EOK)
+
+
+def test_s8_8d_follow_up_amount_does_not_carry_previous_value(api, fresh):
+    """앞에서 월 저축액을 바꿔 본 뒤 목표 금액을 묻고 '1억으로 바꿀게'면 목표 금액만 바꾼다(누적 없음, D-041, #239)."""
+    first = ask(api, "매달 150만원으로 하면요?")
+    assert first["messageType"] == "RECALC_RESULT", f"{first['messageType']}: {first['content']}"
+    second = ask(api, "목표금액 얼마야?")
+    assert second["messageType"] == "ANSWER", f"{second['messageType']}: {second['content']}"
+    assert_goal_recalc(api, ask(api, "1억으로 바꿀게"), ONE_EOK)
 
 
 def test_s8_8c_omitted_man_amount_after_value_question(api, fresh):
