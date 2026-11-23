@@ -45,7 +45,7 @@ class PlanResultRollbackTest {
 
     private static final String REQUEST = "{\"expectedRevision\":%s,\"goalType\":\"HOUSE\",\"goalCustomName\":null,"
             + "\"goalAmount\":20000000,\"targetPeriodMonths\":36,\"heldAssets\":5000000,"
-            + "\"monthlySavingAmount\":300000,\"savingsRateInputPct\":null}";
+            + "\"monthlySavingAmount\":300000,\"savingsRateInputPct\":null,\"savingsRatioPct\":null}";
 
     @Autowired
     MockMvc mockMvc;

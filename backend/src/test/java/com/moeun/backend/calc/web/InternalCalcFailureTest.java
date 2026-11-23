@@ -121,7 +121,8 @@ class InternalCalcFailureTest {
         mockMvc.perform(put("/api/plan").cookie(cookie).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"expectedRevision\":1,\"goalType\":\"HOUSE\",\"goalCustomName\":null,"
                                 + "\"goalAmount\":20000000,\"targetPeriodMonths\":36,\"heldAssets\":5000000,"
-                                + "\"monthlySavingAmount\":400000,\"savingsRateInputPct\":null}"))
+                                + "\"monthlySavingAmount\":400000,\"savingsRateInputPct\":null,"
+                                + "\"savingsRatioPct\":null}"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"));
     }

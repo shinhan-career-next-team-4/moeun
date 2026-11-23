@@ -226,7 +226,8 @@ FR-INP-01~07·09·10·11, FR-RES-01, CP-02, D-013, D-032, D-035, D-045.
   "targetPeriodMonths": 36,
   "heldAssets": 5000000,
   "monthlySavingAmount": 300000,
-  "savingsRateInputPct": null
+  "savingsRateInputPct": null,
+  "savingsRatioPct": null
 }
 ```
 
@@ -240,13 +241,14 @@ FR-INP-01~07·09·10·11, FR-RES-01, CP-02, D-013, D-032, D-035, D-045.
 | `heldAssets` | integer(KRW) | 예 | FR-INP-05. 0 허용 |
 | `monthlySavingAmount` | integer(KRW) | 예(D-045) | FR-INP-06 |
 | `savingsRateInputPct` | number(PCT) \| null | 키 필수 | FR-INP-07. `null` = 기본금리(D-012·D-034) |
+| `savingsRatioPct` | integer(PCT) \| null | 키 필수 | **[v4]** FR-INP-08. 적금 비중(%), 0~100 정수. **`null` = 사용자가 정한 비중 없음** → `plan_version.savings_ratio_pct`에 `NULL`을 저장하고 계산은 기준 데이터의 기본 비중을 쓴다. **현재 버전 값을 복사하지 않는다**(R-9의 INPUT 경로 철회) [D-085, D-086] |
 
 - **`goalType` 임시 목록**(enum 선언 순서 = 드롭다운 순서, 표시명 문구표 `goal.<CODE>`) [D-075]:
   `HOUSE`(내 집 마련), `CAR`(자동차), `WEDDING`(결혼), `EDUCATION`(교육), `TRAVEL`(여행), `EMERGENCY_FUND`(비상금), `CUSTOM`(직접 입력). 괄호 안은 문구표 임시 문장.
   - **[v3]** `CUSTOM`은 FR-INP-02(Should)를 구현하지 않은 동안 #48이 드롭다운에서 숨긴다(코드는 둔다). 숨김 조건은 #48 수용 기준에 적는다.
   - **[v3]** 프론트는 문구표에 없는 `goal.<CODE>`를 만나면 **코드 문자열을 그대로 표시**한다(화면이 깨지지 않게). 왜: 서버가 코드를 먼저 더하고 문구가 늦을 수 있다. #18의 "없는 키는 로드 때 실패" 규칙과는 별개로, 표시 helper 한 곳(#48 util 옆)에서만 대체한다.
   - **[v3] 주의(제공자)**: 코드는 `plan_version.goal_type_code`에 저장된다. 데이터가 생긴 뒤 코드를 지우거나 이름을 바꾸면 옛 행을 enum으로 읽을 때 실패한다. 목록 변경은 #19 머지 전이 가장 싸고, 그 뒤면 #58 초기화와 함께 한다.
-- **요청에 없는 것**: `savingsRatioPct`(현재 버전 값 복사, 첫 저장이면 `NULL` = 5:5, R-9), `etfProductCode`(현재 버전 값 복사, 첫 저장이면 대표 상품 `SP500`. 입력 화면에는 종목 선택이 없다, #154), `existingMonthlyContribution`(항상 `NULL`), 시작월(첫 저장이면 요청일이 속한 달 D-032, 아니면 현재 버전 값 복사 D-013), 기준 시나리오(첫 저장이면 `AVG`).
+- **[v4] 요청에 없는 것**: `etfProductCode`(현재 버전 값 복사, 첫 저장이면 대표 상품 `SP500`. 입력 화면에는 종목 선택이 없다, #154), `existingMonthlyContribution`(항상 `NULL`), 시작월(첫 저장이면 요청일이 속한 달 D-032, 아니면 현재 버전 값 복사 D-013), 기준 시나리오(첫 저장이면 `AVG`).
 - 본문 전체를 `JsonNode`(또는 `Map<String, JsonNode>`)로 받아 `ConditionValidator`에 넘긴다. 왜: 키 없음과 `null`을 구분해야 하고, Boot 기본 `ACCEPT_FLOAT_AS_INT`로 `300000.5`가 잘리지 않게.
 
 #### C12a-5-2. 서버 동작과 검사 순서
