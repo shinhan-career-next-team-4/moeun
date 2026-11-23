@@ -82,4 +82,24 @@ class PlanDocsTest {
                         .responseFields(fieldWithPath("revision").description("새 계획 revision"))
                         .build())));
     }
+
+    @Test
+    void applyPlanDoc() throws Exception {
+        savePlan();
+        mockMvc.perform(post("/api/plan/apply").cookie(cookie).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"path\":\"COMPARE\",\"expectedRevision\":1,"
+                                + "\"conditionChanges\":{\"monthlySavingAmount\":1500000}}"))
+                .andExpect(status().isOk())
+                .andDo(document("plan-apply", resource(ResourceSnippetParameters.builder()
+                        .tag("Plan").summary("대안·비교 결과를 내 계획에 적용")
+                        .description("확인창을 거친 뒤 부른다. 400 MALFORMED_REQUEST, 409 NO_PLAN, "
+                                + "422 FIELD_NOT_CHANGEABLE·VALIDATION_FAILED, revision이 다르면 409 PLAN_CHANGED.")
+                        .requestFields(
+                                fieldWithPath("path").description("COMPARE(비교 영역) 또는 ALTERNATIVE(대안 카드)"),
+                                fieldWithPath("expectedRevision").description("비교를 만든 시점의 revision"),
+                                subsectionWithPath("conditionChanges")
+                                        .description("바꾼 조건(camelCase 키). 값이 null인 키는 바꾸지 않음"))
+                        .responseFields(fieldWithPath("revision").description("새 계획 revision"))
+                        .build())));
+    }
 }
