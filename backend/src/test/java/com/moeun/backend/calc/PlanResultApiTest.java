@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.Duration;
 import java.time.YearMonth;
@@ -92,6 +93,7 @@ class PlanResultApiTest {
         body.put("heldAssets", 5_000_000L);
         body.put("monthlySavingAmount", 300_000L);
         body.put("savingsRateInputPct", null);
+        body.put("savingsRatioPct", null);
         return body;
     }
 
@@ -249,12 +251,14 @@ class PlanResultApiTest {
     }
 
     @Test
-    @DisplayName("expectedRevision·savingsRateInputPct 키가 없으면 422 REQUIRED다")
+    @DisplayName("expectedRevision·savingsRateInputPct·savingsRatioPct 키가 없으면 422 REQUIRED다")
     void requiresNullableKeys() throws Exception {
         Map<String, Object> noRevision = request();
         noRevision.remove("expectedRevision");
         Map<String, Object> noRate = request();
         noRate.remove("savingsRateInputPct");
+        Map<String, Object> noRatio = request();
+        noRatio.remove("savingsRatioPct");
 
         putPlan(noRevision).andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
@@ -263,6 +267,59 @@ class PlanResultApiTest {
         putPlan(noRate).andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.errors[0].field").value("savingsRateInputPct"))
                 .andExpect(jsonPath("$.errors[0].reason").value("REQUIRED"));
+        putPlan(noRatio).andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.errors[0].field").value("savingsRatioPct"))
+                .andExpect(jsonPath("$.errors[0].reason").value("REQUIRED"));
+        assertThat(count("plan_version")).isZero();
+    }
+
+    @Test
+    @DisplayName("비중 83을 보내면 그대로 저장한다 (FR-INP-08, D-085)")
+    void storesRequestedSavingsRatio() throws Exception {
+        Map<String, Object> body = request();
+        body.put("savingsRatioPct", 83);
+
+        JsonNode view = readBody(putPlan(body).andExpect(status().isOk()));
+
+        assertThat(view.get("plan").get("savingsRatioPct").intValue()).isEqualTo(83);
+        assertThat(jdbc.sql("SELECT savings_ratio_pct FROM plan_version").query(Integer.class).single()).isEqualTo(83);
+    }
+
+    @Test
+    @DisplayName("비중이 null이면 NULL로 저장하고 기준 데이터의 기본 비중으로 계산한다 (D-086)")
+    void storesNullSavingsRatioAndUsesDefaultRatio() throws Exception {
+        JsonNode view = readBody(putPlan(request()).andExpect(status().isOk()));
+
+        assertThat(view.get("plan").get("savingsRatioPct").isNull()).isTrue();
+        assertThat(jdbc.sql("SELECT savings_ratio_pct FROM plan_version").query(Integer.class).optional()).isEmpty();
+        assertThat(view.get("result").get("assumptions").get("savingsRatioPct").isNull()).isFalse();
+    }
+
+    @Test
+    @DisplayName("비중이 0~100 밖이면 422 OUT_OF_RANGE(0, 100, PCT)다 (CP-02)")
+    void rejectsSavingsRatioOutOfRange() throws Exception {
+        Map<String, Object> body = request();
+        body.put("savingsRatioPct", 101);
+
+        putPlan(body).andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("savingsRatioPct"))
+                .andExpect(jsonPath("$.errors[0].reason").value("OUT_OF_RANGE"))
+                .andExpect(jsonPath("$.errors[0].min").value(0))
+                .andExpect(jsonPath("$.errors[0].max").value(100))
+                .andExpect(jsonPath("$.errors[0].unit").value("PCT"));
+        assertThat(count("plan_version")).isZero();
+    }
+
+    @Test
+    @DisplayName("비중이 정수가 아니면 422 NOT_INTEGER다")
+    void rejectsSavingsRatioWithDecimals() throws Exception {
+        Map<String, Object> body = request();
+        body.put("savingsRatioPct", new BigDecimal("83.5"));
+
+        putPlan(body).andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.errors[0].field").value("savingsRatioPct"))
+                .andExpect(jsonPath("$.errors[0].reason").value("NOT_INTEGER"));
         assertThat(count("plan_version")).isZero();
     }
 
@@ -273,6 +330,8 @@ class PlanResultApiTest {
         stringRevision.put("expectedRevision", "1");
         Map<String, Object> stringAmount = request();
         stringAmount.put("goalAmount", "20000000");
+        Map<String, Object> stringRatio = request();
+        stringRatio.put("savingsRatioPct", "83");
         Map<String, Object> unknownGoal = request();
         unknownGoal.put("goalType", "YACHT");
 
@@ -281,8 +340,8 @@ class PlanResultApiTest {
         Map<String, Object> hugeRevision = request();
         hugeRevision.put("expectedRevision", new BigInteger("100000000000000000000"));
 
-        for (Object body : List.of(stringRevision, stringAmount, unknownGoal, numberName, hugeRevision, "[]",
-                "{\"goalType\":")) {
+        for (Object body : List.of(stringRevision, stringAmount, stringRatio, unknownGoal, numberName,
+                hugeRevision, "[]", "{\"goalType\":")) {
             putPlan(body).andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"))
                     .andExpect(jsonPath("$.errors").isEmpty());

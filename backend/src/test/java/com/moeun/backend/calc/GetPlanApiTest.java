@@ -102,6 +102,7 @@ class GetPlanApiTest {
         body.put("heldAssets", heldAssets);
         body.put("monthlySavingAmount", 300_000L);
         body.put("savingsRateInputPct", null);
+        body.put("savingsRatioPct", null);
         return body;
     }
 

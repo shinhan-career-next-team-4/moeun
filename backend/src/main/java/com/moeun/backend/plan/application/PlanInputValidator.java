@@ -37,6 +37,8 @@ public class PlanInputValidator {
         checkRequired(InputField.TARGET_PERIOD_MONTHS, fields, errors);
         checkRequired(InputField.MONTHLY_SAVING_AMOUNT, fields, errors);
         checkOptional(InputField.SAVINGS_RATE_INPUT_PCT, fields, errors);
+        // 비중은 키가 있어야 하지만(컨트롤러가 REQUIRED를 본다) 값은 null일 수 있다(C12a-5-1, D-086)
+        checkOptional(InputField.SAVINGS_RATIO_PCT, fields, errors);
         return errors;
     }
 

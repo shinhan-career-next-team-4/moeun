@@ -92,9 +92,9 @@ public class PlanService implements PlanSaveService, PlanApplyService, PlanUndoS
         LocalDate calcStartMonth = currentVersion != null
                 ? currentVersion.getCalcStartMonth()
                 : YearMonth.now(clock).atDay(1);   // TBD-38: 처음 저장한 달로 고정
-        Integer savingsRatioPct = currentVersion != null
-                ? currentVersion.getSavingsRatioPct()
-                : null;   // 요청에 없는 값은 현재 버전에서 복사(C12a-5-1)
+        // 비중은 요청 값을 그대로 쓴다. null이면 NULL로 저장하고 계산은 기준 데이터의 기본 비중을 쓴다
+        // (D-085·D-086, R-9 개정). 현재 버전 값을 복사하지 않는다
+        Integer savingsRatioPct = intField(in.fields(), InputField.SAVINGS_RATIO_PCT);
         String etfProductCode = currentVersion != null
                 ? currentVersion.getEtfProductCode()
                 : PlanView.DEFAULT_ETF_PRODUCT_CODE;   // 입력 화면에는 종목 선택이 없다(#154)

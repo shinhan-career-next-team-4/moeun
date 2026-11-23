@@ -114,13 +114,33 @@ class PlanServiceTest {
     }
 
     @Test
-    void secondSaveCopiesSavingsRatioFromCurrentVersion() {
+    void saveStoresRequestedSavingsRatio() {
+        saveService.save(memberId, valid().savingsRatioPct(83).build(), null);
+
+        assertThat(saveService.findCurrent(memberId).orElseThrow().savingsRatioPct()).isEqualTo(83);
+    }
+
+    @Test
+    void saveWithNullSavingsRatioClearsAppliedRatio() {
+        // D-086: 토글을 끄고 저장하면(null) 대화·대안으로 적용했던 비중이 기본 비중으로 돌아간다. 복사하지 않는다
         PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
         PlanApplyResult applied = applyService.apply(memberId, ChangePath.ALTERNATIVE,
                 changes("savingsRatioPct", 70L), saved.revision(), null);
         assertThat(saveService.findCurrent(memberId).orElseThrow().savingsRatioPct()).isEqualTo(70);
 
         saveService.save(memberId, valid().monthlySavingAmount(1_500_000L).build(), applied.revision());
+
+        assertThat(saveService.findCurrent(memberId).orElseThrow().savingsRatioPct()).isNull();
+    }
+
+    @Test
+    void saveKeepsRatioWhenRequestSendsItBack() {
+        // (h) 토글 ON·칸 비움: 화면이 가장 최근 응답의 비중을 그대로 되보내 현재 비중이 유지된다
+        PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+        PlanApplyResult applied = applyService.apply(memberId, ChangePath.ALTERNATIVE,
+                changes("savingsRatioPct", 70L), saved.revision(), null);
+
+        saveService.save(memberId, valid().savingsRatioPct(70).build(), applied.revision());
 
         assertThat(saveService.findCurrent(memberId).orElseThrow().savingsRatioPct()).isEqualTo(70);
     }

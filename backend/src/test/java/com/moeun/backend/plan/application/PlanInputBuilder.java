@@ -20,6 +20,7 @@ public class PlanInputBuilder {
     BigDecimal heldAssets = BigDecimal.valueOf(6_000_000L);
     BigDecimal monthlySavingAmount = BigDecimal.valueOf(1_200_000L);
     BigDecimal savingsRateInputPct;
+    BigDecimal savingsRatioPct;
 
     public static PlanInputBuilder valid() {
         return new PlanInputBuilder();
@@ -65,6 +66,17 @@ public class PlanInputBuilder {
         return this;
     }
 
+    /** 비중(C12a-5-1). null이면 요청에 키가 없는 것과 같다. */
+    public PlanInputBuilder savingsRatioPct(Integer value) {
+        savingsRatioPct = value == null ? null : BigDecimal.valueOf(value);
+        return this;
+    }
+
+    public PlanInputBuilder savingsRatioPctRaw(BigDecimal value) {
+        savingsRatioPct = value;
+        return this;
+    }
+
     public PlanInput build() {
         Map<String, JsonNode> fields = new LinkedHashMap<>();
         putIfNotNull(fields, "goalAmount", goalAmount);
@@ -72,6 +84,7 @@ public class PlanInputBuilder {
         putIfNotNull(fields, "heldAssets", heldAssets);
         putIfNotNull(fields, "monthlySavingAmount", monthlySavingAmount);
         putIfNotNull(fields, "savingsRateInputPct", savingsRateInputPct);
+        putIfNotNull(fields, "savingsRatioPct", savingsRatioPct);
         return new PlanInput(goalType, goalCustomName, fields);
     }
 

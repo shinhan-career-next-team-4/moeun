@@ -39,11 +39,13 @@ class PlanResultController {
     private static final String GOAL_TYPE = "goalType";
     private static final String GOAL_CUSTOM_NAME = "goalCustomName";
     private static final String SAVINGS_RATE_INPUT_PCT = "savingsRateInputPct";
+    private static final String SAVINGS_RATIO_PCT = "savingsRatioPct";
     /** null이어도 되지만 키는 꼭 있어야 하는 항목(C12a-5-1). */
-    private static final List<String> NULLABLE_REQUIRED_KEYS = List.of(EXPECTED_REVISION, SAVINGS_RATE_INPUT_PCT);
+    private static final List<String> NULLABLE_REQUIRED_KEYS = List.of(EXPECTED_REVISION, SAVINGS_RATE_INPUT_PCT,
+            SAVINGS_RATIO_PCT);
     /** 값이 있으면 JSON 숫자여야 하는 항목. plan 저장 서비스는 이 키 이름으로 값을 읽는다. */
     private static final List<String> NUMBER_FIELDS = List.of("goalAmount", "targetPeriodMonths", "heldAssets",
-            "monthlySavingAmount", SAVINGS_RATE_INPUT_PCT);
+            "monthlySavingAmount", SAVINGS_RATE_INPUT_PCT, SAVINGS_RATIO_PCT);
 
     private final SavePlanUseCase savePlanUseCase;
     private final CurrentPlanResultService resultService;

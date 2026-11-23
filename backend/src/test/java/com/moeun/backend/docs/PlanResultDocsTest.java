@@ -57,7 +57,8 @@ class PlanResultDocsTest {
         mockMvc.perform(put("/api/plan").cookie(cookie).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"expectedRevision\":null,\"goalType\":\"HOUSE\",\"goalCustomName\":null,"
                                 + "\"goalAmount\":20000000,\"targetPeriodMonths\":36,\"heldAssets\":5000000,"
-                                + "\"monthlySavingAmount\":300000,\"savingsRateInputPct\":null}"))
+                                + "\"monthlySavingAmount\":300000,\"savingsRateInputPct\":null,"
+                                + "\"savingsRatioPct\":null}"))
                 .andExpect(status().isOk())
                 .andDo(document("plan-save", resource(ResourceSnippetParameters.builder()
                         .tag("calc").summary("입력 저장과 결과 보기")
@@ -74,6 +75,9 @@ class PlanResultDocsTest {
                                 fieldWithPath("heldAssets").description("보유 자산(원, 0 허용)"),
                                 fieldWithPath("monthlySavingAmount").description("월 저축액(원)"),
                                 fieldWithPath("savingsRateInputPct").description("적금 금리(연 %). null = 기본금리(키 필수)")
+                                        .optional(),
+                                fieldWithPath("savingsRatioPct")
+                                        .description("적금 비중(%). null = 사용자가 정한 비중 없음(키 필수, D-086)")
                                         .optional())
                         .responseFields(
                                 fieldWithPath("revision").description("새 계획 revision"),
@@ -99,7 +103,8 @@ class PlanResultDocsTest {
         mockMvc.perform(put("/api/plan").cookie(cookie).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"expectedRevision\":null,\"goalType\":\"HOUSE\",\"goalCustomName\":null,"
                                 + "\"goalAmount\":20000000,\"targetPeriodMonths\":36,\"heldAssets\":5000000,"
-                                + "\"monthlySavingAmount\":300000,\"savingsRateInputPct\":null}"))
+                                + "\"monthlySavingAmount\":300000,\"savingsRateInputPct\":null,"
+                                + "\"savingsRatioPct\":null}"))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/plan").cookie(cookie))
