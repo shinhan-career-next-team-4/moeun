@@ -169,12 +169,14 @@ class ChatEtfProductApplyTest extends ChatComparisonTestSupport {
     }
 
     @Test
-    @DisplayName("(예외) 저장된 종목이 적재되지 않은 종목이면 F-5는 422 VALIDATION_FAILED(etfProductCode, NOT_AVAILABLE)이고 "
-            + "계획은 바뀌지 않는다")
+    @DisplayName("(예외) 저장된 종목이 적재되지 않은 종목이면 F-4는 500, F-5는 422 VALIDATION_FAILED(etfProductCode, "
+            + "NOT_AVAILABLE)이고 계획은 바뀌지 않는다")
     void rejectsApplyingUnavailableEtfProduct() throws Exception {
         PlanSaveResult saved = savePlan(memberId, null, 300_000L);
         long messageId = recalcWithEtfProduct("069500",
                 "{\"etfProductCode\":\"999999\",\"monthlySavingAmount\":500000}");
+        // F-4는 그 종목으로 다시 계산할 수 없어 재계산 실패(500)이고 카드·적용 버튼이 없다(C12b-6)
+        comparison(cookie, messageId).andExpect(status().isInternalServerError());
 
         apply(messageId, saved.revision()).andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))

@@ -266,6 +266,7 @@ class PlanServiceTest {
         applyService.apply(memberId, ChangePath.CHAT, productChange("069500"), saved.revision(), null);
 
         assertThat(saveService.findCurrent(memberId).orElseThrow().etfProductCode()).isEqualTo("069500");
+        assertThat(jdbc.sql("SELECT count(*) FROM plan_version").query(Long.class).single()).isEqualTo(2L);
     }
 
     private static Map<String, JsonNode> productChange(String etfProductCode) {
