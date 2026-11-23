@@ -2,6 +2,7 @@ package com.moeun.backend.calc.application;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -15,6 +16,7 @@ import com.moeun.backend.plan.ConditionOverride;
 import com.moeun.backend.plan.PlanSaveService;
 import com.moeun.backend.plan.PlanView;
 import com.moeun.backend.refdata.CalcParams;
+import com.moeun.backend.refdata.EtfProduct;
 import com.moeun.backend.refdata.EtfSeries;
 import com.moeun.backend.refdata.ReferenceDataService;
 import com.moeun.backend.refdata.SavingsAvgRateData;
@@ -33,6 +35,7 @@ public class CompareConditionsUseCase {
     private static final String CHANGED = "changed.";
     private static final String CONDITIONS_CURRENT = "conditions.current.";
     private static final String CONDITIONS_CHANGED = "conditions.changed.";
+    private static final String ETF_PRODUCT_NAME = "etfProductName";
 
     private final PlanSaveService planSaveService;
     private final ReferenceDataService referenceDataService;
@@ -54,23 +57,35 @@ public class CompareConditionsUseCase {
         this.formatter = formatter;
     }
 
+    /** 종목을 바꾸지 않은 대화 비교. */
+    @Transactional
+    public ComparisonResult compare(long memberId, ConditionOverride changes) {
+        return compare(memberId, changes, null);
+    }
+
     /**
      * @param memberId 계산할 회원
      * @param changes 검증을 통과한 바꾼 조건(하나 이상)
+     * @param changedEtfProductCode 바꾼 ETF 종목 코드(D-097). 적재된 종목이어야 한다. 바꾸지 않았으면 null
      * @throws CalcRejectedException 계획 없음(409 NO_PLAN), 이미 목표 초과(409 ALREADY_EXCEEDED)
      */
     @Transactional
-    public ComparisonResult compare(long memberId, ConditionOverride changes) {
+    public ComparisonResult compare(long memberId, ConditionOverride changes, String changedEtfProductCode) {
         PlanView plan = planSaveService.findCurrent(memberId).orElseThrow(CalcRejectedException::noPlan);
         CalcParams params = referenceDataService.findActiveCalcParams()
                 .orElseThrow(() -> new IllegalStateException("active calc params are not loaded"));
-        // 계획의 ETF 종목(#150). 대화로 종목을 바꾸는 비교는 후속(대화 조건에 종목 추가)에서 한다
+        // 계획의 ETF 종목(#150)
         EtfSeries sp500 = referenceDataService.findActiveEtfSeries(EtfProductSelector.productCodeOf(plan))
                 .orElse(null);
+        String changedProduct = changedProductOf(plan, changedEtfProductCode);
+        EtfSeries changedEtf = changedProduct == null ? sp500
+                : referenceDataService.findActiveEtfSeries(changedProduct)
+                        .orElseThrow(() -> new IllegalStateException("ETF price data is not loaded: "
+                                + changedProduct));
         SavingsAvgRateData defaultRate = referenceDataService.findActiveSavingsAvgRate().orElse(null);
 
-        // 대화 조건에 종목이 생기기 전(#157, D-040 개정 대기)에는 changed도 계획의 종목이다
-        ComputedComparison computed = computeComparison(plan, changes, params, sp500, sp500, defaultRate);
+        ComputedComparison computed = computeComparison(plan, changes, params, sp500, changedEtf, changedProduct,
+                defaultRate);
         long calcRunId = calcRunRecorder.recordChatRun(plan.currentVersionId(), computed.versions(),
                 computed.changedEtfVersionId());
         return new ComparisonResult(calcRunId, computed.comparison(), computed.display());
@@ -90,6 +105,20 @@ public class CompareConditionsUseCase {
      */
     public ComputedComparison computeComparison(PlanView plan, ConditionOverride changes, CalcParams params,
             EtfSeries currentEtf, EtfSeries changedEtf, SavingsAvgRateData defaultRate) {
+        return computeComparison(plan, changes, params, currentEtf, changedEtf, null, defaultRate);
+    }
+
+    /**
+     * 종목을 바꾼 대화 비교(D-097, #157). {@code changedEtfProductCode}가 계획과 같은 종목이면 바꾸지 않은 것으로 본다.
+     * 바꿨으면 {@code conditions}에 두 쪽 종목 코드를, display에 종목 화면 이름({@code conditions.<side>.etfProductName})을
+     * 싣는다. changed의 ETF 비중이 0%여도 같다(종목 차이는 결과에 나타나지 않는다).
+     *
+     * @param changedEtfProductCode 대화에서 바꾼 종목 코드. 바꾸지 않았으면 null
+     */
+    public ComputedComparison computeComparison(PlanView plan, ConditionOverride changes, CalcParams params,
+            EtfSeries currentEtf, EtfSeries changedEtf, String changedEtfProductCode, SavingsAvgRateData defaultRate) {
+        String changedProduct = changedProductOf(plan, changedEtfProductCode);
+        String currentProduct = changedProduct == null ? null : EtfProductSelector.productCodeOf(plan);
         ConditionResolver.ResolvedConditions current = conditionResolver.resolve(plan, defaultRate, params);
         ConditionResolver.ResolvedConditions changed = conditionResolver.resolveChanged(plan, changes, defaultRate,
                 params);
@@ -102,15 +131,47 @@ public class CompareConditionsUseCase {
         AppliedDataVersions versions = merge(currentResult.dataVersions(), changedResult.dataVersions());
         // 두 쪽이 서로 다른 ETF 종목을 썼으면 changed는 자기 종목의 버전을 싣고, 기록에 따로 남긴다(#157)
         Long changedEtfVersionId = differentEtfVersion(currentResult.dataVersions(), changedResult.dataVersions());
+        if (changedProduct != null && currentEtf != null && changedEtf != null) {
+            // 대화로 종목을 바꿨으면 한쪽이 ETF를 쓰지 않아도(비중 100) 두 종목의 버전을 각자 칸에 남긴다(C2-7, D-097).
+            // 그래야 current 칸이 늘 계획 종목의 버전이고, 기록만으로 두 쪽 종목과 이름까지 다시 만든다
+            versions = new AppliedDataVersions(versions.savingsRateVersionId(), currentEtf.version().id(),
+                    versions.calcParamVersionId(), versions.engineVersion());
+            changedEtfVersionId = changedEtf.version().id();
+        }
         currentResult = withVersions(currentResult, versions);
         changedResult = withVersions(changedResult, changedEtfVersionId == null ? versions
                 : new AppliedDataVersions(versions.savingsRateVersionId(), changedEtfVersionId,
                         versions.calcParamVersionId(), versions.engineVersion()));
 
         CalcComparison comparison = CalcComparison.of(currentResult, changedResult, current.input(),
-                changed.input());
-        return new ComputedComparison(comparison, versions, changedEtfVersionId,
-                buildDisplay(comparison, current, changed, changes));
+                changed.input(), currentProduct, changedProduct);
+        Map<String, String> display = buildDisplay(comparison, current, changed, changes);
+        if (changedProduct != null) {
+            display.put(CONDITIONS_CURRENT + ETF_PRODUCT_NAME, productNameOf(currentProduct, currentEtf));
+            display.put(CONDITIONS_CHANGED + ETF_PRODUCT_NAME, productNameOf(changedProduct, changedEtf));
+        }
+        return new ComputedComparison(comparison, versions, changedEtfVersionId, display);
+    }
+
+    /** 계획과 다른 종목일 때만 그 코드. 같은 종목이나 null이면 바꾸지 않은 것이다(D-097). */
+    private static String changedProductOf(PlanView plan, String changedEtfProductCode) {
+        return changedEtfProductCode == null
+                || changedEtfProductCode.equals(EtfProductSelector.productCodeOf(plan)) ? null : changedEtfProductCode;
+    }
+
+    /**
+     * 종목 화면 이름(지수 이름, CP-06). 그쪽 계산에 넘긴 가격 데이터의 종목이면 그 이름을 쓰고, 아니면(changed가 ETF 0%라
+     * 기록에 그 종목 버전이 없던 대화를 다시 계산할 때) 활성 종목 목록에서 찾는다.
+     */
+    private String productNameOf(String productCode, EtfSeries series) {
+        if (series != null && productCode.equals(series.product().code())) {
+            return series.product().displayName();
+        }
+        return referenceDataService.findActiveEtfProducts().stream()
+                .filter(product -> Objects.equals(product.code(), productCode))
+                .map(EtfProduct::displayName)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("ETF product is not loaded: " + productCode));
     }
 
     /**

@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
  * 현재 계획과 조건을 바꾼 계획의 비교(계약 internal-calc C2-3~C2-5). 대화 재계산(#32)이 쓰고, 대화 적용 판정(#44)과
  * 조건 비교(FR-CMP-02, #64)가 재사용한다. 숫자는 모두 Spring이 계산한다(원칙 1).
@@ -22,24 +24,34 @@ public record CalcComparison(CalcResult current, CalcResult changed, Conditions 
     /** 두 결과와 계산에 쓴 조건으로 비교를 만든다. diff는 양쪽에 모두 있는 시나리오만 담는다. */
     public static CalcComparison of(CalcResult current, CalcResult changed, CalcInput currentInput,
             CalcInput changedInput) {
-        Conditions conditions = new Conditions(ConditionValues.from(currentInput), ConditionValues.from(changedInput));
+        return of(current, changed, currentInput, changedInput, null, null);
+    }
+
+    /**
+     * 종목을 바꾼 비교(D-097, #157). 종목 코드는 바꿨을 때만 두 쪽 모두 넣고, 바꾸지 않았으면 둘 다 null이다.
+     */
+    public static CalcComparison of(CalcResult current, CalcResult changed, CalcInput currentInput,
+            CalcInput changedInput, String currentEtfProductCode, String changedEtfProductCode) {
+        Conditions conditions = new Conditions(ConditionValues.from(currentInput, currentEtfProductCode),
+                ConditionValues.from(changedInput, changedEtfProductCode));
         return new CalcComparison(current, changed, conditions, Diff.between(current, changed));
     }
 
     /**
-     * 대화로 바꿀 수 있는 4개 조건의 계산에 실제 쓴 값.
+     * 대화로 바꿀 수 있는 조건의 계산에 실제 쓴 값. 목표 금액은 결과의 {@code goalAmount}에 있다.
      *
      * @param monthlySavingAmount 월 저축액(원)
      * @param savingsRatioPct 적금 비중(%)
      * @param savingsRateInputPct 실제 쓴 적금 금리(기본금리를 썼어도 그 값)
      * @param targetPeriodMonths 목표 기간(개월)
+     * @param etfProductCode 그쪽 계산의 ETF 종목 코드. 종목을 바꾼 비교에만 있고 아니면 null이라 JSON 키도 없다(C2-3)
      */
     public record ConditionValues(Long monthlySavingAmount, int savingsRatioPct, BigDecimal savingsRateInputPct,
-            Integer targetPeriodMonths) {
+            Integer targetPeriodMonths, @JsonInclude(JsonInclude.Include.NON_NULL) String etfProductCode) {
 
-        static ConditionValues from(CalcInput input) {
+        static ConditionValues from(CalcInput input, String etfProductCode) {
             return new ConditionValues(input.monthlySavingAmount(), input.savingsRatioPct(), input.savingsRatePct(),
-                    input.targetPeriodMonths());
+                    input.targetPeriodMonths(), etfProductCode);
         }
     }
 

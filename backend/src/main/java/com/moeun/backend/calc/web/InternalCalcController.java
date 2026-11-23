@@ -15,6 +15,7 @@ import com.moeun.backend.calc.application.ConditionChanges;
 import com.moeun.backend.plan.ChangePath;
 import com.moeun.backend.plan.ConditionOverride;
 import com.moeun.backend.plan.ConditionValidator;
+import com.moeun.backend.plan.EtfProductCatalog;
 import com.moeun.backend.plan.FieldError;
 
 import tools.jackson.databind.JsonNode;
@@ -33,10 +34,13 @@ class InternalCalcController {
 
     private final ConditionValidator conditionValidator;
     private final CompareConditionsUseCase compareConditionsUseCase;
+    private final EtfProductCatalog etfProducts;
 
-    InternalCalcController(ConditionValidator conditionValidator, CompareConditionsUseCase compareConditionsUseCase) {
+    InternalCalcController(ConditionValidator conditionValidator, CompareConditionsUseCase compareConditionsUseCase,
+            EtfProductCatalog etfProducts) {
         this.conditionValidator = conditionValidator;
         this.compareConditionsUseCase = compareConditionsUseCase;
+        this.etfProducts = etfProducts;
     }
 
     @PostMapping("/internal/calc")
@@ -55,8 +59,8 @@ class InternalCalcController {
         if (!notChangeable.isEmpty()) {
             throw CalcRejectedException.fieldNotChangeable(notChangeable);
         }
-        // 4. 허용 키의 값은 JSON 숫자여야 한다(1e400처럼 유한한 수로 읽을 수 없는 값도 형식 오류)
-        if (!ConditionChanges.allFiniteNumbers(changes)) {
+        // 4. 허용 키의 값은 JSON 숫자여야 한다(1e400처럼 유한한 수로 읽을 수 없는 값도 형식 오류). 종목 코드만 문자열이다
+        if (!ConditionChanges.allValuesWellTyped(changes)) {
             throw new MalformedInternalCalcRequestException();
         }
         // 5. 바꿀 값이 하나도 없으면
@@ -64,16 +68,18 @@ class InternalCalcController {
             throw CalcRejectedException.validationFailed(List.of(FieldError.required(CONDITION_CHANGES)));
         }
         // 6. 범위·정수·소수 자릿수. 걸린 키를 모두, 요청에 적힌 순서로 담는다
-        ConditionOverride override = validate(changes);
-        CompareConditionsUseCase.ComparisonResult result = compareConditionsUseCase.compare(memberId, override);
+        ConditionChanges.Conversion conversion = validate(changes);
+        CompareConditionsUseCase.ComparisonResult result = compareConditionsUseCase.compare(memberId,
+                conversion.override(), conversion.etfProductCode());
         return InternalCalcResponse.from(result);
     }
 
     /**
      * 정수 자리의 소수는 잘라서 통과시키지 않고 NOT_INTEGER로 알린다. 타입 범위를 넘는 값은 경계값으로 넘어와 범위 검사가
-     * OUT_OF_RANGE로 알린다. 걸린 키를 모두, 요청에 적힌 순서로 담는다.
+     * OUT_OF_RANGE로 알린다. 적재하지 않은 종목 코드도 OUT_OF_RANGE(min·max 없음, D-097)다. 걸린 키를 모두, 요청에 적힌
+     * 순서로 담는다.
      */
-    private ConditionOverride validate(Map<String, JsonNode> changes) {
+    private ConditionChanges.Conversion validate(Map<String, JsonNode> changes) {
         ConditionChanges.Conversion conversion = ConditionChanges.convert(changes);
         List<FieldError> errors = new ArrayList<>(conversion.notIntegerKeys().stream()
                 .map(FieldError::notInteger)
@@ -82,12 +88,15 @@ class InternalCalcController {
         if (hasAnyValue(override)) {
             errors.addAll(conditionValidator.validate(ChangePath.CHAT, override));
         }
+        if (conversion.etfProductCode() != null && !etfProducts.isAvailable(conversion.etfProductCode())) {
+            errors.add(FieldError.notInChoices(ConditionChanges.ETF_PRODUCT_CODE));
+        }
         if (!errors.isEmpty()) {
             List<String> requestOrder = new ArrayList<>(changes.keySet());
             errors.sort(Comparator.comparingInt(error -> requestOrder.indexOf(error.field())));
             throw CalcRejectedException.validationFailed(errors);
         }
-        return override;
+        return conversion;
     }
 
     private static boolean hasAnyValue(ConditionOverride override) {
