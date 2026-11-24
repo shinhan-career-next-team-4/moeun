@@ -35,11 +35,20 @@ describe("ETF 위험 고정 블록 (#374)", () => {
 
   it("코스피200·나스닥100 계획이면 그 종목의 공시만 보인다", () => {
     const { unmount } = render(<EtfRiskNotice etfProductCode="069500" />);
-    expect(screen.getAllByRole("link").map((a) => a.textContent)).toEqual(["KODEX 200 투자설명서"]);
+    expect(screen.getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+      ["KODEX 200 투자설명서", "https://www.samsungfund.com/upload/invest/2ETF01-A.pdf"],
+    ]);
+    expect(screen.getByText("삼성자산운용")).toBeTruthy();
     unmount();
 
     render(<EtfRiskNotice etfProductCode="133690" />);
-    expect(screen.getAllByRole("link").map((a) => a.textContent)).toEqual(["TIGER 미국나스닥100 투자설명서"]);
+    expect(screen.getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+      [
+        "TIGER 미국나스닥100 투자설명서",
+        "https://investments.miraeasset.com/tigeretf/upload/etf/20260528095823000271.pdf",
+      ],
+    ]);
+    expect(screen.getByText("미래에셋자산운용")).toBeTruthy();
   });
 
   it("본문 문장에는 상품명을 쓰지 않는다(링크 글자만 상품명, D-028)", () => {
