@@ -398,10 +398,11 @@ class ChatPollingApiTest extends ChatIntegrationTestSupport {
                         + "CAST('{\"monthlySavingAmount\":500000}' AS jsonb)) RETURNING id")
                 .params(memberId, calcRun).query(Long.class).single();
         long pending = insertExplanation(memberId, "PENDING", null, calcRun, "AVG", Instant.now());
+        long failed = insertExplanation(memberId, "FAILED", "실패", calcRun, "AVG", Instant.now());
 
         JsonNode body = poll(cookie, null);
 
-        for (long id : new long[] {question, answer, recalc, pending}) {
+        for (long id : new long[] {question, answer, recalc, pending, failed}) {
             assertThat(messageOf(body, id).has("etfIncluded")).as("message %s", id).isFalse();
         }
     }
