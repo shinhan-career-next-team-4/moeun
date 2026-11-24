@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { COPY } from "../../shared/copy/copy";
 import { scenarioMethodLine } from "../../shared/copy/scenarioMethod";
 import type { ScenarioCode, ScenarioResult } from "./types";
@@ -16,12 +15,10 @@ interface ScenarioCardsProps {
   selected?: ScenarioCode;
   /** 있으면 카드가 단추가 되어, 누르면 그 시나리오를 고른다(예상 자산 그래프의 시나리오 선택, #298). 없으면 지금처럼 보기만 한다. */
   onSelect?: (code: ScenarioCode) => void;
-  /** 하단 안내 문구와 같은 줄 오른쪽에 놓을 것(예: 그래프의 월별/연별 토글, #298). 없으면 안내 문구만 있다. */
-  noticeSlot?: ReactNode;
 }
 
 /** 3구간 비교 카드(FR-RES-03, #50, C12a-7). */
-export function ScenarioCards({ scenarios, display, scenarioMethod, productName, selected, onSelect, noticeSlot }: ScenarioCardsProps) {
+export function ScenarioCards({ scenarios, display, scenarioMethod, productName, selected, onSelect }: ScenarioCardsProps) {
   const methodText = scenarioMethodLine(scenarioMethod, productName);
   const byCode = new Map(scenarios.map((s) => [s.scenario, s]));
   const ordered = SCENARIO_ORDER.map((code) => byCode.get(code)).filter(
@@ -77,10 +74,7 @@ export function ScenarioCards({ scenarios, display, scenarioMethod, productName,
           );
         })}
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-text-muted">{COPY["result.scenarioNotice"]}</p>
-        {noticeSlot}
-      </div>
+      <p className="text-xs text-text-muted">{COPY["result.scenarioNotice"]}</p>
     </section>
   );
 }

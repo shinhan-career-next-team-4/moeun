@@ -3,22 +3,19 @@ import { COPY } from "../../shared/copy/copy";
 import { ScenarioCards } from "../result/ScenarioCards";
 import { buildMockScenarioCards, MOCK_PROJECTION } from "./mockProjection";
 import { ProjectionChart } from "./ProjectionChart";
-import { ProjectionUnitToggle } from "./ProjectionUnitToggle";
-import type { ProjectionScenario, ProjectionUnit } from "./types";
+import type { ProjectionScenario } from "./types";
 
 // 카드용 mock은 한 번만 만든다(그래프 데이터는 10년치 MOCK_PROJECTION)
 const MOCK_CARDS = buildMockScenarioCards(MOCK_PROJECTION);
 
 /**
  * 예상 자산 누적 그래프를 mock 데이터로 확인하는 데모 페이지(#298). 서버 연동 전 확인용이다.
- * 위쪽 3구간 카드가 시나리오 버튼이고, 카드 아래 안내 문구 줄의 토글이 월별/연별을 고른다. 아래 그래프는 둘을 받아 그리기만 한다.
+ * 위쪽 3구간 카드가 시나리오 버튼이고, 고른 시나리오를 아래 그래프가 그린다(월별/연별 토글은 그래프 카드 안에 있다).
  * 연동되면 이 페이지와 mock은 지우고, 결과 화면에서 같은 카드와 ProjectionChart에 서버 응답을 넘기면 된다.
- * 길이를 비교해 볼 수 있게 새 길이(세로 420px) 그래프 아래에 기존 길이(300px) 그래프를 하나 더 보여 준다(비교가 끝나면 지운다).
  * (컴포넌트는 최대 30년까지 받는다. 데모는 10년치만 보여 준다)
  */
 export function ProjectionDemoPage() {
   const [scenario, setScenario] = useState<ProjectionScenario>("AVG");
-  const [unit, setUnit] = useState<ProjectionUnit>("monthly");
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8 sm:px-6">
@@ -33,18 +30,8 @@ export function ProjectionDemoPage() {
         productName="S&P500 추종 ETF"
         selected={scenario}
         onSelect={setScenario}
-        noticeSlot={<ProjectionUnitToggle unit={unit} onChange={setUnit} />}
       />
-      <h2 className="text-sm font-semibold text-text">{COPY["projection.demoCompareNew"]}</h2>
-      <ProjectionChart data={MOCK_PROJECTION} scenario={scenario} unit={unit} />
-      <h2 className="text-sm font-semibold text-text">{COPY["projection.demoCompareOld"]}</h2>
-      <ProjectionChart
-        data={MOCK_PROJECTION}
-        scenario={scenario}
-        unit={unit}
-        compact
-        ariaLabel={COPY["projection.demoOldChartLabel"]}
-      />
+      <ProjectionChart data={MOCK_PROJECTION} scenario={scenario} />
     </div>
   );
 }

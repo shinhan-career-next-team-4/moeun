@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { COPY } from "../../shared/copy/copy";
 import { AreaChart } from "./AreaChart";
 import { formatMoneyShort } from "./formatMoney";
 import { LAYERS } from "./layers";
+import { ProjectionUnitToggle } from "./ProjectionUnitToggle";
 import { toYearly } from "./selectPoints";
 import type { ProjectionData, ProjectionScenario, ProjectionUnit } from "./types";
 
@@ -12,19 +14,16 @@ export interface ProjectionChartProps {
   data: ProjectionData;
   /** 어느 시나리오를 그릴지. 위쪽 3구간 카드가 고르고, 이 화면은 받은 값만 그린다. */
   scenario: ProjectionScenario;
-  /** 월별이면 매달, 연별이면 첫 점과 12개월마다의 점. 카드 아래 줄의 토글(`ProjectionUnitToggle`)이 고른다. */
-  unit: ProjectionUnit;
-  /** 이전(낮은) 길이로 그린다. 새 길이와 비교해 보는 데모용이다. */
-  compact?: boolean;
-  /** 그래프의 접근성 이름. 한 화면에 그래프가 둘 이상일 때 구분하려고 바꾼다. */
-  ariaLabel?: string;
+  defaultUnit?: ProjectionUnit;
 }
 
 /**
- * 누적 그래프 화면(#298): 범례(항목 옆 최종 금액), 그래프, 안내 문구.
- * 시나리오와 월별/연별은 바깥에서 고르고, 이 화면은 받은 data에서 점을 고르기만 한다.
+ * 누적 그래프 화면(#298): 범례(항목 옆 최종 금액)와 월별/연별 토글이 한 줄, 그래프, 안내 문구.
+ * 시나리오는 바깥(3구간 카드)이 고르고, 월별/연별은 이 화면 안의 상태다. 값은 받은 data에서 점을 고르기만 한다.
  */
-export function ProjectionChart({ data, scenario, unit, compact = false, ariaLabel }: ProjectionChartProps) {
+export function ProjectionChart({ data, scenario, defaultUnit = "monthly" }: ProjectionChartProps) {
+  const [unit, setUnit] = useState<ProjectionUnit>(defaultUnit);
+
   const monthly = data[scenario];
   if (monthly.length === 0) return null;
 
@@ -37,24 +36,26 @@ export function ProjectionChart({ data, scenario, unit, compact = false, ariaLab
 
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-5 shadow-sm">
-      <ul aria-label={COPY["projection.legendLabel"]} className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted">
-        {LAYERS.map((layer) => (
-          <li key={layer.key} className="flex items-center gap-1.5">
-            <span aria-hidden className="inline-block size-2.5 rounded-sm" style={{ backgroundColor: layer.color }} />
-            {COPY["projection.legendEntry"]
-              .replace("{label}", COPY[layer.labelKey])
-              .replace("{amount}", formatMoneyShort(last[layer.key]))}
-          </li>
-        ))}
-      </ul>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ul aria-label={COPY["projection.legendLabel"]} className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted">
+          {LAYERS.map((layer) => (
+            <li key={layer.key} className="flex items-center gap-1.5">
+              <span aria-hidden className="inline-block size-2.5 rounded-sm" style={{ backgroundColor: layer.color }} />
+              {COPY["projection.legendEntry"]
+                .replace("{label}", COPY[layer.labelKey])
+                .replace("{amount}", formatMoneyShort(last[layer.key]))}
+            </li>
+          ))}
+        </ul>
+        <ProjectionUnitToggle unit={unit} onChange={setUnit} />
+      </div>
 
       <AreaChart
         points={points}
         monthRange={monthRange}
         maxValue={maxValue}
         revealKey={scenario}
-        ariaLabel={ariaLabel ?? COPY["projection.chartLabel"]}
-        compact={compact}
+        ariaLabel={COPY["projection.chartLabel"]}
       />
 
       <p className="text-xs text-text-muted">{COPY["projection.notice"]}</p>

@@ -39,36 +39,14 @@ describe("예상 자산 그래프 데모 라우트", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("길이를 비교하도록 새 길이(420px) 그래프 아래에 기존 길이(300px) 그래프가 하나 더 있다", () => {
+  it("그래프는 세로 420px 하나뿐이고 길이 비교용 제목·두 번째 그래프는 없다", () => {
     renderAt(PROJECTION_DEMO_PATH);
 
-    const tall = screen.getByRole("group", { name: "예상 자산 누적 그래프" });
-    const old = screen.getByRole("group", { name: "예상 자산 누적 그래프(기존 길이)" });
-    expect(tall.querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 640 420");
-    expect(old.querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 640 300");
-    expect(screen.getByText("새 길이 (세로 420px)")).toBeTruthy();
-    expect(screen.getByText("기존 길이 (세로 300px)")).toBeTruthy();
-    expect(tall.compareDocumentPosition(old) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it("두 그래프는 같은 카드·월별/연별 선택을 따른다", () => {
-    renderAt(PROJECTION_DEMO_PATH);
-
-    fireEvent.click(screen.getByRole("radio", { name: "연별" }));
-    for (const name of ["예상 자산 누적 그래프", "예상 자산 누적 그래프(기존 길이)"]) {
-      const graph = screen.getByRole("group", { name });
-      fireEvent.keyDown(graph, { key: "End" });
-      fireEvent.keyDown(graph, { key: "ArrowLeft" });
-      expect(within(screen.getByRole("tooltip")).getByText("9년")).toBeTruthy();
-      fireEvent.keyDown(graph, { key: "Escape" });
-    }
-
-    fireEvent.click(screen.getByRole("button", { name: /좋았던 때/ }));
-    const legends = screen.getAllByRole("list", { name: "범례" });
-    expect(legends).toHaveLength(2);
-    for (const legend of legends) {
-      expect(within(legend).getByText(`ETF 수익 ${formatMoneyShort(MOCK_PROJECTION.GOOD[119].etfGain)}`)).toBeTruthy();
-    }
+    const graphs = screen.getAllByRole("group", { name: /예상 자산 누적 그래프/ });
+    expect(graphs).toHaveLength(1);
+    expect(graphs[0].querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 640 420");
+    expect(screen.queryByText("새 길이 (세로 420px)")).toBeNull();
+    expect(screen.queryByText("기존 길이 (세로 300px)")).toBeNull();
   });
 
   it("'10년 뒤 예상 자산' 결론 숫자 블록은 없다", () => {
@@ -78,14 +56,14 @@ describe("예상 자산 그래프 데모 라우트", () => {
     expect(screen.queryByRole("region", { name: "10년 뒤 예상 자산" })).toBeNull();
   });
 
-  it("월별/연별 토글은 3구간 카드 아래 안내 문구와 같은 줄에 있다", () => {
+  it("월별/연별 토글은 그래프 카드 안 범례(원금·적금 이자·ETF 수익)와 같은 줄에 있고, 카드 아래 안내 문구 줄에는 없다", () => {
     renderAt(PROJECTION_DEMO_PATH);
 
-    const notice = screen.getByText("세 가지 경우는 과거 데이터의 범위를 나눈 시나리오이고 미래를 예측한 값이 아니에요");
-    const row = notice.parentElement as HTMLElement;
-    expect(row.contains(screen.getByRole("radiogroup", { name: "그래프 단위" }))).toBe(true);
-    // 그래프 카드 안에는 토글이 더 없다
+    const toggle = screen.getByRole("radiogroup", { name: "그래프 단위" });
     expect(screen.getAllByRole("radiogroup", { name: "그래프 단위" })).toHaveLength(1);
+    expect(screen.getByRole("list", { name: "범례" }).parentElement?.contains(toggle)).toBe(true);
+    const notice = screen.getByText("세 가지 경우는 과거 데이터의 범위를 나눈 시나리오이고 미래를 예측한 값이 아니에요");
+    expect(notice.parentElement?.contains(toggle)).toBe(false);
   });
 
   it("연별로 바꾸면 그래프의 점이 12개월 간격이 된다", () => {
@@ -103,7 +81,7 @@ describe("예상 자산 그래프 데모 라우트", () => {
     renderAt(PROJECTION_DEMO_PATH);
 
     expect(screen.getByRole("button", { name: /평균/ }).getAttribute("aria-pressed")).toBe("true");
-    const legend = screen.getAllByRole("list", { name: "범례" })[0];
+    const legend = screen.getByRole("list", { name: "범례" });
     expect(within(legend).getByText(`ETF 수익 ${formatMoneyShort(MOCK_PROJECTION.AVG[119].etfGain)}`)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /좋았던 때/ }));

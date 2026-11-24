@@ -12,11 +12,6 @@ describe("그래프 크기 chartLayout (#298)", () => {
     expect(chartLayout(480).height).toBe(420);
   });
 
-  it("compact(기존 길이)면 넓은 화면 300px, 좁은 화면 240px이다(비교용)", () => {
-    expect(chartLayout(640, true).height).toBe(300);
-    expect(chartLayout(360, true).height).toBe(240);
-  });
-
   it("그려지는 세로 길이는 높이에서 위아래 여백을 뺀 값이다", () => {
     const layout = chartLayout(640);
 

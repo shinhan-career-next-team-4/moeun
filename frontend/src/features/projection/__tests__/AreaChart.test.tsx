@@ -166,13 +166,7 @@ describe("누적 영역 그래프 AreaChart (#298)", () => {
     expect(svg?.getAttribute("viewBox")).toBe("0 0 360 300");
   });
 
-  it("compact를 주면 기존 길이(세로 300px)로 그린다", () => {
-    const { chart } = renderChart({ compact: true });
-
-    expect(chart.querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 640 300");
-  });
-
-  it("compact가 없으면 새 길이(세로 420px)로 그린다", () => {
+  it("세로 420px로 그린다", () => {
     const { chart } = renderChart();
 
     expect(chart.querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 640 420");

@@ -2,9 +2,6 @@
 const NARROW_WIDTH = 480;
 const HEIGHT_NARROW = 300;
 const HEIGHT_WIDE = 420;
-/** 이전 길이(비교 데모용). */
-const HEIGHT_NARROW_COMPACT = 240;
-const HEIGHT_WIDE_COMPACT = 300;
 
 export interface ChartLayout {
   width: number;
@@ -18,15 +15,9 @@ export interface ChartLayout {
   plotH: number;
 }
 
-/**
- * 그릴 폭(px)에 맞는 여백과 높이. 왼쪽 여백은 "1억 2,000만" 같은 세로축 라벨 자리다.
- * compact를 주면 이전(낮은) 길이로 그린다. 새 길이와 나란히 비교해 보려는 데모용이다.
- */
-export function chartLayout(width: number, compact = false): ChartLayout {
-  const narrow = width < NARROW_WIDTH;
-  const height = compact
-    ? narrow ? HEIGHT_NARROW_COMPACT : HEIGHT_WIDE_COMPACT
-    : narrow ? HEIGHT_NARROW : HEIGHT_WIDE;
+/** 그릴 폭(px)에 맞는 여백과 높이. 왼쪽 여백은 "1억 2,000만" 같은 세로축 라벨 자리다. */
+export function chartLayout(width: number): ChartLayout {
+  const height = width < NARROW_WIDTH ? HEIGHT_NARROW : HEIGHT_WIDE;
   const padLeft = 64;
   const padRight = 16;
   const padTop = 12;
