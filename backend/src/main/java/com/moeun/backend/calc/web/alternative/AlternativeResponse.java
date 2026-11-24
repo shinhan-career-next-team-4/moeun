@@ -30,7 +30,8 @@ record AlternativeResponse(boolean hasAlternatives, List<Card> alternatives) {
             String key = alternative.key().apiName();
             CalcComparison comparison = alternative.comparison();
             if (comparison == null) {
-                return new Card(key, Map.of(), null, null, null, null, Map.of(), alternative.unreachable());
+                return new Card(key, Map.of(), null, null, null, null, alternative.display(),
+                        alternative.unreachable());
             }
             Conditions conditions = new Conditions(
                     Side.of(comparison.current().goalAmount(), comparison.conditions().current()),

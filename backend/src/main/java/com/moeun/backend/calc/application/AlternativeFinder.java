@@ -42,6 +42,8 @@ class AlternativeFinder implements AlternativeQuery {
     private static final long MAX_MONTHLY_AMOUNT = 10_000_000L;
     private static final long MAX_PERIOD_MONTHS = 360L;
     private static final int RATIO_STEP = 10;
+    /** 달성 불가 카드 display의 상한 금액 키(월 저축액). */
+    static final String LIMIT_MONTHLY_KEY = "limit.monthlySavingAmount";
 
     private final PlanSaveService planSaveService;
     private final ReferenceDataService referenceDataService;
@@ -49,16 +51,18 @@ class AlternativeFinder implements AlternativeQuery {
     private final CalcEngine calcEngine;
     private final CompareConditionsUseCase compareConditions;
     private final ConditionValidator conditionValidator;
+    private final Formatter formatter;
 
     AlternativeFinder(PlanSaveService planSaveService, ReferenceDataService referenceDataService,
             ConditionResolver conditionResolver, CalcEngine calcEngine, CompareConditionsUseCase compareConditions,
-            ConditionValidator conditionValidator) {
+            ConditionValidator conditionValidator, Formatter formatter) {
         this.planSaveService = planSaveService;
         this.referenceDataService = referenceDataService;
         this.conditionResolver = conditionResolver;
         this.calcEngine = calcEngine;
         this.compareConditions = compareConditions;
         this.conditionValidator = conditionValidator;
+        this.formatter = formatter;
     }
 
     @Override
@@ -115,7 +119,11 @@ class AlternativeFinder implements AlternativeQuery {
         LongPredicate achieves = value -> achieves(plan, onlyChanged(key, value), params, etf, defaultRate);
         OptionalLong found = seek(key, input, achieves);
         if (found.isEmpty()) {
-            return Alternative.unreachable(key);
+            // 월 저축액은 못 찾은 상한 금액을 안내에 쓰도록 서식해서 싣는다(화면은 금액을 만들지 않는다)
+            return key == AlternativeKey.MONTHLY_SAVING_AMOUNT
+                    ? Alternative.unreachable(key,
+                            Map.of(LIMIT_MONTHLY_KEY, formatter.formatAmount(MAX_MONTHLY_AMOUNT)))
+                    : Alternative.unreachable(key);
         }
         return compute(key, found.getAsLong(), plan, params, etf, defaultRate);
     }

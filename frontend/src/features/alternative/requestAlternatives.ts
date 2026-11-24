@@ -51,7 +51,7 @@ export async function requestAlternatives(deps: AlternativesDeps, targetPeriodMo
 function toValues(card: AlternativeCardResponse): AlternativeValues | undefined {
   const { key, display, changes, diff } = card;
   const avgAchieved = card.changed?.scenarios?.find((s) => s.scenario === "AVG")?.isAchieved;
-  if (card.unreachable) return { unreachable: true };
+  if (card.unreachable) return { unreachable: true, unreachableLimit: display["limit.monthlySavingAmount"] };
   if (Object.keys(changes).length === 0 || diff === null) return undefined;
   const current = display[`conditions.current.${key}`];
   const changed = display[`conditions.changed.${key}`];

@@ -41,6 +41,23 @@ describe("대안 영역 (#67, FR-ALT-01·02)", () => {
     expect((ratioCard.querySelectorAll("button")[1] as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("월 저축액이 달성 불가이면 서버가 준 상한 금액을 넣어 안내한다", () => {
+    render(
+      <AlternativeSection
+        isAchieved={false}
+        values={{ monthlySavingAmount: { unreachable: true, unreachableLimit: "약 1,000만원" } }}
+      />,
+    );
+
+    expect(screen.getByText("월 저축액을 약 1,000만원으로 올려도 목표 달성이 어려워요")).toBeTruthy();
+  });
+
+  it("상한 금액이 없으면 상한 없이 안내한다", () => {
+    render(<AlternativeSection isAchieved={false} values={{ monthlySavingAmount: { unreachable: true } }} />);
+
+    expect(screen.getByText("월 저축액을 가능한 최대로 올려도 목표 달성이 어려워요")).toBeTruthy();
+  });
+
   it("기한 카드에는 더 이상 기간 입력칸이 없다(서버가 달성하는 기간을 추천한다, #343)", () => {
     render(<AlternativeSection isAchieved={false} />);
 
