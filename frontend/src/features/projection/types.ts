@@ -27,7 +27,7 @@ export interface ProjectionPoint {
 export type ProjectionScenario = "GOOD" | "AVG" | "BAD";
 
 /** 시나리오마다 월별 점 배열 하나씩. 최대 360개월(30년)까지 받는다. */
-export type ProjectionData = Record<ProjectionScenario, ProjectionPoint[]>;
+export type ProjectionData = Partial<Record<ProjectionScenario, ProjectionPoint[]>>;
 
 /** 월별 / 연별. 데이터를 몇 개 골라 보여 줄지만 바뀐다. */
 export type ProjectionUnit = "monthly" | "yearly";
