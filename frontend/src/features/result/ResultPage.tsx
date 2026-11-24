@@ -279,14 +279,16 @@ export function ResultPage() {
       <div data-dialog-background className="contents" inert={confirming !== null}>
         <ResultLayout bar={<PlanConditionBar view={data} onFeedback={setApplyFeedback} />}>
           <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-8">
-            {isExceeded ? (
+            {/* 이미 목표를 넘어도 결과를 계산해 보여 준다(#370). 안내를 맨 위에 두고 아래에 평소 결과를 잇는다 */}
+            {isExceeded && (
               <section
                 aria-label="목표 초과 안내"
                 className="rounded-xl border border-primary bg-primary-soft p-6 text-sm text-primary-strong"
               >
                 <p className="font-semibold">{exceededMessage}</p>
               </section>
-            ) : (
+            )}
+            {result.scenarios.length > 0 && (
               <>
                 {baselineResultScenario && baseline && (
                   <section aria-label="결과 요약" className="rounded-xl border border-border bg-surface p-6 shadow-sm">

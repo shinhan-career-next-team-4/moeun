@@ -29,7 +29,7 @@ import com.moeun.backend.refdata.EtfSeries;
  * <p>DB를 직접 읽지 않고 넣어 준 입력·파라미터·S&P500 데이터만 쓴다. 그래서 같은 입력, 같은 기준 데이터 버전,
  * 같은 {@link #ENGINE_VERSION}이면 언제 다시 계산해도 같은 결과가 나온다(NFR-INT-02).
  * <ul>
- *     <li>보유 자산 ≥ 목표 금액이면 계산하지 않고 {@link CalcStatus#ALREADY_EXCEEDED}(FR-RES-01)</li>
+ *     <li>보유 자산 ≥ 목표 금액이어도 계산하되 상태는 {@link CalcStatus#ALREADY_EXCEEDED}(FR-RES-01, #370)</li>
  *     <li>ETF 0%면 적금만 계산해 AVG 하나(#26)</li>
  *     <li>ETF가 들어가면 부트스트랩으로 GOOD·AVG·BAD(#27)</li>
  * </ul>
@@ -62,7 +62,7 @@ public class CalcEngine {
         CalcInput input = resolved.input();
         rejectOutOfScope(input);
         EtfSeries usedSp500 = null;
-        if (!input.hasExceededGoal() && input.hasEtf()) {
+        if (input.hasEtf()) {
             // calculate가 거절하는 경우(ETF 가격 데이터 없음, 종가 부족)는 여기서도 같은 예외로 막는다.
             // 그러지 않으면 ETF 가격 버전이 빈 기록이 남아 "ETF 0%"처럼 읽히고 다시 계산할 수도 없다(NFR-INT-02)
             requireSp500(sp500);
@@ -92,14 +92,6 @@ public class CalcEngine {
         YearMonth targetMonth = input.calcStartMonth().plusMonths(targetPeriodMonths);
         BigDecimal taxRatePct = params.getValue(CalcParamKey.TAX_RATE_PCT);
 
-        if (input.hasExceededGoal()) {
-            // 이미 목표 이상이면 시나리오를 계산하지 않는다. 화면은 초과 안내만 보여 준다(같으면 초과, CF-03)
-            return new CalcResult(CalcStatus.ALREADY_EXCEEDED, input.goalAmount(), input.calcStartMonth(),
-                    targetMonth, input.baselineScenario(), List.of(), null,
-                    createAssumptions(input, taxRatePct, null, defaultRate),
-                    createDataVersions(params, null, defaultRate));
-        }
-
         BigDecimal monthlySaving = BigDecimal.valueOf(input.monthlySavingAmount());
         // 월 저축액 중 적금 몫 Ms = M × 적금비중 ÷ 100, ETF 몫 Me = M − Ms. 나눈 몫도 반올림하지 않는다(calc-spec 3절)
         BigDecimal savingsDeposit = monthlySaving.multiply(BigDecimal.valueOf(input.savingsRatioPct()))
@@ -110,7 +102,9 @@ public class CalcEngine {
                 ? calculateEtfScenarios(input, params, sp500, savings, monthlySaving.subtract(savingsDeposit))
                 : List.of(calculateSavingsOnly(input, savings));
         EtfSeries usedSp500 = input.hasEtf() ? sp500 : null;
-        return new CalcResult(CalcStatus.CALCULATED, input.goalAmount(), input.calcStartMonth(), targetMonth,
+        // 이미 목표 이상이어도 계산한다(#370). 상태만 ALREADY_EXCEEDED로 남겨 화면이 안내를 함께 보이게 한다(같으면 초과, CF-03)
+        CalcStatus status = input.hasExceededGoal() ? CalcStatus.ALREADY_EXCEEDED : CalcStatus.CALCULATED;
+        return new CalcResult(status, input.goalAmount(), input.calcStartMonth(), targetMonth,
                 input.baselineScenario(), scenarios, null,
                 createAssumptions(input, taxRatePct, usedSp500, defaultRate),
                 createDataVersions(params, usedSp500, defaultRate));

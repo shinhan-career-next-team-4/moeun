@@ -183,9 +183,15 @@ class CalcEngineTest {
     }
 
     @Test
-    @DisplayName("골든 G3: 보유 자산이 목표와 같으면 ALREADY_EXCEEDED이고 시나리오를 계산하지 않는다")
-    void matchesGoldenAlreadyExceeded() {
-        assertMatchesGolden("g3-already-exceeded.json");
+    @DisplayName("보유 자산이 목표와 같으면 ALREADY_EXCEEDED이지만 시나리오는 계산하고 모두 달성이다(#370)")
+    void calculatesWhenHeldAssetsEqualGoal() {
+        GoldenCase golden = GoldenCase.read("g3-already-exceeded.json");
+
+        CalcResult result = new CalcEngine().calculate(golden.input(), golden.params(), golden.sp500());
+
+        assertThat(result.status()).isEqualTo(CalcStatus.ALREADY_EXCEEDED);
+        assertThat(result.scenarios()).isNotEmpty();
+        assertThat(result.scenarios()).allMatch(ScenarioResult::isAchieved);
     }
 
     @Test
@@ -237,13 +243,13 @@ class CalcEngineTest {
     }
 
     @Test
-    @DisplayName("이미 목표를 넘은 계획은 시나리오를 계산하지 않아 가정에 종목 정보가 없다(null)")
-    void omitsProductWhenAlreadyExceeded() {
+    @DisplayName("이미 목표를 넘은 계획도 ETF를 계산하므로 가정에 종목 정보가 있다(#370)")
+    void includesProductWhenAlreadyExceeded() {
         CalcResult result = engine.calculate(createInput(10_000_000L, 36, 20_000_000L, HALF_PCT), PARAMS, SP500);
 
         assertThat(result.status()).isEqualTo(CalcStatus.ALREADY_EXCEEDED);
-        assertThat(result.assumptions().etfProductCode()).isNull();
-        assertThat(result.assumptions().etfGainTaxRatePct()).isNull();
+        assertThat(result.assumptions().etfProductCode()).isNotNull();
+        assertThat(result.assumptions().etfGainTaxRatePct()).isNotNull();
     }
 
     @Test
@@ -337,12 +343,13 @@ class CalcEngineTest {
     }
 
     @Test
-    @DisplayName("보유 자산이 목표보다 많으면 ALREADY_EXCEEDED이고 시나리오도 점도 없다")
-    void returnsAlreadyExceededWithoutScenarios() {
+    @DisplayName("보유 자산이 목표보다 많으면 ALREADY_EXCEEDED이지만 시나리오와 점을 계산한다(#370)")
+    void returnsAlreadyExceededWithScenarios() {
         CalcResult result = engine.calculate(createInput(10_000_000L, 36, 12_000_000L, HALF_PCT), PARAMS, SP500);
 
         assertThat(result.status()).isEqualTo(CalcStatus.ALREADY_EXCEEDED);
-        assertThat(result.scenarios()).isEmpty();
+        assertThat(result.scenarios()).isNotEmpty();
+        assertThat(result.scenarios().get(0).monthlyPoints()).hasSize(37);
         assertThat(result.targetMonth()).isEqualTo(START_MONTH.plusMonths(36));
     }
 
