@@ -60,3 +60,18 @@ describe("toAlternativeValues: 카드 본문은 display 문자열 그대로(D-09
     expect(values.monthlySavingAmount?.badAfterTaxAsset).toBeUndefined();
   });
 });
+
+describe("달성이 어려운 대안(#343)", () => {
+  it("unreachable 카드는 안내용 값으로 옮기고 값이 없는 다른 카드는 비운다", () => {
+    const values = toAlternativeValues({
+      hasAlternatives: true,
+      alternatives: [
+        { key: "monthlySavingAmount", changes: {}, diff: null, display: {}, unreachable: true },
+        { key: "targetPeriodMonths", changes: {}, diff: null, display: {} },
+      ],
+    });
+
+    expect(values.monthlySavingAmount).toEqual({ unreachable: true });
+    expect(values.targetPeriodMonths).toBeUndefined();
+  });
+});

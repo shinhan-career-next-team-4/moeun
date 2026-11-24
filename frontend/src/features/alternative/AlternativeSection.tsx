@@ -15,9 +15,6 @@ interface AlternativeSectionProps {
   /** '내 계획으로 적용'을 누른 대안(#258) */
   onApply?: (values: AlternativeValues) => void;
   applyEnabled?: boolean;
-  onPeriodSubmit?: (months: number) => void;
-  /** 기한 카드의 범위 안내(A-1-2) */
-  periodError?: string | null;
   /** 대안 API가 실패했는지(A-1-2). 카드는 비고 안내만 보인다 */
   loadFailed?: boolean;
 }
@@ -29,8 +26,6 @@ export function AlternativeSection({
   onCompare,
   onApply,
   applyEnabled,
-  onPeriodSubmit,
-  periodError,
   loadFailed = false,
 }: AlternativeSectionProps) {
   if (isAchieved) return null;
@@ -55,8 +50,6 @@ export function AlternativeSection({
             onCompare={onCompare}
             onApply={onApply}
             applyEnabled={applyEnabled}
-            onPeriodSubmit={key === "targetPeriodMonths" ? onPeriodSubmit : undefined}
-            periodError={key === "targetPeriodMonths" ? periodError : undefined}
           />
         ))}
       </ul>

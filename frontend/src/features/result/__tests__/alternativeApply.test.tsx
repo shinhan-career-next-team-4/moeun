@@ -105,21 +105,6 @@ describe("결과 화면 대안 카드 (#258, A-1, D-096)", () => {
     expect(server.alternativeCalls()[0]).toEqual({ method: "POST", path: "/api/alternatives", body: {} });
   });
 
-  it("기한 카드에 개월 수를 적으면 {targetPeriodMonths}로 다시 불러 그 카드를 채운다", async () => {
-    const server = stubServer();
-    renderResult();
-
-    const deadline = await card("기한을 늘리면");
-    fireEvent.change(within(deadline).getByRole("textbox", { name: "원하는 기한(개월)" }), { target: { value: "48" } });
-    fireEvent.click(within(deadline).getByRole("button", { name: "확인" }));
-
-    await waitFor(() =>
-      expect(server.alternativeCalls().at(-1)?.body).toEqual({ targetPeriodMonths: 48 }),
-    );
-    const period = periodMock.responses[0].body.alternatives[1].display as Record<string, string>;
-    await waitFor(() => expect(deadline.textContent).toContain(period["conditions.changed.targetPeriodMonths"]));
-  });
-
   it("대안 없음(hasAlternatives: false)이면 대안 영역을 그리지 않는다", async () => {
     stubServer({ alternatives: () => noneMock.responses[0].body });
     renderResult();
@@ -181,28 +166,6 @@ describe("결과 화면 대안 카드 (#258, A-1, D-096)", () => {
     renderResult();
 
     expect(await screen.findByText("입력화면")).toBeTruthy();
-  });
-
-  it("기한이 범위 밖(422)이면 기한 카드 안에 안내하고, 이전에 받은 기한 카드는 그대로 둔다", async () => {
-    const server = stubServer({
-      alternatives: (b) =>
-        b.targetPeriodMonths === 999 ? problem(422, "VALIDATION_FAILED") : (b.targetPeriodMonths ? periodMock : firstMock).responses[0].body,
-    });
-    renderResult();
-    const deadline = await card("기한을 늘리면");
-    const input = within(deadline).getByRole("textbox", { name: "원하는 기한(개월)" });
-    fireEvent.change(input, { target: { value: "48" } });
-    fireEvent.click(within(deadline).getByRole("button", { name: "확인" }));
-    const period = periodMock.responses[0].body.alternatives[1].display as Record<string, string>;
-    await waitFor(() => expect(deadline.textContent).toContain(period["conditions.changed.targetPeriodMonths"]));
-
-    fireEvent.change(input, { target: { value: "999" } });
-    fireEvent.click(within(deadline).getByRole("button", { name: "확인" }));
-
-    await waitFor(() => expect(within(deadline).getByText(/적을 수 있는 기한을 벗어났어요/)).toBeTruthy());
-    expect(deadline.textContent).not.toContain("999개월로");
-    expect(deadline.textContent).toContain(period["conditions.changed.targetPeriodMonths"]);
-    expect(server.alternativeCalls().some((call) => (call.body as { targetPeriodMonths?: number }).targetPeriodMonths === 999)).toBe(true);
   });
 
   it("대안 적용이 422면 대안 카드 적용만 끄고 비교 영역은 건드리지 않는다", async () => {

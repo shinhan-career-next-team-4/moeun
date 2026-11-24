@@ -12,6 +12,8 @@ export interface AlternativeCardResponse {
   changes: ConditionChanges;
   diff: ComparisonView["diff"] | null;
   display: Record<string, string>;
+  /** 허용 범위 안에서 목표를 달성하는 값을 찾지 못했다(#343). 옛 응답에는 없다 */
+  unreachable?: boolean;
 }
 
 export interface AlternativeResponse {
@@ -46,6 +48,7 @@ export async function requestAlternatives(deps: AlternativesDeps, targetPeriodMo
 /** 카드 한 장의 본문(A-1-1). 키가 없는 줄은 비운다 */
 function toValues(card: AlternativeCardResponse): AlternativeValues | undefined {
   const { key, display, changes, diff } = card;
+  if (card.unreachable) return { unreachable: true };
   if (Object.keys(changes).length === 0 || diff === null) return undefined;
   const current = display[`conditions.current.${key}`];
   const changed = display[`conditions.changed.${key}`];

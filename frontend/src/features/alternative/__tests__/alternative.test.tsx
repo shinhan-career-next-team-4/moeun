@@ -23,31 +23,28 @@ describe("대안 영역 (#67, FR-ALT-01·02)", () => {
     expect(screen.queryByLabelText("대안")).toBeNull();
   });
 
-  it("기한 카드에만 기간 입력칸과 안내가 있다(D-020·D-039)", () => {
-    render(<AlternativeSection isAchieved={false} onPeriodSubmit={vi.fn()} />);
+  it("달성이 어려운 대안은 그 안내만 보이고 비교·적용 버튼은 막힌다(#343)", () => {
+    render(
+      <AlternativeSection
+        isAchieved={false}
+        applyEnabled
+        onCompare={vi.fn()}
+        onApply={vi.fn()}
+        values={{ savingsRatioPct: { unreachable: true } }}
+      />,
+    );
 
-    expect(screen.getByText("원하는 기한을 적어 주면 그 기간까지의 그래프를 보여 드릴게요")).toBeTruthy();
-    expect(screen.getAllByLabelText("원하는 기한(개월)")).toHaveLength(1);
+    expect(screen.getByText("ETF 100%로 바꿔도 목표 달성이 어려워요")).toBeTruthy();
+    const cards = screen.getAllByRole("listitem");
+    const ratioCard = cards[2];
+    expect((ratioCard.querySelectorAll("button")[0] as HTMLButtonElement).disabled).toBe(true);
+    expect((ratioCard.querySelectorAll("button")[1] as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("기간을 적고 확인하면 그 기간을 넘겨주고 적은 기한을 알려 준다", () => {
-    const onPeriodSubmit = vi.fn();
-    render(<AlternativeSection isAchieved={false} onPeriodSubmit={onPeriodSubmit} />);
+  it("기한 카드에는 더 이상 기간 입력칸이 없다(서버가 달성하는 기간을 추천한다, #343)", () => {
+    render(<AlternativeSection isAchieved={false} />);
 
-    fireEvent.change(screen.getByLabelText("원하는 기한(개월)"), { target: { value: "42" } });
-    fireEvent.click(screen.getByRole("button", { name: "확인" }));
-
-    expect(onPeriodSubmit).toHaveBeenCalledWith(42);
-    expect(screen.getByText(/기한 42개월로 계산했어요/)).toBeTruthy();
-  });
-
-  it("기간이 비었거나 숫자가 아니면 확인을 누를 수 없다", () => {
-    render(<AlternativeSection isAchieved={false} onPeriodSubmit={vi.fn()} />);
-    const submit = screen.getByRole("button", { name: "확인" }) as HTMLButtonElement;
-
-    expect(submit.disabled).toBe(true);
-    fireEvent.change(screen.getByLabelText("원하는 기한(개월)"), { target: { value: "3년" } });
-    expect(submit.disabled).toBe(true);
+    expect(screen.queryByLabelText("원하는 기한(개월)")).toBeNull();
   });
 
   it("서버가 준 값이 있으면 카드 본문 줄을 display 문자열 그대로 보여 준다", () => {
