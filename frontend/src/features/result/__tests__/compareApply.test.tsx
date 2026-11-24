@@ -122,14 +122,15 @@ describe("결과 화면 비교 → 적용 (#68, C12a-9-2)", () => {
     expect(planStore.getState().revision).toBe(12);
   });
 
-  it("적용하기를 누르면 P-6을 부르고 새 revision·되돌리기 토스트·결과 재조회로 이어진다", async () => {
+  it("적용하기를 누르면 P-6을 부르고 새 revision·결과 재조회로 이어진다(토스트는 없다)", async () => {
     const server = stubServer(() => jsonResponse(200, { revision: 13 }));
     renderResult();
     await compareMonthly50();
 
     await openAndConfirm();
 
-    await waitFor(() => expect(screen.getByText("조건을 적용했어요.")).toBeTruthy());
+    await waitFor(() => expect(planStore.getState().revision).toBe(13));
+    expect(screen.queryByText("조건을 적용했어요.")).toBeNull();
     expect(server.calls).toContainEqual({
       method: "POST",
       path: "/api/plan/apply",
@@ -142,11 +143,6 @@ describe("결과 화면 비교 → 적용 (#68, C12a-9-2)", () => {
     const section = screen.getByRole("region", { name: "조건 변경 비교" });
     expect(within(section).queryByRole("table")).toBeNull();
     expect((within(section).getByRole("checkbox", { name: "월 저축액" }) as HTMLInputElement).checked).toBe(false);
-    // 되돌리기 토스트는 적용 응답의 revision을 들고 P-5를 부른다
-    fireEvent.click(screen.getByRole("button", { name: "되돌리기" }));
-    await waitFor(() =>
-      expect(server.calls).toContainEqual({ method: "POST", path: "/api/plan/undo", body: { expectedRevision: 13 } }),
-    );
   });
 
   it("확인창이 떠 있는 동안 배경을 막고 닫으면 풀며 포커스를 적용 버튼으로 돌려준다", async () => {

@@ -189,48 +189,4 @@ describe("직전 계획으로 되돌리기 상시 버튼 (#263, D-095)", () => {
     expect(planStore.getState().revision).toBeNull();
     expect(screen.queryByText("이미 되돌렸어요")).toBeNull();
   });
-
-  describe("적용 직후 토스트와 버튼이 함께 있을 때(수용 기준: 하나로 되돌리면 다른 하나도 사라진다)", () => {
-    /** 월 저축액 50만원으로 비교·적용해 토스트를 띄운다. 적용 뒤 재조회는 undoAvailable: true */
-    async function applyMonthly50() {
-      const section = await screen.findByRole("region", { name: "조건 변경 비교" });
-      fireEvent.click(within(section).getByRole("checkbox", { name: "월 저축액" }));
-      fireEvent.change(within(section).getByRole("textbox", { name: "월 저축액" }), { target: { value: "50" } });
-      fireEvent.click(within(section).getByRole("button", { name: "비교하기" }));
-      const apply = within(section).getByRole("button", { name: "바꾼 조건을 내 계획으로 적용" }) as HTMLButtonElement;
-      await waitFor(() => expect(apply.disabled).toBe(false));
-      fireEvent.click(apply);
-      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "적용하기" }));
-      await screen.findByText("조건을 적용했어요.");
-      await waitFor(() =>
-        expect(within(screen.getByRole("region", { name: "내 계획 조건" })).getByRole("button", { name: BUTTON })).toBeTruthy(),
-      );
-    }
-
-    it("조건 바 버튼으로 되돌리면 토스트도 사라진다", async () => {
-      stubServer([planBody(12, false), planBody(13, true), planBody(14, false)], () => jsonResponse(200, { revision: 14 }));
-      renderResult();
-      await applyMonthly50();
-
-      fireEvent.click(within(await conditionBar()).getByRole("button", { name: BUTTON }));
-
-      await waitFor(() => expect(screen.queryByText("조건을 적용했어요.")).toBeNull());
-      await waitFor(() =>
-        expect(within(screen.getByRole("region", { name: "내 계획 조건" })).queryByRole("button", { name: BUTTON })).toBeNull(),
-      );
-    });
-
-    it("토스트로 되돌리면 재조회 뒤 조건 바 버튼도 사라진다", async () => {
-      stubServer([planBody(12, false), planBody(13, true), planBody(14, false)], () => jsonResponse(200, { revision: 14 }));
-      renderResult();
-      await applyMonthly50();
-
-      fireEvent.click(screen.getByRole("button", { name: "되돌리기" }));
-
-      await waitFor(() => expect(screen.queryByText("조건을 적용했어요.")).toBeNull());
-      await waitFor(() =>
-        expect(within(screen.getByRole("region", { name: "내 계획 조건" })).queryByRole("button", { name: BUTTON })).toBeNull(),
-      );
-    });
-  });
 });

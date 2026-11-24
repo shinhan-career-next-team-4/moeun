@@ -14,7 +14,6 @@ import { INPUT_PATH, LOGIN_PATH, RESULT_PATH } from '../../../app/routes'
 import etf0Mock from '../../../mocks/plan/get-plan.200-etf0.json'
 import exceededMock from '../../../mocks/plan/get-plan.200-exceeded.json'
 import planMock from '../../../mocks/plan/get-plan.200.json'
-import ratio83Mock from '../../../mocks/plan/get-plan.200-ratio83.json'
 import { ResultPage } from '../ResultPage'
 
 function jsonResponse(
@@ -70,7 +69,7 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
         )
     }
 
-    it('CALCULATED 응답이면 조건 바·결과 요약·3구간·그래프·가정·면책을 모두 표시한다', async () => {
+    it('CALCULATED 응답이면 조건 바·결과 요약·3구간·그래프·면책을 표시한다', async () => {
         vi.stubGlobal(
             'fetch',
             vi
@@ -89,7 +88,6 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
     expect(scenarios.textContent).toContain("평균");
     expect(scenarios.textContent).toContain("나빴던 때");
     expect(screen.getByRole("img", { name: "목표 대비 예상 자산" })).toBeTruthy();
-    expect(screen.getByLabelText("계산 가정").textContent).toContain("15.4%");
         // 대화 패널에도 같은 고지가 있어서 페이지 면책(footer)을 짚는다
         const footer = document.querySelector('footer') as HTMLElement
         expect(within(footer).getByText(/실제 수령액이나 수익을 보장하지 않습니다/)).toBeTruthy()
@@ -377,64 +375,13 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
         ).toBeNull()
     })
 
-  // 가정 보기의 비중 안내(#127, CF-08 ②, D-088)
-  it("저장된 비중이 있으면 가정 보기에 금액 없는 비중 안내가 보인다", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, ratio83Mock.responses[0].body)));
-    renderResult();
+    // 결과 화면에서 숨긴 영역(#364): ETF 종목 비교 카드는 대화창 ETF 버튼으로 통합했고, 계산 가정은 보이지 않는다
+    it("ETF 종목 비교 카드와 '계산에 사용한 가정' 영역은 보이지 않는다", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)))
+        renderResult()
 
-    const assumptions = await screen.findByLabelText("계산 가정");
-    expect(assumptions.textContent).toContain("월 저축 가능 금액 전체를 아래 비중대로 나눠 계산했어요");
-    expect(assumptions.textContent).toContain("적금 83 : ETF 17");
-    // 금액(차액)은 쓰지 않는다
-    expect(assumptions.textContent).not.toContain("차액");
-  });
-
-  it("저장된 비중이 없으면 비중 안내가 없다", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
-    renderResult();
-
-    const assumptions = await screen.findByLabelText("계산 가정");
-    expect(assumptions.textContent).not.toContain("월 저축 가능 금액 전체를");
-  });
-
-    // #156 2단계: 그래프 아래의 ETF 종목 비교 입구
-    describe("ETF 종목 비교 영역 (#156)", () => {
-        function withProductName() {
-            const body = structuredClone(planMock.responses[0].body) as {
-                display: Record<string, string>
-            }
-            body.display["assumptions.etfProductName"] = "S&P500 추종 ETF"
-            return body
-        }
-
-        it("3구간 카드(그래프 포함) 바로 다음에 ETF 비교 영역이 온다", async () => {
-            vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, withProductName())))
-            renderResult()
-
-            await screen.findByLabelText("ETF 종목 비교")
-            const labels = [...document.querySelectorAll("section[aria-label]")].map((node) =>
-                node.getAttribute("aria-label"),
-            )
-            expect(labels.indexOf("ETF 종목 비교")).toBe(labels.indexOf("세 가지 경우 비교") + 1)
-        })
-
-        it("3구간 머리글이 display의 종목 이름을 쓴다", async () => {
-            vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, withProductName())))
-            renderResult()
-
-            expect(
-                await screen.findByText(
-                    /기준 종목 S&P500 추종 ETF · 과거 10년 수익률로 1만 가지 경우를 계산해 세 구간/,
-                ),
-            ).toBeTruthy()
-        })
-
-        it("ETF 0% 계획이면 ETF 비교 영역이 없다", async () => {
-            vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, etf0Mock.responses[0].body)))
-            renderResult()
-
-            await screen.findByLabelText("계산 가정")
-            expect(screen.queryByLabelText("ETF 종목 비교")).toBeNull()
-        })
+        await screen.findByLabelText("내 계획 조건")
+        expect(screen.queryByLabelText("ETF 종목 비교")).toBeNull()
+        expect(screen.queryByLabelText("계산 가정")).toBeNull()
     })
 })

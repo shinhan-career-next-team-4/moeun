@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { api, planStore } from "../../api";
 import { resolveApiMode } from "../../api/client";
 import { ApiError } from "../../api/errors";
@@ -11,20 +11,16 @@ import {
   type ApplyOutcome,
   CompareSection,
   ConfirmApplyDialog,
-  EtfCompareSection,
   requestComparison,
   type ComparisonView,
   type ConditionChanges,
-  type EtfApplyRequest,
 } from "../compare";
 import { ProjectionChart, type ProjectionScenario } from "../projection";
-import { AssumptionsSection } from "./AssumptionsSection";
 import { Disclaimer } from "./Disclaimer";
 import { GoalBar } from "./GoalBar";
 import { PlanConditionBar } from "./PlanConditionBar";
 import { ResultLayout } from "./ResultLayout";
 import { ScenarioCards } from "./ScenarioCards";
-import { UndoToast } from "./UndoToast";
 import type { ResultPlanView } from "./types";
 
 const subscribe = (listener: () => void) => planStore.subscribe(listener);
@@ -65,10 +61,6 @@ export function ResultPage() {
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [applyFeedback, setApplyFeedback] = useState<string | null>(null);
   const [resetSeq, setResetSeq] = useState(0);
-  // 되돌리기 토스트(#51). 적용마다 id를 올려 이전 토스트의 늦은 종료가 새 토스트를 닫지 못하게 한다
-  const [undo, setUndo] = useState<{ revision: number; id: number } | null>(null);
-  const undoSeq = useRef(0);
-  const dismissUndo = useCallback(() => setUndo(null), []);
 
   async function compare(changes: ConditionChanges) {
     const comparedAt = planStore.getState().revision;
@@ -140,10 +132,6 @@ export function ResultPage() {
         // 요청 중에 계획 상태가 비워졌으면(다른 계정 로그인 등) 다시 채우지 않는다(대화 적용 onApplied와 같다)
         if (planStore.getState().revision === null) return null;
         planStore.acceptRevision(outcome.revision);
-        if (planStore.getState().revision === outcome.revision) {
-          undoSeq.current += 1;
-          setUndo({ revision: outcome.revision, id: undoSeq.current });
-        }
         planStore.loadPlan({ fresh: true }).catch(() => {});
         return outcome.revision;
       case "planChanged":
@@ -182,24 +170,6 @@ export function ResultPage() {
     );
     setApplying(false);
     settleApply(outcome, confirming, () => setConfirmError(COPY["toast.applyFailed"]));
-  }
-
-  /**
-   * ETF 종목 카드를 누르면 확인창 없이 바로 적용한다(#156, C12a-9-3). 되돌리기 토스트가 안전망이다.
-   * 성공하면 새 revision을 돌려줘 ETF 영역이 '바뀐 조건 vs 이전 조건' 비교를 그 revision에서 보여 준다.
-   */
-  async function applyEtf({ changes, revision: sent }: EtfApplyRequest): Promise<number | null> {
-    if (applying) return null;
-    setApplying(true);
-    setApplyFeedback(null);
-    const outcome = await applyComparison(
-      { request: (method, path, body) => api.request(method, path, body) },
-      { expectedRevision: sent, changes, path: "COMPARE" },
-    );
-    setApplying(false);
-    return settleApply(outcome, { revision: sent, changes, path: "COMPARE" }, () =>
-      setApplyFeedback(COPY["toast.applyFailed"]),
-    );
   }
 
   /** 대안 카드의 '비교하기'. 비교 영역에 조건만 채우고 저장은 하지 않는다(FR-ALT-04, D-046) */
@@ -351,13 +321,6 @@ export function ResultPage() {
                   onSelect={chartScenario ? setPickedScenario : undefined}
                 />
                 {chartScenario && <ProjectionChart data={projection} scenario={chartScenario} startMonth={result.calcStartMonth} />}
-                {/* ETF 종목 비교(#156). 종목을 골라 저장 없이 미리본다. ETF 0%면 스스로 숨는다 */}
-                <EtfCompareSection
-                  currentProductName={display["assumptions.etfProductName"] ?? ""}
-                  currentProductCode={result.assumptions.etfProductCode ?? undefined}
-                  revision={revision}
-                  onApply={applyEtf}
-                />
                 {/* 대안 영역(#67). 기준 시나리오가 미달일 때만 보인다(FR-ALT-01) */}
                 <AlternativeSection
                   isAchieved={(baseline?.isAchieved ?? false) || alternatives?.hasAlternatives === false}
@@ -392,11 +355,6 @@ export function ResultPage() {
             )}
           </div>
         </ResultLayout>
-        <AssumptionsSection
-          assumptions={result.assumptions}
-          display={display}
-          planSavingsRatioPct={data.plan.savingsRatioPct}
-        />
         <Disclaimer />
       </div>
       {confirming !== null && (
@@ -408,7 +366,6 @@ export function ResultPage() {
           onConfirm={() => void confirmApply()}
         />
       )}
-      <UndoToast key={undo?.id ?? 0} appliedRevision={undo?.revision ?? null} onDismiss={dismissUndo} onFeedback={setApplyFeedback} />
     </>
   );
 }
