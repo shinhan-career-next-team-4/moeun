@@ -75,6 +75,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
     testImplementation 'org.springframework.modulith:spring-modulith-starter-test'
     testImplementation 'org.springframework.modulith:spring-modulith-docs'
+    testImplementation 'com.tngtech.archunit:archunit:1.4.2'   // 모듈 내부 책임 검사(ARCHITECTURE.md). Modulith가 쓰는 판과 같다
     testImplementation 'org.springframework.boot:spring-boot-starter-restdocs'
     testImplementation 'org.springframework.restdocs:spring-restdocs-mockmvc'
     testImplementation 'com.epages:restdocs-api-spec-mockmvc:0.20.2'
