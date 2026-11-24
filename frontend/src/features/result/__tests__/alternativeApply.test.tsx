@@ -128,7 +128,8 @@ describe("결과 화면 대안 카드 (#258, A-1, D-096)", () => {
     );
     fireEvent.click(within(dialog).getByRole("button", { name: "적용하기" }));
 
-    await screen.findByText("조건을 적용했어요.");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.queryByText("조건을 적용했어요.")).toBeNull();
     expect(server.calls).toContainEqual({
       method: "POST",
       path: "/api/plan/apply",
