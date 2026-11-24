@@ -998,7 +998,9 @@ record PlanUndoResult(long planVersionId, long revision) {}
 | `citations[].sourceUrl` | string | |
 | `citations[].orgName` | string | 운용사·기관명 |
 | `createdAt` | string | ISO-8601 |
+| `etfIncluded` | boolean (선택) | **#305.** `status=COMPLETED`이고 `messageType=EXPLANATION`인 메시지에만 있다. 그 설명의 계산 기록(`calc_run`)이 ETF를 썼는지(`sp500_version_id`가 있음). 나머지 메시지에는 **키가 없다** |
 
+- **`etfIncluded`를 두는 이유(#305)**: 결과 설명의 ETF 위험 설명(#283)은 그 설명이 나온 계산을 기준으로 보이거나 숨는다. 대화로 비중을 바꿔 적용해도 앞선 설명은 그대로다. 프론트는 이 값이 있으면 이것만 보고, 없으면(이 변경 전 서버) 현재 계획의 `assumptions.savingsRatioPct`로 판단한다. `calcRunId`는 내보내지 않는다.
 - **`conditionChanges`·`citations[].rank`는 응답에 넣지 않는다.** 왜: 카드는 F-4의 `conditions`·`changedKeys`를 쓰고, 순위는 배열 순서로 충분하다. ai-server 키 표기 문제(C12b-14)가 프론트에 새지 않는다.
 - **PENDING 행의 DB 값(구현 고정)**: 질문 답변 대기(F-1이 만든 ASSISTANT PENDING)는 `message_type='ANSWER'`, 설명 대기(F-3)는 `message_type='EXPLANATION'`. 왜: `ANSWER_PENDING` 판정(C12b-4)과 `answerPending`(C12b-5)을 같은 조건 `status='PENDING' AND message_type='ANSWER'` 하나로 만든다. 화면에는 PENDING의 `messageType`을 `null`로 가린다. 프론트가 "질문 대기인가"를 알아야 할 때는 F-2의 `answerPending`을 본다.
 - `FAILED`는 항상 `messageType=FAILURE`. 실패 이유 코드는 로그에만.
