@@ -23,7 +23,7 @@ export interface AlternativeValues {
   badAfterTaxAsset?: string;
   /** 허용 범위 안에서 목표를 달성하는 값을 찾지 못했다(#343). 카드는 '달성이 어려워요' 안내만 보이고 버튼은 막힌다 */
   unreachable?: boolean;
-  /** 이 대안으로 기준 시나리오(평균)가 목표를 달성한다(서버 판정, #352). 예상 자산·목표 대비 줄을 파랗게 보인다 */
+  /** 이 대안으로 기준 시나리오(평균)가 목표를 달성한다(서버 판정, #352). 예상 자산·목표 대비 줄을 초록으로 보인다 */
   achieved?: boolean;
   /** 서버가 변동이 커진다고 알려 준 대안(W-10). 판정은 화면이 하지 않는다 */
   volatilityWarning?: boolean;

@@ -47,7 +47,7 @@ describe("대안 영역 (#67, FR-ALT-01·02)", () => {
     expect(screen.queryByLabelText("원하는 기한(개월)")).toBeNull();
   });
 
-  it("달성하는 대안은 예상 자산·목표 대비 줄이 파랗고, 아니면 기본색이다(#352)", () => {
+  it("달성하는 대안은 예상 자산·목표 대비 줄이 초록이고, 아니면 기본색이다(#352)", () => {
     render(
       <AlternativeSection
         isAchieved={false}
@@ -58,10 +58,10 @@ describe("대안 영역 (#67, FR-ALT-01·02)", () => {
       />,
     );
 
-    expect(screen.getByText("약 10,015만원").className).toContain("text-primary");
-    expect(screen.getByText("+약 15만원 달성").className).toContain("text-primary");
-    expect(screen.getByText("약 9,000만원").className).not.toContain("text-primary");
-    expect(screen.getByText("-약 1,000만원 미달").className).not.toContain("text-primary");
+    expect(screen.getByText("약 10,015만원").className).toContain("text-success");
+    expect(screen.getByText("+약 15만원 달성").className).toContain("text-success");
+    expect(screen.getByText("약 9,000만원").className).not.toContain("text-success");
+    expect(screen.getByText("-약 1,000만원 미달").className).not.toContain("text-success");
   });
 
   it("서버가 준 값이 있으면 카드 본문 줄을 display 문자열 그대로 보여 준다", () => {
