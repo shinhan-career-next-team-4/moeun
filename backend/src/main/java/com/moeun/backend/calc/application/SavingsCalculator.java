@@ -37,6 +37,11 @@ final class SavingsCalculator {
         return monthlyInterestUnit;
     }
 
+    /** k번 납입한 적금 원금(Ms × k). */
+    BigDecimal paidIn(int paymentCount) {
+        return monthlyDeposit.multiply(BigDecimal.valueOf(paymentCount));
+    }
+
     /**
      * k번 납입하고 k개월이 지난 시점의 세후 적금 평가액. 반올림하지 않은 값이다.
      *

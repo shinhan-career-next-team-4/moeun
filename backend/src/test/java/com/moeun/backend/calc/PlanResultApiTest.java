@@ -146,7 +146,8 @@ class PlanResultApiTest {
         assertThat(body.get("plan").get("savingsRatioPct").isNull()).isTrue();
         assertThat(body.get("plan").get("etfProductCode").asString()).isEqualTo("SP500");   // 새 계획은 대표 상품(#154)
         assertThat(body.get("result").propertyNames()).containsExactlyInAnyOrder("status", "goalAmount",
-                "calcStartMonth", "targetMonth", "scenarios", "principalPoints", "monthlyDetails", "assumptions");
+                "calcStartMonth", "targetMonth", "scenarios", "principalPoints", "monthlyDetails",
+                "projection", "assumptions");
         JsonNode scenario = body.get("result").get("scenarios").get(0);
         assertThat(scenario.has("annualReturnPct")).isFalse();
         assertThat(scenario.has("goalReachMonth")).isTrue();
@@ -176,6 +177,31 @@ class PlanResultApiTest {
         assertThat(points.get(36).get("principal").asLong()).isEqualTo(held + monthly * 36);
         assertThat(points.get(36).get("principal").asLong())
                 .isEqualTo(body.get("result").get("scenarios").get(0).get("principal").asLong());
+    }
+
+    @Test
+    @DisplayName("projection은 시나리오마다 1~N개월 층(원금·적금이자·ETF손익)을 담고 합이 엔진 세후 자산과 같다(#315)")
+    void projectionSplitsEnginePoints() throws Exception {
+        JsonNode body = readBody(putPlan(request()).andExpect(status().isOk()));
+        CurrentPlanResult engineResult = transactions.execute(status ->
+                resultService.findForCurrentPlan(memberId).orElseThrow());
+
+        JsonNode projection = body.get("result").get("projection");
+        for (ScenarioResult scenario : engineResult.result().scenarios()) {
+            JsonNode points = projection.get(scenario.scenario().name());
+            List<MonthlyPoint> enginePoints = scenario.monthlyPoints();
+            assertThat(points).hasSize(enginePoints.size() - 1);
+            for (int month = 1; month < enginePoints.size(); month++) {
+                JsonNode point = points.get(month - 1);
+                assertThat(point.get("month").asInt()).isEqualTo(month);
+                assertThat(point.get("principal").asLong()).isEqualTo(enginePoints.get(month).principal());
+                assertThat(point.get("total").asLong()).isEqualTo(enginePoints.get(month).afterTaxAsset());
+                assertThat(point.get("principal").asLong() + point.get("savingsInterest").asLong()
+                        + point.get("etfGain").asLong()).isEqualTo(point.get("total").asLong());
+                assertThat(point.get("profit").asLong())
+                        .isEqualTo(point.get("savingsInterest").asLong() + point.get("etfGain").asLong());
+            }
+        }
     }
 
     @Test

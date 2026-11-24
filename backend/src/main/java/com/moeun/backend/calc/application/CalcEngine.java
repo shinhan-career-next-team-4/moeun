@@ -123,7 +123,7 @@ public class CalcEngine {
         for (int k = 0; k <= input.targetPeriodMonths(); k++) {
             totals.add(heldAssets.add(savings.valueAt(k)));
         }
-        return ScenarioResults.create(Scenario.AVG, input.goalAmount(), createMonthlyPoints(input, totals));
+        return ScenarioResults.create(Scenario.AVG, input.goalAmount(), createMonthlyPoints(input, totals, savings));
     }
 
     private static List<ScenarioResult> calculateEtfScenarios(CalcInput input, CalcParams params, EtfSeries sp500,
@@ -147,7 +147,8 @@ public class CalcEngine {
                 case AVG -> series.average();
                 case BAD -> series.bad();
             };
-            results.add(ScenarioResults.create(scenario, input.goalAmount(), createMonthlyPoints(input, totals)));
+            results.add(ScenarioResults.create(scenario, input.goalAmount(),
+                    createMonthlyPoints(input, totals, savings)));
         }
         return results;
     }
@@ -156,11 +157,16 @@ public class CalcEngine {
      * k = 0 … N의 월별 점(calc-spec 4절). 첫 점은 납입 전 출발점(보유 자산, 운용 수익 없음 CP-03)이고,
      * k번째 점은 k번째 납입과 그 달 운용 뒤의 값이다. 금액은 여기서 한 번만 원 단위로 반올림한다.
      */
-    private static List<MonthlyPoint> createMonthlyPoints(CalcInput input, List<BigDecimal> totals) {
+    private static List<MonthlyPoint> createMonthlyPoints(CalcInput input, List<BigDecimal> totals,
+            SavingsCalculator savings) {
         List<MonthlyPoint> points = new ArrayList<>(totals.size());
         for (int k = 0; k < totals.size(); k++) {
             long principal = input.heldAssets() + input.monthlySavingAmount() * k;
-            points.add(new MonthlyPoint(input.calcStartMonth().plusMonths(k), principal, toWon(totals.get(k))));
+            // 적금 이자 = 적금 세후 평가액 − 적금에 넣은 원금. 이 점에서 한 번만 원 단위로 반올림한다
+            long savingsPaidIn = toWon(savings.paidIn(k));
+            long savingsInterest = toWon(savings.valueAt(k)) - savingsPaidIn;
+            points.add(new MonthlyPoint(input.calcStartMonth().plusMonths(k), principal, toWon(totals.get(k)),
+                    savingsInterest));
         }
         return points;
     }
