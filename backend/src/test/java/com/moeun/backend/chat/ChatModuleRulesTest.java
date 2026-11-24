@@ -28,7 +28,9 @@ import org.springframework.core.io.ClassPathResource;
  */
 class ChatModuleRulesTest {
 
-    private static final Set<String> CHAT_DEPENDENCIES = Set.of("calc", "rag", "plan", "auth", "config :: copy");
+    /** calc는 역할별 named interface로만 쓴다(#311). */
+    private static final Set<String> CHAT_DEPENDENCIES = Set.of("calc :: plan-context", "calc :: chat-comparison",
+            "calc :: calc-run-etf", "rag", "plan", "auth", "config :: copy");
 
     private static String read(String path) throws IOException {
         return Files.readString(Path.of(path), StandardCharsets.UTF_8);
