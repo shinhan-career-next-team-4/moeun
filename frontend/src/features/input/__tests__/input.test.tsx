@@ -37,7 +37,7 @@ describe("PlanInputPage (#48, C12a-5)", () => {
     );
   }
 
-  it("409 NO_PLAN이면 빈 입력 화면이 열리고 보유 자산은 0으로 시작하며 CUSTOM은 숨긴다", async () => {
+  it("409 NO_PLAN이면 빈 입력 화면이 열리고 보유 자산은 0으로 시작하고 직접 입력 칸은 목표를 고르기 전에는 없다", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(jsonResponse(409, { code: "NO_PLAN", errors: [] }, "application/problem+json")),
@@ -45,7 +45,8 @@ describe("PlanInputPage (#48, C12a-5)", () => {
     renderInput();
 
     expect(await screen.findByText("어떤 목돈을 모으고 싶으세요?")).toBeTruthy();
-    expect(screen.queryByRole("radio", { name: "직접 입력" })).toBeNull();
+    expect(screen.getByRole("radio", { name: "직접 입력" })).toBeTruthy();
+    expect(screen.queryByLabelText(/목표 이름/)).toBeNull();
     expect((screen.getByLabelText(/지금 이 목표에 쓸 수 있는 돈/) as HTMLInputElement).value).toBe("0");
     expect((screen.getByLabelText(/목표 금액/) as HTMLInputElement).value).toBe("");
 
@@ -280,6 +281,71 @@ describe("PlanInputPage (#48, C12a-5)", () => {
       savingsRateInputPct: null,
       savingsRatioPct: null,
     });
+  });
+
+  it("직접 입력을 고르면 목표 이름 칸이 나오고, 저장 요청에 CUSTOM과 trim한 이름이 실린다", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(409, { code: "NO_PLAN", errors: [] }, "application/problem+json"))
+      .mockResolvedValueOnce(
+        jsonResponse(200, { revision: 12, calcRunId: 540, result: { status: "CALCULATED" } }),
+      );
+    vi.stubGlobal("fetch", fetchSpy);
+    renderInput();
+    await screen.findByText("어떤 목돈을 모으고 싶으세요?");
+
+    fireEvent.click(screen.getByRole("radio", { name: "직접 입력" }));
+    fireEvent.change(screen.getByLabelText(/목표 이름/), { target: { value: "  내 가게 보증금  " } });
+    fireEvent.change(screen.getByLabelText(/목표 금액/), { target: { value: "2000" } });
+    fireEvent.change(screen.getByLabelText("년"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText(/월 저축 가능 금액/), { target: { value: "34.5" } });
+    fireEvent.click(screen.getByRole("button", { name: "결과 보기" }));
+
+    await waitFor(() => expect(screen.getByText("결과화면")).toBeTruthy());
+    const body = JSON.parse(fetchSpy.mock.calls[1][1].body as string);
+    expect(body.goalType).toBe("CUSTOM");
+    expect(body.goalCustomName).toBe("내 가게 보증금");
+  });
+
+  it("직접 입력인데 목표 이름이 비어 있으면 저장하지 않고 필수 안내를 보인다", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(409, { code: "NO_PLAN", errors: [] }, "application/problem+json"));
+    vi.stubGlobal("fetch", fetchSpy);
+    renderInput();
+    await screen.findByText("어떤 목돈을 모으고 싶으세요?");
+
+    fireEvent.click(screen.getByRole("radio", { name: "직접 입력" }));
+    fireEvent.change(screen.getByLabelText(/목표 이름/), { target: { value: "   " } });
+    fireEvent.click(screen.getByRole("button", { name: "결과 보기" }));
+
+    expect(screen.getByLabelText(/목표 이름/).getAttribute("aria-invalid")).toBe("true");
+    expect(fetchSpy).toHaveBeenCalledTimes(1); // 계획 조회만, PUT 없음
+  });
+
+  it("다른 목표 종류로 저장하면 goalCustomName은 null이다", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(409, { code: "NO_PLAN", errors: [] }, "application/problem+json"))
+      .mockResolvedValueOnce(
+        jsonResponse(200, { revision: 12, calcRunId: 540, result: { status: "CALCULATED" } }),
+      );
+    vi.stubGlobal("fetch", fetchSpy);
+    renderInput();
+    await screen.findByText("어떤 목돈을 모으고 싶으세요?");
+
+    fireEvent.click(screen.getByRole("radio", { name: "직접 입력" }));
+    fireEvent.change(screen.getByLabelText(/목표 이름/), { target: { value: "임시 이름" } });
+    fireEvent.click(screen.getByRole("radio", { name: "자동차" }));
+    fireEvent.change(screen.getByLabelText(/목표 금액/), { target: { value: "2000" } });
+    fireEvent.change(screen.getByLabelText("년"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText(/월 저축 가능 금액/), { target: { value: "34.5" } });
+    fireEvent.click(screen.getByRole("button", { name: "결과 보기" }));
+
+    await waitFor(() => expect(screen.getByText("결과화면")).toBeTruthy());
+    const body = JSON.parse(fetchSpy.mock.calls[1][1].body as string);
+    expect(body.goalType).toBe("CAR");
+    expect(body.goalCustomName).toBeNull();
   });
 
   it("422 VALIDATION_FAILED 응답의 min·max·unit을 문구로 바꿔 표시한다", async () => {

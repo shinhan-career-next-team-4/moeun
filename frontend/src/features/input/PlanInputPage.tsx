@@ -22,6 +22,7 @@ import { GOAL_TYPES, type FormErrors, type FormField, type GoalType, type PlanFo
 
 const FIELD_ELEMENT_ID: Record<FormField, string> = {
   goalType: "goalType-group",
+  goalCustomName: "goalCustomName",
   goalAmount: "goalAmount",
   targetPeriodMonths: "periodYears",
   heldAssets: "heldAssets",
@@ -29,6 +30,9 @@ const FIELD_ELEMENT_ID: Record<FormField, string> = {
   savingsRateInputPct: "savingsRateInputPct",
   existingSaving: "existingSavingBank",
 };
+
+/** 목표 이름 최대 글자 수(D-074). 넘는 값은 서버가 OUT_OF_RANGE로 거절한다. */
+const GOAL_NAME_MAX_LENGTH = 100;
 
 const GOAL_OPTIONS = GOAL_TYPES.map((code) => ({ value: code, label: goalLabel(code) }));
 
@@ -216,6 +220,31 @@ export function PlanInputPage() {
             <FieldError id="goalType-error" message={errors.goalType} />
           ) : (
             <p className="text-xs text-text-muted">목표는 1개만 선택할 수 있어요</p>
+          )}
+          {form.goalType === "CUSTOM" && (
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="goalCustomName" className="text-sm font-medium text-text">
+                목표 이름
+                <span aria-hidden className="ml-0.5 text-danger">
+                  *
+                </span>
+              </label>
+              <input
+                id="goalCustomName"
+                type="text"
+                value={form.goalCustomName}
+                maxLength={GOAL_NAME_MAX_LENGTH}
+                placeholder="예: 내 가게 보증금"
+                aria-required
+                aria-invalid={errors.goalCustomName ? true : undefined}
+                aria-describedby={errors.goalCustomName ? "goalCustomName-error" : undefined}
+                onChange={(event) => update({ goalCustomName: event.target.value })}
+                className={`h-11 w-full rounded-lg border bg-surface px-3 text-base text-text outline-none placeholder:text-text-muted focus-visible:outline-2 focus-visible:outline-primary ${
+                  errors.goalCustomName ? "border-danger" : "border-border"
+                }`}
+              />
+              {errors.goalCustomName && <FieldError id="goalCustomName-error" message={errors.goalCustomName} />}
+            </div>
           )}
         </FormCard>
 
