@@ -39,6 +39,38 @@ describe("예상 자산 그래프 데모 라우트", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("길이를 비교하도록 새 길이(420px) 그래프 아래에 기존 길이(300px) 그래프가 하나 더 있다", () => {
+    renderAt(PROJECTION_DEMO_PATH);
+
+    const tall = screen.getByRole("group", { name: "예상 자산 누적 그래프" });
+    const old = screen.getByRole("group", { name: "예상 자산 누적 그래프(기존 길이)" });
+    expect(tall.querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 640 420");
+    expect(old.querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 640 300");
+    expect(screen.getByText("새 길이 (세로 420px)")).toBeTruthy();
+    expect(screen.getByText("기존 길이 (세로 300px)")).toBeTruthy();
+    expect(tall.compareDocumentPosition(old) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("두 그래프는 같은 카드·월별/연별 선택을 따른다", () => {
+    renderAt(PROJECTION_DEMO_PATH);
+
+    fireEvent.click(screen.getByRole("radio", { name: "연별" }));
+    for (const name of ["예상 자산 누적 그래프", "예상 자산 누적 그래프(기존 길이)"]) {
+      const graph = screen.getByRole("group", { name });
+      fireEvent.keyDown(graph, { key: "End" });
+      fireEvent.keyDown(graph, { key: "ArrowLeft" });
+      expect(within(screen.getByRole("tooltip")).getByText("9년")).toBeTruthy();
+      fireEvent.keyDown(graph, { key: "Escape" });
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: /좋았던 때/ }));
+    const legends = screen.getAllByRole("list", { name: "범례" });
+    expect(legends).toHaveLength(2);
+    for (const legend of legends) {
+      expect(within(legend).getByText(`ETF 수익 ${formatMoneyShort(MOCK_PROJECTION.GOOD[119].etfGain)}`)).toBeTruthy();
+    }
+  });
+
   it("'10년 뒤 예상 자산' 결론 숫자 블록은 없다", () => {
     renderAt(PROJECTION_DEMO_PATH);
 
@@ -71,7 +103,7 @@ describe("예상 자산 그래프 데모 라우트", () => {
     renderAt(PROJECTION_DEMO_PATH);
 
     expect(screen.getByRole("button", { name: /평균/ }).getAttribute("aria-pressed")).toBe("true");
-    const legend = screen.getByRole("list", { name: "범례" });
+    const legend = screen.getAllByRole("list", { name: "범례" })[0];
     expect(within(legend).getByText(`ETF 수익 ${formatMoneyShort(MOCK_PROJECTION.AVG[119].etfGain)}`)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /좋았던 때/ }));

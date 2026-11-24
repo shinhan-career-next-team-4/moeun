@@ -178,6 +178,9 @@ export const COPY = {
   "projection.chartLabel": "예상 자산 누적 그래프",
   "projection.notice": "예상치이며 실제 수익을 보장하지 않습니다.",
   "projection.demoTitle": "예상 자산 그래프 데모",
+  "projection.demoCompareNew": "새 길이 (세로 420px)",
+  "projection.demoCompareOld": "기존 길이 (세로 300px)",
+  "projection.demoOldChartLabel": "예상 자산 누적 그래프(기존 길이)",
   "projection.demoNotice": "mock 데이터로 그린 화면입니다. 서버 연동 전 확인용이에요.",
 } as const satisfies Record<string, string>;
 

@@ -27,6 +27,8 @@ export interface AreaChartProps {
   /** 이 값이 바뀌면 그래프가 왼쪽에서 오른쪽으로 처음부터 다시 차오른다. */
   revealKey: string;
   ariaLabel: string;
+  /** 이전(낮은) 길이로 그린다. 새 길이와 비교해 보는 데모용이다. */
+  compact?: boolean;
 }
 
 /**
@@ -35,11 +37,11 @@ export interface AreaChartProps {
  *
  * 겹쳐 놓은 층 세 장: ① 축·격자(가만히 있음) ② 영역(차오르는 애니메이션) ③ 안내선·점(툴팁용)
  */
-export function AreaChart({ points, monthRange, maxValue, revealKey, ariaLabel }: AreaChartProps) {
+export function AreaChart({ points, monthRange, maxValue, revealKey, ariaLabel, compact = false }: AreaChartProps) {
   const [wrapRef, width] = useElementWidth<HTMLDivElement>(FALLBACK_WIDTH);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
-  const layout = chartLayout(width);
+  const layout = chartLayout(width, compact);
   const ticks = niceTicks(maxValue);
   const top = ticks[ticks.length - 1];
   const toX = (month: number) => monthToX(month, monthRange, layout);

@@ -163,7 +163,19 @@ describe("누적 영역 그래프 AreaChart (#298)", () => {
 
     const svg = chart.querySelector("svg");
     expect(svg?.getAttribute("width")).toBe("360");
-    expect(svg?.getAttribute("viewBox")).toBe("0 0 360 240");
+    expect(svg?.getAttribute("viewBox")).toBe("0 0 360 300");
+  });
+
+  it("compact를 주면 기존 길이(세로 300px)로 그린다", () => {
+    const { chart } = renderChart({ compact: true });
+
+    expect(chart.querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 640 300");
+  });
+
+  it("compact가 없으면 새 길이(세로 420px)로 그린다", () => {
+    const { chart } = renderChart();
+
+    expect(chart.querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 640 420");
   });
 
   it("좁은 화면에서는 가로축 라벨이 서로 겹치지 않게 2년 간격으로 솎는다", () => {

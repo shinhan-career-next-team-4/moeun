@@ -14,13 +14,17 @@ export interface ProjectionChartProps {
   scenario: ProjectionScenario;
   /** 월별이면 매달, 연별이면 첫 점과 12개월마다의 점. 카드 아래 줄의 토글(`ProjectionUnitToggle`)이 고른다. */
   unit: ProjectionUnit;
+  /** 이전(낮은) 길이로 그린다. 새 길이와 비교해 보는 데모용이다. */
+  compact?: boolean;
+  /** 그래프의 접근성 이름. 한 화면에 그래프가 둘 이상일 때 구분하려고 바꾼다. */
+  ariaLabel?: string;
 }
 
 /**
  * 누적 그래프 화면(#298): 범례(항목 옆 최종 금액), 그래프, 안내 문구.
  * 시나리오와 월별/연별은 바깥에서 고르고, 이 화면은 받은 data에서 점을 고르기만 한다.
  */
-export function ProjectionChart({ data, scenario, unit }: ProjectionChartProps) {
+export function ProjectionChart({ data, scenario, unit, compact = false, ariaLabel }: ProjectionChartProps) {
   const monthly = data[scenario];
   if (monthly.length === 0) return null;
 
@@ -49,7 +53,8 @@ export function ProjectionChart({ data, scenario, unit }: ProjectionChartProps) 
         monthRange={monthRange}
         maxValue={maxValue}
         revealKey={scenario}
-        ariaLabel={COPY["projection.chartLabel"]}
+        ariaLabel={ariaLabel ?? COPY["projection.chartLabel"]}
+        compact={compact}
       />
 
       <p className="text-xs text-text-muted">{COPY["projection.notice"]}</p>

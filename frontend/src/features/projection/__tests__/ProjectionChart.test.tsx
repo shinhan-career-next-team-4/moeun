@@ -103,6 +103,13 @@ describe("예상 자산 누적 그래프 화면 ProjectionChart (#298)", () => {
     expect(chart().compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("compact와 ariaLabel을 그래프에 넘긴다(길이 비교용)", () => {
+    render(<ProjectionChart data={MOCK_PROJECTION} scenario="AVG" unit="monthly" compact ariaLabel="기존 길이 그래프" />);
+
+    const compact = screen.getByRole("group", { name: "기존 길이 그래프" });
+    expect(compact.querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 640 300");
+  });
+
   it("데이터가 비어 있으면 아무것도 그리지 않는다", () => {
     const { container } = render(<ProjectionChart data={{ GOOD: [], AVG: [], BAD: [] }} scenario="AVG" unit="monthly" />);
 
