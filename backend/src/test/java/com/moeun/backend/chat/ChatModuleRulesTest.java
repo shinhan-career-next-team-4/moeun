@@ -44,9 +44,9 @@ class ChatModuleRulesTest {
                 .collect(Collectors.toSet());
     }
 
-    /** backend/CLAUDE.md 모듈 표에서 그 모듈 행의 '의존 가능' 칸. "—"는 빈 집합. */
+    /** backend/ARCHITECTURE.md 모듈 표(#308에서 CLAUDE.md에서 옮김)에서 그 모듈 행의 '의존 가능' 칸. "—"는 빈 집합. */
     private static Set<String> documentedDependencies(String module) throws IOException {
-        for (String line : read("CLAUDE.md").lines().toList()) {
+        for (String line : read("ARCHITECTURE.md").lines().toList()) {
             List<String> cells = Arrays.stream(line.split("\\|")).map(String::trim).toList();
             if (cells.size() >= 5 && cells.get(1).equals("`" + module + "`")) {
                 return Arrays.stream(cells.get(4).split(","))
@@ -55,7 +55,7 @@ class ChatModuleRulesTest {
                         .collect(Collectors.toSet());
             }
         }
-        throw new AssertionError("CLAUDE.md 모듈 표에 " + module + " 행이 없어요");
+        throw new AssertionError("ARCHITECTURE.md 모듈 표에 " + module + " 행이 없어요");
     }
 
     private static Binder applicationYaml() throws IOException {
