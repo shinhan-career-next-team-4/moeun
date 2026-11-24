@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent, type PointerEvent } from "react";
 import { COPY } from "../../shared/copy/copy";
-import { niceTicks, yearTickMonths } from "./axis";
+import { niceTicks, axisTickMonths } from "./axis";
 import { formatMoneyShort } from "./formatMoney";
 import { LAYERS } from "./layers";
 import { chartLayout, monthToX, valueToY, type MonthRange } from "./layout";
@@ -54,7 +54,7 @@ export function AreaChart({ points, monthRange, maxValue, revealKey, ariaLabel }
   ];
 
   const active = activeIndex === null ? null : points[activeIndex];
-  const xTicks = yearTickMonths(monthRange.max, Math.floor(layout.plotW / X_LABEL_GAP)).filter((month) => month >= monthRange.min);
+  const xTicks = axisTickMonths(monthRange.max, Math.floor(layout.plotW / X_LABEL_GAP)).filter((month) => month >= monthRange.min);
 
   function nearestIndex(clientX: number): number {
     const left = wrapRef.current?.getBoundingClientRect().left ?? 0;
@@ -134,7 +134,7 @@ export function AreaChart({ points, monthRange, maxValue, revealKey, ariaLabel }
         ))}
         {xTicks.map((month) => (
           <text key={month} data-axis="x" x={toX(month)} y={layout.height - 8} textAnchor="middle" fontSize="11" fill={AXIS_COLOR}>
-            {COPY["projection.axisYear"].replace("{n}", String(month / 12))}
+            {formatPeriod(month)}
           </text>
         ))}
       </svg>
