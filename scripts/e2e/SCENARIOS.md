@@ -55,7 +55,7 @@ P02·P03·P15 계획에서 6가지 질문(월 저축 절대값, "매달 백만 �
 | S8-4 | 적금 금리·월 저축액·세율 조회 | ANSWER, 본문 2문장 이하, 세금 안내 없음 | #229, #233 |
 | S8-5 | 월 저축액·목표 금액·기간 변경 | RECALC_RESULT, 본문 3문장 이하(서버 안내 문장 제외), 세금 안내 없음 | #229, #233 |
 | S8-6 | 나스닥100·코스피200 ETF 위험 | ANSWER, 출처 있음(공시 4건 적재 필요) | #181 |
-| S8-7 | "ETF를 나스닥으로 바꾸고 싶어" | RECALC_RESULT, F-4 `conditions.changed.etfProductCode`=133690, `applicable=false`(#154 전), 3문장 이하 | #267, #268, D-097 |
+| S8-7 | "ETF를 나스닥으로 바꾸고 싶어" | RECALC_RESULT, F-4 `conditions.changed.etfProductCode`=133690, `applicable=true`, 3문장 이하, F-5 적용 뒤 계획 종목 133690 | #267, #154, D-097 |
 | S8-8a | "목표금액 얼마로 해뒀지?" → "1억으로 바꿀게" | 첫 답 ANSWER, 둘째 답 RECALC_RESULT(목표 금액 1억) | #239 |
 | S8-8b | "1억으로 바꿀게"(대화 첫 발화) → "목표 금액" | 첫 답 CLARIFY(보유 자산 선택지 없음), 둘째 답 RECALC_RESULT(목표 금액 1억) | #239, D-090 |
 | S8-8c | "목표 금액을 바꿔 보고 싶어요" → "1억 2천" | 첫 답 CLARIFY, 둘째 답 RECALC_RESULT(목표 금액 1억 2천만) | #236, #239 |

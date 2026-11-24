@@ -14,7 +14,7 @@ import re
 
 import pytest
 
-from conftest import ask, expect, explain, save_plan_ok
+from conftest import ask, current_view, expect, explain, save_plan_ok
 from oracle import unknown_numbers
 
 pytestmark = [pytest.mark.ai, pytest.mark.usefixtures("ai_ready")]
@@ -221,15 +221,24 @@ def test_s8_6_other_etf_risk_has_sources(api, fresh, q):
 
 
 def test_s8_7_etf_product_change_is_recalculated(api, fresh):
-    """대화로 종목을 바꾼다(D-097, #267). 계획(S&P500)과 다른 종목으로 계산하고, #154 전까지는 적용할 수 없다(#268)."""
+    """대화로 종목을 바꾼다(D-097, #267). 계획(S&P500)과 다른 종목으로 계산하고, 그 비교를 계획에 적용할 수 있다(#154)."""
     msg = ask(api, "ETF를 나스닥으로 바꾸고 싶어")
     assert msg["messageType"] == "RECALC_RESULT", f"종목 변경을 계산하지 않음: {msg['content']}"
     cmp = comparison(api, msg["id"])
     assert cmp["conditions"]["changed"].get("etfProductCode") == "133690", cmp["conditions"]
-    assert cmp["applicable"] is False, "종목을 바꾼 비교는 #154 전까지 적용 불가(#268)"
+    assert cmp["applicable"] is True, "종목을 바꾼 비교는 계획에 적용할 수 있다(#154)"
     assert "추천" not in msg["content"], msg["content"]
     assert len(body_sentences(msg["content"])) <= 3, msg["content"]
     assert_no_notice(msg)
+
+    # F-5로 적용하면 계획 종목이 바뀐다(#154). 입력 저장(fresh)은 종목을 되돌리지 않으므로 다음 테스트를 위해 되돌린다
+    rev = fresh["revision"]
+    applied = expect(api.post(f"/api/chat/messages/{msg['id']}/apply", json={"expectedRevision": rev}), 200)
+    try:
+        assert applied["revision"] == rev + 1
+        assert current_view(api)["plan"]["etfProductCode"] == "133690"
+    finally:
+        expect(api.post("/api/plan/undo", json={"expectedRevision": applied["revision"]}), 200)
 
 
 # ---------- S8-11 대화로 종목 바꾸기 (D-097, #267) ----------
