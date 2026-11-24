@@ -1,6 +1,6 @@
 # moeun backend
 
-Spring Boot 서버. 계산 엔진, 계획 저장·적용·되돌리기, 로그인, 대화 저장과 ai-server 호출을 맡는다. 구조와 규칙은 [CLAUDE.md](CLAUDE.md).
+Spring Boot 서버. 계산 엔진, 계획 저장·적용·되돌리기, 로그인, 대화 저장과 ai-server 호출을 맡는다. 구조는 [ARCHITECTURE.md](ARCHITECTURE.md), 작업 규칙은 [CLAUDE.md](CLAUDE.md).
 
 ## 로컬 실행
 
@@ -68,7 +68,7 @@ Docker가 켜져 있어야 한다(Testcontainers가 pgvector DB를 띄운다).
 ```bash
 cd backend
 ./gradlew checkstyleMain checkstyleTest test     # 전체(몇 분)
-./gradlew test --tests ModularityTests           # 모듈 경계만(빠름, Docker 불필요)
+./gradlew test --tests ModularityTests --tests ArchitectureTests   # 모듈 경계·내부 책임만(빠름, Docker 불필요)
 ./gradlew openapi3                               # API 문서 → build/api-spec/openapi3.yaml
 ```
 
