@@ -59,17 +59,17 @@ describe("결과 화면의 면책·과거 수익률 고지 (#59)", () => {
   });
 
   describe.each(STATES)("$name", ({ body, hasScenarios }) => {
-    it("면책 문구가 화면 맨 아래에 있다", async () => {
+    it("면책 문구가 본문 맨 아래 문단으로 한 번 있고, footer 영역은 없다", async () => {
       await renderResult(body);
 
-      const footers = document.querySelectorAll("footer");
-      expect(footers).toHaveLength(1);
-      const footer = footers[0];
-      expect(footer.textContent).toContain(DISCLAIMER_PHRASE);
-      // 페이지 본문 컨테이너의 마지막 자식이고, 다른 모든 구역보다 뒤에 있다
-      expect(footer.nextElementSibling).toBeNull();
+      expect(document.querySelectorAll("footer")).toHaveLength(0);
+      const disclaimers = screen.getAllByTestId("result-disclaimer");
+      expect(disclaimers).toHaveLength(1);
+      const disclaimer = disclaimers[0];
+      expect(disclaimer.textContent).toContain(DISCLAIMER_PHRASE);
+      // 다른 모든 구역보다 뒤에 있다
       for (const section of Array.from(document.querySelectorAll("section"))) {
-        expect(section.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(section.compareDocumentPosition(disclaimer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       }
     });
 
