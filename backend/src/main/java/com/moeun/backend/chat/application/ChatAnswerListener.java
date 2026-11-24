@@ -80,12 +80,13 @@ public class ChatAnswerListener {
             try {
                 answer = aiClient.chat(request);
             } catch (RuntimeException e) {
-                // ai-server 예외 메시지에는 응답 본문이 들어 있을 수 있어 예외를 붙이지 않고 분류·상태 코드만 남긴다.
-                // 값은 구조화된 필드(key-value)로 운반한다(#123 로그 계약). 문장에는 값을 넣지 않는다
+                // 원인 추적용으로 분류·상태 코드와 상세(ai-server 응답 본문 또는 예외 메시지)를 남긴다(#123, #316).
+                // 값은 구조화된 필드(key-value)로 운반한다. 로그 파일은 보관 기간이 지나면 지운다
                 var warn = LOG.atWarn()
                         .addKeyValue("messageId", message.id())
                         .addKeyValue("memberId", message.memberId())
-                        .addKeyValue("error", errorKind(e));
+                        .addKeyValue("error", errorKind(e))
+                        .addKeyValue("detail", detail(e));
                 Integer status = statusCode(e);
                 if (status != null) {
                     warn = warn.addKeyValue("status", status);
@@ -120,6 +121,13 @@ public class ChatAnswerListener {
             return "BAD_RESPONSE";
         }
         return error.getClass().getSimpleName();
+    }
+
+    private static String detail(RuntimeException error) {
+        if (error instanceof RestClientResponseException response) {
+            return response.getResponseBodyAsString();
+        }
+        return String.valueOf(error.getMessage());
     }
 
     private static Integer statusCode(RuntimeException error) {

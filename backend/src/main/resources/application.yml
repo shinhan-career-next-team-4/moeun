@@ -121,9 +121,17 @@ management:
         enabled: true
 
 logging:
+  # 원인 추적용 로그 파일(#316). 날짜별로 나누고 보관 기간(기본 7일)이 지나면 지운다
+  file:
+    name: ${LOG_DIR:logs}/backend.log
+  logback:
+    rollingpolicy:
+      file-name-pattern: ${LOG_DIR:logs}/backend.%d{yyyy-MM-dd}.%i.log
+      max-history: ${LOG_RETENTION_DAYS:7}
   pattern:
     # 구조화된 필드(key-value)가 콘솔에 보이도록 %kvp를 붙인다. ai-server 실패 WARN의 messageId 등이 여기로 나온다(#123)
     console: "%clr(%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}){faint} %clr(%5p) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m %kvp%n%wEx"
+    file: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p ${PID:- } --- [%15.15t] %-40.40logger{39} : %m %kvp%n%wEx"
   level:
     com.moeun: DEBUG
     org.springframework.modulith: INFO

@@ -6,7 +6,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.test.context.TestPropertySource;
 
 import ch.qos.logback.classic.Level;
@@ -24,16 +24,17 @@ import ch.qos.logback.core.read.ListAppender;
 
 /**
  * ai-server 호출 실패 WARN 로그 계약(#123, #41 후속, FR-AI-04, NFR 보안·로그).
- * 응답 본문·예외 메시지는 로그에 남기지 않는다. 남기는 값은 messageId, memberId, 오류 분류, HTTP 상태 코드뿐이고
+ * 남기는 값은 messageId, memberId, 오류 분류, HTTP 상태 코드와 #316부터 원인 상세(ai-server 응답 본문 또는 예외 메시지)다.
  * 구조화된 필드(SLF4J key-value 또는 MDC)로 운반한다. 키 이름·분류 값·메시지 문장은 구현 재량이라 특정 표기에 의존하지 않는다.
- * 검사 대상은 이 호출 실패와 관련된 WARN뿐이다. 응답 타임아웃을 1초로 줄인 컨텍스트에서 돈다.
+ * 내부 키 같은 비밀값은 남기지 않는다. 검사 대상은 이 호출 실패와 관련된 WARN뿐이다. 응답 타임아웃을 1초로 줄인 컨텍스트에서 돈다.
  */
 @TestPropertySource(properties = "moeun.ai-server.read-timeout=1s")
 class ChatAiFailureLogTest extends ChatIntegrationTestSupport {
 
     private static final String MARKER = "LEAK-MARKER-7f3a9c";
-    private static final Pattern STATUS = Pattern.compile("\\d{3}( [A-Za-z' -]+)?");
-    private static final Pattern KIND = Pattern.compile("[A-Za-z][A-Za-z0-9_.]{0,39}");
+
+    @Value("${moeun.ai-server.internal-api-key}")
+    String internalKey;
 
     private final Logger root = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
     private ListAppender<ILoggingEvent> logs;
@@ -86,6 +87,11 @@ class ChatAiFailureLogTest extends ChatIntegrationTestSupport {
     }
 
     private void assertFailedAndLogContract(long assistantId) {
+        assertFailedAndLogContract(assistantId, false);
+    }
+
+    /** bodyInDetail이면 ai-server가 돌려준 본문(표식)이 원인 상세 필드로 남아야 한다(#316). */
+    private void assertFailedAndLogContract(long assistantId, boolean bodyInDetail) {
         Map<String, Object> failed = row(assistantId);
         assertThat(failed.get("status")).isEqualTo("FAILED");
         assertThat(failed.get("message_type")).isEqualTo("FAILURE");
@@ -94,41 +100,39 @@ class ChatAiFailureLogTest extends ChatIntegrationTestSupport {
         List<ILoggingEvent> related = relatedWarns(assistantId);
         assertThat(related).as("호출 실패와 관련된 WARN이 있어야 한다").isNotEmpty();
         String id = String.valueOf(assistantId);
-        String member = String.valueOf(memberId);
         for (ILoggingEvent event : related) {
             assertThat(event.getThrowableProxy()).as("예외를 붙이지 않는다").isNull();
-            assertThat(event.getFormattedMessage()).doesNotContain(MARKER);
-            // 구조화된 필드는 허용 목록(messageId, memberId, 오류 분류, 상태 코드)만 담는다. 값의 모양으로 구별한다
-            assertThat(values(event)).as("구조화된 필드가 있어야 한다").isNotEmpty().hasSizeLessThanOrEqualTo(4);
-            for (String value : values(event)) {
-                assertThat(value).doesNotContain(MARKER);
-                assertThat(value.equals(id) || value.equals(member) || STATUS.matcher(value).matches()
-                        || KIND.matcher(value).matches())
-                        .as("허용 목록 밖의 값: %s", value).isTrue();
-            }
+            // 구조화된 필드는 messageId, memberId, 오류 분류, 상태 코드, 원인 상세를 담는다
+            assertThat(values(event)).as("구조화된 필드가 있어야 한다").isNotEmpty().hasSizeLessThanOrEqualTo(5);
             assertThat(values(event)).contains(id);
+            assertThat(String.join(" ", values(event)) + event.getFormattedMessage())
+                    .as("내부 키는 남기지 않는다").doesNotContain(internalKey);
+        }
+        if (bodyInDetail) {
+            assertThat(related).as("ai-server 본문이 원인 상세로 남아야 한다")
+                    .anyMatch(event -> values(event).stream().anyMatch(value -> value.contains(MARKER)));
         }
     }
 
     @ParameterizedTest(name = "{displayName} › {0}")
     @ValueSource(ints = {400, 422, 500, 502})
-    void errorStatusBodyNeverReachesLogs(int status) throws Exception {
+    void errorStatusBodyIsLoggedAsDetail(int status) throws Exception {
         AI.respond(status, "{\"detail\":[{\"msg\":\"" + MARKER + "\"}],\"error\":\"" + MARKER + "\"}");
 
         long assistantId = askAndGetAssistantId(cookie, "질문 " + status);
         awaitStatus(assistantId, "FAILED");
 
-        assertFailedAndLogContract(assistantId);
+        assertFailedAndLogContract(assistantId, true);
     }
 
     @Test
-    void badOutputBodyWithOkStatusNeverReachesLogs() throws Exception {
+    void badOutputBodyWithOkStatusIsLoggedAsDetail() throws Exception {
         AI.respond(200, "{\"error\":\"" + MARKER + "\"}");
 
         long assistantId = askAndGetAssistantId(cookie, "질문");
         awaitStatus(assistantId, "FAILED");
 
-        assertFailedAndLogContract(assistantId);
+        assertFailedAndLogContract(assistantId, true);
     }
 
     @Test
