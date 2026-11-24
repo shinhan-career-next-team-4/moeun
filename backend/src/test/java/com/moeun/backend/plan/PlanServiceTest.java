@@ -337,6 +337,7 @@ class PlanServiceTest {
                 changes("monthlySavingAmount", 1_500_000L), saved.revision(), null);
 
         long undoneRevision = undoService.undo(memberId, applied.revision());
+        long undoneVersionId = saveService.findCurrent(memberId).orElseThrow().currentVersionId();
         PlanView undone = saveService.findCurrent(memberId).orElseThrow();
 
         assertThat(undoneRevision).isEqualTo(3L);
@@ -358,6 +359,7 @@ class PlanServiceTest {
         PlanApplyResult applied = applyService.apply(memberId, ChangePath.COMPARE,
                 changes("monthlySavingAmount", 1_500_000L), saved.revision(), null);
         long undoneRevision = undoService.undo(memberId, applied.revision());
+        long undoneVersionId = saveService.findCurrent(memberId).orElseThrow().currentVersionId();
 
         assertThatThrownBy(() -> undoService.undo(memberId, undoneRevision))
                 .isInstanceOf(NothingToUndoException.class);
@@ -383,17 +385,26 @@ class PlanServiceTest {
     @Test
     void eachChangePublishesPlanChanged(AssertablePublishedEvents events) {
         PlanSaveResult saved = saveService.save(memberId, valid().build(), null);
+        PlanSaveResult resaved = saveService.save(memberId, valid().monthlySavingAmount(1_300_000L).build(),
+                saved.revision());
         PlanApplyResult applied = applyService.apply(memberId, ChangePath.COMPARE,
-                changes("monthlySavingAmount", 1_500_000L), saved.revision(), null);
-        undoService.undo(memberId, applied.revision());
+                changes("monthlySavingAmount", 1_500_000L), resaved.revision(), null);
+        long undoneRevision = undoService.undo(memberId, applied.revision());
+        long undoneVersionId = saveService.findCurrent(memberId).orElseThrow().currentVersionId();
 
         List<PlanChanged> changes = StreamSupport.stream(events.ofType(PlanChanged.class).spliterator(), false)
                 .toList();
-        assertThat(changes).extracting(PlanChanged::action).containsExactly("INPUT", "APPLY", "UNDO");
-        PlanChanged apply = changes.get(1);
-        PlanChanged undo = changes.get(2);
-        assertThat(undo.beforeVersionId()).isEqualTo(apply.afterVersionId());
-        assertThat(undo.afterVersionId()).isGreaterThan(apply.afterVersionId());
+        assertThat(changes).extracting(PlanChanged::action).containsExactly("INPUT", "INPUT", "APPLY", "UNDO");
+        assertThat(changes).extracting(PlanChanged::memberId).containsOnly(memberId);
+        assertThat(changes).extracting(PlanChanged::revision)
+                .containsExactly(saved.revision(), resaved.revision(), applied.revision(), undoneRevision)
+                .containsExactly(1L, 2L, 3L, 4L);
+        assertThat(changes).extracting(PlanChanged::beforeVersionId)
+                .containsExactly(null, saved.planVersionId(), resaved.planVersionId(), applied.planVersionId());
+        assertThat(changes).extracting(PlanChanged::afterVersionId)
+                .containsExactly(saved.planVersionId(), resaved.planVersionId(), applied.planVersionId(),
+                        undoneVersionId);
+        assertThat(undoneVersionId).isGreaterThan(applied.planVersionId());
     }
 
     @Test
@@ -523,6 +534,7 @@ class PlanServiceTest {
                 changes("monthlySavingAmount", 1_500_000L), first.revision(), first.planVersionId());
 
         long undoneRevision = undoService.undo(memberId, applied.revision());
+        long undoneVersionId = saveService.findCurrent(memberId).orElseThrow().currentVersionId();
         PlanView undone = saveService.findCurrent(memberId).orElseThrow();
 
         assertThat(undone.currentVersionId()).isNotEqualTo(first.planVersionId());

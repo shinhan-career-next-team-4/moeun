@@ -1,10 +1,9 @@
 package com.moeun.backend.calc.web;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -29,7 +28,8 @@ import tools.jackson.databind.JsonNode;
  * 내 계획 조회·입력 저장 REST(P-4 {@code GET}, P-3 {@code PUT}, 계약 C12a-5·C12a-6). {@code /internal/calc} 컨트롤러와
  * 다른 클래스다. 두 엔드포인트가 같은 화면 전용 PlanView를 돌려준다.
  * <p>본문을 {@link JsonNode}로 받는다. 키 없음과 null을 구분하고, {@code 300000.5}가 정수로 잘려 통과하지 않게 하려는 것이다.
- * 여기서는 형식(400)과 null 허용 키의 존재(422 REQUIRED)만 보고, 값 범위 검증은 plan 저장 서비스가 한다.
+ * 여기서는 형식(400)과 null 허용 키의 존재(422 REQUIRED)만 보고 타입 있는 {@link PlanInput}으로 바꾼다. JSON 해석은
+ * 여기서 끝나고, 숫자는 받은 그대로 BigDecimal로 넘겨 소수 자리·범위 검증은 plan 저장 서비스가 한다.
  */
 @RestController
 @RequestMapping("/api/plan")
@@ -43,9 +43,13 @@ class PlanResultController {
     /** null이어도 되지만 키는 꼭 있어야 하는 항목(C12a-5-1). */
     private static final List<String> NULLABLE_REQUIRED_KEYS = List.of(EXPECTED_REVISION, SAVINGS_RATE_INPUT_PCT,
             SAVINGS_RATIO_PCT);
-    /** 값이 있으면 JSON 숫자여야 하는 항목. plan 저장 서비스는 이 키 이름으로 값을 읽는다. */
-    private static final List<String> NUMBER_FIELDS = List.of("goalAmount", "targetPeriodMonths", "heldAssets",
-            "monthlySavingAmount", SAVINGS_RATE_INPUT_PCT, SAVINGS_RATIO_PCT);
+    private static final String GOAL_AMOUNT = "goalAmount";
+    private static final String TARGET_PERIOD_MONTHS = "targetPeriodMonths";
+    private static final String HELD_ASSETS = "heldAssets";
+    private static final String MONTHLY_SAVING_AMOUNT = "monthlySavingAmount";
+    /** 값이 있으면 JSON 숫자여야 하는 항목. */
+    private static final List<String> NUMBER_FIELDS = List.of(GOAL_AMOUNT, TARGET_PERIOD_MONTHS, HELD_ASSETS,
+            MONTHLY_SAVING_AMOUNT, SAVINGS_RATE_INPUT_PCT, SAVINGS_RATIO_PCT);
 
     private final SavePlanUseCase savePlanUseCase;
     private final CurrentPlanResultService resultService;
@@ -119,18 +123,27 @@ class PlanResultController {
     }
 
     private static PlanInput toPlanInput(JsonNode body) {
-        JsonNode goalType = body.get(GOAL_TYPE);
-        JsonNode customName = body.get(GOAL_CUSTOM_NAME);
-        Map<String, JsonNode> fields = new LinkedHashMap<>();
-        for (String field : NUMBER_FIELDS) {
-            if (body.has(field)) {
-                fields.put(field, body.get(field));
-            }
-        }
+        String goalType = text(body, GOAL_TYPE);
         return new PlanInput(
-                goalType == null || goalType.isNull() ? null : GoalType.valueOf(goalType.asString()),
-                customName == null || customName.isNull() ? null : customName.asString(),
-                fields);
+                goalType == null ? null : GoalType.valueOf(goalType),
+                text(body, GOAL_CUSTOM_NAME),
+                number(body, GOAL_AMOUNT),
+                number(body, TARGET_PERIOD_MONTHS),
+                number(body, HELD_ASSETS),
+                number(body, MONTHLY_SAVING_AMOUNT),
+                number(body, SAVINGS_RATE_INPUT_PCT),
+                number(body, SAVINGS_RATIO_PCT));
+    }
+
+    /** checkFormat이 JSON 숫자임을 확인한 값. 소수 자리를 잃지 않게 BigDecimal로 읽는다. */
+    private static BigDecimal number(JsonNode body, String field) {
+        JsonNode value = body.get(field);
+        return value == null || value.isNull() ? null : value.decimalValue();
+    }
+
+    private static String text(JsonNode body, String field) {
+        JsonNode value = body.get(field);
+        return value == null || value.isNull() ? null : value.asString();
     }
 
     private static boolean isKnownGoalType(String code) {

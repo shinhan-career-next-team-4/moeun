@@ -1,14 +1,9 @@
 package com.moeun.backend.plan.application;
 
 import java.math.BigDecimal;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import com.moeun.backend.plan.GoalType;
 import com.moeun.backend.plan.PlanInput;
-
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.node.JsonNodeFactory;
 
 /** 테스트용 PlanInput 빌더. 기본값은 통과하는 입력(집 5,000만원, 3년, 보유 600만원, 월 120만원). */
 public class PlanInputBuilder {
@@ -78,19 +73,7 @@ public class PlanInputBuilder {
     }
 
     public PlanInput build() {
-        Map<String, JsonNode> fields = new LinkedHashMap<>();
-        putIfNotNull(fields, "goalAmount", goalAmount);
-        putIfNotNull(fields, "targetPeriodMonths", targetPeriodMonths);
-        putIfNotNull(fields, "heldAssets", heldAssets);
-        putIfNotNull(fields, "monthlySavingAmount", monthlySavingAmount);
-        putIfNotNull(fields, "savingsRateInputPct", savingsRateInputPct);
-        putIfNotNull(fields, "savingsRatioPct", savingsRatioPct);
-        return new PlanInput(goalType, goalCustomName, fields);
-    }
-
-    private static void putIfNotNull(Map<String, JsonNode> fields, String key, BigDecimal value) {
-        if (value != null) {
-            fields.put(key, JsonNodeFactory.instance.numberNode(value));
-        }
+        return new PlanInput(goalType, goalCustomName, goalAmount, targetPeriodMonths, heldAssets,
+                monthlySavingAmount, savingsRateInputPct, savingsRatioPct);
     }
 }
