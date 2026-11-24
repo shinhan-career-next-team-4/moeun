@@ -40,36 +40,97 @@ class AlternativeApiTest extends AlternativeTestSupport {
     }
 
     @Test
-    @DisplayName("미달 계획이면 월 저축액은 현재의 +10%, 비중은 현재에서 10%p 낮춘(ETF 10%p 높인) 값 하나만 바꾼 카드로 온다")
-    void defaultPolicyRaisesMonthlySavingBy10PercentAndMovesRatioBy10Points() throws Exception {
+    @DisplayName("미달 계획이면 세 대안은 각각 조건 하나만 바꿔 기준 시나리오로 목표를 달성하는 값을 추천한다(#343)")
+    void alternativesRecommendGoalAchievingValues() throws Exception {
+        savePlan(MISSING_MONTHLY);
+
+        JsonNode cards = read(requestAlternatives("{}").andExpect(status().isOk())).get("alternatives");
+
+        int currentRatio = cards.get(0).get("conditions").get("current").get("savingsRatioPct").asInt();
+        assertThat(cards.size()).isEqualTo(3);
+        assertThat(cards.get(0).get("key").asString()).isEqualTo("monthlySavingAmount");
+        assertThat(cards.get(1).get("key").asString()).isEqualTo("targetPeriodMonths");
+        assertThat(cards.get(2).get("key").asString()).isEqualTo("savingsRatioPct");
+        for (JsonNode card : cards) {
+            if (card.get("unreachable").asBoolean()) {
+                // 이 계획에서는 비중을 바꿔도 달성하지 못할 수 있다(ETF 100%로도 부족). 그러면 값 없는 카드다
+                assertThat(card.get("key").asString()).isEqualTo("savingsRatioPct");
+                assertThat(card.get("changed").isNull()).isTrue();
+                continue;
+            }
+            assertThat(avgAchieved(card.get("changed"))).as(card.get("key").asString()).isTrue();
+        }
+        assertThat(cards.get(0).get("unreachable").asBoolean()).isFalse();
+        assertThat(cards.get(1).get("unreachable").asBoolean()).isFalse();
+        long monthly = cards.get(0).get("changes").get("monthlySavingAmount").asLong();
+        assertThat(monthly).isGreaterThan(MISSING_MONTHLY).isEqualTo(monthly / 10_000L * 10_000L);
+        assertThat(cards.get(1).get("changes").get("targetPeriodMonths").asInt()).isGreaterThan(PERIOD);
+        if (!cards.get(2).get("unreachable").asBoolean()) {
+            assertThat(cards.get(2).get("changes").get("savingsRatioPct").asInt()).isLessThan(currentRatio);
+        }
+    }
+
+    @Test
+    @DisplayName("추천은 달성하는 가장 작은 값이다: 월 저축액은 만원 덜 올리면, 기간은 한 달 덜 늘리면 달성하지 못한다")
+    void recommendationIsTheSmallestAchievingValue() throws Exception {
+        savePlan(MISSING_MONTHLY);
+        JsonNode cards = read(requestAlternatives("{}").andExpect(status().isOk())).get("alternatives");
+        long monthly = cards.get(0).get("changes").get("monthlySavingAmount").asLong();
+        int months = cards.get(1).get("changes").get("targetPeriodMonths").asInt();
+
+        resetPlans();
+        savePlan(monthly - 10_000L);
+        assertThat(read(requestAlternatives("{}").andExpect(status().isOk())).get("hasAlternatives").asBoolean())
+                .isTrue();
+        resetPlans();
+        savePlan(monthly);
+        assertThat(read(requestAlternatives("{}").andExpect(status().isOk())).get("hasAlternatives").asBoolean())
+                .isFalse();
+        // 기간도 마찬가지: 추천 기간으로 늘리면 달성하고 한 달 덜 늘리면 달성하지 못한다
+        resetPlans();
+        planSaveService.save(memberId, validPlanWithPeriod(months), null);
+        awaitEventsCompleted();
+        assertThat(read(requestAlternatives("{}").andExpect(status().isOk())).get("hasAlternatives").asBoolean())
+                .isFalse();
+        resetPlans();
+        planSaveService.save(memberId, validPlanWithPeriod(months - 1), null);
+        awaitEventsCompleted();
+        assertThat(read(requestAlternatives("{}").andExpect(status().isOk())).get("hasAlternatives").asBoolean())
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("기간을 정해 보내면 '기한을 늘리면'은 그 값으로 계산한다")
+    void givenPeriodIsUsedAsIs() throws Exception {
         savePlan(MISSING_MONTHLY);
 
         JsonNode cards = read(requestAlternatives("{\"targetPeriodMonths\":48}").andExpect(status().isOk()))
                 .get("alternatives");
 
-        int currentRatio = cards.get(0).get("conditions").get("current").get("savingsRatioPct").asInt();
-        assertThat(cards.size()).isEqualTo(3);
-        assertThat(cards.get(0).get("key").asString()).isEqualTo("monthlySavingAmount");
-        assertThat(cards.get(0).get("changes").get("monthlySavingAmount").asLong()).isEqualTo(330_000L);
         assertThat(cards.get(1).get("changes").get("targetPeriodMonths").asInt()).isEqualTo(48);
-        assertThat(cards.get(2).get("key").asString()).isEqualTo("savingsRatioPct");
-        assertThat(cards.get(2).get("changes").get("savingsRatioPct").asInt()).isEqualTo(currentRatio - 10);
-        for (JsonNode card : cards) {
-            assertThat(card.get("changed").isNull()).isFalse();
-        }
     }
 
     @Test
-    @DisplayName("기간을 주지 않으면 '기한을 늘리면'은 입력 전의 빈 카드다(D-039)")
-    void deadlineCardIsEmptyBeforePeriodInput() throws Exception {
-        savePlan(MISSING_MONTHLY);
+    @DisplayName("허용 범위 안에서 달성하는 값이 없으면 달성이 어려운 카드(unreachable)다")
+    void unreachableWhenNothingAchievesGoal() throws Exception {
+        savePlan(10_000_000_000L, MISSING_MONTHLY, HELD);
 
-        JsonNode response = read(requestAlternatives("{}").andExpect(status().isOk()));
+        JsonNode cards = read(requestAlternatives("{}").andExpect(status().isOk())).get("alternatives");
 
-        JsonNode deadline = response.get("alternatives").get(1);
-        assertThat(deadline.get("key").asString()).isEqualTo("targetPeriodMonths");
-        assertThat(deadline.get("changed").isNull()).isTrue();
-        assertThat(deadline.get("changes").size()).isZero();
+        for (JsonNode card : cards) {
+            assertThat(card.get("unreachable").asBoolean()).as(card.get("key").asString()).isTrue();
+            assertThat(card.get("changed").isNull()).isTrue();
+            assertThat(card.get("changes").size()).isZero();
+        }
+    }
+
+    private static boolean avgAchieved(JsonNode result) {
+        for (JsonNode scenario : result.get("scenarios")) {
+            if ("AVG".equals(scenario.get("scenario").asString())) {
+                return scenario.get("isAchieved").asBoolean();
+            }
+        }
+        throw new AssertionError("AVG scenario missing");
     }
 
     @ParameterizedTest(name = "기한 {0}개월은 허용 범위 밖이라 422")

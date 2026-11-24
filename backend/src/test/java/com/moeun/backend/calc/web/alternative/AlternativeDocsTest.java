@@ -49,7 +49,9 @@ class AlternativeDocsTest extends AlternativeTestSupport {
                                         .description("조건 하나를 바꾼 결과(월별 점 없음). 빈 카드면 null"),
                                 subsectionWithPath("alternatives[].diff").optional()
                                         .description("changed − current. 빈 카드면 null"),
-                                subsectionWithPath("alternatives[].display").description("표시 문자열 맵. 빈 카드면 {}"))
+                                subsectionWithPath("alternatives[].display").description("표시 문자열 맵. 빈 카드면 {}"),
+                                fieldWithPath("alternatives[].unreachable").description(
+                                        "허용 범위 안에서 목표를 달성하는 값을 찾지 못했다(달성이 어려움). 이때 changes는 {}"))
                         .build())))
                 .andReturn();
 
