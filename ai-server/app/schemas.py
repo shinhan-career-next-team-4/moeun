@@ -63,6 +63,10 @@ class PlanAssumptions(ApiModel):
     etf_product_code: str | None = None   # 계산에 쓴 ETF 종목 코드(#150). 검색 종목 필터에만 쓴다. 모델 입력에는 넣지 않는다
 
 
+class PlanConditions(ApiModel):
+    etf_product_code: str | None = None   # 계획에 저장된 ETF 종목(#297). ETF 0%여도 있다. 모델 입력에는 넣지 않는다
+
+
 class PlanResult(ApiModel):
     status: Literal["CALCULATED", "ALREADY_EXCEEDED"]
     scenarios: list[PlanScenario]
@@ -73,6 +77,7 @@ class PlanContext(ApiModel):
     """Spring이 만든 현재 계획 요약(계약 C1a-8). 모델이 쓰는 필드만 선언하고 나머지(raw 금액·계정 필드)는 무시한다."""
 
     calc_run_id: int | None = None
+    conditions: PlanConditions | None = None
     result: PlanResult
     display: dict[str, Any]
 

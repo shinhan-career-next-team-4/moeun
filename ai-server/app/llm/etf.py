@@ -14,6 +14,20 @@ def plan_product(req: ChatRequest) -> str | None:
     return code if code is not None else product_from_display_name(plan_etf_name(req))
 
 
+def stored_plan_product(req: ChatRequest) -> str | None:
+    """계획에 저장된 종목 코드. 대화로 종목을 바꿀 때 계획과 같은 종목인지 보는 데만 쓴다(D-097).
+
+    Spring이 준 conditions.etfProductCode(ETF 0%여도 있음, #297)를 우선한다. 없으면(#297 전 Spring) plan_product다.
+    검색 필터(search_etf_codes)는 계산에 쓴 종목(plan_product)을 써서 ETF 0% 계획에 필터를 걸지 않는다.
+    """
+    if req.plan_context is None:
+        return None
+    conditions = req.plan_context.conditions
+    if conditions is not None and conditions.etf_product_code is not None:
+        return conditions.etf_product_code
+    return plan_product(req)
+
+
 PLAN_PRODUCT = "PLAN"   # 모델이 "내 계획의 ETF"를 가리킬 때 쓰는 표시. 코드는 서버가 계획에서 읽는다
 
 
