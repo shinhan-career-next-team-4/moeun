@@ -12,6 +12,7 @@ import com.moeun.backend.calc.AppliedDataVersions;
 import com.moeun.backend.calc.CalcComparison;
 import com.moeun.backend.calc.CalcRejectedException;
 import com.moeun.backend.calc.CalcResult;
+import com.moeun.backend.calc.Scenario;
 import com.moeun.backend.plan.ConditionOverride;
 import com.moeun.backend.plan.PlanSaveService;
 import com.moeun.backend.plan.PlanView;
@@ -215,8 +216,21 @@ public class CompareConditionsUseCase {
             display.put(prefix + "afterTaxAssetDelta", formatter.formatDifference(diff.afterTaxAssetDelta()));
             display.put(prefix + "principalDelta", formatter.formatDifference(diff.principalDelta()));
             display.put(prefix + "afterTaxGainDelta", formatter.formatDifference(diff.afterTaxGainDelta()));
+            // 목표 대비 차이는 표시만 둔다(#285). raw는 양쪽 결과의 gapToGoal에 이미 있다
+            long gapDelta = gapToGoalDelta(comparison, diff.scenario());
+            display.put(prefix + "gapToGoalDelta", formatter.formatDifference(gapDelta));
         }
         return display;
+    }
+
+    /** changed.gapToGoal − current.gapToGoal. byScenario의 시나리오는 양쪽에 모두 있다. */
+    private static long gapToGoalDelta(CalcComparison comparison, Scenario scenario) {
+        return gapToGoal(comparison.changed(), scenario) - gapToGoal(comparison.current(), scenario);
+    }
+
+    private static long gapToGoal(CalcResult result, Scenario scenario) {
+        return result.scenarios().stream().filter(item -> item.scenario() == scenario).findFirst()
+                .orElseThrow().gapToGoal();
     }
 
     /**
