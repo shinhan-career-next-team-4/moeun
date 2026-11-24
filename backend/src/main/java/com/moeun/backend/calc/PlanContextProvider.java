@@ -2,6 +2,8 @@ package com.moeun.backend.calc;
 
 import java.util.Optional;
 
+import org.springframework.modulith.NamedInterface;
+
 /**
  * planContext를 만드는 calc의 공개 API(계약 C1a-10, #78). chat 모듈은 이 인터페이스만 부른다.
  * <p>소유권은 2단계로 확인한다. calc_run에는 회원 키가 없으므로 ① calc_run을 PLAN 종류로 찾고 ② 그 계획 버전을 plan 공개 API
@@ -10,6 +12,7 @@ import java.util.Optional;
  * <p>계산·기준 데이터 오류는 빈 값이 아니라 예외로 올라온다. chat 리스너는 그때 ai-server를 부르지 않고 실패로 기록한다.
  * QUESTION 경로({@link #findForCurrentPlan})만 calc_run(PLAN)을 기록할 수 있어 이름에 Query를 쓰지 않는다.
  */
+@NamedInterface("plan-context")   // chat이 planContext를 받는다. 시그니처의 뷰·시나리오 타입도 함께 열린다
 public interface PlanContextProvider {
 
     /**

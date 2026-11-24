@@ -229,7 +229,7 @@ CP-04 형식(`Formatter`)으로 Spring이 만든 문자열의 **평평한 맵**(
 
 ### C3-1. 오류 본문 형식
 
-Spring 내장 `ProblemDetail`(RFC 9457)에 확장 필드 `code`, `errors`를 더한다. `Content-Type: application/problem+json`. 전역 처리는 `config`의 `@RestControllerAdvice` 하나가 하고, 각 모듈은 자기 루트에 예외를 둔다(`plan.ConditionViolationException`, `calc.CalcRejectedException`). 공용 `common` 모듈은 만들지 않는다. Spring 기본 예외(파싱 실패 등)는 `400 MALFORMED_REQUEST`로 바꾼다.
+Spring 내장 `ProblemDetail`(RFC 9457)에 확장 필드 `code`, `errors`를 더한다. `Content-Type: application/problem+json`. 전역 처리는 `config`의 `@RestControllerAdvice` 하나가 하고, 예외는 그 예외를 쓰는 범위에 둔다. 다른 모듈도 받는 예외는 모듈 루트(`plan.ConditionViolationException`), 모듈 안에서만 쓰는 예외는 하위 패키지(`calc.application.CalcRejectedException`, #311)다. 공용 `common` 모듈은 만들지 않는다. Spring 기본 예외(파싱 실패 등)는 `400 MALFORMED_REQUEST`로 바꾼다.
 
 | 필드 | 타입 | 필수 | 뜻 |
 |---|---|---|---|
@@ -245,7 +245,7 @@ Spring 내장 `ProblemDetail`(RFC 9457)에 확장 필드 `code`, `errors`를 더
 | `errors[].copyKey` | string | 아니오 | 문구표 키(CP-05). 프론트 경로에서 쓸 수 있다. 이 경로에서는 없어도 된다 |
 
 - 요청 값(`rejectedValue`)은 넣지 않는다. 왜: ai-server는 자기가 보낸 값을 알고, 금융 값을 로그·본문에 다시 싣지 않는다.
-- **`minDisplay`·`maxDisplay`를 붙이는 곳은 calc다.** plan의 `ConditionValidator`(#17)는 `min`·`max`·`unit`·`scale`만 담은 `plan.ConditionViolationException`을 던진다. `/internal/calc` 컨트롤러가 있는 `calc.web`(#32)이 이 예외를 잡아 `Formatter`로 `minDisplay`·`maxDisplay`를 붙이고 `calc.CalcRejectedException`으로 다시 던진다. 왜: plan은 다른 모듈에 의존하지 않고(`allowedDependencies = {}`) 의존 방향이 calc → plan이라, plan이 calc의 `Formatter`를 부르면 순환 의존이 되어 `ModularityTests`가 실패한다.
+- **`minDisplay`·`maxDisplay`를 붙이는 곳은 calc다.** plan의 `ConditionValidator`(#17)는 `min`·`max`·`unit`·`scale`만 담은 `plan.ConditionViolationException`을 던진다. `/internal/calc` 컨트롤러가 있는 `calc.web`(#32)이 이 예외를 잡아 `Formatter`로 `minDisplay`·`maxDisplay`를 붙이고 `calc.application.CalcRejectedException`으로 다시 던진다. 왜: plan은 다른 모듈에 의존하지 않고(`allowedDependencies = {}`) 의존 방향이 calc → plan이라, plan이 calc의 `Formatter`를 부르면 순환 의존이 되어 `ModularityTests`가 실패한다.
 - 그래서 `minDisplay`·`maxDisplay`는 이 경로에서만 보장한다. 같은 `ConditionValidator`를 쓰는 프론트 API(#30)의 오류 본문에는 없다(프론트는 `min`·`max`·`unit`과 자기 화면 단위로 표시한다).
 - #32는 #28(Formatter)에 의존하므로 `/internal/calc`가 동작하는 시점에는 항상 이 두 필드가 있다. ai-server는 범위를 말할 때 `minDisplay`·`maxDisplay`만 인용한다(원 → 만원 나눗셈 금지). 방어 규칙: 그래도 없으면(계약 위반) 숫자 없이 "허용 범위를 벗어났어요"라고만 말하고 다시 묻는다.
 - **`etfProductCode`의 `OUT_OF_RANGE`는 계약 위반이 아니다**(#160). 범위가 아니라 목록이라 `min`·`max`·`minDisplay`·`maxDisplay`가 없다. ai-server는 범위를 말하지 않고 "그 종목은 계산할 수 없어요"처럼 되묻는다(문장은 B팀 후속).

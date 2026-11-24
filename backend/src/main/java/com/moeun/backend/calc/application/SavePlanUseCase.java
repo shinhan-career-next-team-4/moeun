@@ -3,8 +3,6 @@ package com.moeun.backend.calc.application;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.moeun.backend.calc.CurrentPlanResult;
-import com.moeun.backend.calc.CurrentPlanResultService;
 import com.moeun.backend.plan.PlanInput;
 import com.moeun.backend.plan.PlanSaveService;
 

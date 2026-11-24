@@ -3,7 +3,6 @@ package com.moeun.backend.calc.application;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
 
-import com.moeun.backend.calc.CurrentPlanResultService;
 import com.moeun.backend.plan.PlanChanged;
 
 /**

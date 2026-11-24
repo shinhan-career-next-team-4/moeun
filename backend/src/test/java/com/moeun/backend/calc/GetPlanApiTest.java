@@ -33,6 +33,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.moeun.backend.auth.application.JwtTokenService;
+import com.moeun.backend.calc.application.CurrentPlanResultService;
 import com.moeun.backend.config.TestcontainersConfig;
 import com.moeun.backend.refdata.DataVersionInfo;
 import com.moeun.backend.refdata.EtfProduct;

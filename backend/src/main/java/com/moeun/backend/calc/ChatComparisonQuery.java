@@ -3,6 +3,8 @@ package com.moeun.backend.calc;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.modulith.NamedInterface;
+
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -10,6 +12,7 @@ import tools.jackson.databind.JsonNode;
  * <p>소유권 확인은 {@link PlanContextProvider}와 같다(calc_run을 CHAT으로 찾고 plan 공개 API {@code findVersion}).
  * 없는 기록·남의 기록·PLAN 기록은 모두 빈 값이다.
  */
+@NamedInterface("chat-comparison")   // chat이 대화 비교를 다시 계산한다. 비교·결과 타입도 함께 열린다
 public interface ChatComparisonQuery {
 
     /**

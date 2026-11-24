@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.moeun.backend.calc.AlternativeQuery;
+import com.moeun.backend.calc.application.AlternativeQuery;
 
 /**
  * 대안 값 산출(FR-ALT-01·03). 허용 범위 밖 기간은 422 VALIDATION_FAILED, 계획이 없으면 409 NO_PLAN이고 오류 본문은
