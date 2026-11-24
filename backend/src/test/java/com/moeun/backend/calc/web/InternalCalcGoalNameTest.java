@@ -124,7 +124,25 @@ class InternalCalcGoalNameTest {
             JsonNode error = problem.get("errors").get(0);
             assertThat(error.get("field").asString()).isEqualTo("goalCustomName");
             assertThat(error.get("reason").asString()).isEqualTo("OUT_OF_RANGE");
+            assertThat(error.get("min").asLong()).isEqualTo(1L);
+            assertThat(error.get("max").asLong()).isEqualTo(100L);
+            assertThat(error.get("unit").asString()).isEqualTo("CHAR");
+            assertThat(error.get("minDisplay").asString()).isEqualTo("1자");
+            assertThat(error.get("maxDisplay").asString()).isEqualTo("100자");
         }
+        assertThat(countChatRuns()).isZero();
+    }
+
+    @Test
+    @DisplayName("(제약) 이미 목표를 넘은 계획은 이름만 바꿔도 다른 비교처럼 409 ALREADY_EXCEEDED이고 기록이 없다")
+    void rejectsGoalNameOnAlreadyExceededPlan() throws Exception {
+        // 준비 단계에서만 직접 고친다(보유 자산 2,500만원 ≥ 목표 2,000만원)
+        jdbc.sql("UPDATE plan_version SET held_assets = 25000000").update();
+
+        JsonNode problem = readBody(postChanges("{\"goalCustomName\":\"가게 보증금\"}")
+                .andExpect(status().isConflict()));
+
+        assertThat(problem.get("code").asString()).isEqualTo("ALREADY_EXCEEDED");
         assertThat(countChatRuns()).isZero();
     }
 

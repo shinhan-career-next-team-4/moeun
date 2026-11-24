@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.moeun.backend.calc.ChatComparisonView;
+import com.moeun.backend.plan.InputField;
 
 import tools.jackson.databind.JsonNode;
 
@@ -19,11 +20,9 @@ import tools.jackson.databind.JsonNode;
 public record ChatComparison(long messageId, boolean applicable, List<String> changedKeys, ChatComparisonView view,
         String goalCustomName) {
 
-    private static final String GOAL_CUSTOM_NAME = "goalCustomName";
-
     /** 저장된 바꾼 조건에서 목표 이름을 꺼낸다. 적용과 같게 앞뒤 공백을 뗀다. */
     static String goalCustomNameOf(Map<String, JsonNode> changes) {
-        JsonNode name = changes.get(GOAL_CUSTOM_NAME);
+        JsonNode name = changes.get(InputField.GOAL_CUSTOM_NAME.apiName());
         return name != null && name.isString() ? name.asString().strip() : null;
     }
 }

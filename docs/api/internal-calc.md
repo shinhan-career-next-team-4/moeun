@@ -66,7 +66,8 @@
 
 `goalCustomName` 규칙 (#345):
 - 목표 이름은 계산에 쓰지 않는다. 이름만 바꿔도 계산하고 `calc_run(CHAT)`을 남긴다(두 쪽 결과는 같다). F-5 적용이 이 기록으로 기준 계획 버전을 찾기 때문이다.
-- 길이 규칙은 입력 화면과 같다(`rules.yml › fields.GOAL_CUSTOM_NAME`). 벗어나면 `422 VALIDATION_FAILED`(`field: goalCustomName`, `OUT_OF_RANGE`, `min: 1`, `max: 100`, `unit: CHAR`).
+- 길이 규칙은 입력 화면과 같다(`rules.yml › fields.GOAL_CUSTOM_NAME`). 벗어나면 `422 VALIDATION_FAILED`(`field: goalCustomName`, `OUT_OF_RANGE`, `min: 1`, `max: 100`, `unit: CHAR`, `minDisplay: "1자"`, `maxDisplay: "100자"`).
+- 이미 목표를 넘은 계획(검사 순서 8)은 이름만 바꿔도 다른 비교처럼 `409 ALREADY_EXCEEDED`다. 이름만 바꾸는 비교도 같은 계산 경로를 타기 때문이다. 초과 계획의 이름은 결과 화면에서 고친다(#341).
 - 바꾼 개수(`max-fields`)에는 세지 않는다. 응답 `conditions`에는 이름이 없다(숫자 조건만).
 - 적용(F-5)하면 결과 화면에서 이름을 고칠 때(#341)처럼 목표 종류가 직접 입력(`CUSTOM`)이 된다.
 
@@ -247,7 +248,7 @@ Spring 내장 `ProblemDetail`(RFC 9457)에 확장 필드 `code`, `errors`를 더
 | `errors[].reason` | string | 예 | `OUT_OF_RANGE` / `REQUIRED` / `NOT_INTEGER` / `TOO_MANY_DECIMALS` / `NOT_CHANGEABLE` |
 | `errors[].min`, `errors[].max` | number | `OUT_OF_RANGE`일 때(단 `field = etfProductCode`면 없음, #160) | 허용 범위(양끝 포함). 요청 값과 같은 단위 |
 | `errors[].unit` | `KRW` / `MONTH` / `PCT` | `min`·`max`가 있을 때 | |
-| `errors[].minDisplay`, `errors[].maxDisplay` | string | `OUT_OF_RANGE`일 때. **`/internal/calc`에서만 보장**(프론트 API에는 없음) | `Formatter`가 만든 표시 문자열. 경계값은 정확한 값이므로 `약`을 붙이지 않는다. 금액 `1만원`·`1,000만원`, 기간 `0년 1개월`·`30년 0개월`, 금리 `연 20.00%`, 비중 `적금 0 : ETF 100`·`적금 100 : ETF 0`(C2-6과 같은 형식) |
+| `errors[].minDisplay`, `errors[].maxDisplay` | string | `OUT_OF_RANGE`일 때. **`/internal/calc`에서만 보장**(프론트 API에는 없음) | `Formatter`가 만든 표시 문자열. 경계값은 정확한 값이므로 `약`을 붙이지 않는다. 금액 `1만원`·`1,000만원`, 기간 `0년 1개월`·`30년 0개월`, 금리 `연 20.00%`, 비중 `적금 0 : ETF 100`·`적금 100 : ETF 0`(C2-6과 같은 형식), 목표 이름 글자 수 `1자`·`100자`(#345) |
 | `errors[].scale` | integer | `TOO_MANY_DECIMALS`일 때 | 허용 소수 자릿수(금리 2, TBD-09) |
 | `errors[].copyKey` | string | 아니오 | 문구표 키(CP-05). 프론트 경로에서 쓸 수 있다. 이 경로에서는 없어도 된다 |
 
