@@ -47,6 +47,7 @@ def mentions_etf_product(text: str | None) -> bool:
     return text is not None and bool(_ETF_PRODUCT_WORDS.search(text.lower()))
 _NUMBER = re.compile(rf"\d+(?:\.\d+)?|{_KO_NUMERAL}")
 _MONEY_FIELDS = ("goal_amount", "monthly_saving_amount")
+_SPACES = re.compile(r"\s+")
 _THOUSANDS_COMMA = re.compile(r"(?<=\d),(?=\d{3})")
 # "3년 6개월", "5년(60개월)", "60개월(5년)"은 기간 하나를 두 단위로 말한 것이다
 _PERIOD_COMPOUND = re.compile(r"\d+\s*년\s*\(?\s*\d+\s*개월\s*\)?|\d+\s*개월\s*\(?\s*\d+\s*년\s*\)?")
@@ -218,7 +219,14 @@ def drop_carried_conditions(
     return ConditionChanges.model_validate({
         k: v for k, v in changes.changed().items()
         if k in stated or (k in _MONEY_FIELDS and v in said_amounts)
+        or (k == "goal_custom_name" and said_goal_name(text, v))
     })
+
+
+def said_goal_name(text: str, name: str) -> bool:
+    """이번 발화에 목표 이름이 있는지(#345). 띄어쓰기와 대소문자는 보지 않는다("가게보증금" = "가게 보증금")."""
+    wanted = _SPACES.sub("", name).lower()
+    return bool(wanted) and wanted in _SPACES.sub("", text).lower()
 
 
 def carried_amount_sources(text: str, history_user_texts: list[str], changes: ConditionChanges) -> list[str]:

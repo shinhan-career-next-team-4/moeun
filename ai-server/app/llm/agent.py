@@ -45,6 +45,7 @@ from app.llm.conditions import (
     check_amount_units,
     drop_carried_conditions,
     pointed_source,
+    said_goal_name,
 )
 from app.llm.context import build_messages, check_plan_context, plan_model_input
 from app.llm.errors import AgentError, ForbiddenAnswer, ForbiddenReason
@@ -90,6 +91,14 @@ EXCLUDED_NOTE = "excludedConditions는 이번 발화에 없어 계산에서 뺐�
 ETF_ZERO_SENTENCE = "ETF 비중이 0%라서 종목을 바꿔도 결과는 같아요."
 ETF_ZERO_NOTE = (
     f"바꾼 쪽의 ETF 비중이 0%라 종목은 결과에 영향이 없습니다. 종목 소개 없이 '{ETF_ZERO_SENTENCE}' 한 문장으로 답하세요."
+)
+# 목표 이름만 바꿨을 때 붙이는 안내(#345). 이름은 계산 조건이 아니라 두 쪽 결과가 같다
+GOAL_NAME_ONLY_NOTE = (
+    "목표 이름만 바꿨고 예상 결과는 그대로입니다. "
+    "바뀐 이름과 결과가 그대로라는 것만 한 문장으로 답하고 금액은 말하지 마세요."
+)
+_GOAL_NAME_NOT_SAID_ERROR = (
+    "목표 이름은 사용자가 이번에 말한 이름만 넣습니다. 지어내지 말고 어떤 이름으로 바꿀지 되물으세요."
 )
 _ALL_SAVINGS_PCT = 100
 _SAME_PRODUCT_ERROR = "이미 계획의 종목입니다. 계산하지 말고 지금 계획이 이미 그 종목이라고만 답하세요."
@@ -348,6 +357,11 @@ class ChatAgent:
             changes = changes.model_copy(update={"etf_product_code": None})
             if not changes.changed():
                 raise CalcError(_SAME_PRODUCT_ERROR)
+        if changes.goal_custom_name is not None:
+            name = changes.goal_custom_name.strip()
+            if not turn.req.text or not said_goal_name(turn.req.text, name):
+                raise CalcError(_GOAL_NAME_NOT_SAID_ERROR)
+            changes = changes.model_copy(update={"goal_custom_name": name})
         if not changes.changed():
             raise CalcError("바꿀 조건이 없습니다. 무엇을 바꿀지 사용자에게 되물으세요.")
         if turn.req.text and not check_amount_units(turn.req.text, changes):
@@ -385,6 +399,8 @@ class ChatAgent:
         # 종목만 바꿨고 그 비교가 ETF를 쓰지 않을 때만 붙인다. 다른 조건도 바꿨으면 결과가 달라지므로 붙이지 않는다
         if changes.changed().keys() == {"etf_product_code"} and _changed_savings_ratio(result) == _ALL_SAVINGS_PCT:
             result = {**result, "etfNote": ETF_ZERO_NOTE}
+        if changes.changed().keys() == {"goal_custom_name"}:
+            result = {**result, "goalNameNote": GOAL_NAME_ONLY_NOTE}
         return json.dumps(result, ensure_ascii=False)
 
     async def _search_documents(self, turn: Turn, args: dict[str, Any]) -> str:
