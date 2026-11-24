@@ -51,6 +51,7 @@ export interface ChatPollingState {
 export type ScenarioName = "GOOD" | "AVG" | "BAD";
 
 export type ComparisonConditionKey =
+  | "goalCustomName"
   | "goalAmount"
   | "monthlySavingAmount"
   | "savingsRatioPct"
@@ -100,6 +101,8 @@ export interface ComparisonView {
   messageId: number;
   applicable: boolean;
   changedKeys: ComparisonConditionKey[];
+  /** 바꿀 목표 이름(#345). changedKeys에 goalCustomName이 있을 때만 온다. 계산 조건이 아니라 conditions·display에는 없다. */
+  goalCustomName?: string;
   conditions: {
     current: ComparisonConditionValues;
     changed: ComparisonConditionValues;

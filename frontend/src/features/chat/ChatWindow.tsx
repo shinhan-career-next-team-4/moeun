@@ -15,6 +15,7 @@ import { ComparisonNotices, ComparisonResult, useComparison, useComparisonContro
 import { COPY, unitChar } from "./copy";
 import { Citations, EtfRiskCitations } from "./explanation/Citations";
 import { planHasNoEtf } from "./planEtf";
+import { planGoalName } from "./planGoal";
 import { postExplanation, useExplanationRequest } from "./explanation/useExplanationRequest";
 import type { ChatDeps } from "./index";
 import { useRetryExplanation } from "./retry/useRetryExplanation";
@@ -156,6 +157,7 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, onAssi
   const etfProductCode = useSyncExternalStore(subscribe, () => planEtfProductCode(store.getState()));
   const etfProducts = useEtfProducts(deps.api, etfProductCode);
   const noEtf = useSyncExternalStore(subscribe, () => planHasNoEtf(store.getState()));
+  const goalName = useSyncExternalStore(subscribe, () => planGoalName(store.getState()));
 
   const comparison = useComparison(comparisonController, chat.messages, settledStatus === "ALREADY_EXCEEDED");
 
@@ -293,7 +295,7 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, onAssi
               retryDisabled={retryExplanation.disabled}
               planHasNoEtf={noEtf}
             />
-            <ComparisonResult comparison={comparison} message={message} />
+            <ComparisonResult comparison={comparison} message={message} currentGoalName={goalName} />
           </Fragment>
         ))}
         <ComparisonNotices comparison={comparison} />

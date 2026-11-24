@@ -36,6 +36,7 @@ const CHAT_FILES = [
   "get-comparison.200-goal-changed.json",
   "get-comparison.200-asymmetric-exceeded.json",
   "get-comparison.200-changed-exceeded.json",
+  "get-comparison.200-goal-name.json",
   "get-comparison.400.json",
   "get-comparison.404.json",
   "get-comparison.500.json",
@@ -136,7 +137,7 @@ test("목 파일 개수: chat 40, auth 6, plan 31, refdata 1, alternative 6", ()
       : [];
     assert.deepEqual(actual, [...names].sort(), `${dir}/ 파일 목록이 계약 표와 다르다`);
   }
-  assert.equal(CHAT_FILES.length, 40);
+  assert.equal(CHAT_FILES.length, 41);
   assert.equal(AUTH_FILES.length + PLAN_FILES.length, 37);
   assert.equal(REFDATA_FILES.length, 1);
   assert.equal(ALTERNATIVE_FILES.length, 6);
@@ -774,6 +775,21 @@ test("F-4 목: 경로로 구분되는 messageId, 키 모양, internal-calc A-1�
   const { calcRunId, ...rest } = internal;
   assert.deepEqual(ok, { messageId: 1031, applicable: true, changedKeys: ["monthlySavingAmount"], ...rest });
   assert.deepEqual({ ...stale, messageId: 1031, applicable: true }, ok);
+});
+
+test("F-4 goal-name: 목표 이름만 바꾼 비교는 최상위 goalCustomName이 있고 양쪽 숫자가 같다(#345)", () => {
+  const b = body("chat", "get-comparison.200-goal-name.json");
+  assert.equal(b.messageId, 1037);
+  assert.deepEqual(b.changedKeys, ["goalCustomName"]);
+  assert.equal(b.goalCustomName, "가게 보증금");
+  // 이름은 계산 조건이 아니라 conditions·display에 키가 없다
+  assert.deepEqual(b.conditions.changed, b.conditions.current);
+  assert.deepEqual(b.changed, b.current);
+  assert.ok(!Object.keys(b.display).some((key) => key.includes("goalCustomName")));
+  for (const item of b.diff.byScenario) {
+    assert.deepEqual([item.afterTaxAssetDelta, item.principalDelta, item.afterTaxGainDelta], [0, 0, 0]);
+    assert.equal(b.display[`diff.${item.scenario}.afterTaxAssetDelta`], "변화 없음");
+  }
 });
 
 test("F-4 etf0: 시나리오 AVG 1개, savingsRatioPct 100", () => {

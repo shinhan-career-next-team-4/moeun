@@ -7,12 +7,14 @@ import {
   DIRECTION_COPY,
   ETF_LABEL,
   GOAL_LABEL,
+  GOAL_NAME_LABEL,
   LOAD_FAILED,
 } from "./copy";
 import { isApplyActive } from "./controller";
 import {
   ETF_KEY,
   GOAL_KEY,
+  GOAL_NAME_KEY,
   conditionDisplayKey,
   conditionKeysOf,
   type Comparison,
@@ -25,6 +27,8 @@ import { COPY } from "../../../shared/copy/copy";
 const ROW = "flex flex-wrap gap-2";
 // 바뀐 조건은 굵게, 배경색으로 눈에 띄게 한다(조건 없는 class라 평소 화면에 바로 적용된다).
 const CHANGED_ROW = `${ROW} font-bold bg-primary-soft`;
+// 목표 이름은 1~100자라 길면 칸 안에서 줄을 바꾼다(띄어쓰기 없는 이름도)
+const NAME_CELL = "min-w-0 wrap-anywhere";
 
 // 결과의 변화 방향(#284). 클수록 좋은 값(예상 자산·목표 대비)만 쓴다. 색만으로 구분하지 않게 기호와 낭독 문구를 함께 둔다
 const RESULT_TONE: Record<Direction, { className: string; mark: string; spoken: string }> = {
@@ -45,10 +49,32 @@ function labelOf(key: string): string {
   return CONDITION_LABELS[key];
 }
 
-/** 실제로 바뀐 항목만 카드 행 순서대로 잇는다(#284). */
+/** 실제로 바뀐 항목만 카드 행 순서대로 잇는다(#284). 목표 이름은 맨 앞 행이다(#345). */
 function titleOf(data: Comparison): string {
   const changed = conditionKeysOf(data.changedKeys).filter((key) => data.changedKeys.has(key));
-  return DIRECTION_COPY.title.replace("{conditions}", changed.map(labelOf).join("·"));
+  const labels = [...(data.changedGoalName !== null ? [GOAL_NAME_LABEL] : []), ...changed.map(labelOf)];
+  return DIRECTION_COPY.title.replace("{conditions}", labels.join("·"));
+}
+
+/** 목표 이름만 바꿨는지. 이름은 계산에 쓰지 않아 양쪽 숫자가 같다(#345). */
+function nameOnly(data: Comparison): boolean {
+  return data.changedGoalName !== null && [...data.changedKeys].every((key) => key === GOAL_NAME_KEY);
+}
+
+/** 바꾼 목표 이름 행(#345). 지금 이름은 계획에서 읽고, 모르면 칸을 비운다. 이름은 숫자가 아니라 방향 표시가 없다. */
+function GoalNameRow({ current, changed }: { current: string | null; changed: string }) {
+  return (
+    <div data-testid="chat-comparison-condition" data-key={GOAL_NAME_KEY} data-changed="true" className={CHANGED_ROW}>
+      <span data-testid="chat-comparison-label">{GOAL_NAME_LABEL}</span>
+      <span data-testid="chat-comparison-current" className={NAME_CELL}>
+        {current ?? ""}
+      </span>
+      <span aria-hidden="true">→</span>
+      <span data-testid="chat-comparison-changed" className={NAME_CELL}>
+        {changed}
+      </span>
+    </div>
+  );
 }
 
 /**
@@ -119,7 +145,7 @@ function ExceededSides({ data, exceeded }: { data: Comparison; exceeded: Compari
   );
 }
 
-function Details({ data }: { data: Comparison }) {
+function Details({ data, currentGoalName }: { data: Comparison; currentGoalName: string | null }) {
   const note = goalNote(data);
   const goalChanged = data.changedKeys.has(GOAL_KEY);
   return (
@@ -127,6 +153,7 @@ function Details({ data }: { data: Comparison }) {
       <p data-testid="chat-comparison-title" className="font-semibold">
         {titleOf(data)}
       </p>
+      {data.changedGoalName !== null && <GoalNameRow current={currentGoalName} changed={data.changedGoalName} />}
       {conditionKeysOf(data.changedKeys).map((key) => {
         const changed = data.changedKeys.has(key);
         return (
@@ -168,6 +195,7 @@ function Details({ data }: { data: Comparison }) {
       ))}
       {data.exceeded !== null && <ExceededSides data={data} exceeded={data.exceeded} />}
       {note !== null && <p data-testid="chat-comparison-goal-note">{note}</p>}
+      {nameOnly(data) && <p data-testid="chat-comparison-goal-name-note">{COPY["chat.goalNameOnlyNote"]}</p>}
     </>
   );
 }
@@ -176,7 +204,16 @@ function Details({ data }: { data: Comparison }) {
  * RECALC_RESULT 말풍선 뒤의 비교 자리. F-4 응답 전·404·400·401이면 아무것도 그리지 않는다.
  * 가장 최근이 아닌 비교는 상세를 숨긴 '이전 결과' 카드로 접고 버튼을 비활성으로 둔다(P-3, P-72).
  */
-export function ComparisonResult({ comparison, message }: { comparison: ComparisonState; message: ChatMessage }) {
+export function ComparisonResult({
+  comparison,
+  message,
+  currentGoalName = null,
+}: {
+  comparison: ComparisonState;
+  message: ChatMessage;
+  /** 지금 계획의 목표 이름. 목표 이름을 바꾼 비교(#345)의 왼쪽 칸이다. */
+  currentGoalName?: string | null;
+}) {
   if (message.messageType !== "RECALC_RESULT" || message.status !== "COMPLETED") return null;
   const { snapshot, latestId } = comparison;
   const entry = snapshot.entries.get(message.id);
@@ -204,7 +241,7 @@ export function ComparisonResult({ comparison, message }: { comparison: Comparis
   if (entry?.kind !== "ready") return null;
   return (
     <div data-testid="chat-comparison" data-message-id={message.id} data-collapsed="false">
-      <Details data={entry.data} />
+      <Details data={entry.data} currentGoalName={currentGoalName} />
       <ApplyButton comparison={comparison} messageId={message.id} active={isApplyActive(snapshot, latestId, message.id)} />
     </div>
   );
