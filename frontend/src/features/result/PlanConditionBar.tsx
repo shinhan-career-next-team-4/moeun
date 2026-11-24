@@ -1,7 +1,7 @@
 // import { Link } from "react-router-dom";
 // import { INPUT_PATH } from "../../app/routes";
 import { COPY } from '../../shared/copy/copy'
-import { goalLabel } from '../../shared/units/units'
+import { GoalNameEditor } from './GoalNameEditor'
 import type { ResultPlanView } from './types'
 import { UndoPlanButton } from './UndoPlanButton'
 
@@ -16,14 +16,9 @@ export function PlanConditionBar({
     view,
     onFeedback = () => {},
 }: PlanConditionBarProps) {
-    const { plan, result, display } = view
-    const goalName =
-        plan.goalType === 'CUSTOM' && plan.goalCustomName
-            ? plan.goalCustomName
-            : goalLabel(plan.goalType)
-
+    const { result, display } = view
     const items = [
-        goalName,
+        <GoalNameEditor key="goal-name" view={view} onFeedback={onFeedback} />,
         `목표 ${display['goalAmount']}`,
         display['conditions.targetPeriodMonths'],
         `보유 ${display['conditions.heldAssets']}`,
