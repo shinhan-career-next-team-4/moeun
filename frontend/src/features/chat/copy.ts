@@ -21,7 +21,7 @@ export const COPY = {
   retryFailed: "다시 시도",
   etfChipsLabel: "다른 종목으로 비교해 보기",
   etfChipQuestion: "{name}로 바꾸면 어때요?",
-  citationsLabel: "출처",
+  citationsChipLabel: "출처 {n}건: {orgs}",
   citationsMore: "+{n}",
   validationRequired: "값을 입력해 주세요",
   validationOutOfRange: "{min}~{max} 사이로 입력해 주세요",

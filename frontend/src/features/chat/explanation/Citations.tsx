@@ -13,19 +13,22 @@ const MAX_LOGOS = 2;
 export function Citations({ citations }: { citations: ChatCitation[] }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  if (citations.length === 0) return null;
+
   const orgs = [...new Set(citations.map((citation) => citation.orgName))];
   const rest = citations.length - 1;
+  const chipLabel = COPY.citationsChipLabel.replace("{n}", String(citations.length)).replace("{orgs}", orgs.join(", "));
 
   return (
     <div data-testid="chat-citations" className="mt-2">
       <button
         type="button"
+        aria-label={chipLabel}
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((value) => !value)}
-        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface py-1 pl-1 pr-2.5 text-xs text-text hover:bg-surface-muted"
+        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface py-1 pl-1 pr-2.5 text-xs text-text hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
-        <span className="sr-only">{COPY.citationsLabel} </span>
         <span className="flex -space-x-1.5">
           {orgs.slice(0, MAX_LOGOS).map((org) => (
             <OrgLogo key={org} orgName={org} />
@@ -34,7 +37,7 @@ export function Citations({ citations }: { citations: ChatCitation[] }) {
         <span>{citations[0].orgName}</span>
         {rest > 0 && <span className="text-text-muted">{COPY.citationsMore.replace("{n}", String(rest))}</span>}
       </button>
-      <ul id={panelId} hidden={!open} className="mt-1.5 flex flex-col gap-1 text-xs">
+      <ul id={panelId} className="mt-1.5 flex flex-col gap-1 text-xs">
         {open &&
           citations.map((citation, index) => (
             <li key={`${index}-${citation.sourceUrl}`} data-testid="chat-citation">
@@ -49,7 +52,7 @@ export function Citations({ citations }: { citations: ChatCitation[] }) {
   );
 }
 
-/** 기관 로고. 로고 파일이 없으면 이름 첫 글자 배지. 기관 이름은 칩 글자가 읽으므로 로고는 장식이다. */
+/** 기관 로고. 로고 파일이 없으면 이름 첫 글자 배지. 기관 이름은 칩 이름이 읽으므로 로고는 장식이다. */
 function OrgLogo({ orgName }: { orgName: string }) {
   const src = orgLogo(orgName);
   return (

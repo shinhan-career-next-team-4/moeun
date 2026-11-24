@@ -27,10 +27,24 @@ describe("#375 출처 칩", () => {
     expect(screen.queryAllByTestId("chat-citation")).toHaveLength(0);
   });
 
-  it("칩 이름은 스크린리더에 '출처'로 시작한다", () => {
+  it("칩 이름은 스크린리더에 출처 건수와 운용사를 모두 알린다(로고만 보이는 둘째 기관 포함)", () => {
     render(<Citations citations={[SAMSUNG, MIRAE]} />);
 
-    expect(chip().textContent?.startsWith(copy["chat.citationsLabel"])).toBe(true);
+    const name = copy["chat.citationsChipLabel"].replace("{n}", "2").replace("{orgs}", "삼성자산운용, 미래에셋자산운용");
+    expect(screen.getByRole("button", { name })).toBe(chip());
+  });
+
+  it("서로 다른 운용사가 셋 이상이어도 로고는 둘까지만 겹쳐 보인다", () => {
+    render(<Citations citations={[SAMSUNG, MIRAE, UNKNOWN]} />);
+
+    expect(logos()).toHaveLength(2);
+    expect(chip().textContent).toContain("+2");
+  });
+
+  it("(예외) 출처가 없으면 아무것도 그리지 않는다", () => {
+    const { container } = render(<Citations citations={[]} />);
+
+    expect(container.innerHTML).toBe("");
   });
 
   it("서로 다른 운용사 로고를 겹쳐 보인다(정적 파일, 외부 주소 아님)", () => {
