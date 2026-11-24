@@ -86,7 +86,7 @@ moeun:
         product-code: SP500                # 대표 상품
         display-name: S&P500 추종 ETF
         gain-tax-rate-pct: 15.4
-        version-label: investing-2016-10-2026-10
+        version-label: investing-2016-10-2026-10-r2
         base-date: 2026-10-31
         source: Investing.com S&P500 월말 종가(달러 지수)
         file: ${MOEUN_SP500_FILE:file:data/seed/sp500-monthly.csv}
@@ -95,7 +95,7 @@ moeun:
         product-code: "069500"
         display-name: 코스피200 추종 ETF
         gain-tax-rate-pct: 0
-        version-label: investing-2016-10-2026-10
+        version-label: investing-2016-10-2026-10-r2
         base-date: 2026-10-31
         source: Investing.com 069500 월말 종가(원)
         file: ${MOEUN_ETF_069500_FILE:file:data/seed/etf-069500-monthly.csv}
@@ -104,7 +104,7 @@ moeun:
         product-code: "133690"
         display-name: 나스닥100 추종 ETF
         gain-tax-rate-pct: 15.4
-        version-label: investing-2016-10-2026-10
+        version-label: investing-2016-10-2026-10-r2
         base-date: 2026-10-31
         source: Investing.com 133690 월말 종가(원)
         file: ${MOEUN_ETF_133690_FILE:file:data/seed/etf-133690-monthly.csv}
