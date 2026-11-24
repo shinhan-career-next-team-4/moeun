@@ -49,12 +49,12 @@ function buildScenario(scenario: ProjectionScenario, months: number): Projection
 }
 
 /** 기간(년)을 고른 mock. 컴포넌트는 최대 30년(360개월)까지 받는다. */
-export function buildMockProjection(years: number): ProjectionData {
+export function buildMockProjection(years: number): Required<ProjectionData> {
   const months = years * 12;
   return { GOOD: buildScenario("GOOD", months), AVG: buildScenario("AVG", months), BAD: buildScenario("BAD", months) };
 }
 
-export const MOCK_PROJECTION: ProjectionData = buildMockProjection(10);
+export const MOCK_PROJECTION: Required<ProjectionData> = buildMockProjection(10);
 
 export interface MockScenarioCards {
   scenarios: ScenarioResult[];
@@ -70,7 +70,7 @@ function calendarMonth(monthsFromStart: number): { year: number; month: number }
 }
 
 /** 결과 화면 3구간 카드(`ScenarioCards`)에 넘길 mock. 서버가 주는 값 모양을 흉내 낸다. */
-export function buildMockScenarioCards(data: ProjectionData): MockScenarioCards {
+export function buildMockScenarioCards(data: Required<ProjectionData>): MockScenarioCards {
   const principalEnd = data.AVG.at(-1)?.principal ?? 0;
   const goal = Math.round((principalEnd * GOAL_RATE) / WON_PER_MAN) * WON_PER_MAN;
   const display: Record<string, string> = {};

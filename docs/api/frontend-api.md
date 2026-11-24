@@ -556,6 +556,30 @@ FR-PLAN-05·06, FR-RES-01~07, FR-INP-11, NFR-INT-02, D-010, D-062, D-072.
 - **R-5의 예외**: C12a-7은 세로축 눈금 숫자·툴팁·점별 월 라벨을 두지 않는다고 했다. 월을 **눌렀을 때에만** 그 달의 값을 보이는 것이 예외이고, 세로축 눈금 숫자와 마우스를 올렸을 때의 툴팁은 여전히 없다(D-101).
 - 응답 크기: 점당 문자열 최대 5개(라벨·원금·시나리오 3개)이고 점은 최대 361개(30년)다.
 
+#### C12a-6-6. `projection` (#315)
+
+결과 화면의 "N년 뒤 예상 자산" **누적 영역 그래프**가 그리는 값이다. 시나리오마다 월별 층을 `result` 아래에 한 번 싣는다.
+
+```json
+"projection": {
+  "AVG": [ { "month": 1, "principal": 6300000, "savingsInterest": 1200, "etfGain": -3000, "profit": -1800, "total": 6298200 } ]
+}
+```
+
+| 필드 | 이 계약 |
+|---|---|
+| `result.projection` | 객체. 응답에 있는 시나리오(`GOOD`·`AVG`·`BAD`, ETF 0%면 `AVG`)만 키로 갖는다. 이미 목표 초과면 빈 객체 |
+| `[].month` | 1부터 시작하는 경과 개월(출발점 k=0은 담지 않는다). 점 수 = `targetPeriodMonths` (최대 360) |
+| `[].principal` | 그 달까지의 누적 원금(보유 자산 + 월 저축액 × 개월). `principalPoints`와 같다 |
+| `[].savingsInterest` | 적금 몫의 세후 이자(적금 평가액 − 적금에 넣은 원금) |
+| `[].etfGain` | ETF 몫의 세후 손익 = `total − principal − savingsInterest`. 음수일 수 있다 |
+| `[].profit` | `savingsInterest + etfGain` |
+| `[].total` | 세후 예상 자산(`monthlyPoints[].afterTaxAsset`과 같다). `principal + savingsInterest + etfGain` |
+
+- 숫자는 엔진이 정수 원 단위로 한 번만 반올림해 내고, 합이 항상 맞는다. 프론트는 더하거나 고치지 않고 그리기만 한다(NFR-INT-01).
+- 키가 없는 응답(옛 응답)이면 그래프를 그리지 않고 3구간 카드는 보기만 한다.
+- 프론트는 이 그래프로 `principalPoints`·`monthlyDetails`를 더 쓰지 않는다. 서버 쪽 정리는 후속 작업이다.
+
 ### C12a-7. 결과 화면이 계산하지 않기 위한 대응표
 
 표기는 모두 `display["키"]`(키는 점 포함 평면 문자열). 이 표에 없는 숫자 문자열을 프론트가 만들면 계약 위반이다.

@@ -28,6 +28,26 @@ function jsonResponse(
     })
 }
 
+/** 서버 projection 모양을 만든다. 월마다 합이 맞는 값이면 되고, 화면은 이 값을 그대로 그린다 */
+function withProjection(body: unknown) {
+  const clone = structuredClone(body) as {
+    result: { scenarios: { scenario: string }[]; projection?: Record<string, unknown[]> };
+  };
+  const projection: Record<string, unknown[]> = {};
+  for (const { scenario } of clone.result.scenarios) {
+    projection[scenario] = Array.from({ length: 36 }, (_, i) => ({
+      month: i + 1,
+      principal: 1_000_000 * (i + 1),
+      savingsInterest: 1_000 * (i + 1),
+      etfGain: 2_000 * (i + 1),
+      profit: 3_000 * (i + 1),
+      total: 1_003_000 * (i + 1),
+    }));
+  }
+  clone.result.projection = projection;
+  return clone;
+}
+
 describe('ResultPage (#49·#50, C12a-7)', () => {
     beforeEach(() => {
         planStore.clear()
@@ -68,7 +88,7 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
     expect(scenarios.textContent).toContain("좋았던 때");
     expect(scenarios.textContent).toContain("평균");
     expect(scenarios.textContent).toContain("나빴던 때");
-    expect(screen.getByRole("img", { name: "예상 자산 추이" })).toBeTruthy();
+    expect(screen.getByRole("img", { name: "목표 대비 예상 자산" })).toBeTruthy();
     expect(screen.getByLabelText("계산 가정").textContent).toContain("15.4%");
         // 대화 패널에도 같은 고지가 있어서 페이지 면책(footer)을 짚는다
         const footer = document.querySelector('footer') as HTMLElement
@@ -103,35 +123,35 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
       expect(summary.textContent).not.toContain("원금");
     });
 
-    it("(W-04) 그래프에 3개 시나리오 선(빨강·초록·파랑)과 목표선 범례가 보인다", async () => {
+    it("(#315) 서버 projection이 있으면 3구간 카드를 단추로 두고 영역 그래프를 그린다", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, withProjection(planMock.responses[0].body))));
+      renderResult();
+
+      expect(await screen.findByRole("group", { name: "예상 자산 누적 그래프" })).toBeTruthy();
+      // 기준 시나리오 카드가 눌린 상태다
+      const cards = screen.getByLabelText("세 가지 경우 비교");
+      expect(within(cards).getAllByRole("button", { pressed: true })).toHaveLength(1);
+      expect(screen.queryByLabelText("예상 자산 추이 그래프")).toBeNull();
+    });
+
+    it("(#315) 카드를 누르면 그 시나리오의 그래프로 바뀐다", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, withProjection(planMock.responses[0].body))));
+      renderResult();
+
+      await screen.findByRole("group", { name: "예상 자산 누적 그래프" });
+      const cards = screen.getByLabelText("세 가지 경우 비교");
+      const buttons = within(cards).getAllByRole("button");
+      fireEvent.click(buttons[0]);
+      expect(buttons[0].getAttribute("aria-pressed")).toBe("true");
+    });
+
+    it("(#315) projection이 없으면 그래프 없이 카드는 보기만 한다", async () => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
       renderResult();
 
-      const chart = await screen.findByLabelText("예상 자산 추이 그래프");
-      // 3구간 카드에도 '평균' 등이 있으므로 범례는 그래프 안에서 찾는다
-      expect(within(chart).getByText("좋았던 때")).toBeTruthy();
-      expect(within(chart).getByText("평균")).toBeTruthy();
-      expect(within(chart).getByText("나빴던 때")).toBeTruthy();
-      expect(within(chart).getByText("목표선")).toBeTruthy();
-      expect(chart.querySelector('path[data-scenario="GOOD"]')?.getAttribute("stroke")).toBe("#dc2626");
-      expect(chart.querySelector('path[data-scenario="AVG"]')?.getAttribute("stroke")).toBe("#16a34a");
-      expect(chart.querySelector('path[data-scenario="BAD"]')?.getAttribute("stroke")).toBe("#2563eb");
-    });
-
-    it("(W-04 예외) GOOD·BAD monthlyPoints가 없으면 밴드 없이 평균선과 목표선만 그린다", async () => {
-      const body = structuredClone(planMock.responses[0].body) as {
-        result: { scenarios: { scenario: string; monthlyPoints: unknown[] }[] };
-      };
-      for (const scenario of body.result.scenarios) {
-        if (scenario.scenario !== "AVG") scenario.monthlyPoints = [];
-      }
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, body)));
-      renderResult();
-
-      const chart = await screen.findByLabelText("예상 자산 추이 그래프");
-      expect([...chart.querySelectorAll("path")].filter((n) => n.getAttribute("d")?.endsWith("Z")).length).toBe(0);
-      expect(within(chart).queryByText("좋았던 때~나빴던 때 범위")).toBeNull();
-      expect(within(chart).getByText("평균")).toBeTruthy();
+      await screen.findByLabelText("세 가지 경우 비교");
+      expect(screen.queryByRole("group", { name: "예상 자산 누적 그래프" })).toBeNull();
+      expect(within(screen.getByLabelText("세 가지 경우 비교")).queryAllByRole("button")).toHaveLength(0);
     });
 
     it("(W-06) 3구간 머리글과 구간 산정 설명이 보인다", async () => {
@@ -153,18 +173,6 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
 
       expect(await screen.findByText("ETF가 포함된 결과는 시기에 따라 달라요")).toBeTruthy();
       expect(screen.queryByText(/과거 10년 수익률로 1만 가지 경우를 계산해 세 구간/)).toBeNull();
-    });
-
-    it("(W-26) 가로축 양 끝은 display 값이고 중간 눈금은 1년 간격이다", async () => {
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
-      renderResult();
-
-      const chart = await screen.findByLabelText("예상 자산 추이 그래프");
-      const labels = [...chart.querySelectorAll("text")].map((node) => node.textContent);
-      expect(labels).toContain("2026년 11월");
-      expect(labels).toContain("2029년 11월");
-      expect(labels).toContain("2027.11");
-      expect(labels).toContain("2028.11");
     });
 
     it("(W-19) 면책 문구에 다섯 가지가 모두 들어 있다", async () => {
@@ -202,7 +210,7 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
         )
         expect(screen.queryByLabelText('결과 요약')).toBeNull()
         expect(screen.queryByLabelText('세 가지 경우 비교')).toBeNull()
-        expect(screen.queryByRole('img', { name: '예상 자산 추이' })).toBeNull()
+        expect(screen.queryByRole('group', { name: '예상 자산 누적 그래프' })).toBeNull()
     })
 
     it('ETF 0%면 평균 1개 카드만 그린다', async () => {
@@ -399,7 +407,7 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
             return body
         }
 
-        it("그래프 바로 다음에 ETF 비교 영역이 온다", async () => {
+        it("3구간 카드(그래프 포함) 바로 다음에 ETF 비교 영역이 온다", async () => {
             vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, withProductName())))
             renderResult()
 
@@ -407,7 +415,7 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
             const labels = [...document.querySelectorAll("section[aria-label]")].map((node) =>
                 node.getAttribute("aria-label"),
             )
-            expect(labels.indexOf("ETF 종목 비교")).toBe(labels.indexOf("예상 자산 추이 그래프") + 1)
+            expect(labels.indexOf("ETF 종목 비교")).toBe(labels.indexOf("세 가지 경우 비교") + 1)
         })
 
         it("3구간 머리글이 display의 종목 이름을 쓴다", async () => {
@@ -427,78 +435,6 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
 
             await screen.findByLabelText("계산 가정")
             expect(screen.queryByLabelText("ETF 종목 비교")).toBeNull()
-        })
-    })
-
-    // #292: 그래프에서 월을 누르면 그 달의 값(서버가 서식한 문자열)을 보여 준다
-    describe('월별 상세 (#292)', () => {
-        /** 서버가 월마다 서식한 문자열을 준다. 화면이 그대로 보이는지 보려고 값마다 다른 글자를 쓴다 */
-        function withMonthlyDetails(body: typeof planMock.responses[0]['body']) {
-            const clone = structuredClone(body) as unknown as {
-                result: {
-                    scenarios: { monthlyPoints: { month: string }[] }[]
-                    monthlyDetails?: unknown[]
-                }
-            }
-            clone.result.monthlyDetails = clone.result.scenarios[0].monthlyPoints.map((point, k) => ({
-                month: point.month,
-                label: `${point.month.slice(0, 4)}년 ${Number(point.month.slice(5))}월`,
-                principal: `원금${k}`,
-                afterTaxAsset: { GOOD: `좋${k}`, AVG: `평${k}`, BAD: `나${k}` },
-            }))
-            return clone
-        }
-
-        it('월 영역을 누르면 그 달의 시나리오별 자산과 누적 납입 원금이 서버 문자열 그대로 보인다', async () => {
-            vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, withMonthlyDetails(planMock.responses[0].body))))
-            renderResult()
-
-            const chart = await screen.findByLabelText('예상 자산 추이 그래프')
-            expect(screen.queryByRole('region', { name: '월별 상세' })).toBeNull()
-            fireEvent.click(within(chart).getByRole('button', { name: '2026-12 선택' }))
-
-            const panel = screen.getByRole('region', { name: '월별 상세' })
-            expect(within(panel).getByText('2026년 12월')).toBeTruthy()
-            expect(within(panel).getByText('좋1')).toBeTruthy()
-            expect(within(panel).getByText('평1')).toBeTruthy()
-            expect(within(panel).getByText('나1')).toBeTruthy()
-            expect(within(panel).getByText('원금1')).toBeTruthy()
-        })
-
-        it('Enter로도 고르고, 다른 월을 누르면 값이 바뀐다', async () => {
-            vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, withMonthlyDetails(planMock.responses[0].body))))
-            renderResult()
-
-            const chart = await screen.findByLabelText('예상 자산 추이 그래프')
-            fireEvent.keyDown(within(chart).getByRole('button', { name: '2026-12 선택' }), { key: 'Enter' })
-            expect(within(screen.getByRole('region', { name: '월별 상세' })).getByText('평1')).toBeTruthy()
-
-            fireEvent.click(within(chart).getByRole('button', { name: '2027-01 선택' }))
-            const panel = screen.getByRole('region', { name: '월별 상세' })
-            expect(within(panel).getByText('평2')).toBeTruthy()
-            expect(within(panel).queryByText('평1')).toBeNull()
-        })
-
-        it('같은 월을 다시 누르거나 닫기를 누르면 상세가 닫힌다', async () => {
-            vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, withMonthlyDetails(planMock.responses[0].body))))
-            renderResult()
-
-            const chart = await screen.findByLabelText('예상 자산 추이 그래프')
-            fireEvent.click(within(chart).getByRole('button', { name: '2026-12 선택' }))
-            fireEvent.click(within(chart).getByRole('button', { name: '2026-12 선택' }))
-            expect(screen.queryByRole('region', { name: '월별 상세' })).toBeNull()
-
-            fireEvent.click(within(chart).getByRole('button', { name: '2026-12 선택' }))
-            fireEvent.click(within(screen.getByRole('region', { name: '월별 상세' })).getByRole('button', { name: '닫기' }))
-            expect(screen.queryByRole('region', { name: '월별 상세' })).toBeNull()
-        })
-
-        it('월별 표시 문자열이 없는 응답이면 월 영역은 단추가 아니다', async () => {
-            vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)))
-            renderResult()
-
-            const chart = await screen.findByLabelText('예상 자산 추이 그래프')
-            expect(within(chart).queryByRole('button', { name: '2026-12 선택' })).toBeNull()
         })
     })
 })

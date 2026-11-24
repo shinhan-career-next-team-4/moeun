@@ -24,7 +24,7 @@ export interface ProjectionChartProps {
 export function ProjectionChart({ data, scenario, defaultUnit = "monthly" }: ProjectionChartProps) {
   const [unit, setUnit] = useState<ProjectionUnit>(defaultUnit);
 
-  const monthly = data[scenario];
+  const monthly = data[scenario] ?? [];
   if (monthly.length === 0) return null;
 
   // 범례의 최종 금액은 월별/연별과 상관없이 마지막 달 값이다
@@ -32,7 +32,7 @@ export function ProjectionChart({ data, scenario, defaultUnit = "monthly" }: Pro
   const points = unit === "yearly" ? toYearly(monthly) : monthly;
   const monthRange = { min: monthly[0].month, max: last.month };
   // 세로축은 모든 시나리오 중 가장 큰 합계 기준: 시나리오를 바꿔도 축이 출렁이지 않는다
-  const maxValue = Math.max(0, ...SCENARIOS.flatMap((key) => data[key].map((point) => point.total)));
+  const maxValue = Math.max(0, ...SCENARIOS.flatMap((key) => (data[key] ?? []).map((point) => point.total)));
 
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-5 shadow-sm">

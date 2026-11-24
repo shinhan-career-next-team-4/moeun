@@ -69,7 +69,8 @@ class CalcEngineTest {
             assertThat(actual.gapToGoal()).isEqualTo(expected.gapToGoal());
             assertThat(actual.isAchieved()).isEqualTo(expected.isAchieved());
             assertThat(actual.goalReachMonth()).isEqualTo(expected.goalReachMonth());
-            assertThat(actual.monthlyPoints()).as(golden.id() + " monthlyPoints")
+            assertThat(actual.monthlyPoints().stream().map(CalcEngineTest::withoutSplit).toList())
+                    .as(golden.id() + " monthlyPoints")
                     .containsExactlyElementsOf(expected.monthlyPoints());
         }
     }
@@ -409,5 +410,25 @@ class CalcEngineTest {
 
         assertThatIllegalArgumentException().isThrownBy(() -> engine.calculate(noPeriod, PARAMS, SP500));
         assertThatIllegalArgumentException().isThrownBy(() -> engine.calculate(unknownSaving, PARAMS, SP500));
+    }
+
+    @Test
+    @DisplayName("월별 점은 원금·적금이자·ETF손익을 더하면 세후 자산이다(#315)")
+    void monthlyPointLayersSumToAfterTaxAsset() {
+        GoldenCase golden = GoldenCase.read("g8-bootstrap-constant-returns.json");
+        CalcResult result = new CalcEngine().calculate(golden.input(), golden.params(), golden.sp500());
+        assertThat(result.scenarios()).isNotEmpty();
+        for (ScenarioResult scenario : result.scenarios()) {
+            for (MonthlyPoint point : scenario.monthlyPoints()) {
+                assertThat(point.principal() + point.savingsInterest() + point.etfGain())
+                        .isEqualTo(point.afterTaxAsset());
+                assertThat(point.savingsInterest()).isGreaterThanOrEqualTo(0L);
+            }
+        }
+    }
+
+    /** 골든 파일은 적금 이자 나누기 이전 모양이라 월·원금·세후 자산만 견준다. */
+    private static MonthlyPoint withoutSplit(MonthlyPoint point) {
+        return new MonthlyPoint(point.month(), point.principal(), point.afterTaxAsset());
     }
 }
