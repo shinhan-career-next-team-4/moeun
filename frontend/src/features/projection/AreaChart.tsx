@@ -5,7 +5,7 @@ import { formatMoneyShort } from "./formatMoney";
 import { LAYERS } from "./layers";
 import { chartLayout, monthToX, valueToY, type MonthRange } from "./layout";
 import { areaBetween, monotoneCurve, type XY } from "./monotone";
-import { formatPeriod } from "./period";
+import { formatMonthLabel, formatPeriod } from "./period";
 import type { ProjectionPoint } from "./types";
 import { useElementWidth } from "./useElementWidth";
 
@@ -27,6 +27,8 @@ export interface AreaChartProps {
   /** 이 값이 바뀌면 그래프가 왼쪽에서 오른쪽으로 처음부터 다시 차오른다. */
   revealKey: string;
   ariaLabel: string;
+  /** 계산 시작월("YYYY-MM"). 있으면 가로축 눈금을 날짜(YYYY.MM)로, 없으면 기간("1년")으로 쓴다. */
+  startMonth?: string;
 }
 
 /**
@@ -35,7 +37,7 @@ export interface AreaChartProps {
  *
  * 겹쳐 놓은 층 세 장: ① 축·격자(가만히 있음) ② 영역(차오르는 애니메이션) ③ 안내선·점(툴팁용)
  */
-export function AreaChart({ points, monthRange, maxValue, revealKey, ariaLabel }: AreaChartProps) {
+export function AreaChart({ points, monthRange, maxValue, revealKey, ariaLabel, startMonth }: AreaChartProps) {
   const [wrapRef, width] = useElementWidth<HTMLDivElement>(FALLBACK_WIDTH);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
@@ -134,7 +136,7 @@ export function AreaChart({ points, monthRange, maxValue, revealKey, ariaLabel }
         ))}
         {xTicks.map((month) => (
           <text key={month} data-axis="x" x={toX(month)} y={layout.height - 8} textAnchor="middle" fontSize="11" fill={AXIS_COLOR}>
-            {formatPeriod(month)}
+            {(startMonth !== undefined && formatMonthLabel(startMonth, month)) || formatPeriod(month)}
           </text>
         ))}
       </svg>

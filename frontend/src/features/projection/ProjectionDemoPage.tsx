@@ -31,7 +31,7 @@ export function ProjectionDemoPage() {
         selected={scenario}
         onSelect={setScenario}
       />
-      <ProjectionChart data={MOCK_PROJECTION} scenario={scenario} />
+      <ProjectionChart data={MOCK_PROJECTION} scenario={scenario} startMonth="2026-11" />
     </div>
   );
 }

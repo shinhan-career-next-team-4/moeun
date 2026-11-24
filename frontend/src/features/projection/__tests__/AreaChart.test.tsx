@@ -56,6 +56,15 @@ describe("누적 영역 그래프 AreaChart (#298)", () => {
     expect(labels).toEqual(["1년", "2년", "3년", "4년", "5년", "6년", "7년", "8년", "9년", "10년"]);
   });
 
+  it("시작월을 받으면 가로축 눈금이 날짜(YYYY.MM)로 나온다", () => {
+    const { chart } = renderChart({ startMonth: "2026-11" });
+
+    const labels = [...chart.querySelectorAll("text[data-axis='x']")].map((l) => l.textContent);
+    expect(labels).toEqual([
+      "2027.11", "2028.11", "2029.11", "2030.11", "2031.11", "2032.11", "2033.11", "2034.11", "2035.11", "2036.11",
+    ]);
+  });
+
   it("격자선은 가로선만 있고 세로선은 없다", () => {
     const { chart } = renderChart();
 
