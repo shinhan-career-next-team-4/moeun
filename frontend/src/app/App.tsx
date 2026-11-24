@@ -4,10 +4,11 @@ import { api } from "../api";
 import { ApiError } from "../api/errors";
 import { forgetDisplayName, LoginPage, readDisplayName } from "../features/auth";
 import { PlanInputPage } from "../features/input";
+import { ProjectionDemoPage } from "../features/projection";
 import { ResultPage } from "../features/result";
 import { COPY } from "../shared/copy/copy";
 import { Button } from "../shared/ui";
-import { INPUT_PATH, LOGIN_PATH, RESULT_PATH } from "./routes";
+import { INPUT_PATH, LOGIN_PATH, PROJECTION_DEMO_PATH, RESULT_PATH } from "./routes";
 
 function Layout() {
   const location = useLocation();
@@ -64,6 +65,8 @@ export default function App() {
         <Route path={INPUT_PATH} element={<PlanInputPage />} />
         <Route path={LOGIN_PATH} element={<LoginPage />} />
         <Route path={RESULT_PATH} element={<ResultPage />} />
+        {/* 예상 자산 그래프 데모(#298): mock 데이터라 개발 환경에서만 연다 */}
+        {import.meta.env.DEV && <Route path={PROJECTION_DEMO_PATH} element={<ProjectionDemoPage />} />}
         <Route path="*" element={<Navigate to={INPUT_PATH} replace />} />
       </Route>
     </Routes>
