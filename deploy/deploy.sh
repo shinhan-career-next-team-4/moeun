@@ -17,7 +17,7 @@ fail() { echo "[deploy] 실패: $*" >&2; exit 1; }
 
 # Parameter Store 경로 아래 값을 "이름=값" 줄로 적는다. 이름은 경로의 마지막 부분(/moeun/prod/backend/DB_URL → DB_URL)
 params() {
-  aws ssm get-parameters-by-path --region "$REGION" --path "$1" --recursive --with-decryption \
+  aws ssm get-parameters-by-path --region "$REGION" --path "$1" --with-decryption \
     --query 'Parameters[].[Name,Value]' --output text |
     while IFS=$'\t' read -r name value; do printf '%s=%s\n' "${name##*/}" "$value"; done
 }
@@ -43,13 +43,24 @@ touch "$tmp/backend.env" "$tmp/ai.env" && chmod 600 "$tmp/backend.env" "$tmp/ai.
 require "$tmp/backend.env" DB_URL DB_USERNAME DB_PASSWORD JWT_SECRET INTERNAL_API_KEY CORS_ALLOWED_ORIGINS
 require "$tmp/ai.env" DATABASE_URL INTERNAL_API_KEY ANTHROPIC_API_KEY OPENAI_API_KEY
 
-# 운영 금지 값: local 프로필(Secure 쿠키가 꺼진다), Secure 끈 쿠키
+# 같은 키가 shared와 서비스 양쪽에 있으면 검사한 값과 compose가 쓰는 값(마지막 줄)이 달라질 수 있다
 for f in "$tmp/backend.env" "$tmp/ai.env"; do
-  case ",$(value_of "$f" SPRING_PROFILES_ACTIVE | tr -d ' ')," in
-    *,local,*) fail "운영에서 SPRING_PROFILES_ACTIVE=local은 쓸 수 없다" ;;
-  esac
+  dup="$(cut -d= -f1 "$f" | sort | uniq -d | tr '\n' ' ')"
+  [ -z "$dup" ] || fail "$(basename "$f")에 같은 키가 두 번 있다: $dup(shared와 서비스 경로를 확인한다)"
 done
-[ "$(value_of "$tmp/backend.env" JWT_COOKIE_SECURE)" != "false" ] || fail "운영에서 JWT_COOKIE_SECURE=false는 쓸 수 없다"
+
+# 운영 금지 값: local 프로필(Secure 쿠키가 꺼진다), Secure 끈 쿠키. Spring이 받아들이는 표기를 모두 막는다
+lower() { tr '[:upper:]' '[:lower:]' | tr -d ' '; }
+for f in "$tmp/backend.env" "$tmp/ai.env"; do
+  for key in SPRING_PROFILES_ACTIVE SPRING_PROFILES_DEFAULT SPRING_PROFILES_INCLUDE; do
+    case ",$(value_of "$f" "$key" | lower)," in
+      *,local,*) fail "운영에서 ${key}에 local을 쓸 수 없다" ;;
+    esac
+  done
+done
+case "$(value_of "$tmp/backend.env" JWT_COOKIE_SECURE | lower)" in
+  false|off|no|0) fail "운영에서 JWT_COOKIE_SECURE를 끌 수 없다" ;;
+esac
 
 mkdir -p "$RUNTIME/data/seed" "$RUNTIME/logs/backend" "$RUNTIME/logs/ai-server"
 chown "$CONTAINER_UID" "$RUNTIME/logs/backend" "$RUNTIME/logs/ai-server"
@@ -82,10 +93,16 @@ for service in backend ai-server; do
     [ "$status" = healthy ] && break
     sleep 5
   done
-  [ "$status" = healthy ] || { compose logs --tail 50 "$service"; fail "${service}가 healthy가 되지 않았다($status)"; }
+  # 컨테이너 로그에는 사용자 발화가 있다. 저장소가 공개라 Actions 로그(SSM 출력)로 보내지 않는다
+  [ "$status" = healthy ] || fail "${service}가 healthy가 되지 않았다($status). EC2에서 docker logs moeun-$service-1로 확인한다"
   log "$service healthy"
 done
 
-# 디스크(t3.small)를 아끼려고 지금 쓰지 않는 7일 지난 이미지를 지운다. 되돌리기는 ECR의 이전 태그로 한다
-docker image prune -af --filter "until=168h" > /dev/null
+# compose는 nginx 정의가 같으면 컨테이너를 그대로 둔다. checkout으로 바뀐 설정을 검사하고 다시 읽힌다
+docker exec moeun-nginx-1 nginx -t -q || fail "nginx 설정 오류. EC2에서 docker exec moeun-nginx-1 nginx -t로 확인한다"
+docker exec moeun-nginx-1 nginx -s reload
+log "nginx 설정 다시 읽음"
+
+# 디스크(t3.small)를 아끼려고 지금 쓰지 않는 이미지를 모두 지운다. 되돌리기는 ECR의 이전 태그로 한다
+docker image prune -af > /dev/null
 log "완료: $TAG"

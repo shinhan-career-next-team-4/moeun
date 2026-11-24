@@ -5,6 +5,13 @@
 # env_file은 format: raw로 읽는다(비밀번호의 $·따옴표를 그대로 둔다). Docker Compose 2.30 이상이 필요하다
 name: moeun
 
+# 컨테이너 stdout 로그(json-file)는 기본이 무제한이다. 디스크를 지키려고 서비스마다 10MB × 3개로 묶는다
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
 services:
   backend:
     image: ${BACKEND_IMAGE:?deploy.sh가 compose.env에 적는다}
@@ -19,6 +26,7 @@ services:
       - /opt/moeun/runtime/logs/backend:/app/logs
     mem_limit: 1g
     restart: unless-stopped
+    logging: *logging
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
       interval: 10s
@@ -38,6 +46,7 @@ services:
       - /opt/moeun/runtime/logs/ai-server:/repo/ai-server/logs
     mem_limit: 512m
     restart: unless-stopped
+    logging: *logging
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
       interval: 10s
@@ -52,8 +61,10 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # 파일 하나가 아니라 폴더째 마운트한다. git checkout이 파일을 새로 만들어도 컨테이너가 새 파일을 본다
+      - ./nginx:/etc/nginx/conf.d:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro   # 호스트 certbot이 발급·갱신한다(docs/deploy.md)
     depends_on:
       - backend
     restart: unless-stopped
+    logging: *logging

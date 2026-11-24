@@ -28,5 +28,6 @@ ENV MOEUN_COPY_PATH=/app/copy/copy.ko.yml
 USER moeun
 EXPOSE 8080
 # t3.small(2GB)에 ai-server·nginx와 같이 뜬다. 힙은 컨테이너 메모리 제한(compose)의 비율로 잡는다
-ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75"
+# 메타스페이스·스레드 스택 몫을 남기려고 65%(1g 제한 → 힙 약 665MB)
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=65"
 ENTRYPOINT ["java", "-jar", "app.jar"]

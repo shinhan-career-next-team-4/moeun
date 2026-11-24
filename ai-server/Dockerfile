@@ -8,9 +8,11 @@ FROM ghcr.io/astral-sh/uv:0.9.7-python3.12-bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 RUN useradd --system --uid 10001 --create-home moeun
 
+# UV_NO_CACHE: uv 캐시를 이미지 층에 남기지 않는다
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_NO_SYNC=1 \
+    UV_NO_CACHE=1 \
     PYTHONUNBUFFERED=1
 WORKDIR /repo/ai-server
 
@@ -22,8 +24,8 @@ RUN uv sync --frozen --no-dev
 COPY copy/copy.ko.yml /repo/copy/copy.ko.yml
 COPY scripts/ingest /repo/scripts/ingest
 
-# logs: 로그 파일, docs/raw: RAG 적재 때 내려받는 원본 PDF
-RUN mkdir -p logs docs/raw && chown -R moeun /repo/ai-server
+# logs: 로그 파일, docs/raw: RAG 적재 때 내려받는 원본 PDF. 쓰는 폴더만 넘긴다(.venv까지 chown하면 층이 수백 MB 늘어난다)
+RUN mkdir -p logs docs/raw && chown moeun logs docs/raw
 USER moeun
 EXPOSE 8000
 ENV PATH="/repo/ai-server/.venv/bin:$PATH"
