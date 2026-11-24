@@ -23,7 +23,7 @@ log = logging.getLogger("app.llm.agent")
 
 
 def _reject(req: ChatRequest, code: ErrorCode) -> AgentError:
-    # planContext 본문은 로그에 남기지 않는다. 오류 코드와 calcRunId만(C1a-8)
+    # 거절 사유와 calcRunId. planContext 본문은 요청 추적 로그(chat request)에 이미 남는다(#316)
     log.warning("plan_context rejected: code=%s calcRunId=%s", code, req.calc_run_id)
     return AgentError(code)
 

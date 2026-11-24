@@ -12,18 +12,19 @@ from app.api import chat, health, rag
 from app.core.config import get_settings
 from app.core.db import create_pool
 from app.core.errors import ErrorCode
+from app.core.logs import configure_logging
 from app.llm.agent import AgentError, ChatAgent
 from app.rag.embedder import Embedder
 from app.rag.search import Retriever
 from app.tools.calc import CalcClient
 
-logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("moeun.ai")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     s = get_settings()
+    configure_logging(s)
     pool = create_pool(s.database_url)
     await pool.open(wait=False)
     spring = httpx.AsyncClient(base_url=s.spring_base_url, timeout=s.spring_timeout_seconds)
@@ -60,16 +61,18 @@ BAD_REQUEST_CODES = frozenset({ErrorCode.BAD_REQUEST})
 @app.exception_handler(AgentError)
 async def _agent_error(_: Request, e: AgentError) -> JSONResponse:
     status = 400 if e.code in BAD_REQUEST_CODES else 502
-    # 원인 추적용으로 코드(와 거부 사유)만 남긴다. detail에는 답 본문이 섞일 수 있어 남기지 않는다(#256)
+    # 원인 추적용으로 코드와 상세(걸린 숫자·도구 순서 등)를 남긴다. Spring에는 코드만 돌려준다(#316)
     reason = getattr(e, "reason", None)
-    log.warning("chat failed: code=%s status=%s%s", e.code, status, f" reason={reason}" if reason else "")
+    log.warning(
+        "chat failed: code=%s status=%s%s detail=%s", e.code, status, f" reason={reason}" if reason else "", e.detail
+    )
     return JSONResponse(status_code=status, content={"error": e.code})
 
 
 @app.exception_handler(anthropic.APIError)
 async def _llm_error(_: Request, e: anthropic.APIError) -> JSONResponse:
-    # 오류 문자열에는 SDK가 되돌려 준 요청 본문(이전 답변 포함)이 섞일 수 있어 유형과 상태 코드만 남긴다.
-    log.warning("llm call failed: type=%s status=%s", type(e).__name__, getattr(e, "status_code", None))
+    # 원인 추적용으로 SDK 오류 문장까지 남긴다(#316). 비밀값은 로그 핸들러가 가린다
+    log.warning("llm call failed: type=%s status=%s message=%s", type(e).__name__, getattr(e, "status_code", None), e)
     code = ErrorCode.LLM_RATE_LIMIT if isinstance(e, anthropic.RateLimitError) else ErrorCode.LLM_UNAVAILABLE
     return JSONResponse(status_code=502, content={"error": code})
 

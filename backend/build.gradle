@@ -96,6 +96,7 @@ tasks.named('test') {
     // S&P500은 테스트마다 MOEUN_SP500_FILE로 레포의 가짜 파일을 준다. 새 종목은 필요한 테스트만 따로 준다
     environment 'MOEUN_ETF_069500_FILE', 'file:build/no-local-etf-069500.csv'
     environment 'MOEUN_ETF_133690_FILE', 'file:build/no-local-etf-133690.csv'
+    environment 'LOG_DIR', layout.buildDirectory.dir('test-logs').get().asFile.path   // 테스트 로그 파일은 build 안에(#316)
 }
 
 // 세 종목·두 계산 방식 비교 리포트(#162). 개발자 로컬의 가격 파일(data/seed, git 제외)로

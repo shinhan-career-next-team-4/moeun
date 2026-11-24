@@ -253,7 +253,7 @@ def _bad_requests() -> dict[str, tuple[ChatRequest, str, str]]:
 
 
 @pytest.mark.parametrize("case", ["null", "mismatch", "display-missing", "polluted-display-missing"])
-async def test_ac12_400_and_502_log_only_calc_run_id_and_error_code(case: str, caplog: pytest.LogCaptureFixture):
+async def test_ac12_400_and_502_log_calc_run_id_and_error_code(case: str, caplog: pytest.LogCaptureFixture):
     req, code, calc_run_id = _bad_requests()[case]
     caplog.set_level(logging.DEBUG)
 
@@ -263,10 +263,10 @@ async def test_ac12_400_and_502_log_only_calc_run_id_and_error_code(case: str, c
     messages = "\n".join(r.getMessage() for r in caplog.records)   # caplog.text의 파일 줄 번호와 섞이지 않게
     assert code in messages and calc_run_id in messages   # 무슨 요청이 왜 실패했는지는 남긴다
     for secret in SENSITIVE:
-        assert secret not in caplog.text and secret not in str(err), secret
+        assert secret not in str(err), secret   # Spring에 가는 오류에는 본문이 없다. 로그는 #316부터 남긴다
 
 
-def test_ac12_422_logs_no_plan_context_body(caplog: pytest.LogCaptureFixture):
+def test_ac12_422_when_result_status_is_missing(caplog: pytest.LogCaptureFixture):
     plan = load("plan-context-polluted.json")
     del plan["result"]["status"]
     caplog.set_level(logging.DEBUG)
@@ -274,8 +274,6 @@ def test_ac12_422_logs_no_plan_context_body(caplog: pytest.LogCaptureFixture):
     r = post_chat(make_body(plan, "EXPLAIN", 540), None)
 
     assert r.status_code == 422
-    for secret in SENSITIVE:
-        assert secret not in caplog.text, secret
 
 
 # ---- AC-14·AC-15: 세금 단서(D-067·D-073)는 답에 붙이지 않고(#233, 대화 패널 고정 문구), 범위 밖 세금 질문은 고정 문장 ----

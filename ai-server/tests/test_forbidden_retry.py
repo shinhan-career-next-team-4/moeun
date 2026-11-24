@@ -808,16 +808,16 @@ async def test_ac3_retry_citations_dedupe_and_cap_in_first_seen_order() -> None:
     assert len(claude.calls) == 3
 
 
-# ---- AC-4: 사유와 재시도 여부를 로그에 남기고 본문 전문은 남기지 않는다 ----
+# ---- AC-4: 사유와 재시도 여부를 로그에 남긴다. 본문은 #316부터 대화 추적 로그에 남겨도 된다(P-7 대체) ----
 
 @pytest.mark.parametrize(("first_body", "reason"), [(RECOMMEND, "stock_recommendation"),
                                                      (OTHER_STOCK, "stock_recommendation")],
                          ids=["recommend", "other_stock"])
-async def test_ac4_retry_logs_reason_and_attempt_without_body(
+async def test_ac4_retry_logs_reason_and_attempt(
     first_body: str, reason: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     """첫 응답 거부 → 재시도 성공: 사유(stock_recommendation)와 attempt=1이 INFO 이상 레코드
-    정확히 1건으로 남고, 거부된 첫 본문도 사용자에게 나간 재시도 본문도 로그에 남지 않는다"""
+    정확히 1건으로 남는다. 본문은 #316부터 대화 추적 로그에 남는다"""
     caplog.set_level(logging.DEBUG)
     body = f"{BODY_SENTINEL} {first_body}"
     retry_body = f"{RETRY_SENTINEL} {CLEAN}"
@@ -829,8 +829,6 @@ async def test_ac4_retry_logs_reason_and_attempt_without_body(
     assert len(records) == 1, [r.getMessage() for r in records]
     assert log_fields(records[0].getMessage()) == (reason, "1"), records[0].getMessage()   # 값 경계까지(3차 B6)
     assert records[0].levelno >= logging.INFO
-    assert not leaked(caplog.text, BODY_SENTINEL), leaked(caplog.text, BODY_SENTINEL)
-    assert not leaked(caplog.text, RETRY_SENTINEL), leaked(caplog.text, RETRY_SENTINEL)
 
 
 @pytest.mark.parametrize("raw", [
@@ -844,9 +842,10 @@ async def test_ac4_retry_logs_reason_and_attempt_without_body(
         BetaTextBlock(type="text", text=f'{{"message_type": "ANSWER", "content": "{RETRY_SENTINEL} {GENERIC}는 지수를'),
     ]),
 ], ids=["missing_key", "wrong_type", "truncated_json", "max_tokens_truncated_json"])
-async def test_ac4_malformed_retry_response_does_not_leak_body(raw: Any, caplog: pytest.LogCaptureFixture) -> None:
+async def test_ac4_malformed_retry_response_keeps_body_out_of_error(raw: Any, caplog: pytest.LogCaptureFixture) -> None:
     """재시도 응답이 형식 오류(필수 키 누락·필드 타입 오류·잘린 JSON)면 BAD_OUTPUT으로 끝나고, 그 원문(표지 문자열)은
-    로그에도 AgentError 문자열에도 없다. 거부된 첫 답의 표지도 없다. 원문·JSON 이스케이프 형태를 모두 본다(B4).
+    AgentError 문자열에 없다(원문은 #316부터 대화 추적 로그에 남는다). 거부된 첫 답의 표지도 없다.
+    원문·JSON 이스케이프 형태를 모두 본다(B4).
     깨끗한 세 번째 응답이 있어도 모델은 2번만 불린다. 3차 B5: 재시도가 형식 오류로 끝나도 첫 거부의 사유·시도
     번호(stock_recommendation, attempt=1) 레코드가 정확히 1건 남는다(재시도 결과를 본 뒤에만 사유를 기록하면 빠진다)"""
     caplog.set_level(logging.DEBUG)
@@ -862,7 +861,6 @@ async def test_ac4_malformed_retry_response_does_not_leak_body(raw: Any, caplog:
     assert [log_fields(m) for m in messages] == [("stock_recommendation", "1")], messages
     assert all(r.levelno >= logging.INFO for r in reason_records(caplog))
     assert not leaked(str(result), BODY_SENTINEL, RETRY_SENTINEL), leaked(str(result), BODY_SENTINEL, RETRY_SENTINEL)
-    assert not leaked(caplog.text, BODY_SENTINEL, RETRY_SENTINEL), leaked(caplog.text, BODY_SENTINEL, RETRY_SENTINEL)
     assert len(claude.calls) == 2
 
 
@@ -1145,11 +1143,11 @@ async def test_ac6_refusal_on_retry_follows_existing_refusal_path() -> None:
 @pytest.mark.parametrize(("body", "reason"), [(RECOMMEND, "stock_recommendation"),
                                                (OTHER_STOCK, "stock_recommendation")],
                          ids=["recommend", "other_stock"])
-async def test_ac4_same_reason_rejected_twice_logs_both_attempts_without_body(
+async def test_ac4_same_reason_rejected_twice_logs_both_attempts(
     body: str, reason: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     """plan-2: 첫 답과 재시도 답이 같은 사유로 거부돼도 시도마다 레코드가 1건씩 남는다(합치지 않는다).
-    attempt=1·attempt=2가 같은 사유로 각각 남고, 두 본문(서로 다른 표지)은 로그·AgentError 문자열에 없다"""
+    attempt=1·attempt=2가 같은 사유로 각각 남고, 두 본문(서로 다른 표지)은 AgentError 문자열에 없다"""
     caplog.set_level(logging.DEBUG)
     claude = FakeClaude([
         text_resp("ANSWER", f"{BODY_SENTINEL} {body}"),
@@ -1161,14 +1159,13 @@ async def test_ac4_same_reason_rejected_twice_logs_both_attempts_without_body(
     messages = [r.getMessage() for r in reason_records(caplog)]
     assert [log_fields(m) for m in messages] == [(reason, "1"), (reason, "2")], messages
     assert all(r.levelno >= logging.INFO for r in reason_records(caplog))
-    assert not leaked(caplog.text, BODY_SENTINEL, RETRY_SENTINEL), leaked(caplog.text, BODY_SENTINEL, RETRY_SENTINEL)
     assert not leaked(str(result), BODY_SENTINEL, RETRY_SENTINEL), leaked(str(result), BODY_SENTINEL, RETRY_SENTINEL)
     assert len(claude.calls) == 2
 
 
 async def test_ac4_first_rejection_is_logged_even_when_retry_call_raises(caplog: pytest.LogCaptureFixture) -> None:
     """plan-3: 재시도 모델 호출이 API 오류로 끝나도 첫 거부의 사유·시도 번호(stock_recommendation, attempt=1) 레코드가
-    정확히 1건 남고 첫 본문은 로그에 없다. API 오류는 그대로 올라가고 모델은 2번이다(P-10)"""
+    정확히 1건 남는다. API 오류는 그대로 올라가고 모델은 2번이다(P-10)"""
     caplog.set_level(logging.DEBUG)
     error = anthropic.APIConnectionError(request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"))
     claude = ScriptedClaude([text_resp("ANSWER", f"{BODY_SENTINEL} {RECOMMEND}"), error, text_resp("ANSWER", CLEAN)])
@@ -1181,7 +1178,6 @@ async def test_ac4_first_rejection_is_logged_even_when_retry_call_raises(caplog:
     messages = [r.getMessage() for r in reason_records(caplog)]
     assert [log_fields(m) for m in messages] == [("stock_recommendation", "1")], messages
     assert all(r.levelno >= logging.INFO for r in reason_records(caplog))
-    assert not leaked(caplog.text, BODY_SENTINEL), leaked(caplog.text, BODY_SENTINEL)
     assert len(claude.calls) == 2
 
 
@@ -1355,7 +1351,7 @@ async def test_ac4_first_rejection_is_logged_when_retry_response_is_tool_use(
     retry_tool: Any, caplog: pytest.LogCaptureFixture
 ) -> None:
     """이번 실행 B5: 첫 답이 추천 표현으로 거부되고 재시도 모델이 도구를 요청해도(PD-009로 FORBIDDEN_EXPRESSION),
-    첫 거부의 사유·시도 번호(stock_recommendation, attempt=1) 레코드가 정확히 1건 남고 첫 본문은 로그·AgentError 문자열에
+    첫 거부의 사유·시도 번호(stock_recommendation, attempt=1) 레코드가 정확히 1건 남고 첫 본문은 AgentError 문자열에
     없다. 검색·계산 0번, 모델 2번이고 준비된 세 번째 답은 쓰지 않는다"""
     caplog.set_level(logging.DEBUG)
     calc = FakeCalc()
@@ -1367,7 +1363,6 @@ async def test_ac4_first_rejection_is_logged_when_retry_response_is_tool_use(
     messages = [r.getMessage() for r in reason_records(caplog)]
     assert [log_fields(m) for m in messages] == [("stock_recommendation", "1")], messages
     assert all(r.levelno >= logging.INFO for r in reason_records(caplog))
-    assert not leaked(caplog.text, BODY_SENTINEL), leaked(caplog.text, BODY_SENTINEL)
     assert not leaked(str(result), BODY_SENTINEL), leaked(str(result), BODY_SENTINEL)
     assert retriever.queries == []
     assert calc.calls == []
@@ -1375,20 +1370,17 @@ async def test_ac4_first_rejection_is_logged_when_retry_response_is_tool_use(
     assert len(claude.responses) == 1
 
 
-async def test_ac4_retry_number_mismatch_does_not_put_whole_body_in_error_or_log(
+async def test_ac4_retry_number_mismatch_fails_after_two_calls(
     caplog: pytest.LogCaptureFixture
 ) -> None:
     """이번 실행 B6: 첫 답이 추천 표현으로 거부되고 형식이 유효한 재시도 답의 content가 근거 없는 금액 하나('999만원')뿐이면
-    NUMBER_MISMATCH로 끝난다. 이때 재시도 본문 전체(=불일치 토큰)는 로그에도 AgentError 문자열에도 없다
-    (기존 숫자 오류 detail을 그대로 써 'NUMBER_MISMATCH: 999만원'을 만들면 실패한다). 모델 2번"""
+    NUMBER_MISMATCH로 끝나고 모델은 2번 불린다. 걸린 숫자는 #316부터 실패 상세로 남는다"""
     caplog.set_level(logging.DEBUG)
     retry_body = "999만원"
     claude = FakeClaude([text_resp("ANSWER", RECOMMEND), text_resp("ANSWER", retry_body), text_resp("ANSWER", CLEAN)])
     result = await outcome(make_agent(claude), question())
     assert isinstance(result, AgentError), result
     assert result.code == "NUMBER_MISMATCH"
-    assert not leaked(str(result), retry_body), str(result)
-    assert not leaked(caplog.text, retry_body), leaked(caplog.text, retry_body)
     assert len(claude.calls) == 2
     assert len(claude.responses) == 1
 
@@ -1461,11 +1453,11 @@ def sdk_message(text: str) -> dict[str, Any]:
     }
 
 
-async def test_ac4_sdk_debug_request_log_does_not_contain_rejected_first_answer(
+async def test_ac4_retry_request_does_not_contain_rejected_first_answer(
     caplog: pytest.LogCaptureFixture
 ) -> None:
     """S4 B1, D-1: `anthropic` 로거를 DEBUG로 켜고 실제 AsyncAnthropic(HTTP 전송만 인메모리 대역)으로 금지 답 → 깨끗한 답을
-    처리해도, SDK가 요청 JSON 전체를 남기는 로그에 거부된 첫 답 전문(원문·이스케이프·ASCII 표지)이 없다. 재시도 요청이
+    처리하면, 재시도 요청 본문에 거부된 첫 답이 없다(D-1). 재시도 요청이
     실제로 나갔고(요청 2건, 두 번째에 tool_choice none) 재시도 답이 정상 ChatResponse로 나간다"""
     caplog.set_level(logging.DEBUG)
     caplog.set_level(logging.DEBUG, logger="anthropic")
@@ -1491,17 +1483,16 @@ async def test_ac4_sdk_debug_request_log_does_not_contain_rejected_first_answer(
     assert bodies[1].get("tool_choice") == {"type": "none"}
     sdk_records = [r for r in caplog.records if r.name.startswith("anthropic")]
     assert sdk_records, "SDK DEBUG 요청 로그가 잡히지 않아 이 테스트가 아무것도 보지 못한다"
-    assert not leaked(caplog.text, BODY_SENTINEL), leaked(caplog.text, BODY_SENTINEL)
     assert not leaked(json.dumps(bodies[1], ensure_ascii=False), BODY_SENTINEL)
 
 
-async def test_ac4_sdk_debug_request_log_has_no_plan_context_or_history_bodies(
+async def test_ac4_model_requests_keep_plan_context_and_history(
     caplog: pytest.LogCaptureFixture
 ) -> None:
     """직전 S4 impl-1, D-3: `anthropic` 로거를 DEBUG로 켜고 planContext가 있는 EXPLAIN 금지 답 → 깨끗한 재시도 답을
     처리한 뒤,
-    그 재시도 답을 history에 담은 QUESTION을 이어 처리해도 SDK 요청 로그에 planContext 표지·거부된 첫 답·재시도 답
-    표지가 없다. 모델에 실제로 보낸 요청 본문에는 planContext와 history가 그대로 있다(로그만 지운다)"""
+    그 재시도 답을 history에 담은 QUESTION을 이어 처리하면, 모델에 실제로 보낸 요청 본문에 planContext와 history가
+    그대로 있다. 로그에서 본문을 지우던 처리는 #316에서 없앴다"""
     caplog.set_level(logging.DEBUG)
     caplog.set_level(logging.DEBUG, logger="anthropic")
     plan_mark, history_mark = "PLANCTXMARKQZ", "HISTMARKQZ"
@@ -1544,12 +1535,6 @@ async def test_ac4_sdk_debug_request_log_has_no_plan_context_or_history_bodies(
     sent = [json.dumps(b, ensure_ascii=False) for b in bodies]
     assert plan_mark in sent[0], "모델에 보낸 요청에는 planContext가 그대로 있어야 한다"
     assert RETRY_MARK in sent[2], "모델에 보낸 요청에는 history가 그대로 있어야 한다"
-    sdk_records = [r for r in caplog.records if r.name.startswith("anthropic")]
-    assert sdk_records, "SDK DEBUG 요청 로그가 잡히지 않아 이 테스트가 아무것도 보지 못한다"
-    sdk_text = "\n".join(r.getMessage() for r in sdk_records)
-    for mark in (plan_mark, history_mark, BODY_SENTINEL, RETRY_SENTINEL):
-        assert not leaked(sdk_text, mark), leaked(sdk_text, mark)
-    assert not leaked(caplog.text, plan_mark, BODY_SENTINEL, RETRY_SENTINEL), caplog.text
 
 
 async def test_ac6_refusal_on_retry_goes_through_assemble_with_server_made_input(
@@ -1591,28 +1576,24 @@ async def test_ac6_refusal_on_retry_goes_through_assemble_with_server_made_input
     json.dumps({"message_type": "ANSWER", "content": [BODY_SENTINEL], "citation_chunk_ids": []}, ensure_ascii=False),
     f'{{"message_type": "ANSWER", "content": "{BODY_SENTINEL}',   # 중간에서 잘린 JSON(pydantic은 끝 부분을 남긴다)
 ], ids=["missing_key", "wrong_type", "truncated_json"])
-async def test_ac4_first_answer_bad_output_does_not_leak_body(raw: str, caplog: pytest.LogCaptureFixture) -> None:
+async def test_ac4_first_answer_bad_output_keeps_body_out_of_error(raw: str, caplog: pytest.LogCaptureFixture) -> None:
     """S4 B6: 재시도 없이 끝나는 첫 답이 형식 오류여도 오류 코드(BAD_OUTPUT)·모델 1번은 지금과 같고,
-    AgentError 문자열(pydantic 오류의 input_value 등)·로그에 그 원문이 없다"""
+    AgentError 문자열(pydantic 오류의 input_value 등)에 그 원문이 없다"""
     caplog.set_level(logging.DEBUG)
     claude = FakeClaude([raw_text_resp(raw), text_resp("ANSWER", CLEAN)])
     result = await outcome(make_agent(claude), question())
     assert isinstance(result, AgentError), result
     assert result.code == "BAD_OUTPUT"
     assert not leaked(str(result), BODY_SENTINEL), leaked(str(result), BODY_SENTINEL)
-    assert not leaked(caplog.text, BODY_SENTINEL), leaked(caplog.text, BODY_SENTINEL)
     assert len(claude.calls) == 1
 
 
-async def test_ac4_first_answer_number_mismatch_does_not_leak_body(caplog: pytest.LogCaptureFixture) -> None:
-    """S4 B6: 첫 답이 근거 없는 금액 하나('999만원')뿐이면 재시도 없이 NUMBER_MISMATCH(모델 1번)이고, 그 본문(=불일치
-    토큰)은 AgentError 문자열·로그에 없다"""
+async def test_ac4_first_answer_number_mismatch_fails_without_retry(caplog: pytest.LogCaptureFixture) -> None:
+    """S4 B6: 첫 답이 근거 없는 금액 하나('999만원')뿐이면 재시도 없이 NUMBER_MISMATCH(모델 1번)다"""
     caplog.set_level(logging.DEBUG)
     body = "999만원"
     claude = FakeClaude([text_resp("ANSWER", body), text_resp("ANSWER", CLEAN)])
     result = await outcome(make_agent(claude), question())
     assert isinstance(result, AgentError), result
     assert result.code == "NUMBER_MISMATCH"
-    assert not leaked(str(result), body), str(result)
-    assert not leaked(caplog.text, body), leaked(caplog.text, body)
     assert len(claude.calls) == 1

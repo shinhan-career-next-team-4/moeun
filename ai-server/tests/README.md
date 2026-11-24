@@ -45,7 +45,8 @@
 | | `test_etf_tax_wrong_note.py` | 모델이 쓴 단서는 계획과 맞든 다르든 지우고 붙이지 않음 |
 | | `tax_note/test_tax_note_removed.py` | #233 수용 테스트: 세금 단서를 답에 붙이지 않고 모델이 쓴 두 단서를 지움, P-6 |
 | | `chat_response/test_chat_response_prompt.py` | #252 대화 응답 기준표 규칙: 고지 반복 금지, 수익 약속 미언급, 결과 설명 조건 나열 금지·3문장 |
-| | `error_log/test_agent_error_log.py` | #256 /chat 실패 때 오류 코드(와 거부 사유)만 로그에 남기고 본문은 남기지 않음 |
+| | `error_log/test_agent_error_log.py` | #256 /chat 실패 때 오류 코드(와 거부 사유)를 로그에 남김 |
+| | `chat_log/test_chat_log.py` | #316 대화 추적 로그(요청·도구 입출력·모델 답·실패 상세), 날짜별 파일 보관, ISO 시각, 비밀값 가리기 |
 | | `test_etf_note_join.py` | 단서를 지워도 양옆 글자가 이어져 새 인용이 생기지 않음 |
 | | `test_etf_name_correction.py` | 계획 종목 표기 검사·교정 지시 |
 | | `test_etf_plan_name_claims.py` | 2라운드 리뷰 재현: 계획 종목 표기 거부(B3), 세율 인용 경계·줄바꿈 단서 제거·빈 본문 거부(B1·B2·B5), 코스피 계획에서 상품명 통과(B6) |
@@ -53,7 +54,7 @@
 | | `test_etf0_clarify.py` | ETF 0% 계획의 되묻기 규칙(시스템 프롬프트 문구)과 되묻는 답이 서버 검사를 통과하는지. 모델 행동은 수동 평가 몫 |
 | **그 밖** | `test_units.py` | 청커, 운용사 섞기, 계산 클라이언트 요청 모양, 내부 키 검사, `/chat`이 주입된 에이전트로 camelCase 응답을 내는지 |
 | | `scenarios/` | 실제 LLM으로 대화·RAG·누출 시나리오 점검(기본은 건너뜀) |
-| | `fakes/` | 공용 대역(`FakeCalc`) |
+| | `fakes/` | 공용 대역(`FakeCalc`, `claude.py`의 `FakeClaude`·`FakeRetriever`·`PassJudge`·`text_resp`·`tool_resp`) |
 | | `paths.py` | 새 테스트용 저장소 경로 상수(`REPO`, `COPY_FILE`) |
 
 ### 주제가 여러 파일에 걸친 것

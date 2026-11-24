@@ -238,8 +238,8 @@ def _number_evidence(turn: Turn) -> list[str]:
 def _check_numbers(turn: Turn, body: str) -> None:
     try:
         check_numbers(body, _number_evidence(turn))
-    except NumberMismatch:
-        raise AgentError(ErrorCode.NUMBER_MISMATCH) from None   # 불일치 토큰이 본문 전체일 수 있어 detail을 뺀다(P-7)
+    except NumberMismatch as e:
+        raise AgentError(ErrorCode.NUMBER_MISMATCH, str(e)) from None   # 걸린 숫자를 원인 추적 로그에 남긴다(#316)
 
 
 def _mask_notes(content: str) -> str:
