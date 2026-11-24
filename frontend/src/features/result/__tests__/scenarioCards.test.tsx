@@ -122,3 +122,28 @@ describe("선택할 수 있는 3구간 카드 (#298)", () => {
     expect(screen.getByRole("button", { name: /평균/ }).className).not.toContain("border-primary");
   });
 });
+
+describe("안내 문구 줄의 오른쪽 자리 noticeSlot (#298)", () => {
+  afterEach(cleanup);
+
+  const one: ScenarioResult[] = [
+    { scenario: "AVG", afterTaxAsset: 1, gapToGoal: 1, isAchieved: true, goalReachMonth: "2030-03", monthlyPoints: [] },
+  ];
+  const notice = "세 가지 경우는 과거 데이터의 범위를 나눈 시나리오이고 미래를 예측한 값이 아니에요";
+
+  it("noticeSlot이 없으면 안내 문구만 있다(결과 화면 그대로)", () => {
+    render(<ScenarioCards scenarios={one} display={{}} scenarioMethod={null} />);
+
+    expect(screen.getByText(notice)).toBeTruthy();
+    expect(screen.getByText(notice).parentElement?.children).toHaveLength(1);
+  });
+
+  it("noticeSlot을 주면 안내 문구와 같은 줄(같은 부모)에 보인다", () => {
+    render(
+      <ScenarioCards scenarios={one} display={{}} scenarioMethod={null} noticeSlot={<button type="button">슬롯</button>} />,
+    );
+
+    const row = screen.getByText(notice).parentElement as HTMLElement;
+    expect(row.contains(screen.getByRole("button", { name: "슬롯" }))).toBe(true);
+  });
+});
