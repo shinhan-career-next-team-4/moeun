@@ -18,9 +18,10 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 
 import com.moeun.backend.calc.Scenario;
+import com.moeun.backend.chat.domain.ChatMessage;
 import com.moeun.backend.chat.domain.ChatMessageRepository;
 import com.moeun.backend.chat.domain.HistoryMessage;
-import com.moeun.backend.chat.domain.PendingMessage;
+import com.moeun.backend.chat.domain.MessageType;
 import com.moeun.backend.chat.domain.QuestionMessage;
 import com.moeun.backend.config.copy.CopyBook;
 
@@ -39,7 +40,6 @@ public class ChatAnswerListener {
 
     private static final Logger LOG = LoggerFactory.getLogger(ChatAnswerListener.class);
     private static final int HISTORY_LIMIT = 20;
-    private static final String EXPLANATION = "EXPLANATION";
     private static final Map<String, String> CONDITION_KEYS = Map.of(
             "goal_amount", "goalAmount",
             "monthly_saving_amount", "monthlySavingAmount",
@@ -73,7 +73,7 @@ public class ChatAnswerListener {
             LOG.info("chat.answer.skipped messageId={} memberId={}", event.assistantMessageId(), event.memberId());
             return;
         }
-        PendingMessage message = read.get().message();
+        ChatMessage message = read.get().message();
         try {
             AiChatRequest request = buildRequest(read.get());
             AiChatAnswer answer;
@@ -139,12 +139,12 @@ public class ChatAnswerListener {
      * 이후의 느린 HTTP 호출 동안 커넥션을 붙들지 않는다. PENDING이 아니면 비워서 돌려준다(planContext도 만들지 않는다).
      */
     private Optional<Snapshot> read(ChatAnswerRequested event) {
-        Optional<PendingMessage> found = messages.findPending(event.assistantMessageId(), event.memberId());
+        Optional<ChatMessage> found = messages.findPending(event.assistantMessageId(), event.memberId());
         if (found.isEmpty()) {
             return Optional.empty();
         }
-        PendingMessage message = found.get();
-        if (EXPLANATION.equals(message.messageType())) {
+        ChatMessage message = found.get();
+        if (message.isExplanation()) {
             return Optional.of(new Snapshot(message, null,
                     messages.findCompletedBefore(message.memberId(), message.id(), HISTORY_LIMIT)));
         }
@@ -155,14 +155,14 @@ public class ChatAnswerListener {
     }
 
     private AiChatRequest buildRequest(Snapshot snapshot) {
-        if (EXPLANATION.equals(snapshot.message().messageType())) {
+        if (snapshot.message().isExplanation()) {
             return buildExplainRequest(snapshot);
         }
         return buildQuestionRequest(snapshot);
     }
 
     private AiChatRequest buildQuestionRequest(Snapshot snapshot) {
-        PendingMessage message = snapshot.message();
+        ChatMessage message = snapshot.message();
         if (snapshot.question() == null) {
             throw new IllegalStateException("질문 행을 찾지 못함");
         }
@@ -173,7 +173,7 @@ public class ChatAnswerListener {
     }
 
     private AiChatRequest buildExplainRequest(Snapshot snapshot) {
-        PendingMessage message = snapshot.message();
+        ChatMessage message = snapshot.message();
         long calcRunId = message.calcRunId();
         Scenario baseline = Scenario.valueOf(message.baselineScenario());
         PlanContextSnapshot plan = planContexts.findForCalcRun(message.memberId(), calcRunId, baseline)
@@ -183,10 +183,11 @@ public class ChatAnswerListener {
     }
 
     /** 갱신과 citation 저장은 한 트랜잭션이다. 0행이면(그 사이 삭제·정리됨) 답을 버리고 citation도 넣지 않는다. */
-    private void complete(PendingMessage message, AiChatAnswer answer) {
+    private void complete(ChatMessage message, AiChatAnswer answer) {
         Boolean saved = transactions.execute(status -> {
-            int updated = messages.complete(message.id(), message.memberId(), answer.messageType(), answer.content(),
-                    answer.calcRunId(), answer.baselineScenario(), conditionChangesJson(answer.conditionChanges()));
+            int updated = messages.apply(message.complete(MessageType.valueOf(answer.messageType()),
+                    answer.content(), answer.calcRunId(), answer.baselineScenario(),
+                    conditionChangesJson(answer.conditionChanges())));
             if (updated == 0) {
                 return false;
             }
@@ -211,10 +212,10 @@ public class ChatAnswerListener {
         return json.writeValueAsString(converted);
     }
 
-    private void fail(PendingMessage message) {
+    private void fail(ChatMessage message) {
         try {
             transactions.executeWithoutResult(status ->
-                    messages.fail(message.id(), message.memberId(), copy.get("chat.failed")));
+                    messages.apply(message.fail(copy.get("chat.failed"))));
         } catch (RuntimeException e) {
             // 이벤트를 미완료로 남겨 재기동 때 다시 처리하게 한다
             LOG.error("chat.answer.failUpdateFailed messageId={}", message.id(), e);
@@ -223,6 +224,6 @@ public class ChatAnswerListener {
     }
 
     /** 호출 전에 읽어 둔 값. 설명(EXPLAIN)이면 question이 없다. */
-    private record Snapshot(PendingMessage message, QuestionMessage question, List<HistoryMessage> history) {
+    private record Snapshot(ChatMessage message, QuestionMessage question, List<HistoryMessage> history) {
     }
 }

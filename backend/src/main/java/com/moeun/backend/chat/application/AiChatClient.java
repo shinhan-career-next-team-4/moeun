@@ -9,6 +9,8 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import com.moeun.backend.chat.domain.MessageType;
+
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -20,8 +22,6 @@ import tools.jackson.databind.json.JsonMapper;
 class AiChatClient {
 
     private static final String BAD_OUTPUT = "BAD_OUTPUT";
-    private static final Set<String> ANSWER_TYPES =
-            Set.of("ANSWER", "EXPLANATION", "RECALC_RESULT", "CLARIFY", "OUT_OF_SCOPE");
 
     private final RestClient client;
     private final JsonMapper json;
@@ -56,7 +56,7 @@ class AiChatClient {
         }
         String messageType = text(node, "messageType");
         String content = text(node, "content");
-        if (messageType == null || !ANSWER_TYPES.contains(messageType)) {
+        if (!MessageType.isAnswerName(messageType)) {
             throw new AiServerException("알 수 없는 messageType: " + messageType);
         }
         if (content == null || content.isBlank()) {
