@@ -20,10 +20,13 @@ export interface ProjectionPoint {
   total: number;
 }
 
-/** 시나리오: 하위 10% / 기준 / 상위 10%. */
-export type ProjectionScenario = "LOW" | "BASE" | "HIGH";
+/**
+ * 시나리오: 좋았던 때(상위 10%) / 평균 / 나빴던 때(하위 10%).
+ * 결과 화면 3구간 카드와 서버의 `scenarios[].scenario`와 같은 코드(GOOD·AVG·BAD)라 연동할 때 옮길 필요가 없다.
+ */
+export type ProjectionScenario = "GOOD" | "AVG" | "BAD";
 
-/** 시나리오마다 월별 점 배열 하나씩. */
+/** 시나리오마다 월별 점 배열 하나씩. 최대 360개월(30년)까지 받는다. */
 export type ProjectionData = Record<ProjectionScenario, ProjectionPoint[]>;
 
 /** 월별 / 연별. 데이터를 몇 개 골라 보여 줄지만 바뀐다. */

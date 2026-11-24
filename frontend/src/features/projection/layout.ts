@@ -1,7 +1,7 @@
 /** 이 폭(px) 미만이면 모바일로 보고 그래프를 조금 낮춘다. */
 const NARROW_WIDTH = 480;
-const HEIGHT_NARROW = 240;
-const HEIGHT_WIDE = 300;
+const HEIGHT_NARROW = 300;
+const HEIGHT_WIDE = 420;
 
 export interface ChartLayout {
   width: number;

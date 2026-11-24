@@ -9,13 +9,13 @@ import { MOCK_PROJECTION } from "../mockProjection";
 
 // 누적 영역 그래프(#298). 데이터는 mock이고, 좌표는 layout.ts와 같은 식으로 검증한다.
 
-const BASE = MOCK_PROJECTION.BASE;
-const MAX_VALUE = MOCK_PROJECTION.HIGH[119].total;
+const AVG = MOCK_PROJECTION.AVG;
+const MAX_VALUE = MOCK_PROJECTION.GOOD[119].total;
 const RANGE = { min: 1, max: 120 };
 const WIDTH = 640; // jsdom은 폭을 재지 못해 컴포넌트가 이 값을 기본으로 쓴다
 
 function renderChart(overrides: Partial<React.ComponentProps<typeof AreaChart>> = {}) {
-  const props = { points: BASE, monthRange: RANGE, maxValue: MAX_VALUE, revealKey: "BASE", ariaLabel: "예상 자산 그래프" };
+  const props = { points: AVG, monthRange: RANGE, maxValue: MAX_VALUE, revealKey: "AVG", ariaLabel: "예상 자산 그래프" };
   const view = render(<AreaChart {...props} {...overrides} />);
   const chart = screen.getByRole("group", { name: "예상 자산 그래프" });
   return { chart, view, props };
@@ -82,7 +82,7 @@ describe("누적 영역 그래프 AreaChart (#298)", () => {
   it("맨 위 선의 끝점은 마지막 달의 (원금 + 적금 이자 + ETF 수익) 높이에 있다", () => {
     const { chart } = renderChart();
     const layout = chartLayout(WIDTH);
-    const last = BASE[BASE.length - 1];
+    const last = AVG[AVG.length - 1];
     const top = niceTicks(MAX_VALUE).at(-1) as number;
 
     const d = chart.querySelector("path[data-line='etfGain']")?.getAttribute("d") ?? "";
@@ -95,7 +95,7 @@ describe("누적 영역 그래프 AreaChart (#298)", () => {
   it("포인터를 올리면 그 시점의 원금·적금 이자·ETF 수익과 합계가 툴팁으로 보인다", () => {
     const { chart } = renderChart();
     const layout = chartLayout(WIDTH);
-    const p = BASE[59]; // 60개월째
+    const p = AVG[59]; // 60개월째
 
     fireEvent.pointerMove(chart, { clientX: monthToX(60, RANGE, layout) });
 
@@ -141,10 +141,10 @@ describe("누적 영역 그래프 AreaChart (#298)", () => {
     const { view, props } = renderChart();
     const first = document.querySelector("[data-reveal]");
 
-    view.rerender(<AreaChart {...props} revealKey="BASE" />);
+    view.rerender(<AreaChart {...props} revealKey="AVG" />);
     expect(document.querySelector("[data-reveal]")).toBe(first);
 
-    view.rerender(<AreaChart {...props} revealKey="HIGH" />);
+    view.rerender(<AreaChart {...props} revealKey="GOOD" />);
     expect(document.querySelector("[data-reveal]")).not.toBe(first);
   });
 
@@ -163,7 +163,13 @@ describe("누적 영역 그래프 AreaChart (#298)", () => {
 
     const svg = chart.querySelector("svg");
     expect(svg?.getAttribute("width")).toBe("360");
-    expect(svg?.getAttribute("viewBox")).toBe("0 0 360 240");
+    expect(svg?.getAttribute("viewBox")).toBe("0 0 360 300");
+  });
+
+  it("세로 420px로 그린다", () => {
+    const { chart } = renderChart();
+
+    expect(chart.querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 640 420");
   });
 
   it("좁은 화면에서는 가로축 라벨이 서로 겹치지 않게 2년 간격으로 솎는다", () => {
