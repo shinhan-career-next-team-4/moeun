@@ -22,15 +22,20 @@ const CITATIONS = [
 const CONTENT = "지금 계획대로 이어 가면 평균일 때 3년 뒤 약 1,712만원이 돼요.";
 const TITLE = copy["chat.etfRiskTitle"];
 
-/** 적용된 적금 비중이 savingsRatioPct인 계획을 가진 store. */
-function storeWithRatio(savingsRatioPct: number) {
-  const made = makeStore();
-  const body = view(1, "CALCULATED", freshId());
+/** 적용된 적금 비중이 savingsRatioPct인 계획 결과. */
+function planWithRatio(revision: number, savingsRatioPct: number) {
+  const body = view(revision, "CALCULATED", freshId());
   const assumptions = (body.result as { assumptions: Record<string, unknown> }).assumptions;
   assumptions.savingsRatioPct = savingsRatioPct;
   // 서버는 ETF 0%면 종목 코드를 주지 않는다(Assumptions). 실제로 올 수 있는 조합만 만든다.
   if (savingsRatioPct === 100) assumptions.etfProductCode = null;
-  made.store.acceptPlanView(body);
+  return body;
+}
+
+/** 적용된 적금 비중이 savingsRatioPct인 계획을 가진 store. */
+function storeWithRatio(savingsRatioPct: number) {
+  const made = makeStore();
+  made.store.acceptPlanView(planWithRatio(1, savingsRatioPct));
   return made.store;
 }
 
@@ -104,6 +109,36 @@ describe("#283 ETF 위험 설명 접기", () => {
       expect(toggleOf(message), String(id)).toBeNull();
       expect(within(message).getAllByRole("link"), String(id)).toHaveLength(CITATIONS.length);
     }
+  });
+
+  it("#305 설명이 나온 계산에 ETF가 있었으면(etfIncluded=true), 지금 계획이 ETF 0%여도 박스가 접힌 채 남는다", async () => {
+    await mountWith(storeWithRatio(100), [{ ...explanationDone(4021, CONTENT, CITATIONS), etfIncluded: true }]);
+    const toggle = toggleOf(bubble(4021)!);
+    expect(toggle).toBeTruthy();
+    expect(toggle!.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("#305 설명이 나온 계산이 ETF 0%였으면(etfIncluded=false), 지금 계획에 ETF가 있어도 박스가 없다", async () => {
+    await mountWith(storeWithRatio(50), [{ ...explanationDone(4022, CONTENT, CITATIONS), etfIncluded: false }]);
+    const message = bubble(4022)!;
+    expect(toggleOf(message)).toBeNull();
+    expect(within(message).queryByTestId("chat-citations")).toBeNull();
+  });
+
+  it("#305 대화로 비중을 적금 100%로 적용해 계획이 바뀌어도, ETF가 있던 설명의 박스는 그대로다", async () => {
+    const made = makeStore();
+    made.store.acceptPlanView(planWithRatio(1, 50));
+    await mountWith(made.store, [{ ...explanationDone(4023, CONTENT, CITATIONS), etfIncluded: true }]);
+    expect(toggleOf(bubble(4023)!)).toBeTruthy();
+
+    act(() => made.store.acceptPlanView(planWithRatio(2, 100)));
+
+    expect(toggleOf(bubble(4023)!)).toBeTruthy();
+  });
+
+  it("#305 etfIncluded가 없는 설명(이 변경 전 서버)은 지금 계획 기준으로 판단한다", async () => {
+    await mountWith(storeWithRatio(100), [explanationDone(4024, CONTENT, CITATIONS)]);
+    expect(toggleOf(bubble(4024)!)).toBeNull();
   });
 
   it("펼친 뒤에도 말풍선 본문은 서버 content 그대로다(제목·출처 영역 밖)", async () => {
