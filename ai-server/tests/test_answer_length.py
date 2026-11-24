@@ -30,3 +30,11 @@ def test_length_rule_does_not_cut_server_copy_or_quote_rules() -> None:
     section = _section("답의 범위와 길이")
     assert "서버가 붙이는" in section
     assert "인용 규칙" in section
+
+
+def test_recalc_result_is_not_worded_as_already_applied() -> None:
+    # #384: 비교 답변은 "바꿨어요"가 아니라 가정형("바꾸면")으로 말한다. 적용은 화면 버튼이 한다.
+    section = _section("답의 범위와 길이")
+    assert "아직 내 계획에 적용된 것이 아닙니다" in section
+    assert "이미 반영된 것처럼 쓰지 말고" in section
+    assert "바꾸면 ~예요" in section
