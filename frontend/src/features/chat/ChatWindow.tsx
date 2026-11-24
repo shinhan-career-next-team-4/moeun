@@ -208,29 +208,27 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, onAssi
   }
 
   // ETF 버튼(#358): 질문을 보내고, 그 답(비교 결과)이 오면 같은 종목을 내 계획에 적용한다(결과 화면 ETF 기준도 함께 바뀐다)
-  const [autoApplyId, setAutoApplyId] = useState<number | null>(null);
+  // 대기 중인 적용 대상은 ref에 둔다. 답이 오면 폴링이 메시지를 바꿔 아래 효과가 다시 돈다
+  const autoApplyIdRef = useRef<number | null>(null);
   useEffect(() => {
-    if (autoApplyId === null) return;
-    const message = chat.messages.find((m) => m.id === autoApplyId);
+    const id = autoApplyIdRef.current;
+    if (id === null) return;
+    const message = chat.messages.find((m) => m.id === id);
     if (message === undefined || message.status === "PENDING") return;
-    if (message.status === "FAILED" || message.messageType !== "RECALC_RESULT") {
-      // 비교가 오지 않은 답(되묻기·실패 등)이면 적용하지 않는다
-      setAutoApplyId(null);
+    if (message.status === "FAILED" || message.messageType !== "RECALC_RESULT" || comparison.hideApply) {
+      // 비교가 오지 않은 답(되묻기·실패 등)이거나 적용할 수 없는 계획이면 적용하지 않는다
+      autoApplyIdRef.current = null;
       return;
     }
-    if (comparison.hideApply) {
-      setAutoApplyId(null);
-      return;
+    if (isApplyActive(comparison.snapshot, comparison.latestId, id)) {
+      autoApplyIdRef.current = null;
+      comparison.controller.apply(id);
     }
-    if (isApplyActive(comparison.snapshot, comparison.latestId, autoApplyId)) {
-      setAutoApplyId(null);
-      comparison.controller.apply(autoApplyId);
-    }
-  }, [autoApplyId, chat.messages, comparison]);
+  }, [chat.messages, comparison]);
 
   async function pickEtf(question: string): Promise<void> {
     const assistantId = await send(question);
-    if (assistantId !== null) setAutoApplyId(assistantId);
+    autoApplyIdRef.current = assistantId;
   }
 
   const trimmed = text.trim();
