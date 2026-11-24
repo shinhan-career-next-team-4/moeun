@@ -79,7 +79,13 @@ public class PlanVersion {
     /** @param newEtfProductCode 바꾼 ETF 종목. null이면 현재 종목을 잇는다 */
     public PlanVersion applyOverride(ConditionOverride changes, String newEtfProductCode, PlanSource path,
             Instant now) {
-        return new PlanVersion(memberId, conditions.overriddenBy(changes), calcStartMonth,
+        return applyOverride(changes, newEtfProductCode, null, path, now);
+    }
+
+    /** 대화 적용은 목표 이름도 바꿀 수 있다(#345). 이름을 바꾸면 목표가 직접 입력이 된다. null은 바꾸지 않음이다. */
+    public PlanVersion applyOverride(ConditionOverride changes, String newEtfProductCode, String newGoalCustomName,
+            PlanSource path, Instant now) {
+        return new PlanVersion(memberId, conditions.overriddenBy(changes).renamedTo(newGoalCustomName), calcStartMonth,
                 newEtfProductCode != null ? newEtfProductCode : etfProductCode, path, now);
     }
 

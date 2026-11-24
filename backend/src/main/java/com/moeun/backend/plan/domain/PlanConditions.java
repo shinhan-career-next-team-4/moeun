@@ -71,6 +71,18 @@ public record PlanConditions(
                 firstNonNull(changes.savingsRatioPct(), savingsRatioPct));
     }
 
+    /**
+     * 목표 이름을 바꾼다(#345). 결과 화면에서 이름을 고칠 때(#341)처럼 목표는 직접 입력이 되고 이름은 앞뒤 공백을 뗀다
+     * (D-081). null은 바꾸지 않음이다.
+     */
+    public PlanConditions renamedTo(String newGoalCustomName) {
+        if (newGoalCustomName == null) {
+            return this;
+        }
+        return new PlanConditions(GoalType.CUSTOM, newGoalCustomName.strip(), goalAmount, targetPeriodMonths,
+                heldAssets, monthlySaving, savingsRatePct, savingsRatioPct);
+    }
+
     /** 입력 검증에 넘길 형태. 적용으로 덮은 조건도 입력 화면과 같은 규칙으로 검증한다. */
     public PlanInput toInput() {
         return new PlanInput(goalType, goalCustomName,

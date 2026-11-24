@@ -1,9 +1,10 @@
-package com.moeun.backend.calc;
+package com.moeun.backend.calc.application;
 
+import com.moeun.backend.calc.ChatComparisonView;
 import com.moeun.backend.plan.ConditionOverride;
 
 /**
- * 조건 변경 비교(FR-CMP-02, #64)를 위한 calc의 공개 API. 현재 계획에 바꾼 조건을 얹어 비교만 계산하고 아무것도 기록하지
+ * 조건 변경 비교(FR-CMP-02, #64)를 위한 calc 내부 API. 현재 계획에 바꾼 조건을 얹어 비교만 계산하고 아무것도 기록하지
  * 않는다(calc_run도, 계획도 그대로). 대화 재계산({@code /internal/calc})과 같은 비교 계산을 쓰므로 같은 입력이면 같은 숫자다.
  */
 public interface ConditionComparisonQuery {

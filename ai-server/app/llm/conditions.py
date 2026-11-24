@@ -24,7 +24,7 @@ _KO_MAN = (
     rf"(?<![가-힣]){_KO_IDIOM}(?:{_KO_TENS}만{_KO_FOLLOW}|{_KO_DIGIT}만{_KO_ONE_DIGIT_MAN_FOLLOW})"
 )
 _KO_NUMERAL = rf"{_KO_MAN}|(?<![가-힣]){_KO_TENS}{_KO_FOLLOW}"
-_GOAL = re.compile(r"목표(?!\s*(?:기간|기한|일|까지))|모으려|모을")
+_GOAL = re.compile(r"목표(?!\s*(?:기간|기한|일|까지|이름))|모으려|모을")
 _HELD = re.compile(r"보유|가진|모아\s?둔|모았|이미|지금\s*있는")
 _MONTHLY_EXPLICIT = re.compile(r"(?<!개)월|매달|한\s?달|저축(?!\s*기간)|납입|적립")
 _MONTHLY = re.compile(rf"{_MONTHLY_EXPLICIT.pattern}|\d\s*만|{_KO_MAN}|만원|\d\s*원")
@@ -47,6 +47,7 @@ def mentions_etf_product(text: str | None) -> bool:
     return text is not None and bool(_ETF_PRODUCT_WORDS.search(text.lower()))
 _NUMBER = re.compile(rf"\d+(?:\.\d+)?|{_KO_NUMERAL}")
 _MONEY_FIELDS = ("goal_amount", "monthly_saving_amount")
+_SPACES = re.compile(r"\s+")
 _THOUSANDS_COMMA = re.compile(r"(?<=\d),(?=\d{3})")
 # "3년 6개월", "5년(60개월)", "60개월(5년)"은 기간 하나를 두 단위로 말한 것이다
 _PERIOD_COMPOUND = re.compile(r"\d+\s*년\s*\(?\s*\d+\s*개월\s*\)?|\d+\s*개월\s*\(?\s*\d+\s*년\s*\)?")
@@ -219,6 +220,38 @@ def drop_carried_conditions(
         k: v for k, v in changes.changed().items()
         if k in stated or (k in _MONEY_FIELDS and v in said_amounts)
     })
+
+
+# 목표 이름 바꾸기(#345). 이름 뒤에는 조사(으로·로·이라고·라고)나 띄어쓰기·문장 끝이 온다
+_NAME_END = r"(?:\s*(?:으로|로|이라고|라고)|[\s,.!?]|$)"
+# 조건 낱말이나 숫자뿐인 이름은 모델이 다른 조건 발화에서 지어낸 것이다("목표 금액을 1억으로" → "금액", "1억")
+_NOT_A_NAME = re.compile(r"(?:목표|이름|금액|목표\s*금액|목표\s*이름)|[\d\s.,]*(?:억|만|천|원|만원)*")
+GOAL_TYPE_WORD = "종류"
+
+
+def _name_pattern(name: str) -> str:
+    """띄어쓰기를 보지 않는 이름 정규식("가게보증금" = "가게 보증금")."""
+    return r"\s*".join(re.escape(c) for c in _SPACES.sub("", name.lower()))
+
+
+def names_goal(text: str, name: str) -> bool:
+    """이번 발화가 목표 이름을 그 이름으로 바꾸라고 하는지(#345). 대소문자·띄어쓰기는 보지 않는다.
+
+    발화에 "이름"이 있거나 "목표를 X로"처럼 목표 바로 뒤에 이름을 말했어야 한다. 조건 낱말·숫자뿐인 이름과
+    "목표 종류"를 바꾸려는 발화(고정 문구로 답한다, D-056)는 이름 바꾸기가 아니다.
+    """
+    lowered = text.lower()
+    if not _SPACES.sub("", name) or _NOT_A_NAME.fullmatch(name.strip().lower()) or GOAL_TYPE_WORD in lowered:
+        return False
+    pattern = _name_pattern(name)
+    if not re.search(pattern + _NAME_END, lowered):
+        return False
+    return "이름" in lowered or bool(re.search(r"목표\s*(?:를|을|는|은)?\s*" + pattern, lowered))
+
+
+def without_goal_name(text: str, name: str) -> str:
+    """발화에서 이름을 지운다. 이름 속 숫자·낱말을 다른 조건으로 읽지 않게 한다(#345)."""
+    return re.sub(_name_pattern(name), " ", text, flags=re.IGNORECASE)
 
 
 def carried_amount_sources(text: str, history_user_texts: list[str], changes: ConditionChanges) -> list[str]:

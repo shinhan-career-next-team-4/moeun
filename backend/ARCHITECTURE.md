@@ -11,11 +11,19 @@
 | `refdata` | 기준 데이터와 버전(ETF 가격은 종목별) | data_version, savings_avg_rate, etf_monthly, etf_product_version, calc_param | — |
 | `calc` | 계산 엔진, 계산 기록, 내 계획 조회·입력 저장·대안·조건 비교 REST, `/internal/calc` | calc_run | plan, refdata, config(copy) |
 | `rag` | 인용 출처 조회(읽기 전용) | source_org, rag_document, rag_chunk, chunk_embedding | — |
-| `chat` | 대화 저장, ai-server 비동기 호출 | chat_message, chat_message_citation | calc, rag, plan, auth, config :: copy |
+| `chat` | 대화 저장, ai-server 비동기 호출 | chat_message, chat_message_citation | calc :: plan-context, calc :: chat-comparison, calc :: calc-run-etf, rag, plan, auth, config :: copy |
 
 - REST 위치: 내 계획 조회·입력 저장(`GET`/`PUT /api/plan`)은 `calc.web`, 되돌리기(`POST /api/plan/undo`)와 대안·비교 적용(`POST /api/plan/apply`, #68)은 `plan.web`이다. 저장과 계산을 한 트랜잭션으로 묶으려고 부르는 쪽(calc)에 둔다. 대안(`POST /api/alternatives`)과 조건 비교(`POST /api/compare`)는 calc 공개 API만 부르므로 `calc.web.alternative`·`calc.web.compare`에 둔다(#309). 대화 적용은 chat 모듈이 `PlanApplyService`를 직접 부른다.
 - `config`는 보안 같은 앱 전역 설정이다.
 - 의존 방향의 기준은 각 모듈의 `package-info.java`이며, 바꿀 때는 이 표도 같이 고친다.
+
+### 모듈 의존 그림
+
+[docs/module-dependencies.puml](docs/module-dependencies.puml)은 Modulith `Documenter`가 지금 코드로 만든 PlantUML(UML 스타일) 그림이다. 이 문서는 에이전트 컨텍스트에 매번 들어가므로 그림 원문은 따로 둔다. `ModuleDiagramTest`가 그 파일이 코드와 같은지 확인하고, 다르면 실패 메시지에 새 그림을 보여준다. 모듈이나 의존을 바꾸면 그 그림으로 파일을 바꾼다.
+
+- chat → auth(이벤트 수신), calc, plan, rag, config
+- calc → plan(이벤트 수신·호출), refdata, config
+- chat → calc는 named interface 세 개(`plan-context`, `chat-comparison`, `calc-run-etf`)로만 이어진다(#311). 그림에는 모듈 단위 "uses"로 나온다.
 
 ## 모듈 내부 패키지
 
@@ -27,14 +35,14 @@
 | `infrastructure` | 외부 기술 어댑터: `JdbcClient` 쿼리, ai-server HTTP 클라이언트, 파일 읽기. `domain`의 포트를 구현한다 | `web` |
 | `web` | 컨트롤러, 요청·응답 DTO, 요청 JSON 해석 | `domain`의 리포지토리(서비스를 거친다) |
 
-`infrastructure`는 지금 없다. 새 어댑터는 처음부터 `infrastructure`에 두고, 기존 것은 리팩터링 Issue에서 옮긴다.
+`infrastructure`는 chat에만 있다(#312, `JdbcChatMessageRepository`). 새 어댑터는 처음부터 `infrastructure`에 두고, 기존 것은 리팩터링 Issue에서 옮긴다.
 
 #308 시점에 남아 있는 위반 중 `ArchitectureTests`가 **검사하지 않는** 것(리팩터링 대상):
 
-- `JdbcClient`를 `infrastructure` 밖에서 쓴다: `chat.domain.ChatMessageRepository`(이것만 domain이라 동결됨), `calc.application.CalcRunRecorder`, `chat.application.ChatAnswerListener`, `rag.CitationQueryService`
+- `JdbcClient`를 `infrastructure` 밖에서 쓴다: `calc.application.CalcRunRecorder`, `rag.CitationQueryService`(chat은 #312에서 `chat.infrastructure.JdbcChatMessageRepository`로 옮겼다)
 - ai-server HTTP 클라이언트가 `application`에 있다: `chat.application.AiChatClient`
 - `application`·루트가 Jackson으로 JSON을 해석한다: `plan.application.PlanService`(적용 변경 맵만, #310), `chat.application`(`ChatComparisonService`, `ChatAnswerListener`, `AiChatClient` 등), `calc.application`(`ConditionChanges`, `ChatComparisonRecomputer`), 루트 `plan.PlanApplyService`·`ConditionValidator`, `calc.ChatComparisonQuery`
-- 규칙이 서비스에 몰려 있다: plan은 #310에서 엔티티로 옮겼다(본보기). 다른 모듈은 리팩터링 Issue에서 같은 방식으로 옮긴다
+- 규칙이 서비스에 몰려 있다: plan은 #310에서 엔티티로, chat의 메시지 상태 전이는 #312에서 `ChatMessage`로 옮겼다(본보기). 다른 모듈은 리팩터링 Issue에서 같은 방식으로 옮긴다
 
 이 목록이 줄면 `application`→Jackson 같은 규칙을 `ArchitectureTests`에 추가한다.
 
@@ -78,7 +86,7 @@
 | `*Listener` | application | 이벤트 수신 |
 | `*Repository` | domain(인터페이스), infrastructure(JDBC 구현) | 영속성 |
 | `*Client` | infrastructure | 외부 HTTP 호출 |
-| `*View`, `*Query` | 루트 | 다른 모듈에 내주는 읽기 모델과 그 조회 API |
+| `*View`, `*Query` | 루트(다른 모듈에 내줄 때), application(모듈 안에서만 쓸 때) | 읽기 모델과 그 조회 API |
 | 과거형(`PlanChanged`) | 루트 또는 하위 | 이벤트 |
 | `*Exception` | 그 예외를 던지는 계층 | 업무 오류 |
 

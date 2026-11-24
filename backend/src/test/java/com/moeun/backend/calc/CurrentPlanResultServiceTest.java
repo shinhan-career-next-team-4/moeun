@@ -36,6 +36,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.moeun.backend.calc.application.CalcEngine;
 import com.moeun.backend.calc.application.CalcRunRecorder;
+import com.moeun.backend.calc.application.CurrentPlanResult;
+import com.moeun.backend.calc.application.CurrentPlanResultService;
 import com.moeun.backend.config.TestcontainersConfig;
 import com.moeun.backend.plan.PlanChanged;
 import com.moeun.backend.plan.PlanSaveResult;

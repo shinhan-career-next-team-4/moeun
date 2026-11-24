@@ -32,6 +32,17 @@ public record PlanRules(
         return Optional.empty();
     }
 
+    /** 글자 수 항목(목표 이름). 앞뒤 공백을 뗀 뒤 코드포인트로 센다. 비었거나 범위를 넘으면 OUT_OF_RANGE(D-074). */
+    public Optional<FieldError> checkText(InputField field, String value) {
+        FieldRule rule = fields.get(field);
+        String trimmed = value.strip();
+        int length = trimmed.codePointCount(0, trimmed.length());
+        if (length < rule.min().intValue() || length > rule.max().intValue()) {
+            return Optional.of(FieldError.outOfRange(field, rule));
+        }
+        return Optional.empty();
+    }
+
     public record FieldRule(boolean required, BigDecimal min, BigDecimal max, String unit, Integer scale) {
     }
 

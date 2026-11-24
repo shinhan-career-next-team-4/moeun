@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.moeun.backend.calc.CalcRejectedException;
+import com.moeun.backend.calc.application.CalcRejectedException;
 import com.moeun.backend.calc.application.CompareConditionsUseCase;
 import com.moeun.backend.calc.application.ConditionChanges;
 import com.moeun.backend.plan.ChangePath;
@@ -59,7 +59,7 @@ class InternalCalcController {
         if (!notChangeable.isEmpty()) {
             throw CalcRejectedException.fieldNotChangeable(notChangeable);
         }
-        // 4. 허용 키의 값은 JSON 숫자여야 한다(1e400처럼 유한한 수로 읽을 수 없는 값도 형식 오류). 종목 코드만 문자열이다
+        // 4. 허용 키의 값은 JSON 숫자여야 한다(1e400처럼 유한한 수로 읽을 수 없는 값도 형식 오류). 종목 코드·목표 이름만 문자열이다
         if (!ConditionChanges.allValuesWellTyped(changes)) {
             throw new MalformedInternalCalcRequestException();
         }
@@ -67,7 +67,8 @@ class InternalCalcController {
         if (changes.isEmpty()) {
             throw CalcRejectedException.validationFailed(List.of(FieldError.required(CONDITION_CHANGES)));
         }
-        // 6. 범위·정수·소수 자릿수. 걸린 키를 모두, 요청에 적힌 순서로 담는다
+        // 6. 범위·정수·소수 자릿수·이름 글자 수. 걸린 키를 모두, 요청에 적힌 순서로 담는다.
+        //    목표 이름(#345)은 계산에 쓰지 않는다. 이름만 바꿔도 F-5가 기준 계획 버전을 찾게 계산하고 기록한다
         ConditionChanges.Conversion conversion = validate(changes);
         CompareConditionsUseCase.ComparisonResult result = compareConditionsUseCase.compare(memberId,
                 conversion.override(), conversion.etfProductCode());
@@ -90,6 +91,9 @@ class InternalCalcController {
         }
         if (conversion.etfProductCode() != null && !etfProducts.isAvailable(conversion.etfProductCode())) {
             errors.add(FieldError.notInChoices(ConditionChanges.ETF_PRODUCT_CODE));
+        }
+        if (conversion.goalCustomName() != null) {
+            errors.addAll(conditionValidator.validateGoalCustomName(ChangePath.CHAT, conversion.goalCustomName()));
         }
         if (!errors.isEmpty()) {
             List<String> requestOrder = new ArrayList<>(changes.keySet());

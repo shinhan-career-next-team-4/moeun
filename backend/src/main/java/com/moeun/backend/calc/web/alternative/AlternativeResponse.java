@@ -4,9 +4,9 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
-import com.moeun.backend.calc.AlternativeView;
 import com.moeun.backend.calc.CalcComparison;
 import com.moeun.backend.calc.CalcResultView;
+import com.moeun.backend.calc.application.AlternativeView;
 
 /**
  * 대안 응답. 대안 없음(달성·초과 계획)이면 {@code hasAlternatives=false}에 빈 목록이다.

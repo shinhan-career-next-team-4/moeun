@@ -19,4 +19,5 @@ moeun:
       # 대화(CHAT)도 종목을 바꿔 비교(D-097, #157)·적용(F-5, #154)할 수 있다. 종목은 rules에 범위가 없고
       # ConditionValidator가 적재된 종목인지 따로 본다.
       COMPARE:     { fields: [GOAL_AMOUNT, MONTHLY_SAVING_AMOUNT, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT, ETF_PRODUCT_CODE], max-fields: 6 }
-      CHAT:        { fields: [GOAL_AMOUNT, MONTHLY_SAVING_AMOUNT, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT, ETF_PRODUCT_CODE], max-fields: 6 }
+      # #345: 대화로 목표 이름도 바꾼다. 이름은 계산 조건이 아니라 max-fields에 세지 않는다(ConditionValidator).
+      CHAT:        { fields: [GOAL_AMOUNT, MONTHLY_SAVING_AMOUNT, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT, ETF_PRODUCT_CODE, GOAL_CUSTOM_NAME], max-fields: 6 }

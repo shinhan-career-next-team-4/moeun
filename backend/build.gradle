@@ -88,6 +88,8 @@ dependencies {
 }
 
 tasks.named('test') {
+    // 문서를 읽는 테스트(ChatModuleRulesTest, ModuleDiagramTest)가 문서만 바뀌어도 다시 돌게 한다
+    inputs.files('ARCHITECTURE.md', 'docs/module-dependencies.puml')
     useJUnitPlatform {
         excludeTags 'report'   // 비교 리포트(#162)는 로컬 가격 파일로 calcReport에서만 돈다
     }

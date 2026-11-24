@@ -22,6 +22,7 @@ FIVE_KEYS = {
     "goal_amount", "monthly_saving_amount", "savings_ratio_pct", "savings_rate_input_pct", "target_period_months",
 }
 SIX_KEYS = FIVE_KEYS | {"etf_product_code"}   # 숫자 5개 + ETF 종목(D-097)
+SEVEN_KEYS = SIX_KEYS | {"goal_custom_name"}   # + 목표 이름(#345)
 REMOVED_KEYS = {"held_assets", "existing_monthly_contribution"}
 UNCHANGEABLE_COPY = (
     "목표 종류·기존 납입액은 여기서 바꿀 수 없어요. 보유 자산은 입력 수정에서 바꿀 수 있어요."
@@ -89,27 +90,27 @@ def last_tool_result(claude: FakeClaude) -> dict[str, Any]:
 
 # ---- 수용 기준 1, 9: 도구 스키마와 ConditionChanges가 같은 4키 ----
 
-def test_recalculate_tool_schema_has_only_six_keys():
-    """도구 스키마 필드는 목표 금액·월 저축액·비중·적금 금리·기한·ETF 종목 6개다 (D-092·D-097)"""
+def test_recalculate_tool_schema_has_only_seven_keys():
+    """도구 스키마 필드는 목표 금액·월 저축액·비중·적금 금리·기한·ETF 종목·목표 이름 7개다 (D-092·D-097·#345)"""
     schema = recalc_schema()
-    assert set(schema["properties"]) == SIX_KEYS
-    assert set(schema["required"]) == SIX_KEYS
+    assert set(schema["properties"]) == SEVEN_KEYS
+    assert set(schema["required"]) == SEVEN_KEYS
     assert schema["additionalProperties"] is False
 
 
-def test_condition_changes_model_has_only_six_keys():
-    """ConditionChanges 필드는 6키뿐이고 보유 자산(2단계)·기존 납입액이 없다 (D-090·D-097)"""
-    assert set(ConditionChanges.model_fields) == SIX_KEYS
+def test_condition_changes_model_has_only_seven_keys():
+    """ConditionChanges 필드는 7키뿐이고 보유 자산(2단계)·기존 납입액이 없다 (D-090·D-097·#345)"""
+    assert set(ConditionChanges.model_fields) == SEVEN_KEYS
     assert not REMOVED_KEYS & set(ConditionChanges.model_fields)
     assert set(ConditionChanges.model_fields) == set(recalc_schema()["properties"])
 
 
-def test_condition_changes_json_aliases_are_camel_case_six_keys():
-    """JSON 별칭(Spring 계약 internal-calc C2-2)도 camelCase 6개다"""
+def test_condition_changes_json_aliases_are_camel_case_seven_keys():
+    """JSON 별칭(Spring 계약 internal-calc C2-2)도 camelCase 7개다"""
     props = ConditionChanges.model_json_schema(by_alias=True)["properties"]
     assert set(props) == {
         "goalAmount", "monthlySavingAmount", "savingsRatioPct", "savingsRateInputPct", "targetPeriodMonths",
-        "etfProductCode",
+        "etfProductCode", "goalCustomName",
     }
 
 

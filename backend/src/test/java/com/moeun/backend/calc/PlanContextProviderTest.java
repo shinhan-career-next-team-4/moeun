@@ -31,6 +31,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.moeun.backend.calc.application.CompareConditionsUseCase;
+import com.moeun.backend.calc.application.CurrentPlanResult;
+import com.moeun.backend.calc.application.CurrentPlanResultService;
 import com.moeun.backend.calc.application.RecalculatingPlanContextProvider;
 import com.moeun.backend.config.TestcontainersConfig;
 import com.moeun.backend.plan.ConditionOverride;

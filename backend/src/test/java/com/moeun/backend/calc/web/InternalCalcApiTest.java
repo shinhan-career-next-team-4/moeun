@@ -29,9 +29,9 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.moeun.backend.calc.CalcResultView;
-import com.moeun.backend.calc.CurrentPlanResult;
-import com.moeun.backend.calc.CurrentPlanResultService;
 import com.moeun.backend.calc.ScenarioResultView;
+import com.moeun.backend.calc.application.CurrentPlanResult;
+import com.moeun.backend.calc.application.CurrentPlanResultService;
 import com.moeun.backend.calc.application.Formatter;
 import com.moeun.backend.config.TestcontainersConfig;
 import com.moeun.backend.plan.PlanSaveService;

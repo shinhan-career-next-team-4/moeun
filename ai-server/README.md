@@ -123,7 +123,7 @@ uv run moeun-ingest --file docs/a.pdf --doc-type DISCLOSURE --org "OO자산운�
 
 ### `/internal/calc` 요청
 
-- `conditionChanges`에는 **이번 발화에서 사용자가 말한 조건만** 넣는다. 허용 키는 4개(`monthlySavingAmount`, `savingsRatioPct`, `savingsRateInputPct`, `targetPeriodMonths`)이고 값이 `null`이면 "바꾸지 않음"이다.
+- `conditionChanges`에는 **이번 발화에서 사용자가 말한 조건만** 넣는다. 허용 키는 7개(`goalAmount`, `monthlySavingAmount`, `savingsRatioPct`, `savingsRateInputPct`, `targetPeriodMonths`, `etfProductCode`, `goalCustomName`)이고 값이 `null`이면 "바꾸지 않음"이다.
 - **기준은 항상 현재 계획이고 변경은 누적하지 않는다**(D-041). 이전 대화에서 바꾼 조건을 다음 요청에 이어 담지 않는다. 월 30만원 계획에서 `{monthlySavingAmount: 500000}` 다음에 `{targetPeriodMonths: 60}`을 보내면 두 번째 비교는 월 30만원 + 60개월이다.
 - `baselineScenario`는 선택이고 Spring은 값을 보지 않는다. 기준 시나리오는 Spring의 `plan.baseline_scenario`다.
 - 범위(최소·최대)는 Spring 한 곳에서만 검사한다. 범위 수치를 코드·프롬프트에 두지 않는다.

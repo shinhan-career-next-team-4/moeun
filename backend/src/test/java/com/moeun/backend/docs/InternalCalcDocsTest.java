@@ -151,8 +151,9 @@ class InternalCalcDocsTest {
                         .requestFields(
                                 fieldWithPath("memberId").description("계산할 회원(정수)"),
                                 subsectionWithPath("conditionChanges")
-                                        .description("monthlySavingAmount, savingsRatioPct, savingsRateInputPct, "
-                                                + "targetPeriodMonths 중 바꾼 것만"),
+                                        .description("goalAmount, monthlySavingAmount, savingsRatioPct, "
+                                                + "savingsRateInputPct, targetPeriodMonths, etfProductCode(문자열), "
+                                                + "goalCustomName(문자열, 계산에 쓰지 않음, #345) 중 바꾼 것만"),
                                 fieldWithPath("baselineScenario").description("무시한다(계획의 기준 시나리오를 씀)")
                                         .optional())
                         .responseFields(

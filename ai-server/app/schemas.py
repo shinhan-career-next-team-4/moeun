@@ -26,7 +26,8 @@ class DocType(StrEnum):
 
 
 class ConditionChanges(ApiModel):
-    """대화로 바꿀 수 있는 조건 6개(D-092·D-097). None = 바꾸지 않음. etf_product_code만 문자열(ETF 종목 코드)이다.
+    """대화로 바꿀 수 있는 조건 7개(D-092·D-097·#345). None = 바꾸지 않음. etf_product_code(ETF 종목 코드)와
+    goal_custom_name(목표 이름, 계산에 쓰지 않음)만 문자열이다.
 
     타입만 검사한다. 범위 검증은 Spring 한 곳에서 한다(계약 원칙 2, D-033).
     """
@@ -39,6 +40,7 @@ class ConditionChanges(ApiModel):
     savings_rate_input_pct: StrictFloat | StrictInt | None = Field(default=None, allow_inf_nan=False)
     target_period_months: StrictInt | None = None
     etf_product_code: StrictStr | None = None
+    goal_custom_name: StrictStr | None = None
 
     def changed(self) -> dict[str, Any]:
         # chat_message.condition_changes에 저장되는 값. snake_case 그대로 둔다(camelCase 변환은 Spring, C12b-14)

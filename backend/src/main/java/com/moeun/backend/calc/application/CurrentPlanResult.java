@@ -1,7 +1,9 @@
-package com.moeun.backend.calc;
+package com.moeun.backend.calc.application;
 
 import java.util.Map;
 
+import com.moeun.backend.calc.CalcInput;
+import com.moeun.backend.calc.CalcResult;
 import com.moeun.backend.plan.PlanView;
 
 /**

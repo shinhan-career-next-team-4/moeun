@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { planStore } from "../../api";
 import { COPY } from "../../shared/copy/copy";
-import { goalLabel } from "../../shared/units/units";
+import { goalName } from "../../shared/units/units";
 import { GOAL_NAME_MAX_LENGTH, requestGoalName } from "./requestGoalName";
 import type { ResultPlanView } from "./types";
 
@@ -17,7 +17,7 @@ interface GoalNameEditorProps {
  */
 export function GoalNameEditor({ view, onFeedback = () => {} }: GoalNameEditorProps) {
   const { plan } = view;
-  const current = plan.goalType === "CUSTOM" && plan.goalCustomName ? plan.goalCustomName : goalLabel(plan.goalType);
+  const current = goalName(plan.goalType, plan.goalCustomName);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(current);
   const [error, setError] = useState<string | null>(null);

@@ -52,7 +52,7 @@
 
 - `baselineScenario`를 계획에서 읽는 이유: 원천이 한 곳이고 같은 `plan` 행이라 비용이 없다. 해커톤에서는 항상 AVG(FR-RES-09 Should)라 ai-server 동작은 바뀌지 않는다. ai-server는 지금 코드를 고치지 않아도 된다.
 
-`conditionChanges` 허용 키 (D-090·D-092·#160, CP-07 — **6개**):
+`conditionChanges` 허용 키 (D-090·D-092·#160·#345, CP-07 — **7개**):
 
 | 키 | JSON 타입 | 단위 | 대응 컬럼(`plan_version`) |
 |---|---|---|---|
@@ -62,6 +62,14 @@
 | `savingsRateInputPct` | number | PCT (연, 세전) | `savings_rate_input_pct` |
 | `targetPeriodMonths` | integer | MONTH | `target_period_months` |
 | `etfProductCode` | **string** | — (활성 ETF 종목 코드. 지금 `SP500`, `069500`, `133690`) | 계획의 ETF 종목(#154). 종목을 저장하기 전의 옛 계획은 `SP500` |
+| `goalCustomName` | **string** | CHAR (앞뒤 공백을 뗀 1~100자, D-074) | `goal_custom_name`. 적용하면 `goal_type_code`가 `CUSTOM`이 된다(#345, D-081) |
+
+`goalCustomName` 규칙 (#345):
+- 목표 이름은 계산에 쓰지 않는다. 이름만 바꿔도 계산하고 `calc_run(CHAT)`을 남긴다(두 쪽 결과는 같다). F-5 적용이 이 기록으로 기준 계획 버전을 찾기 때문이다.
+- 길이 규칙은 입력 화면과 같다(`rules.yml › fields.GOAL_CUSTOM_NAME`). 벗어나면 `422 VALIDATION_FAILED`(`field: goalCustomName`, `OUT_OF_RANGE`, `min: 1`, `max: 100`, `unit: CHAR`, `minDisplay: "1자"`, `maxDisplay: "100자"`).
+- 이미 목표를 넘은 계획(검사 순서 8)은 이름만 바꿔도 다른 비교처럼 `409 ALREADY_EXCEEDED`다. 이름만 바꾸는 비교도 같은 계산 경로를 타기 때문이다. 초과 계획의 이름은 결과 화면에서 고친다(#341).
+- 바꾼 개수(`max-fields`)에는 세지 않는다. 응답 `conditions`에는 이름이 없다(숫자 조건만).
+- 적용(F-5)하면 결과 화면에서 이름을 고칠 때(#341)처럼 목표 종류가 직접 입력(`CUSTOM`)이 된다.
 
 `etfProductCode` 규칙 (#160 합의):
 - 허용 값은 활성 ETF 종목 목록(ETF 목록 API와 같은 출처)이다. 검증은 Spring이 한다. ai-server는 모델 도구 스키마에 고정된 값 목록(enum)이 필요해서 코드 목록을 `app/rag/etf_codes.py` **한 곳**에 두고, 도구 enum·설명이 여기서 나온다(#267). 종목을 더하거나 빼면 이 파일과 프롬프트를 같이 고친다. ai-server 목록에 있지만 Spring에서 꺼진 종목은 422(아래 검사 순서 6)로 되묻는다.
@@ -79,10 +87,10 @@
 | 0 | 내부 키 | 없음·불일치 → `401 INVALID_INTERNAL_KEY` |
 | 1 | 본문 JSON 파싱, `memberId`가 정수인지(`isIntegralNumber()`, `7.5`·`"7"`은 실패), `conditionChanges`가 객체인지 | 실패 → `400 MALFORMED_REQUEST` |
 | 2 | 값이 `null`인 키를 먼저 지운다 | — |
-| 3 | 허용 6개 밖의 키(`heldAssets`, `existingMonthlyContribution`, 오타 키 등) | 하나라도 있으면 **요청 전체 거절** `422 FIELD_NOT_CHANGEABLE`. `errors`에는 허용 밖 키만 담는다 |
-| 4 | 허용 키의 값이 JSON 숫자가 아님(문자열·불리언·객체·배열). **예외: `etfProductCode`는 JSON 문자열이 아니면**(숫자·불리언·객체·배열) | `400 MALFORMED_REQUEST` |
+| 3 | 허용 7개 밖의 키(`heldAssets`, `existingMonthlyContribution`, 오타 키 등) | 하나라도 있으면 **요청 전체 거절** `422 FIELD_NOT_CHANGEABLE`. `errors`에는 허용 밖 키만 담는다 |
+| 4 | 허용 키의 값이 JSON 숫자가 아님(문자열·불리언·객체·배열). **예외: `etfProductCode`·`goalCustomName`은 JSON 문자열이 아니면**(숫자·불리언·객체·배열) | `400 MALFORMED_REQUEST` |
 | 5 | 남은 키가 0개 | `422 VALIDATION_FAILED`, `errors=[{field:"conditionChanges", reason:"REQUIRED"}]` |
-| 6 | 범위(`OUT_OF_RANGE`), 정수 아님(`NOT_INTEGER`, 예 `500000.5`), 소수 자릿수 초과(`TOO_MANY_DECIMALS`). `etfProductCode`가 활성 종목 목록에 없음(`OUT_OF_RANGE`, `min`·`max`·`unit`·`minDisplay`·`maxDisplay` 없음) | `422 VALIDATION_FAILED`. **걸린 키를 모두** `errors`에 담는다 |
+| 6 | 범위(`OUT_OF_RANGE`), 정수 아님(`NOT_INTEGER`, 예 `500000.5`), 소수 자릿수 초과(`TOO_MANY_DECIMALS`). `etfProductCode`가 활성 종목 목록에 없음(`OUT_OF_RANGE`, `min`·`max`·`unit`·`minDisplay`·`maxDisplay` 없음). `goalCustomName`이 앞뒤 공백을 뗀 1~100자가 아님(`OUT_OF_RANGE`) | `422 VALIDATION_FAILED`. **걸린 키를 모두** `errors`에 담는다 |
 | 7 | 그 회원의 `plan` 행 없음 | `409 NO_PLAN` |
 | 8 | `current`와 `changed` 모두 이미 목표 초과(보유 자산 ≥ 각 목표 금액, FR-RES-01, D-092) | `409 ALREADY_EXCEEDED` (한쪽만 초과이면 `200` 비대칭 비교) |
 | 9 | 계산 | 성공 `200` / 서버 오류 `500 CALC_FAILED` |
@@ -229,7 +237,7 @@ CP-04 형식(`Formatter`)으로 Spring이 만든 문자열의 **평평한 맵**(
 
 ### C3-1. 오류 본문 형식
 
-Spring 내장 `ProblemDetail`(RFC 9457)에 확장 필드 `code`, `errors`를 더한다. `Content-Type: application/problem+json`. 전역 처리는 `config`의 `@RestControllerAdvice` 하나가 하고, 각 모듈은 자기 루트에 예외를 둔다(`plan.ConditionViolationException`, `calc.CalcRejectedException`). 공용 `common` 모듈은 만들지 않는다. Spring 기본 예외(파싱 실패 등)는 `400 MALFORMED_REQUEST`로 바꾼다.
+Spring 내장 `ProblemDetail`(RFC 9457)에 확장 필드 `code`, `errors`를 더한다. `Content-Type: application/problem+json`. 전역 처리는 `config`의 `@RestControllerAdvice` 하나가 하고, 예외는 그 예외를 쓰는 범위에 둔다. 다른 모듈도 받는 예외는 모듈 루트(`plan.ConditionViolationException`), 모듈 안에서만 쓰는 예외는 하위 패키지(`calc.application.CalcRejectedException`, #311)다. 공용 `common` 모듈은 만들지 않는다. Spring 기본 예외(파싱 실패 등)는 `400 MALFORMED_REQUEST`로 바꾼다.
 
 | 필드 | 타입 | 필수 | 뜻 |
 |---|---|---|---|
@@ -240,12 +248,12 @@ Spring 내장 `ProblemDetail`(RFC 9457)에 확장 필드 `code`, `errors`를 더
 | `errors[].reason` | string | 예 | `OUT_OF_RANGE` / `REQUIRED` / `NOT_INTEGER` / `TOO_MANY_DECIMALS` / `NOT_CHANGEABLE` |
 | `errors[].min`, `errors[].max` | number | `OUT_OF_RANGE`일 때(단 `field = etfProductCode`면 없음, #160) | 허용 범위(양끝 포함). 요청 값과 같은 단위 |
 | `errors[].unit` | `KRW` / `MONTH` / `PCT` | `min`·`max`가 있을 때 | |
-| `errors[].minDisplay`, `errors[].maxDisplay` | string | `OUT_OF_RANGE`일 때. **`/internal/calc`에서만 보장**(프론트 API에는 없음) | `Formatter`가 만든 표시 문자열. 경계값은 정확한 값이므로 `약`을 붙이지 않는다. 금액 `1만원`·`1,000만원`, 기간 `0년 1개월`·`30년 0개월`, 금리 `연 20.00%`, 비중 `적금 0 : ETF 100`·`적금 100 : ETF 0`(C2-6과 같은 형식) |
+| `errors[].minDisplay`, `errors[].maxDisplay` | string | `OUT_OF_RANGE`일 때. **`/internal/calc`에서만 보장**(프론트 API에는 없음) | `Formatter`가 만든 표시 문자열. 경계값은 정확한 값이므로 `약`을 붙이지 않는다. 금액 `1만원`·`1,000만원`, 기간 `0년 1개월`·`30년 0개월`, 금리 `연 20.00%`, 비중 `적금 0 : ETF 100`·`적금 100 : ETF 0`(C2-6과 같은 형식), 목표 이름 글자 수 `1자`·`100자`(#345) |
 | `errors[].scale` | integer | `TOO_MANY_DECIMALS`일 때 | 허용 소수 자릿수(금리 2, TBD-09) |
 | `errors[].copyKey` | string | 아니오 | 문구표 키(CP-05). 프론트 경로에서 쓸 수 있다. 이 경로에서는 없어도 된다 |
 
 - 요청 값(`rejectedValue`)은 넣지 않는다. 왜: ai-server는 자기가 보낸 값을 알고, 금융 값을 로그·본문에 다시 싣지 않는다.
-- **`minDisplay`·`maxDisplay`를 붙이는 곳은 calc다.** plan의 `ConditionValidator`(#17)는 `min`·`max`·`unit`·`scale`만 담은 `plan.ConditionViolationException`을 던진다. `/internal/calc` 컨트롤러가 있는 `calc.web`(#32)이 이 예외를 잡아 `Formatter`로 `minDisplay`·`maxDisplay`를 붙이고 `calc.CalcRejectedException`으로 다시 던진다. 왜: plan은 다른 모듈에 의존하지 않고(`allowedDependencies = {}`) 의존 방향이 calc → plan이라, plan이 calc의 `Formatter`를 부르면 순환 의존이 되어 `ModularityTests`가 실패한다.
+- **`minDisplay`·`maxDisplay`를 붙이는 곳은 calc다.** plan의 `ConditionValidator`(#17)는 `min`·`max`·`unit`·`scale`만 담은 `plan.ConditionViolationException`을 던진다. `/internal/calc` 컨트롤러가 있는 `calc.web`(#32)이 이 예외를 잡아 `Formatter`로 `minDisplay`·`maxDisplay`를 붙이고 `calc.application.CalcRejectedException`으로 다시 던진다. 왜: plan은 다른 모듈에 의존하지 않고(`allowedDependencies = {}`) 의존 방향이 calc → plan이라, plan이 calc의 `Formatter`를 부르면 순환 의존이 되어 `ModularityTests`가 실패한다.
 - 그래서 `minDisplay`·`maxDisplay`는 이 경로에서만 보장한다. 같은 `ConditionValidator`를 쓰는 프론트 API(#30)의 오류 본문에는 없다(프론트는 `min`·`max`·`unit`과 자기 화면 단위로 표시한다).
 - #32는 #28(Formatter)에 의존하므로 `/internal/calc`가 동작하는 시점에는 항상 이 두 필드가 있다. ai-server는 범위를 말할 때 `minDisplay`·`maxDisplay`만 인용한다(원 → 만원 나눗셈 금지). 방어 규칙: 그래도 없으면(계약 위반) 숫자 없이 "허용 범위를 벗어났어요"라고만 말하고 다시 묻는다.
 - **`etfProductCode`의 `OUT_OF_RANGE`는 계약 위반이 아니다**(#160). 범위가 아니라 목록이라 `min`·`max`·`minDisplay`·`maxDisplay`가 없다. ai-server는 범위를 말하지 않고 "그 종목은 계산할 수 없어요"처럼 되묻는다(문장은 B팀 후속).
@@ -271,7 +279,7 @@ Spring 내장 `ProblemDetail`(RFC 9457)에 확장 필드 `code`, `errors`를 더
 
 ### C3-3. 범위 수치의 출처 (수치는 임시)
 
-- 허용 범위는 **`backend/src/main/resources/config/rules.yml` › `input.fields.<FIELD>.{required,min,max,unit,scale}`** 한 곳에 두고 plan 모듈 `@ConfigurationProperties`로 읽는다. 대화 경로 허용 키는 `rules.yml › change-paths.CHAT.fields`(숫자 키 5개. `etfProductCode`는 범위 대신 활성 종목 목록으로 검사, #157). 검사는 `ConditionValidator.validate(ChangePath.CHAT, values)`. `InputField` enum ↔ camelCase 키 매핑을 둔다.
+- 허용 범위는 **`backend/src/main/resources/config/rules.yml` › `input.fields.<FIELD>.{required,min,max,unit,scale}`** 한 곳에 두고 plan 모듈 `@ConfigurationProperties`로 읽는다. 대화 경로 허용 키는 `rules.yml › change-paths.CHAT.fields`(숫자 키 5개. `etfProductCode`는 범위 대신 활성 종목 목록으로 검사, #157. `goalCustomName`은 글자 수로 검사하고 바꾼 개수에 세지 않는다, #345). 검사는 `ConditionValidator.validate(ChangePath.CHAT, values)`. `InputField` enum ↔ camelCase 키 매핑을 둔다.
 - 지금은 Spring 전용이다. `db/moved-to-code.md`의 "두 서버가 함께 읽는 `config/rules.yml`"은 이 위치로 고친다(ai-server는 오류 본문으로 받으므로 읽을 필요가 없다). 필요해지면 repo 루트로 옮긴다.
 - 오류 본문의 `min`·`max`·`unit`·`scale`은 **이 설정 값을 그대로** 내보낸다. **ai-server는 범위 수치를 하드코딩하지 않는다.**
 - 지금 쓸 값(**임시**, TBD-09·TBD-10 확정 시 `rules.yml`만 바꾼다):

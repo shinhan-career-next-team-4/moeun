@@ -47,7 +47,8 @@ public class ChatComparisonService {
                 .orElseThrow(() -> new IllegalStateException(
                         "RECALC_RESULT " + messageId + " does not point to the member's calc_run(CHAT)"));
         boolean applicable = isApplicable(memberId, messageId, view);
-        return new ChatComparison(messageId, applicable, List.copyOf(changes.keySet()), view);
+        return new ChatComparison(messageId, applicable, List.copyOf(changes.keySet()), view,
+                ChatComparison.goalCustomNameOf(changes));
     }
 
     /** ① 그 회원의 COMPLETED RECALC_RESULT 중 id가 가장 크고 ② 그 기록의 계획 버전이 지금의 현재 계획 버전일 때만 true. */

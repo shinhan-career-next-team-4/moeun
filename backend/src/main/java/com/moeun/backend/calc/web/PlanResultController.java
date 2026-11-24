@@ -13,8 +13,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.moeun.backend.calc.CurrentPlanResult;
-import com.moeun.backend.calc.CurrentPlanResultService;
+import com.moeun.backend.calc.application.CurrentPlanResult;
+import com.moeun.backend.calc.application.CurrentPlanResultService;
 import com.moeun.backend.calc.application.Formatter;
 import com.moeun.backend.calc.application.SavePlanUseCase;
 import com.moeun.backend.plan.FieldError;

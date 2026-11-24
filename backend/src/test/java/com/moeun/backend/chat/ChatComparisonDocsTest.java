@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.restdocs.test.autoconfigure.AutoConfigureRestDocs;
+import org.springframework.restdocs.payload.JsonFieldType;
 import org.springframework.test.web.servlet.MvcResult;
 
 import com.epages.restdocs.apispec.ResourceSnippetParameters;
@@ -40,7 +41,10 @@ class ChatComparisonDocsTest extends ChatComparisonTestSupport {
                         .responseFields(
                                 fieldWithPath("messageId").description("조회한 메시지 id"),
                                 fieldWithPath("applicable").description("지금 이 비교를 적용할 수 있는지"),
-                                fieldWithPath("changedKeys[]").description("바꾼 조건의 키(순서 보장 없음, 집합으로 쓴다)"),
+                                fieldWithPath("changedKeys[]").description("바꾼 조건의 키(순서 보장 없음, 집합으로 쓴다). "
+                                        + "목표 이름을 바꿨으면 goalCustomName이 들어간다"),
+                                fieldWithPath("goalCustomName").type(JsonFieldType.STRING).optional()
+                                        .description("적용하면 바뀔 목표 이름(앞뒤 공백 뗌, #345). 이름을 바꾸지 않은 비교면 키 없음"),
                                 subsectionWithPath("conditions").description("두 계산에 쓴 5개 조건 {current, changed}"),
                                 subsectionWithPath("current").description("현재 계획 결과(월별 점 없음)"),
                                 subsectionWithPath("changed").description("조건을 바꾼 결과(월별 점 없음)"),
