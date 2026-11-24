@@ -17,6 +17,7 @@
 |---|---|---|---|
 | 모의 계산이며 수령액·수익을 보장하지 않음, 상품 가입 권유 아님, 환율 미반영, 투자 판단은 본인 책임, AI 설명은 참고용 | `disclaimer` | 결과 화면 맨 아래(`Disclaimer.tsx`), 대화 패널 하단(`ChatWindow`) | **쓰지 않는다.** "보장하지 않아요", "추정이라 수익을 약속하지 않아요", "참고용이에요" 같은 같은 뜻의 문장도 포함. 사용자가 수익을 직접 물어도 본문에 쓰지 않는다(Q1 확정) |
 | 세 가지 경우는 과거 데이터를 나눈 시나리오이며 예측이 아님 | `result.scenarioNotice` | 3구간 카드 아래(`ScenarioCards.tsx`) | **쓰지 않는다** |
+| ETF는 원금을 보장하지 않으며 예금자보호 대상이 아님, 계획 종목의 운용사 공시 링크(FR-AI-03) | `result.etfPrincipalRisk`, `result.etfDisclosureLabel` | 3구간 카드 아래, ETF가 섞인 계획만(`EtfRiskNotice.tsx`, D-104, #374) | **결과 설명(EXPLANATION)에 쓰지 않는다.** 결과 설명은 ETF 위험을 말하지 않고 출처도 붙이지 않는다(Q3). 다만 사용자가 위험·원금 손실을 직접 물으면 공시를 근거로 답하고 출처를 붙인다(Q2, 3절 개념·위험 설명) |
 | 세금은 일반 과세 기준 가정, 세법이 바뀌면 달라짐, 전문가 확인 | `tax.note`, `tax.noteEtfTaxFree` | 가정 보기(`AssumptionsSection.tsx`), 계획에 맞는 하나(#233) | **쓰지 않는다.** 서버가 지운다 |
 | 이미 목표를 넘은 계획(보유 자산 ≥ 목표) | `result.alreadyExceeded`(화면), `chat.alreadyExceeded`(대화 첫 줄) | 결과 요약 자리, 대화 패널 첫 줄 | 서버 고정 문장으로만 낸다(아래 2절) |
 

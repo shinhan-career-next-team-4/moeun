@@ -13,8 +13,7 @@ import { api, planStore, polling } from "../../api";
 import { ApiError } from "../../api/errors";
 import { applyEtfNow, ComparisonNotices, ComparisonResult, useComparison, useComparisonController, type ComparisonPlanStore } from "./comparison";
 import { COPY, unitChar } from "./copy";
-import { Citations, EtfRiskCitations } from "./explanation/Citations";
-import { planHasNoEtf } from "./planEtf";
+import { Citations } from "./explanation/Citations";
 import { planGoalName } from "./planGoal";
 import { postExplanation, useExplanationRequest } from "./explanation/useExplanationRequest";
 import type { ChatDeps } from "./index";
@@ -66,20 +65,15 @@ interface BubbleProps {
   /** 실패한 설명 아래에 [다시 시도]를 그릴 때만 준다. "설명 다시 요청"과 같은 동작이다. */
   onRetry?: () => void;
   retryDisabled?: boolean;
-  /** 지금 계획이 ETF 0%인지. 서버가 그 설명의 ETF 포함 여부를 주지 않았을 때만 쓴다(#283, #305). */
-  planHasNoEtf?: boolean;
 }
 
-function BubbleCitations({ message, planHasNoEtf }: { message: ChatMessage; planHasNoEtf: boolean }) {
+/** 완료된 답의 출처. 결과 설명도 질문 답·비교 답과 같은 목록이다. ETF 위험 근거는 결과 화면 고정 블록이 맡는다(#374). */
+function BubbleCitations({ message }: { message: ChatMessage }) {
   if (message.status !== "COMPLETED" || message.citations.length === 0) return null;
-  // 질문 답·비교 답의 출처는 그대로 보이고, 결과 설명의 근거만 ETF 위험 설명으로 접는다.
-  if (message.messageType !== "EXPLANATION") return <Citations citations={message.citations} />;
-  // 설명이 나온 계산 기준(#305). 그 값이 없는 응답이면 지금 계획 기준이다
-  const etfIncluded = message.etfIncluded ?? !planHasNoEtf;
-  return etfIncluded ? <EtfRiskCitations citations={message.citations} /> : null;
+  return <Citations citations={message.citations} />;
 }
 
-function Bubble({ message, onRetry, retryDisabled, planHasNoEtf = false }: BubbleProps) {
+function Bubble({ message, onRetry, retryDisabled }: BubbleProps) {
   const className = message.role === "USER" ? BUBBLE_USER : BUBBLE_ASSISTANT;
   if (message.status === "PENDING") {
     return (
@@ -105,7 +99,7 @@ function Bubble({ message, onRetry, retryDisabled, planHasNoEtf = false }: Bubbl
         className={className}
       >
         {message.content}
-        <BubbleCitations message={message} planHasNoEtf={planHasNoEtf} />
+        <BubbleCitations message={message} />
       </div>
       {onRetry && (
         <button
@@ -158,7 +152,6 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleA
   const settledStatus = useSyncExternalStore(subscribe, () => store.getState().settledStatus);
   const etfProductCode = useSyncExternalStore(subscribe, () => planEtfProductCode(store.getState()));
   const etfProducts = useEtfProducts(deps.api, etfProductCode);
-  const noEtf = useSyncExternalStore(subscribe, () => planHasNoEtf(store.getState()));
   const goalName = useSyncExternalStore(subscribe, () => planGoalName(store.getState()));
 
   const comparison = useComparison(comparisonController, chat.messages, settledStatus === "ALREADY_EXCEEDED");
@@ -307,7 +300,6 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleA
               message={message}
               onRetry={message.id === lastFailureId && canRetry ? retryExplanation.retry : undefined}
               retryDisabled={retryExplanation.disabled}
-              planHasNoEtf={noEtf}
             />
             <ComparisonResult comparison={comparison} message={message} currentGoalName={goalName} />
           </Fragment>
