@@ -7,6 +7,6 @@ import java.time.OffsetDateTime;
  *
  * @param calcRunId 결과 설명의 ETF 포함 여부를 구할 때만 쓴다(#305). 화면에 그대로 내보내지 않는다
  */
-public record MessageRow(long id, String role, String messageType, String status, String content,
+public record MessageRow(long id, Role role, MessageType messageType, MessageStatus status, String content,
         Long calcRunId, OffsetDateTime createdAt) {
 }

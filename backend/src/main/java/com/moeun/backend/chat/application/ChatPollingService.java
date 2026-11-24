@@ -11,6 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.moeun.backend.calc.CalcRunEtfQuery;
 import com.moeun.backend.chat.domain.ChatMessageRepository;
 import com.moeun.backend.chat.domain.MessageRow;
+import com.moeun.backend.chat.domain.MessageStatus;
+import com.moeun.backend.chat.domain.MessageType;
 import com.moeun.backend.config.copy.CopyBook;
 import com.moeun.backend.rag.Citation;
 import com.moeun.backend.rag.CitationQueryService;
@@ -48,7 +50,7 @@ public class ChatPollingService {
         boolean answerPending = messages.existsPendingAnswer(memberId);
         List<MessageRow> rows = afterId == null
                 ? messages.findLatest(memberId, RESTORE_LIMIT) : messages.findAfter(memberId, afterId);
-        List<Long> completedIds = rows.stream().filter(row -> "COMPLETED".equals(row.status()))
+        List<Long> completedIds = rows.stream().filter(row -> row.status() == MessageStatus.COMPLETED)
                 .map(MessageRow::id).toList();
         Map<Long, List<Citation>> found = citations.findByMessageIds(completedIds);
         Set<Long> runsWithEtf = etfRuns.findRunsUsingEtf(rows.stream().filter(ChatPollingService::isExplanation)
@@ -59,12 +61,13 @@ public class ChatPollingService {
 
     /** PENDING은 유형·본문을 가리고, FAILED는 저장된 본문과 무관하게 현재 실패 문구표를 낸다. 출처는 COMPLETED에만 붙는다. */
     private PolledMessage show(MessageRow row, Map<Long, List<Citation>> found, Set<Long> runsWithEtf) {
+        String role = row.role().name();
+        String status = row.status().name();
         return switch (row.status()) {
-            case "PENDING" -> new PolledMessage(row.id(), row.role(), null, row.status(), null, List.of(),
-                    row.createdAt(), null);
-            case "FAILED" -> new PolledMessage(row.id(), row.role(), "FAILURE", row.status(),
+            case PENDING -> new PolledMessage(row.id(), role, null, status, null, List.of(), row.createdAt(), null);
+            case FAILED -> new PolledMessage(row.id(), role, MessageType.FAILURE.name(), status,
                     copy.get("chat.failed"), List.of(), row.createdAt(), null);
-            default -> new PolledMessage(row.id(), row.role(), row.messageType(), row.status(), row.content(),
+            case COMPLETED -> new PolledMessage(row.id(), role, row.messageType().name(), status, row.content(),
                     found.getOrDefault(row.id(), List.of()), row.createdAt(), etfIncluded(row, runsWithEtf));
         };
     }
@@ -75,6 +78,6 @@ public class ChatPollingService {
     }
 
     private static boolean isExplanation(MessageRow row) {
-        return "COMPLETED".equals(row.status()) && "EXPLANATION".equals(row.messageType());
+        return row.status() == MessageStatus.COMPLETED && row.messageType() == MessageType.EXPLANATION;
     }
 }

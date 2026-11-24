@@ -13,11 +13,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import com.moeun.backend.chat.domain.ChatMessage;
 import com.moeun.backend.chat.domain.ChatMessageRepository;
+import com.moeun.backend.chat.domain.MessageType;
 
 /**
  * 메시지 상태 전이의 동시성(#312). 답변 완료·실패는 PENDING일 때만 바뀌고, 그 사이 로그아웃 삭제나 오래된 PENDING 정리가
  * 먼저 끝났으면 0행으로 끝나 무시된다. 삭제된 행을 되살리지 않고, 정리된(FAILED) 행을 완료로 덮지 않는다.
+ * <p>답변 완료는 리스너처럼 PENDING 메시지를 먼저 읽어 두고(ai-server 호출 전), 나중에 그 메시지의 전이를 저장한다.
  * <p>"동시" 경우는 한 트랜잭션이 행 잠금을 쥔 채 커밋을 미루는 동안 다른 트랜잭션이 그 행을 기다리게 해서 재현한다.
  */
 class ChatMessageConcurrencyTest extends ChatIntegrationTestSupport {
@@ -28,13 +31,15 @@ class ChatMessageConcurrencyTest extends ChatIntegrationTestSupport {
     @Autowired
     ChatMessageRepository messages;
 
-    private long pendingAnswer() {
+    /** PENDING 답변 행을 넣고, 리스너처럼 호출 전에 읽어 둔다. */
+    private ChatMessage pendingAnswer() {
         insertMessage(memberId, "USER", "QUESTION", "COMPLETED", "질문");
-        return insertMessage(memberId, "ASSISTANT", "ANSWER", "PENDING", null);
+        long id = insertMessage(memberId, "ASSISTANT", "ANSWER", "PENDING", null);
+        return messages.findPending(id, memberId).orElseThrow();
     }
 
-    private int complete(long id) {
-        return messages.complete(id, memberId, "ANSWER", "답변", null, "AVG", null);
+    private int complete(ChatMessage message) {
+        return messages.apply(message.complete(MessageType.ANSWER, "답변", null, "AVG", null));
     }
 
     private int cleanUp() {
@@ -54,20 +59,21 @@ class ChatMessageConcurrencyTest extends ChatIntegrationTestSupport {
     @Test
     @DisplayName("로그아웃 삭제 뒤에 온 답변 완료는 0행이고 행을 되살리지 않는다")
     void completionAfterDeletionIsIgnored() {
-        long id = pendingAnswer();
+        ChatMessage message = pendingAnswer();
         delete();
 
-        assertThat(complete(id)).isZero();
+        assertThat(complete(message)).isZero();
         assertThat(countRows(memberId)).isZero();
     }
 
     @Test
     @DisplayName("오래된 PENDING 정리 뒤에 온 답변 완료는 0행이고 FAILED를 덮지 않는다")
     void completionAfterCleanupIsIgnored() {
-        long id = pendingAnswer();
+        ChatMessage message = pendingAnswer();
+        long id = message.id();
         assertThat(cleanUp()).isEqualTo(1);
 
-        assertThat(complete(id)).isZero();
+        assertThat(complete(message)).isZero();
         assertThat(statusOf(id)).isEqualTo("FAILED");
         assertThat(contentOf(id)).isEqualTo(FAILED_CONTENT);
     }
@@ -75,11 +81,12 @@ class ChatMessageConcurrencyTest extends ChatIntegrationTestSupport {
     @Test
     @DisplayName("답변 완료 뒤의 정리와 실패 처리는 0행이고 COMPLETED를 바꾸지 않는다")
     void cleanupAndFailAfterCompletionAreIgnored() {
-        long id = pendingAnswer();
-        assertThat(complete(id)).isEqualTo(1);
+        ChatMessage message = pendingAnswer();
+        long id = message.id();
+        assertThat(complete(message)).isEqualTo(1);
 
         assertThat(cleanUp()).isZero();
-        assertThat(messages.fail(id, memberId, FAILED_CONTENT)).isZero();
+        assertThat(messages.apply(message.fail(FAILED_CONTENT))).isZero();
         assertThat(statusOf(id)).isEqualTo("COMPLETED");
         assertThat(contentOf(id)).isEqualTo("답변");
     }
@@ -89,9 +96,9 @@ class ChatMessageConcurrencyTest extends ChatIntegrationTestSupport {
     @Test
     @DisplayName("답변 완료가 잠금을 쥔 동안 기다리던 로그아웃 삭제는 완료 커밋 뒤 그 행을 지운다")
     void deletionWaitingOnCompletionStillDeletes() throws Exception {
-        long id = pendingAnswer();
+        ChatMessage message = pendingAnswer();
 
-        Outcome outcome = whileFirstHoldsLock(() -> complete(id), this::delete);
+        Outcome outcome = whileFirstHoldsLock(() -> complete(message), this::delete);
 
         assertThat(outcome.first()).isEqualTo(1);
         assertThat(outcome.second()).isEqualTo(2);
@@ -101,9 +108,9 @@ class ChatMessageConcurrencyTest extends ChatIntegrationTestSupport {
     @Test
     @DisplayName("로그아웃 삭제가 잠금을 쥔 동안 기다리던 답변 완료는 0행이고 행을 되살리지 않는다")
     void completionWaitingOnDeletionIsIgnored() throws Exception {
-        long id = pendingAnswer();
+        ChatMessage message = pendingAnswer();
 
-        Outcome outcome = whileFirstHoldsLock(this::delete, () -> complete(id));
+        Outcome outcome = whileFirstHoldsLock(this::delete, () -> complete(message));
 
         assertThat(outcome.second()).isZero();
         assertThat(countRows(memberId)).isZero();
@@ -112,9 +119,10 @@ class ChatMessageConcurrencyTest extends ChatIntegrationTestSupport {
     @Test
     @DisplayName("정리가 잠금을 쥔 동안 기다리던 답변 완료는 0행이고 FAILED로 남는다")
     void completionWaitingOnCleanupIsIgnored() throws Exception {
-        long id = pendingAnswer();
+        ChatMessage message = pendingAnswer();
+        long id = message.id();
 
-        Outcome outcome = whileFirstHoldsLock(this::cleanUp, () -> complete(id));
+        Outcome outcome = whileFirstHoldsLock(this::cleanUp, () -> complete(message));
 
         assertThat(outcome.first()).isEqualTo(1);
         assertThat(outcome.second()).isZero();
@@ -124,9 +132,10 @@ class ChatMessageConcurrencyTest extends ChatIntegrationTestSupport {
     @Test
     @DisplayName("답변 완료가 잠금을 쥔 동안 기다리던 정리는 0행이고 COMPLETED로 남는다")
     void cleanupWaitingOnCompletionIsIgnored() throws Exception {
-        long id = pendingAnswer();
+        ChatMessage message = pendingAnswer();
+        long id = message.id();
 
-        Outcome outcome = whileFirstHoldsLock(() -> complete(id), this::cleanUp);
+        Outcome outcome = whileFirstHoldsLock(() -> complete(message), this::cleanUp);
 
         assertThat(outcome.first()).isEqualTo(1);
         assertThat(outcome.second()).isZero();

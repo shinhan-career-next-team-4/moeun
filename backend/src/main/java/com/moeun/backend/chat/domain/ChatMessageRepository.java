@@ -1,193 +1,75 @@
 package com.moeun.backend.chat.domain;
 
 import java.time.OffsetDateTime;
-import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.stereotype.Repository;
-
 /**
- * chat_message·chat_message_citation 접근. 모든 메서드가 memberId 조건을 받는다(소유권은 DB가 막지 않는다).
- * 상태 갱신은 {@code status = 'PENDING'}일 때만 하고 바뀐 행 수를 돌려준다. 0행이면 그 사이 삭제·정리된 것이다.
+ * chat_message·chat_message_citation 저장소. 모든 메서드가 memberId 조건을 받는다(소유권은 DB가 막지 않는다).
+ * 구현은 chat.infrastructure에 있다. 상태 전이는 행이 아직 전이 전 상태일 때만 반영하고 바뀐 행 수를 돌려준다.
+ * 0행이면 그 사이 삭제·정리·완료된 것이라 부르는 쪽이 무시한다.
  */
-@Repository
-public class ChatMessageRepository {
+public interface ChatMessageRepository {
 
-    private static final RowMapper<MessageRow> MESSAGE_ROW = (rs, row) -> new MessageRow(rs.getLong("id"),
-            rs.getString("role"), rs.getString("message_type"), rs.getString("status"), rs.getString("content"),
-            rs.getObject("calc_run_id", Long.class), rs.getObject("created_at", OffsetDateTime.class));
+    long insertQuestion(long memberId, String text);
 
-    private final JdbcClient jdbc;
-
-    ChatMessageRepository(JdbcClient jdbc) {
-        this.jdbc = jdbc;
-    }
-
-    public long insertQuestion(long memberId, String text) {
-        return jdbc.sql("INSERT INTO chat_message (member_id, role, message_type, status, content) "
-                        + "VALUES (?, 'USER', 'QUESTION', 'COMPLETED', ?) RETURNING id")
-                .params(memberId, text).query(Long.class).single();
-    }
-
-    public long insertPendingAnswer(long memberId) {
-        return jdbc.sql("INSERT INTO chat_message (member_id, role, message_type, status) "
-                        + "VALUES (?, 'ASSISTANT', 'ANSWER', 'PENDING') RETURNING id")
-                .param(memberId).query(Long.class).single();
-    }
+    long insertPendingAnswer(long memberId);
 
     /**
      * F-3: 설명 대기 행. 기준 시나리오는 요청 시점 값을 저장해 두고 리스너가 그 값으로 EXPLAIN을 보낸다.
      * retryOfMessageId는 '설명 다시 요청'의 원본(FR-AI-05)이고 다시 요청이 아니면 null이다.
      */
-    public long insertPendingExplanation(long memberId, long calcRunId, String baselineScenario,
-            Long retryOfMessageId) {
-        return jdbc.sql("INSERT INTO chat_message (member_id, role, message_type, status, calc_run_id, "
-                        + "baseline_scenario, retry_of_message_id) "
-                        + "VALUES (?, 'ASSISTANT', 'EXPLANATION', 'PENDING', ?, ?, ?) RETURNING id")
-                .params(memberId, calcRunId, baselineScenario, retryOfMessageId).query(Long.class).single();
-    }
+    long insertPendingExplanation(long memberId, long calcRunId, String baselineScenario, Long retryOfMessageId);
 
     /**
      * 그 회원의 설명 행인지(FR-AI-05의 다시 요청 원본). 완료·대기 설명은 EXPLANATION이고, 실패한 설명은 계산 기록을
      * 가진 FAILURE다(질문 답변은 실패해도 계산 기록이 없다). 없는·남의·설명이 아닌 행은 모두 false다.
      */
-    public boolean existsExplanationOf(long id, long memberId) {
-        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM chat_message WHERE id = ? AND member_id = ? "
-                        + "AND role = 'ASSISTANT' AND calc_run_id IS NOT NULL "
-                        + "AND message_type IN ('EXPLANATION', 'FAILURE'))")
-                .params(id, memberId).query(Boolean.class).single();
-    }
+    boolean existsExplanationOf(long id, long memberId);
 
     /** 그 회원이 같은 기록으로 이미 요청한 설명이 PENDING인지. 동시 요청으로 여러 행일 수 있어 존재 여부만 본다. */
-    public boolean existsPendingExplanation(long memberId, long calcRunId) {
-        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM chat_message WHERE member_id = ? AND calc_run_id = ? "
-                        + "AND message_type = 'EXPLANATION' AND status = 'PENDING')")
-                .params(memberId, calcRunId).query(Boolean.class).single();
-    }
+    boolean existsPendingExplanation(long memberId, long calcRunId);
 
-    public boolean existsPendingAnswer(long memberId) {
-        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM chat_message "
-                        + "WHERE member_id = ? AND message_type = 'ANSWER' AND status = 'PENDING')")
-                .param(memberId).query(Boolean.class).single();
-    }
+    boolean existsPendingAnswer(long memberId);
 
     /** 그 회원의 PENDING(질문·설명 모두)이 하나라도 있는지. 목록 밖의 오래된 id도 잡힌다. */
-    public boolean existsPending(long memberId) {
-        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM chat_message WHERE member_id = ? AND status = 'PENDING')")
-                .param(memberId).query(Boolean.class).single();
-    }
+    boolean existsPending(long memberId);
 
-    /** 복원: 최근 limit개를 id 오름차순으로(키셋 DESC LIMIT 뒤 뒤집기). */
-    public List<MessageRow> findLatest(long memberId, int limit) {
-        List<MessageRow> rows = jdbc.sql("SELECT id, role, message_type, status, content, calc_run_id, created_at "
-                        + "FROM chat_message WHERE member_id = ? ORDER BY id DESC LIMIT ?")
-                .params(memberId, limit).query(MESSAGE_ROW).list();
-        Collections.reverse(rows);
-        return rows;
-    }
+    /** 복원: 최근 limit개를 id 오름차순으로. */
+    List<MessageRow> findLatest(long memberId, int limit);
 
     /** 폴링: afterId보다 큰 id의 자기 메시지 전부를 id 오름차순으로. */
-    public List<MessageRow> findAfter(long memberId, long afterId) {
-        return jdbc.sql("SELECT id, role, message_type, status, content, calc_run_id, created_at "
-                        + "FROM chat_message WHERE member_id = ? AND id > ? ORDER BY id")
-                .params(memberId, afterId).query(MESSAGE_ROW).list();
-    }
-
-    /** 그 회원의 PENDING 중 createdBefore보다 먼저 만들어진 행을 FAILED로 바꾼다. 경계(같은 시각)는 건드리지 않는다. */
-    public int failPendingCreatedBefore(long memberId, OffsetDateTime createdBefore, String failedContent) {
-        return jdbc.sql("UPDATE chat_message SET status = 'FAILED', message_type = 'FAILURE', content = ? "
-                        + "WHERE member_id = ? AND status = 'PENDING' AND created_at < ?")
-                .params(failedContent, memberId, createdBefore).update();
-    }
-
-    public Optional<PendingMessage> findPending(long id, long memberId) {
-        return jdbc.sql("SELECT id, member_id, message_type, calc_run_id, baseline_scenario FROM chat_message "
-                        + "WHERE id = ? AND member_id = ? AND status = 'PENDING'")
-                .params(id, memberId)
-                .query((rs, row) -> new PendingMessage(rs.getLong("id"), rs.getLong("member_id"),
-                        rs.getString("message_type"), rs.getObject("calc_run_id", Long.class),
-                        rs.getString("baseline_scenario")))
-                .optional();
-    }
-
-    /** F-4: 그 회원의 COMPLETED RECALC_RESULT 한 행. 없는·남의·다른 종류·COMPLETED가 아닌 행은 모두 빈 값이다. */
-    public Optional<RecalcResultRow> findCompletedRecalcResult(long id, long memberId) {
-        return jdbc.sql("SELECT id, calc_run_id, condition_changes::text AS condition_changes FROM chat_message "
-                        + "WHERE id = ? AND member_id = ? AND message_type = 'RECALC_RESULT' AND status = 'COMPLETED'")
-                .params(id, memberId)
-                .query((rs, row) -> new RecalcResultRow(rs.getLong("id"), rs.getLong("calc_run_id"),
-                        rs.getString("condition_changes")))
-                .optional();
-    }
-
-    /** F-4 applicable 판정 ①: 그 회원의 COMPLETED RECALC_RESULT 중 id가 가장 큰 행. */
-    public Optional<Long> findLatestCompletedRecalcResultId(long memberId) {
-        return jdbc.sql("SELECT max(id) FROM chat_message "
-                        + "WHERE member_id = ? AND message_type = 'RECALC_RESULT' AND status = 'COMPLETED'")
-                .param(memberId).query(Long.class).optional();
-    }
-
-    /** beforeId보다 앞서 저장된 가장 최근 질문(답변 행 바로 앞에 저장된 USER 행). */
-    public Optional<QuestionMessage> findLatestQuestionBefore(long memberId, long beforeId) {
-        return jdbc.sql("SELECT id, content FROM chat_message "
-                        + "WHERE member_id = ? AND role = 'USER' AND id < ? ORDER BY id DESC LIMIT 1")
-                .params(memberId, beforeId)
-                .query((rs, row) -> new QuestionMessage(rs.getLong("id"), rs.getString("content")))
-                .optional();
-    }
-
-    /** beforeId보다 앞선 COMPLETED 메시지 중 최근 limit개를 오래된 것부터. */
-    public List<HistoryMessage> findCompletedBefore(long memberId, long beforeId, int limit) {
-        return jdbc.sql("SELECT role, content FROM (SELECT id, role, content FROM chat_message "
-                        + "WHERE member_id = ? AND status = 'COMPLETED' AND id < ? ORDER BY id DESC LIMIT ?) recent "
-                        + "ORDER BY id")
-                .params(memberId, beforeId, limit)
-                .query((rs, row) -> new HistoryMessage(rs.getString("role").toLowerCase(Locale.ROOT),
-                        rs.getString("content")))
-                .list();
-    }
+    List<MessageRow> findAfter(long memberId, long afterId);
 
     /**
-     * 응답이 null로 비워 둔 calcRunId·baselineScenario는 행에 이미 있는 값을 유지한다.
-     * 단 OUT_OF_SCOPE는 계산 기록을 가리키지 않으므로(ck_cm_out_of_scope) calc_run_id를 NULL로 비운다.
+     * 그 회원의 PENDING 중 createdBefore보다 먼저 만들어진 행을 모두 실패로 끝낸다. 행마다 {@link ChatMessage#fail}과 같은
+     * 전이다. 경계(같은 시각)는 건드리지 않는다.
      */
-    public int complete(long id, long memberId, String messageType, String content, Long calcRunId,
-            String baselineScenario, String conditionChangesJson) {
-        return jdbc.sql("UPDATE chat_message SET status = 'COMPLETED', message_type = ?, content = ?, "
-                        + "calc_run_id = CASE WHEN ? = 'OUT_OF_SCOPE' THEN NULL ELSE COALESCE(?, calc_run_id) END, "
-                        + "baseline_scenario = COALESCE(?, baseline_scenario), "
-                        + "condition_changes = CAST(? AS jsonb) "
-                        + "WHERE id = ? AND member_id = ? AND status = 'PENDING'")
-                .params(messageType, content, messageType, calcRunId, baselineScenario, conditionChangesJson, id,
-                        memberId)
-                .update();
-    }
+    int failPendingCreatedBefore(long memberId, OffsetDateTime createdBefore, String failedContent);
 
-    public int fail(long id, long memberId, String failedContent) {
-        return jdbc.sql("UPDATE chat_message SET status = 'FAILED', message_type = 'FAILURE', content = ? "
-                        + "WHERE id = ? AND member_id = ? AND status = 'PENDING'")
-                .params(failedContent, id, memberId).update();
-    }
+    Optional<ChatMessage> findPending(long id, long memberId);
+
+    /** 행이 아직 {@code transition.from()} 상태일 때만 반영한다. @return 바뀐 행 수(0 또는 1) */
+    int apply(MessageTransition transition);
+
+    /** F-4: 그 회원의 COMPLETED RECALC_RESULT 한 행. 없는·남의·다른 종류·COMPLETED가 아닌 행은 모두 빈 값이다. */
+    Optional<RecalcResultRow> findCompletedRecalcResult(long id, long memberId);
+
+    /** F-4 applicable 판정 ①: 그 회원의 COMPLETED RECALC_RESULT 중 id가 가장 큰 행. */
+    Optional<Long> findLatestCompletedRecalcResultId(long memberId);
+
+    /** beforeId보다 앞서 저장된 가장 최근 질문(답변 행 바로 앞에 저장된 USER 행). */
+    Optional<QuestionMessage> findLatestQuestionBefore(long memberId, long beforeId);
+
+    /** beforeId보다 앞선 COMPLETED 메시지 중 최근 limit개를 오래된 것부터. */
+    List<HistoryMessage> findCompletedBefore(long memberId, long beforeId, int limit);
 
     /** 인용 chunk를 순서(rank 1부터)대로 저장한다. 그 회원의 메시지일 때만 저장한다. */
-    public void insertCitations(long memberId, long messageId, List<Long> chunkIds) {
-        int rank = 1;
-        for (Long chunkId : chunkIds) {
-            jdbc.sql("INSERT INTO chat_message_citation (message_id, rank, chunk_id) "
-                            + "SELECT id, ?, ? FROM chat_message WHERE id = ? AND member_id = ?")
-                    .params(rank++, chunkId, messageId, memberId).update();
-        }
-    }
+    void insertCitations(long memberId, long messageId, List<Long> chunkIds);
 
     /**
      * 그 회원의 대화를 한 문장으로 전부 지운다(#46). 행을 하나씩 지우면 retry_of_message_id(NO ACTION)가 문장마다
      * 검사되어 순서에 따라 실패하므로 일괄 DELETE다. chat_message_citation은 FK CASCADE로 함께 지워진다.
      */
-    public int deleteAllOf(long memberId) {
-        return jdbc.sql("DELETE FROM chat_message WHERE member_id = ?").param(memberId).update();
-    }
+    int deleteAllOf(long memberId);
 }
