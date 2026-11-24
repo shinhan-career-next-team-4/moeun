@@ -7,7 +7,6 @@ import { copy, doneMsg, flush, page, pendingMsg, problem, serverError, tick, use
 import {
   APPLY_LABEL,
   COLLAPSED_LABEL,
-  CONDITION_KEYS,
   applyButton,
   buttonOf,
   cardOf,
@@ -15,7 +14,6 @@ import {
   bubble,
   card,
   cards,
-  cellText,
   comparison,
   conditionRows,
   deferred,
@@ -566,79 +564,7 @@ describe("AC-9 공유 store의 revision 칸이 바뀌면 그때 가진 모든 �
   });
 });
 
-describe("AC-26 초과 계획(settledStatus=ALREADY_EXCEEDED)이면 ChatWindow가 비교 카드의 적용 버튼을 숨긴다 (C12a-6-7 D-072, 사용자 결정 B1=A 3차)", () => {
-  it("비교 카드가 활성 버튼으로 떠 있다가 다시 불러온 계획이 ALREADY_EXCEEDED로 확정되면 적용 버튼이 화면에서 사라진다", async () => {
-    const api = makeApi({
-      F2: [page([userMsg(1028), recalc(1029), userMsg(1030), recalc(1031)], false)],
-      "F4 1031": [comparison("get-comparison.200.json", { messageId: 1031, applicable: true })],
-    });
-    const { store } = makeStore();
-    await mountChat(api, store);
-    expect(buttonOf(1031).disabled).toBe(false);
-
-    act(() => store.acceptPlanView(planView(13, "ALREADY_EXCEEDED")));
-    await flush();
-    expect(store.getState().settledStatus).toBe("ALREADY_EXCEEDED");
-    expect(applyButtons()).toHaveLength(0);
-    expect(screen.queryByText(APPLY_LABEL)).toBeNull();
-    expect(api.f4Calls()).toEqual([f4Path(1031)]);
-  });
-
-  it("초과로 확정돼도 숨기는 것은 적용 버튼뿐이다: 1031 비교 카드는 펼친 채 조건 4행·시나리오 행과 display 값이 그대로 보이고 F-4를 다시 부르지 않는다", async () => {
-    const body = comparison("get-comparison.200.json", { messageId: 1031, applicable: true });
-    const display = body.display as Record<string, string>;
-    const api = makeApi({
-      F2: [page([userMsg(1028), recalc(1029), userMsg(1030), recalc(1031)], false)],
-      "F4 1031": [body],
-    });
-    const { store } = makeStore();
-    await mountChat(api, store);
-    expect(buttonOf(1031).disabled).toBe(false);
-    const scenariosBefore = scenarioRows(1031).length;
-    expect(scenariosBefore).toBeGreaterThan(0);
-
-    act(() => store.acceptPlanView(planView(13, "ALREADY_EXCEEDED")));
-    await flush();
-    await tick(1000);
-    await flush();
-    expect(store.getState().settledStatus).toBe("ALREADY_EXCEEDED");
-    expect(applyButtons()).toHaveLength(0);
-
-    expect(cardOf(1031).getAttribute("data-collapsed")).toBe("false");
-    const rows = conditionRows(1031);
-    expect(rows.map((row) => row.getAttribute("data-key"))).toEqual(CONDITION_KEYS);
-    for (const row of rows) {
-      const key = row.getAttribute("data-key");
-      expect(cellText(row, "chat-comparison-current")).toBe(display[`conditions.current.${key}`]);
-      expect(cellText(row, "chat-comparison-changed")).toBe(display[`conditions.changed.${key}`]);
-    }
-    expect(scenarioRows(1031)).toHaveLength(scenariosBefore);
-    expect(cardOf(1029).getAttribute("data-collapsed")).toBe("true");
-    expect(api.f4Calls()).toEqual([f4Path(1031)]);
-  });
-
-  it("처음부터 초과 계획(최초 로드 ALREADY_EXCEEDED)이면 복원된 RECALC_RESULT에 적용 버튼이 없다", async () => {
-    const api = makeApi({
-      F2: [page([userMsg(1028), recalc(1029), userMsg(1030), recalc(1031)], false)],
-      "F4 1031": [comparison("get-comparison.200.json", { messageId: 1031, applicable: true })],
-    });
-    const { store } = makeStore({ initialRevision: null });
-    act(() => store.acceptPlanView(planView(12, "ALREADY_EXCEEDED")));
-    await mountChat(api, store);
-    await tick(1000);
-    await flush();
-    expect(store.getState().settledStatus).toBe("ALREADY_EXCEEDED");
-    expect(applyButtons()).toHaveLength(0);
-    expect(screen.queryByText(APPLY_LABEL)).toBeNull();
-
-    // 입력 수정 저장으로 초과가 풀리면(13, CALCULATED) 숨김이 풀린다. revision이 바뀌었으므로 버튼은 비활성이다(D-069).
-    act(() => store.acceptPlanView(planView(13)));
-    await flush();
-    expect(store.getState().settledStatus).toBe("CALCULATED");
-    expect(buttonOf(1031).disabled).toBe(true);
-    expect(api.f4Calls()).toEqual([f4Path(1031)]);
-  });
-
+describe("AC-26 초과 계획(settledStatus=ALREADY_EXCEEDED)에서도 비교 카드의 적용 버튼은 보인다 (#382, 이전 D-072 숨김 결정을 사용자가 바꿈)", () => {
   it("초과가 아닌 계획(CALCULATED)이면 같은 카드의 적용 버튼이 있다(숨김은 초과일 때만)", async () => {
     const api = makeApi({
       F2: [page([userMsg(1028), recalc(1029), userMsg(1030), recalc(1031)], false)],
@@ -650,46 +576,6 @@ describe("AC-26 초과 계획(settledStatus=ALREADY_EXCEEDED)이면 ChatWindow�
     expect(buttonOf(1031).disabled).toBe(false);
   });
 
-  it("결과 view가 revision을 따라잡기 전에는 settledStatus(직전 값 ALREADY_EXCEEDED)를 따라 버튼을 숨기고, 따라잡은 view가 CALCULATED면 비활성 버튼이 나타난다(늦은 view 13로 먼저 드러내지 않음)", async () => {
-    const api = makeApi({
-      F2: [page([userMsg(1028), recalc(1029), userMsg(1030), recalc(1031)], false)],
-      "F4 1031": [comparison("get-comparison.200.json", { messageId: 1031, applicable: true })],
-    });
-    const { store } = makeStore({ initialRevision: null });
-    act(() => store.acceptPlanView(planView(12, "ALREADY_EXCEEDED")));
-    await mountChat(api, store);
-    expect(applyButtons()).toHaveLength(0);
-
-    // 대화 밖 적용·되돌리기처럼 revision 칸만 14가 된다. view는 아직 12(초과)다.
-    act(() => store.acceptRevision(14));
-    await flush();
-    expect(store.getState().settledStatus).toBe("ALREADY_EXCEEDED");
-    expect(applyButtons()).toHaveLength(0);
-
-    // 늦게 온 view 13(CALCULATED): revision(14)을 따라잡지 못해 settledStatus는 직전 값(초과) 그대로다.
-    act(() => store.acceptPlanView(planView(13)));
-    await flush();
-    await tick(1000);
-    await flush();
-    expect(store.getState().revision).toBe(14);
-    expect(store.getState().view?.revision).toBe(13);
-    expect(store.getState().settledStatus).toBe("ALREADY_EXCEEDED");
-    expect(applyButtons(), "view 13(CALCULATED)만 보고 적용 버튼을 먼저 드러냈다").toHaveLength(0);
-    expect(screen.queryByText(APPLY_LABEL)).toBeNull();
-    expect(screen.queryByTestId("chat-already-exceeded")).not.toBeNull(); // #52 초과 문장도 settledStatus를 따른다
-
-    // view 14(CALCULATED)가 revision을 따라잡으면 숨김이 풀린다. revision이 바뀌었으므로 비활성이다(D-069).
-    act(() => store.acceptPlanView(planView(14)));
-    await flush();
-    expect(store.getState().settledStatus).toBe("CALCULATED");
-    expect(screen.queryByTestId("chat-already-exceeded")).toBeNull();
-    expect(buttonOf(1031).disabled).toBe(true);
-    for (const button of applyButtons()) expect(button.disabled).toBe(true);
-    expect(api.f4Calls()).toEqual([f4Path(1031)]);
-  });
-});
-
-describe("AC-10 최초 로드는 제외하고, revision 변경 전 메시지의 늦은 F-4는 비활성 유지 (D-069, C12a-6-7)", () => {
   it("revision 최초 로드(null -> 12)는 버튼을 끄지 않는다", async () => {
     const api = makeApi({
       F2: [page([userMsg(1030), recalc(1031)], false)],
@@ -722,6 +608,36 @@ describe("AC-10 최초 로드는 제외하고, revision 변경 전 메시지의 
 
     expect(cardOf(1031).getAttribute("data-collapsed")).toBe("false");
     expect(buttonOf(1031).disabled).toBe(true);
+  });
+
+  it("계획이 ALREADY_EXCEEDED로 확정돼도 적용 버튼은 사라지지 않는다(목표 금액을 올리는 비교는 적용할 수 있다)", async () => {
+    const api = makeApi({
+      F2: [page([userMsg(1028), recalc(1029), userMsg(1030), recalc(1031)], false)],
+      "F4 1031": [comparison("get-comparison.200.json", { messageId: 1031, applicable: true })],
+    });
+    const { store } = makeStore();
+    await mountChat(api, store);
+    expect(buttonOf(1031).disabled).toBe(false);
+
+    act(() => store.acceptPlanView(planView(13, "ALREADY_EXCEEDED")));
+    await flush();
+    expect(store.getState().settledStatus).toBe("ALREADY_EXCEEDED");
+    // 최신 비교 카드의 적용 버튼이 그대로 있다(계획이 바뀌었으니 비활성일 뿐 숨겨지지 않는다)
+    expect(applyButton(1031)).not.toBeNull();
+  });
+
+  it("처음부터 초과 계획으로 열어도 복원된 비교 카드에 적용 버튼이 있다", async () => {
+    const api = makeApi({
+      F2: [page([userMsg(1028), recalc(1029), userMsg(1030), recalc(1031)], false)],
+      "F4 1031": [comparison("get-comparison.200.json", { messageId: 1031, applicable: true })],
+    });
+    const { store } = makeStore({ initialRevision: null });
+    act(() => store.acceptPlanView(planView(12, "ALREADY_EXCEEDED")));
+    await mountChat(api, store);
+    await tick(1000);
+    await flush();
+    expect(store.getState().settledStatus).toBe("ALREADY_EXCEEDED");
+    expect(buttonOf(1031).disabled).toBe(false);
   });
 });
 
