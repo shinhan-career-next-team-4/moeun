@@ -118,4 +118,25 @@ class PlanVersionTest {
 
         assertThat(PlanConditions.from(conditions.toInput())).isEqualTo(conditions);
     }
+
+    @Test
+    void applyOverrideWithGoalNameMakesGoalCustom() {
+        // 대화로 목표 이름을 바꾸면 결과 화면에서 고칠 때(#341)처럼 직접 입력 목표가 된다(#345, D-081)
+        PlanVersion applied = firstVersion().applyOverride(new ConditionOverride(null, null, null, null, null, null),
+                null, "  가게 보증금 ", PlanSource.CHAT, LATER);
+
+        assertThat(applied.getConditions().goalType()).isEqualTo(GoalType.CUSTOM);
+        assertThat(applied.getConditions().goalCustomName()).isEqualTo("가게 보증금");
+        assertThat(applied.getConditions().goalAmount()).isEqualTo(50_000_000L);
+        assertThat(applied.getEtfProductCode()).isEqualTo(PlanView.DEFAULT_ETF_PRODUCT_CODE);
+    }
+
+    @Test
+    void applyOverrideWithoutGoalNameKeepsGoal() {
+        PlanVersion applied = firstVersion().applyOverride(new ConditionOverride(400_000L, null, null, null, null,
+                null), null, null, PlanSource.CHAT, LATER);
+
+        assertThat(applied.getConditions().goalType()).isEqualTo(GoalType.HOUSE);
+        assertThat(applied.getConditions().goalCustomName()).isNull();
+    }
 }
