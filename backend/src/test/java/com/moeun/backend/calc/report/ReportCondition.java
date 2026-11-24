@@ -36,4 +36,15 @@ record ReportCondition(String title, CalcInput input) {
                 new ReportCondition("장기 10년", new CalcInput(100_000_000L, 120, START_MONTH, 0L, 600_000L,
                         savingsRatePct, 50, Scenario.AVG)));
     }
+
+    /**
+     * 발표 데모 시나리오(#302): 전세자금 5,000만원, 36개월, 지금 가진 돈 600만원, 매달 120만원.
+     * 비중은 입력 화면 기본값(적금 50 : ETF 50)이다.
+     *
+     * @param savingsRatePct 적금 금리(%). 기본금리(은행연합회 평균)를 넣는다
+     */
+    static ReportCondition createDemo(BigDecimal savingsRatePct) {
+        return new ReportCondition("데모 시나리오(전세자금)", new CalcInput(50_000_000L, 36, START_MONTH, 6_000_000L,
+                1_200_000L, savingsRatePct, 50, Scenario.AVG));
+    }
 }

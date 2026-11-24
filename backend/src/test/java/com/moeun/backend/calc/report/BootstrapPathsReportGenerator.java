@@ -23,7 +23,8 @@ import com.moeun.backend.refdata.EtfProduct;
 import com.moeun.backend.refdata.EtfSeries;
 
 /**
- * 로컬 기준 데이터로 기준 계획의 1만 경로 리포트(#302)를 만든다. 실행: {@code ./gradlew calcReport}.
+ * 로컬 기준 데이터로 1만 경로 리포트(#302)를 만든다. 기준 계획({@code bootstrap-paths*})과 발표 데모 시나리오
+ * ({@code bootstrap-paths-demo*}) 두 벌이다. 실행: {@code ./gradlew calcReport}.
  * <p>가격 파일이 개발자 로컬에만 있어(TBD-08) 평소 {@code ./gradlew test}에서는 돌지 않고({@code report} 태그 제외),
  * S&P500 파일이 없으면 건너뛴다. 결과는 {@code build/reports/calc/} 아래에 남고 레포에 커밋하지 않는다.
  * <p>파일을 쓰기 전에 경로 값에서 고른 3구간이 엔진 결과와 원 단위까지 같은지 확인한다. 다르면 실패하고 쓰지 않는다.
@@ -37,11 +38,21 @@ class BootstrapPathsReportGenerator {
     @DisplayName("기준 계획의 경로별 최종 금액·구간별 개수·요약을 build/reports/calc에 쓴다")
     void writesReport() throws IOException {
         LocalSeedData seeds = LocalSeedData.read();
+        write(seeds, ReportCondition.createDefaults(seeds.savingsRatePct()).get(0), "bootstrap-paths");
+    }
+
+    @Test
+    @DisplayName("발표 데모 시나리오(전세자금 5,000만원)의 경로별 최종 금액·구간별 개수·요약을 쓴다")
+    void writesDemoReport() throws IOException {
+        LocalSeedData seeds = LocalSeedData.read();
+        write(seeds, ReportCondition.createDemo(seeds.savingsRatePct()), "bootstrap-paths-demo");
+    }
+
+    private static void write(LocalSeedData seeds, ReportCondition condition, String prefix) throws IOException {
         Optional<EtfSeries> sp500 = seeds.etfProducts().stream()
                 .filter(product -> EtfProduct.REPRESENTATIVE_CODE.equals(product.product().code()))
                 .findFirst().flatMap(ReportProduct::findSeries);
         assumeTrue(sp500.isPresent(), "로컬 S&P500 가격 파일이 없어 건너뜀");
-        ReportCondition condition = ReportCondition.createDefaults(seeds.savingsRatePct()).get(0);
 
         BootstrapPaths.Result paths = BootstrapPaths.simulate(condition.input(), seeds.calcParams(), sp500.get());
         CalcResult engine = new CalcEngine().calculate(condition.input(), seeds.calcParams(), sp500.get());
@@ -55,10 +66,10 @@ class BootstrapPathsReportGenerator {
         BootstrapPathsReport report = new BootstrapPathsReport(condition.title(), condition.input(), sp500.get(),
                 paths, BootstrapPathsReport.DEFAULT_BIN_WIDTH);
         Files.createDirectories(DIRECTORY);
-        Files.writeString(DIRECTORY.resolve("bootstrap-paths.csv"), report.renderPathsCsv(), StandardCharsets.UTF_8);
-        Files.writeString(DIRECTORY.resolve("bootstrap-paths-histogram.csv"), report.renderHistogramCsv(),
+        Files.writeString(DIRECTORY.resolve(prefix + ".csv"), report.renderPathsCsv(), StandardCharsets.UTF_8);
+        Files.writeString(DIRECTORY.resolve(prefix + "-histogram.csv"), report.renderHistogramCsv(),
                 StandardCharsets.UTF_8);
-        Files.writeString(DIRECTORY.resolve("bootstrap-paths-summary.md"), report.renderSummary(),
+        Files.writeString(DIRECTORY.resolve(prefix + "-summary.md"), report.renderSummary(prefix),
                 StandardCharsets.UTF_8);
     }
 

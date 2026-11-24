@@ -77,6 +77,27 @@ class BootstrapPathsReportTest {
     }
 
     @Test
+    @DisplayName("요약 제목은 조건 이름이고, 원자료 파일 이름은 넘긴 앞부분을 쓴다")
+    void namesTitleAndRawFilesByCondition() {
+        String summary = reportOf(15_000_000L).renderSummary("bootstrap-paths-demo");
+
+        assertThat(summary).startsWith("# 기준 계획 1가지 경우 분포")
+                .contains("`bootstrap-paths-demo.csv`(경로별), `bootstrap-paths-demo-histogram.csv`(구간별)");
+    }
+
+    @Test
+    @DisplayName("발표 데모 시나리오는 전세자금 5,000만원, 36개월, 보유 600만원, 월 120만원, 적금 50 : ETF 50이다")
+    void definesDemoScenario() {
+        CalcInput demo = ReportCondition.createDemo(new BigDecimal("2.84")).input();
+
+        assertThat(demo.goalAmount()).isEqualTo(50_000_000L);
+        assertThat(demo.targetPeriodMonths()).isEqualTo(36);
+        assertThat(demo.heldAssets()).isEqualTo(6_000_000L);
+        assertThat(demo.monthlySavingAmount()).isEqualTo(1_200_000L);
+        assertThat(demo.savingsRatioPct()).isEqualTo(50);
+    }
+
+    @Test
     @DisplayName("같은 경로 값이면 글자까지 같은 요약이 나온다(만든 시각 없음)")
     void isDeterministic() {
         assertThat(reportOf(15_000_000L, 18_000_000L).renderSummary())

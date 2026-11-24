@@ -84,14 +84,23 @@ record BootstrapPathsReport(String title, CalcInput input, EtfSeries series, Boo
         return paths.finalWon().stream().filter(value -> value >= threshold).count();
     }
 
-    /** 발표 자료에 옮길 요약(Markdown). */
+    /** 발표 자료에 옮길 요약(Markdown). 원자료 파일 이름은 기준 계획 것({@code bootstrap-paths})으로 적는다. */
     String renderSummary() {
+        return renderSummary("bootstrap-paths");
+    }
+
+    /**
+     * 발표 자료에 옮길 요약(Markdown).
+     *
+     * @param filePrefix 함께 만든 원자료 CSV 파일 이름 앞부분
+     */
+    String renderSummary(String filePrefix) {
         List<Long> finals = paths.finalWon();
         long count = finals.size();
         long reached = countAtLeast(input.goalAmount());
         long belowPrincipal = count - countAtLeast(principal());
         StringBuilder out = new StringBuilder();
-        out.append("# 기준 계획 ").append(ReportFormat.formatCount(count)).append("가지 경우 분포\n\n")
+        out.append("# ").append(title).append(" ").append(ReportFormat.formatCount(count)).append("가지 경우 분포\n\n")
                 .append("> 과거 데이터로 계산한 예시입니다. 특정 상품을 권하지 않으며, 앞으로의 수익을 보장하지 않습니다.\n\n")
                 .append("## 조건\n\n")
                 .append("- ").append(title).append(": 목표 ").append(ReportFormat.formatWon(input.goalAmount()))
@@ -127,7 +136,8 @@ record BootstrapPathsReport(String title, CalcInput input, EtfSeries series, Boo
                     .append(" 미만 | ").append(ReportFormat.formatCount(bin.count())).append(" | ")
                     .append(ReportFormat.formatRatioAsPercent(ratio(bin.count(), count))).append(" |\n");
         }
-        out.append("\n그래프용 원자료: `bootstrap-paths.csv`(경로별), `bootstrap-paths-histogram.csv`(구간별)\n");
+        out.append("\n그래프용 원자료: `").append(filePrefix).append(".csv`(경로별), `").append(filePrefix)
+                .append("-histogram.csv`(구간별)\n");
         return out.toString();
     }
 
