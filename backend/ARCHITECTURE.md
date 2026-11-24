@@ -19,81 +19,11 @@
 
 ### 모듈 의존 그림
 
-Modulith `Documenter`가 지금 코드로 만든 그림이다(UML 스타일). `ModuleDiagramTest`가 이 블록이 코드와 같은지 확인하고, 다르면 실패 메시지에 새 그림을 보여준다. 모듈이나 의존을 바꾸면 그 그림으로 이 블록을 바꾼다. GitHub는 plantuml을 그리지 않으므로 IDE 플러그인이나 plantuml 렌더러로 본다.
+[docs/module-dependencies.puml](docs/module-dependencies.puml)은 Modulith `Documenter`가 지금 코드로 만든 PlantUML(UML 스타일) 그림이다. 이 문서는 에이전트 컨텍스트에 매번 들어가므로 그림 원문은 따로 둔다. `ModuleDiagramTest`가 그 파일이 코드와 같은지 확인하고, 다르면 실패 메시지에 새 그림을 보여준다. 모듈이나 의존을 바꾸면 그 그림으로 파일을 바꾼다.
 
+- chat → auth(이벤트 수신), calc, plan, rag, config
+- calc → plan(이벤트 수신·호출), refdata, config
 - chat → calc는 named interface 세 개(`plan-context`, `chat-comparison`, `calc-run-etf`)로만 이어진다(#311). 그림에는 모듈 단위 "uses"로 나온다.
-
-```plantuml
-@startuml
-
-set separator none
-top to bottom direction
-hide stereotype
-
-skinparam {
-  componentStyle uml1
-}
-
-<style>
-  root {
-    BackgroundColor: #ffffff;
-    FontColor: #444444;
-  }
-  // Element,Component
-  .Element-RWxlbWVudCxDb21wb25lbnQ= {
-    BackgroundColor: #ffffff;
-    LineColor: #444444;
-    LineStyle: 0;
-    LineThickness: 2;
-    FontColor: #444444;
-    FontSize: 24;
-    HorizontalAlignment: center;
-    Shadowing: 0;
-    MaximumWidth: 450;
-  }
-  // Relationship
-  .Relationship-UmVsYXRpb25zaGlw {
-    LineThickness: 2;
-    LineStyle: 10-10;
-    LineColor: #444444;
-    FontColor: #444444;
-    FontSize: 24;
-  }
-  // BackendApplication
-  .Boundary-QmFja2VuZEFwcGxpY2F0aW9u {
-    BackgroundColor: #ffffff;
-    LineColor: #444444;
-    LineStyle: 0;
-    LineThickness: 2;
-    FontColor: #444444;
-    FontSize: 24;
-    HorizontalAlignment: center;
-    Shadowing: 0;
-  }
-</style>
-
-rectangle "BackendApplication\n<size:16>[Software System]</size>" <<Boundary-QmFja2VuZEFwcGxpY2F0aW9u>> {
-  component "==인증\n<size:16>[Component: Module]</size>" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as BackendApplication.BackendApplication.인증
-  component "==Config\n<size:16>[Component: Module]</size>" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as BackendApplication.BackendApplication.Config
-  component "==내 계획\n<size:16>[Component: Module]</size>" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as BackendApplication.BackendApplication.내계획
-  component "==RAG 자료\n<size:16>[Component: Module]</size>" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as BackendApplication.BackendApplication.RAG자료
-  component "==기준 데이터\n<size:16>[Component: Module]</size>" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as BackendApplication.BackendApplication.기준데이터
-  component "==계산\n<size:16>[Component: Module]</size>" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as BackendApplication.BackendApplication.계산
-  component "==AI 대화\n<size:16>[Component: Module]</size>" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as BackendApplication.BackendApplication.AI대화
-}
-
-BackendApplication.BackendApplication.AI대화 --> BackendApplication.BackendApplication.인증 <<Relationship-UmVsYXRpb25zaGlw>> : "listens to"
-BackendApplication.BackendApplication.AI대화 --> BackendApplication.BackendApplication.Config <<Relationship-UmVsYXRpb25zaGlw>> : "uses"
-BackendApplication.BackendApplication.AI대화 --> BackendApplication.BackendApplication.계산 <<Relationship-UmVsYXRpb25zaGlw>> : "uses"
-BackendApplication.BackendApplication.AI대화 --> BackendApplication.BackendApplication.내계획 <<Relationship-UmVsYXRpb25zaGlw>> : "uses"
-BackendApplication.BackendApplication.AI대화 --> BackendApplication.BackendApplication.RAG자료 <<Relationship-UmVsYXRpb25zaGlw>> : "uses"
-BackendApplication.BackendApplication.계산 --> BackendApplication.BackendApplication.내계획 <<Relationship-UmVsYXRpb25zaGlw>> : "listens to"
-BackendApplication.BackendApplication.계산 --> BackendApplication.BackendApplication.내계획 <<Relationship-UmVsYXRpb25zaGlw>> : "uses"
-BackendApplication.BackendApplication.계산 --> BackendApplication.BackendApplication.기준데이터 <<Relationship-UmVsYXRpb25zaGlw>> : "uses"
-BackendApplication.BackendApplication.계산 --> BackendApplication.BackendApplication.Config <<Relationship-UmVsYXRpb25zaGlw>> : "uses"
-
-@enduml
-```
 
 ## 모듈 내부 패키지
 
@@ -156,7 +86,7 @@ BackendApplication.BackendApplication.계산 --> BackendApplication.BackendAppli
 | `*Listener` | application | 이벤트 수신 |
 | `*Repository` | domain(인터페이스), infrastructure(JDBC 구현) | 영속성 |
 | `*Client` | infrastructure | 외부 HTTP 호출 |
-| `*View`, `*Query` | 루트 | 다른 모듈에 내주는 읽기 모델과 그 조회 API |
+| `*View`, `*Query` | 루트(다른 모듈에 내줄 때), application(모듈 안에서만 쓸 때) | 읽기 모델과 그 조회 API |
 | 과거형(`PlanChanged`) | 루트 또는 하위 | 이벤트 |
 | `*Exception` | 그 예외를 던지는 계층 | 업무 오류 |
 
