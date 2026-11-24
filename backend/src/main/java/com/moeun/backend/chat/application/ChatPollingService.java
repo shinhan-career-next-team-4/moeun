@@ -2,10 +2,13 @@ package com.moeun.backend.chat.application;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.moeun.backend.calc.CalcRunEtfQuery;
 import com.moeun.backend.chat.domain.ChatMessageRepository;
 import com.moeun.backend.chat.domain.MessageRow;
 import com.moeun.backend.config.copy.CopyBook;
@@ -25,13 +28,15 @@ public class ChatPollingService {
     private final StalePendingCleaner cleaner;
     private final CitationQueryService citations;
     private final CopyBook copy;
+    private final CalcRunEtfQuery etfRuns;
 
     ChatPollingService(ChatMessageRepository messages, StalePendingCleaner cleaner, CitationQueryService citations,
-            CopyBook copy) {
+            CopyBook copy, CalcRunEtfQuery etfRuns) {
         this.messages = messages;
         this.cleaner = cleaner;
         this.citations = citations;
         this.copy = copy;
+        this.etfRuns = etfRuns;
     }
 
     @Transactional
@@ -46,19 +51,30 @@ public class ChatPollingService {
         List<Long> completedIds = rows.stream().filter(row -> "COMPLETED".equals(row.status()))
                 .map(MessageRow::id).toList();
         Map<Long, List<Citation>> found = citations.findByMessageIds(completedIds);
-        List<PolledMessage> shown = rows.stream().map(row -> show(row, found)).toList();
+        Set<Long> runsWithEtf = etfRuns.findRunsUsingEtf(rows.stream().filter(ChatPollingService::isExplanation)
+                .map(MessageRow::calcRunId).filter(Objects::nonNull).distinct().toList());
+        List<PolledMessage> shown = rows.stream().map(row -> show(row, found, runsWithEtf)).toList();
         return new PollResult(shown, hasPending, answerPending);
     }
 
     /** PENDING은 유형·본문을 가리고, FAILED는 저장된 본문과 무관하게 현재 실패 문구표를 낸다. 출처는 COMPLETED에만 붙는다. */
-    private PolledMessage show(MessageRow row, Map<Long, List<Citation>> found) {
+    private PolledMessage show(MessageRow row, Map<Long, List<Citation>> found, Set<Long> runsWithEtf) {
         return switch (row.status()) {
             case "PENDING" -> new PolledMessage(row.id(), row.role(), null, row.status(), null, List.of(),
-                    row.createdAt());
+                    row.createdAt(), null);
             case "FAILED" -> new PolledMessage(row.id(), row.role(), "FAILURE", row.status(),
-                    copy.get("chat.failed"), List.of(), row.createdAt());
+                    copy.get("chat.failed"), List.of(), row.createdAt(), null);
             default -> new PolledMessage(row.id(), row.role(), row.messageType(), row.status(), row.content(),
-                    found.getOrDefault(row.id(), List.of()), row.createdAt());
+                    found.getOrDefault(row.id(), List.of()), row.createdAt(), etfIncluded(row, runsWithEtf));
         };
+    }
+
+    /** 완료된 결과 설명만 그 계산 기록의 ETF 사용 여부를 싣는다. 설명은 calc_run_id가 늘 있다(ck_cm_explain). */
+    private static Boolean etfIncluded(MessageRow row, Set<Long> runsWithEtf) {
+        return isExplanation(row) ? runsWithEtf.contains(row.calcRunId()) : null;
+    }
+
+    private static boolean isExplanation(MessageRow row) {
+        return "COMPLETED".equals(row.status()) && "EXPLANATION".equals(row.messageType());
     }
 }
