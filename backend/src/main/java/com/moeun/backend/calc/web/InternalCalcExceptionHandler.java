@@ -118,13 +118,17 @@ class InternalCalcExceptionHandler {
         return body;
     }
 
-    /** 경계값은 정확한 값이라 {@code 약}을 붙이지 않는다: 금액 1만원, 기간 0년 1개월, 금리 연 20.00%, 비중 적금 0 : ETF 100. */
+    /**
+     * 경계값은 정확한 값이라 {@code 약}을 붙이지 않는다: 금액 1만원, 기간 0년 1개월, 금리 연 20.00%, 비중 적금 0 : ETF 100,
+     * 목표 이름 글자 수 1자(#345).
+     */
     private String formatBound(String field, long bound) {
         return switch (field) {
             case "monthlySavingAmount" -> formatter.formatExactAmount(bound);
             case "targetPeriodMonths" -> formatter.formatPeriod((int)bound);
             case "savingsRateInputPct" -> formatter.formatSavingsRate(BigDecimal.valueOf(bound));
             case "savingsRatioPct" -> formatter.formatRatio((int)bound);
+            case "goalCustomName" -> bound + "자";
             default -> String.valueOf(bound);
         };
     }

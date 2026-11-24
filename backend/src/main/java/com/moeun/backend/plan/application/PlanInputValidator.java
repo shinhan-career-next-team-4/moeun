@@ -10,7 +10,6 @@ import com.moeun.backend.plan.FieldError;
 import com.moeun.backend.plan.GoalType;
 import com.moeun.backend.plan.InputField;
 import com.moeun.backend.plan.PlanInput;
-import com.moeun.backend.plan.application.PlanRules.FieldRule;
 
 /** 입력 화면 전체 검증(FR-INP-09, CP-02). 항목별 범위는 PlanRules, 항목 간 규칙은 이 클래스가 맡는다. */
 @Component
@@ -45,12 +44,7 @@ public class PlanInputValidator {
             errors.add(FieldError.required(InputField.GOAL_CUSTOM_NAME.apiName()));
             return;
         }
-        String trimmed = name.strip();
-        int length = trimmed.codePointCount(0, trimmed.length());
-        FieldRule rule = rules.fields().get(InputField.GOAL_CUSTOM_NAME);
-        if (length < rule.min().intValue() || length > rule.max().intValue()) {
-            errors.add(FieldError.outOfRange(InputField.GOAL_CUSTOM_NAME, rule));
-        }
+        rules.checkText(InputField.GOAL_CUSTOM_NAME, name).ifPresent(errors::add);
     }
 
     private void checkRequired(InputField field, BigDecimal value, List<FieldError> errors) {

@@ -26,9 +26,12 @@ public final class ConditionChanges {
     public static final String SAVINGS_RATE_INPUT_PCT = "savingsRateInputPct";
     /** ETF 종목 코드(D-097, #157). 이 키만 값이 문자열이다. */
     public static final String ETF_PRODUCT_CODE = "etfProductCode";
-    /** 대화로 바꿀 수 있는 조건 6개(D-092·D-097, CP-07). 이 밖의 키는 받지 않는다. */
+    /** 직접 입력 목표 이름(#345). 값이 문자열이고 계산에는 쓰지 않는다. 적용할 때 목표가 직접 입력(CUSTOM)이 된다. */
+    public static final String GOAL_CUSTOM_NAME = "goalCustomName";
+    /** 대화로 바꿀 수 있는 조건 7개(D-092·D-097, CP-07, #345). 이 밖의 키는 받지 않는다. */
     public static final Set<String> CHANGEABLE_KEYS = Set.of(GOAL_AMOUNT, MONTHLY_SAVING_AMOUNT,
-            TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT, ETF_PRODUCT_CODE);
+            TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT, ETF_PRODUCT_CODE, GOAL_CUSTOM_NAME);
+    private static final Set<String> TEXT_KEYS = Set.of(ETF_PRODUCT_CODE, GOAL_CUSTOM_NAME);
 
     private ConditionChanges() {
     }
@@ -55,17 +58,17 @@ public final class ConditionChanges {
         return result;
     }
 
-    /** 허용 6개 밖의 키를 요청 순서로 돌려준다. */
+    /** 허용 7개 밖의 키를 요청 순서로 돌려준다. */
     public static List<String> unchangeableKeys(Map<String, JsonNode> changes) {
         return changes.keySet().stream().filter(key -> !CHANGEABLE_KEYS.contains(key)).toList();
     }
 
     /**
-     * 값의 JSON 타입이 모두 맞는지. 종목 코드는 문자열, 나머지는 유한한 숫자다. 문자열·불리언이나 1e400처럼 유한한 수로
+     * 값의 JSON 타입이 모두 맞는지. 종목 코드·목표 이름은 문자열, 나머지는 유한한 숫자다. 문자열·불리언이나 1e400처럼 유한한 수로
      * 읽을 수 없는 값은 숫자가 아니다.
      */
     public static boolean allValuesWellTyped(Map<String, JsonNode> changes) {
-        return changes.entrySet().stream().allMatch(entry -> ETF_PRODUCT_CODE.equals(entry.getKey())
+        return changes.entrySet().stream().allMatch(entry -> TEXT_KEYS.contains(entry.getKey())
                 ? entry.getValue().isString() : isFiniteNumber(entry.getValue()));
     }
 
@@ -76,6 +79,7 @@ public final class ConditionChanges {
      *     <li>타입 범위를 넘는 정수는 경계값으로 넘기고 그 키를 알린다. 검증 경로는 범위 검사가 OUT_OF_RANGE로 알린다</li>
      *     <li>금리는 소수 그대로 둔다(자릿수 검사는 범위 검사가 한다)</li>
      *     <li>종목 코드는 문자열 그대로 따로 돌려준다. 있는 종목인지는 보지 않는다</li>
+     *     <li>목표 이름도 문자열 그대로 따로 돌려준다. 길이는 보지 않는다</li>
      * </ul>
      */
     public static Conversion convert(Map<String, JsonNode> changes) {
@@ -87,10 +91,15 @@ public final class ConditionChanges {
         Integer savingsRatioPct = null;
         BigDecimal savingsRateInputPct = null;
         String etfProductCode = null;
+        String goalCustomName = null;
         for (Map.Entry<String, JsonNode> entry : changes.entrySet()) {
             String key = entry.getKey();
             if (ETF_PRODUCT_CODE.equals(key)) {
                 etfProductCode = entry.getValue().asString();
+                continue;
+            }
+            if (GOAL_CUSTOM_NAME.equals(key)) {
+                goalCustomName = entry.getValue().asString();
                 continue;
             }
             BigDecimal value = entry.getValue().decimalValue();
@@ -106,7 +115,7 @@ public final class ConditionChanges {
             }
         }
         return new Conversion(new ConditionOverride(monthlySavingAmount, targetPeriodMonths, savingsRatioPct,
-                savingsRateInputPct, goalAmount, null), etfProductCode, List.copyOf(notInteger),
+                savingsRateInputPct, goalAmount, null), etfProductCode, goalCustomName, List.copyOf(notInteger),
                 List.copyOf(outOfTypeRange));
     }
 
@@ -141,11 +150,12 @@ public final class ConditionChanges {
      *
      * @param override 바꾼 조건. 없는 키·소수라서 버린 키는 null
      * @param etfProductCode 바꾼 ETF 종목 코드. 없으면 null
+     * @param goalCustomName 바꾼 목표 이름(받은 그대로). 없으면 null
      * @param notIntegerKeys 정수 자리에 소수가 온 키(요청 순서)
      * @param outOfTypeRangeKeys 타입 범위를 넘어 경계값으로 넘긴 키(요청 순서)
      */
-    public record Conversion(ConditionOverride override, String etfProductCode, List<String> notIntegerKeys,
-            List<String> outOfTypeRangeKeys) {
+    public record Conversion(ConditionOverride override, String etfProductCode, String goalCustomName,
+            List<String> notIntegerKeys, List<String> outOfTypeRangeKeys) {
 
         /** 버리거나 바꾼 값 없이 그대로 바뀌었는지. */
         public boolean isExact() {

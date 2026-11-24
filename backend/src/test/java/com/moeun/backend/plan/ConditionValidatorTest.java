@@ -131,4 +131,59 @@ class ConditionValidatorTest {
         assertThat(validator.validate(ChangePath.COMPARE, null))
                 .containsExactly(FieldError.required("conditionChanges"));
     }
+
+    private static Map<String, JsonNode> nameChange(JsonNode name) {
+        Map<String, JsonNode> changes = new LinkedHashMap<>();
+        changes.put("goalCustomName", name);
+        return changes;
+    }
+
+    private static final FieldError NAME_OUT_OF_RANGE = new FieldError("goalCustomName", "OUT_OF_RANGE", 1L, 100L,
+            "CHAR", null);
+
+    @Test
+    void chatCanChangeGoalNameAloneButOtherPathsCannot() {
+        // 대화로 목표 이름을 바꿔 적용한다(#345). 결과 화면 비교·대안은 이름을 바꾸지 않는다
+        JsonNode name = JsonNodeFactory.instance.stringNode("가게 보증금");
+        assertThat(validator.validateChanges(ChangePath.CHAT, nameChange(name))).isEmpty();
+        assertThat(validator.validateChanges(ChangePath.COMPARE, nameChange(name)))
+                .containsExactly(FieldError.notChangeable("goalCustomName"));
+        assertThat(validator.validateChanges(ChangePath.ALTERNATIVE, nameChange(name)))
+                .containsExactly(FieldError.notChangeable("goalCustomName"));
+    }
+
+    @Test
+    void goalNameDoesNotCountTowardChangedFields() {
+        Map<String, JsonNode> changes = nameChange(JsonNodeFactory.instance.stringNode("가게 보증금"));
+        changes.put("goalAmount", JsonNodeFactory.instance.numberNode(50_000_000L));
+        changes.put("monthlySavingAmount", JsonNodeFactory.instance.numberNode(400_000L));
+        changes.put("targetPeriodMonths", JsonNodeFactory.instance.numberNode(48));
+        changes.put("savingsRatioPct", JsonNodeFactory.instance.numberNode(70));
+        changes.put("savingsRateInputPct", JsonNodeFactory.instance.numberNode(new BigDecimal("4.00")));
+        changes.put("etfProductCode", JsonNodeFactory.instance.stringNode("069500"));
+
+        assertThat(validator.validateChanges(ChangePath.CHAT, changes)).isEmpty();
+    }
+
+    @Test
+    void goalNameUsesSameLengthRuleAsInput() {
+        // 앞뒤 공백을 뗀 1~100자(D-074). 문자열이 아니어도 이름으로 쓸 수 없는 값이다
+        assertThat(validator.validateChanges(ChangePath.CHAT,
+                nameChange(JsonNodeFactory.instance.stringNode("   ")))).containsExactly(NAME_OUT_OF_RANGE);
+        assertThat(validator.validateChanges(ChangePath.CHAT,
+                nameChange(JsonNodeFactory.instance.stringNode("가".repeat(101))))).containsExactly(NAME_OUT_OF_RANGE);
+        assertThat(validator.validateChanges(ChangePath.CHAT,
+                nameChange(JsonNodeFactory.instance.stringNode(" " + "가".repeat(100) + " ")))).isEmpty();
+        assertThat(validator.validateChanges(ChangePath.CHAT,
+                nameChange(JsonNodeFactory.instance.numberNode(1)))).containsExactly(NAME_OUT_OF_RANGE);
+    }
+
+    @Test
+    void reportsGoalNameAndNumberErrorsTogether() {
+        Map<String, JsonNode> changes = nameChange(JsonNodeFactory.instance.stringNode(""));
+        changes.put("monthlySavingAmount", JsonNodeFactory.instance.numberNode(5_000L));
+
+        assertThat(validator.validateChanges(ChangePath.CHAT, changes)).containsExactly(NAME_OUT_OF_RANGE,
+                new FieldError("monthlySavingAmount", "OUT_OF_RANGE", 10_000L, 10_000_000L, "KRW", null));
+    }
 }

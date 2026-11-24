@@ -125,7 +125,8 @@ public class PlanService implements PlanSaveService, PlanApplyService, PlanUndoS
         }
         PlanVersion current = version(memberId, plan.getCurrentVersionId());
         PlanVersion next = current.applyOverride(toOverride(conditionChanges),
-                textField(conditionChanges, InputField.ETF_PRODUCT_CODE), source, clock.instant());
+                textField(conditionChanges, InputField.ETF_PRODUCT_CODE),
+                textField(conditionChanges, InputField.GOAL_CUSTOM_NAME), source, clock.instant());
         throwIfInvalid(inputValidator.validate(next.getConditions().toInput()));
         PlanVersion saved = versionRepository.save(next);
         plan.pointTo(saved.getId());

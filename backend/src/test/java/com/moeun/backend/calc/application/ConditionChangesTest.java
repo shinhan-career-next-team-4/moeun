@@ -38,7 +38,7 @@ class ConditionChangesTest {
     }
 
     @Test
-    @DisplayName("허용 6개(목표 금액·월 저축액·비중·적금 금리·기간·ETF 종목) 밖의 키만 골라 요청 순서로 돌려준다")
+    @DisplayName("허용 7개(목표 금액·월 저축액·비중·적금 금리·기간·ETF 종목·목표 이름) 밖의 키만 골라 요청 순서로 돌려준다")
     void findsUnchangeableKeys() {
         Map<String, JsonNode> changes = new LinkedHashMap<>();
         changes.put("goalAmount", NODES.numberNode(1));
@@ -47,7 +47,20 @@ class ConditionChangesTest {
 
         assertThat(ConditionChanges.unchangeableKeys(changes)).containsExactly("heldAssets");
         assertThat(ConditionChanges.CHANGEABLE_KEYS).containsExactlyInAnyOrder("goalAmount", "monthlySavingAmount",
-                "savingsRatioPct", "savingsRateInputPct", "targetPeriodMonths", "etfProductCode");
+                "savingsRatioPct", "savingsRateInputPct", "targetPeriodMonths", "etfProductCode", "goalCustomName");
+    }
+
+    @Test
+    @DisplayName("목표 이름(#345)은 문자열이어야 하고 계산 조건에는 들어가지 않고 따로 돌려준다")
+    void convertsGoalCustomNameAsText() {
+        Map<String, JsonNode> changes = Map.of("goalCustomName", NODES.stringNode("가게 보증금"));
+
+        assertThat(ConditionChanges.allValuesWellTyped(changes)).isTrue();
+        assertThat(ConditionChanges.allValuesWellTyped(Map.of("goalCustomName", NODES.numberNode(1)))).isFalse();
+        ConditionChanges.Conversion conversion = ConditionChanges.convert(changes);
+        assertThat(conversion.goalCustomName()).isEqualTo("가게 보증금");
+        assertThat(conversion.override()).isEqualTo(new ConditionOverride(null, null, null, null, null, null));
+        assertThat(conversion.isExact()).isTrue();
     }
 
     @Test

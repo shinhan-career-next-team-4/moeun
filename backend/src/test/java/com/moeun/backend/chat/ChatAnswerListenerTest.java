@@ -496,6 +496,21 @@ class ChatAnswerListenerTest extends ChatIntegrationTestSupport {
                 .isEqualTo(JSON.readTree("{\"goalAmount\":100000000}"));
     }
 
+    @Test
+    void goalCustomNameConditionChangeIsSavedInCamelCase() throws Exception {
+        long chatRun = insertCalcRun(memberId, "CHAT");
+        long assistantId = askAndGetAssistantId(cookie, "목표 이름을 가게 보증금으로 바꿔줘");
+        awaitAiRequests(1);
+
+        AI.release(200, """
+                {"messageType":"RECALC_RESULT","content":"재계산 결과","baselineScenario":"AVG","calcRunId":%d,
+                 "conditionChanges":{"goal_custom_name":"가게 보증금"},"citationChunkIds":[]}""".formatted(chatRun));
+        awaitStatus(assistantId, "COMPLETED");
+
+        assertThat(JSON.readTree((String) row(assistantId).get("condition_changes")))
+                .isEqualTo(JSON.readTree("{\"goalCustomName\":\"가게 보증금\"}"));
+    }
+
     // ---------- AC-3 ----------
 
     @Test
