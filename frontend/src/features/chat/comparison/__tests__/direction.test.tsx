@@ -85,17 +85,18 @@ describe("결과의 변화 방향(예상 자산·목표 대비)", () => {
     }
   });
 
-  it("목표 금액이 그대로면 목표 대비 차이는 자산 차이와 같은 문자열·같은 방향이다(목표 대비 = 자산 − 목표)", async () => {
+  it("목표 대비 차이 값은 서버 display의 diff.<S>.gapToGoalDelta 그대로다(목표가 그대로면 자산 차이와 같은 문자열, #285)", async () => {
     const b = body();
     await mountWith(b);
     for (const row of scenarioRows(ID)) {
       const scenario = row.getAttribute("data-scenario");
+      expect(text(row, "chat-comparison-gap-delta")).toBe(b.display[`diff.${scenario}.gapToGoalDelta`]);
       expect(text(row, "chat-comparison-gap-delta")).toBe(b.display[`diff.${scenario}.afterTaxAssetDelta`]);
       expect(tone(row, "chat-comparison-gap-delta")?.getAttribute("data-direction")).toBe("up");
     }
   });
 
-  it("목표 금액을 바꾼 비교는 목표 대비 차이 값이 없고(서버에 없음) 양쪽 목표 대비의 크기로 방향만 보인다", async () => {
+  it("목표 금액을 바꾼 비교도 서버의 목표 대비 차이 값을 보이고, 방향은 양쪽 목표 대비의 크기로 정한다(#285)", async () => {
     const b = body(() => {}, "get-comparison.200-goal-changed.json");
     await mountWith(b);
     const rows = scenarioRows(ID);
@@ -105,8 +106,20 @@ describe("결과의 변화 방향(예상 자산·목표 대비)", () => {
       const gap = (side: "current" | "changed") =>
         (b[side].scenarios as { scenario: string; gapToGoal: number }[]).find((s) => s.scenario === scenario)?.gapToGoal ?? 0;
       const expected = gap("changed") > gap("current") ? "up" : gap("changed") < gap("current") ? "down" : "same";
-      expect(text(row, "chat-comparison-gap-delta")).toBeUndefined();
+      expect(text(row, "chat-comparison-gap-delta")).toBe(b.display[`diff.${scenario}.gapToGoalDelta`]);
+      expect(text(row, "chat-comparison-gap-delta")).not.toBe(b.display[`diff.${scenario}.afterTaxAssetDelta`]);
       expect(tone(row, "chat-comparison-gap-delta")?.getAttribute("data-direction")).toBe(expected);
+    }
+  });
+
+  it("(예외) 목표를 바꿨는데 서버에 목표 대비 차이 키가 없으면 값 없이 방향만 보인다", async () => {
+    const b = body((x) => {
+      for (const key of Object.keys(x.display)) if (key.endsWith(".gapToGoalDelta")) delete x.display[key];
+    }, "get-comparison.200-goal-changed.json");
+    await mountWith(b);
+    for (const row of scenarioRows(ID)) {
+      expect(text(row, "chat-comparison-gap-delta")).toBeUndefined();
+      expect(tone(row, "chat-comparison-gap-delta")?.getAttribute("data-direction")).toBeTruthy();
     }
   });
 });
