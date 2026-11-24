@@ -130,9 +130,9 @@ class CitationQueryServiceTest {
 
         Map<Long, List<Citation>> found = citations.findByMessageIds(List.of(one, other));
 
-        Citation b = new Citation("B 운용사 투자설명서", "https://example.com/rag/b", "rag-org-B");
-        assertThat(found.get(one)).containsExactly(b);
-        assertThat(found.get(other)).containsExactly(b);
+        Citation documentB = new Citation("B 운용사 투자설명서", "https://example.com/rag/b", "rag-org-B");
+        assertThat(found.get(one)).containsExactly(documentB);
+        assertThat(found.get(other)).containsExactly(documentB);
     }
 
     @Test

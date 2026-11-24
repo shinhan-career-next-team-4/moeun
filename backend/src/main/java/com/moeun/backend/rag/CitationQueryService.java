@@ -1,10 +1,11 @@
 package com.moeun.backend.rag;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -19,11 +20,14 @@ public class CitationQueryService {
         this.jdbc = jdbc;
     }
 
-    /** 메시지 id별 출처 목록(순위 오름차순). 출처가 없는 메시지는 키가 없다. 비활성 문서의 출처도 그대로 돌려준다. */
+    /**
+     * 메시지 id별 출처 목록(순위 오름차순). 출처가 없는 메시지는 키가 없다. 비활성 문서의 출처도 그대로 돌려준다.
+     * 인용은 청크 단위지만 출처는 문서 단위라, 한 메시지 안에서 같은 출처는 처음 인용한 순위에 한 번만 둔다(#375).
+     */
     public Map<Long, List<Citation>> findByMessageIds(Collection<Long> messageIds) {
-        Map<Long, List<Citation>> byMessage = new LinkedHashMap<>();
+        Map<Long, Set<Citation>> byMessage = new LinkedHashMap<>();
         if (messageIds.isEmpty()) {
-            return byMessage;
+            return Map.of();
         }
         jdbc.sql("SELECT c.message_id, d.title, d.source_url, o.name AS org_name "
                         + "FROM chat_message_citation c "
@@ -35,8 +39,10 @@ public class CitationQueryService {
                 .query((rs, row) -> Map.entry(rs.getLong("message_id"),
                         new Citation(rs.getString("title"), rs.getString("source_url"), rs.getString("org_name"))))
                 .list()
-                .forEach(entry -> byMessage.computeIfAbsent(entry.getKey(), key -> new ArrayList<>())
+                .forEach(entry -> byMessage.computeIfAbsent(entry.getKey(), key -> new LinkedHashSet<>())
                         .add(entry.getValue()));
-        return byMessage;
+        Map<Long, List<Citation>> result = new LinkedHashMap<>();
+        byMessage.forEach((messageId, found) -> result.put(messageId, List.copyOf(found)));
+        return result;
     }
 }
