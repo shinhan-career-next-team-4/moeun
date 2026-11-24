@@ -11,10 +11,12 @@ import com.moeun.backend.chat.application.ChatComparison;
 
 /**
  * F-4 응답(계약 C12b-6). {@code /internal/calc} 성공 응답에서 calcRunId를 빼고 messageId·applicable·changedKeys를 더한
- * 모양이다. 월별 점(monthlyPoints)은 싣지 않는다. display는 calc가 만든 맵 그대로다.
+ * 모양이다. 월별 점(monthlyPoints)은 싣지 않는다. display는 calc가 만든 맵 그대로다. 목표 이름을 바꾼 비교에만
+ * goalCustomName(적용하면 바뀔 이름, #345)이 있고 아니면 키가 없다.
  */
 record ChatComparisonResponse(long messageId, boolean applicable, List<String> changedKeys, Conditions conditions,
-        CalcResultView current, CalcResultView changed, CalcComparison.Diff diff, Map<String, String> display) {
+        CalcResultView current, CalcResultView changed, CalcComparison.Diff diff, Map<String, String> display,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String goalCustomName) {
 
     /** 변경 전·후 조건. 목표 금액은 비교의 두 결과가 각각 가지고 있다. */
     record Conditions(Side current, Side changed) {
@@ -40,6 +42,6 @@ record ChatComparisonResponse(long messageId, boolean applicable, List<String> c
                 Side.of(comparison.changed().goalAmount(), comparison.conditions().changed()));
         return new ChatComparisonResponse(result.messageId(), result.applicable(), result.changedKeys(), conditions,
                 CalcResultView.from(comparison.current()), CalcResultView.from(comparison.changed()),
-                comparison.diff(), result.view().display());
+                comparison.diff(), result.view().display(), result.goalCustomName());
     }
 }

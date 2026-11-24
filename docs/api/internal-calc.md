@@ -52,7 +52,7 @@
 
 - `baselineScenario`를 계획에서 읽는 이유: 원천이 한 곳이고 같은 `plan` 행이라 비용이 없다. 해커톤에서는 항상 AVG(FR-RES-09 Should)라 ai-server 동작은 바뀌지 않는다. ai-server는 지금 코드를 고치지 않아도 된다.
 
-`conditionChanges` 허용 키 (D-090·D-092·#160, CP-07 — **6개**):
+`conditionChanges` 허용 키 (D-090·D-092·#160·#345, CP-07 — **7개**):
 
 | 키 | JSON 타입 | 단위 | 대응 컬럼(`plan_version`) |
 |---|---|---|---|
@@ -62,6 +62,13 @@
 | `savingsRateInputPct` | number | PCT (연, 세전) | `savings_rate_input_pct` |
 | `targetPeriodMonths` | integer | MONTH | `target_period_months` |
 | `etfProductCode` | **string** | — (활성 ETF 종목 코드. 지금 `SP500`, `069500`, `133690`) | 계획의 ETF 종목(#154). 종목을 저장하기 전의 옛 계획은 `SP500` |
+| `goalCustomName` | **string** | CHAR (앞뒤 공백을 뗀 1~100자, D-074) | `goal_custom_name`. 적용하면 `goal_type_code`가 `CUSTOM`이 된다(#345, D-081) |
+
+`goalCustomName` 규칙 (#345):
+- 목표 이름은 계산에 쓰지 않는다. 이름만 바꿔도 계산하고 `calc_run(CHAT)`을 남긴다(두 쪽 결과는 같다). F-5 적용이 이 기록으로 기준 계획 버전을 찾기 때문이다.
+- 길이 규칙은 입력 화면과 같다(`rules.yml › fields.GOAL_CUSTOM_NAME`). 벗어나면 `422 VALIDATION_FAILED`(`field: goalCustomName`, `OUT_OF_RANGE`, `min: 1`, `max: 100`, `unit: CHAR`).
+- 바꾼 개수(`max-fields`)에는 세지 않는다. 응답 `conditions`에는 이름이 없다(숫자 조건만).
+- 적용(F-5)하면 결과 화면에서 이름을 고칠 때(#341)처럼 목표 종류가 직접 입력(`CUSTOM`)이 된다.
 
 `etfProductCode` 규칙 (#160 합의):
 - 허용 값은 활성 ETF 종목 목록(ETF 목록 API와 같은 출처)이다. 검증은 Spring이 한다. ai-server는 모델 도구 스키마에 고정된 값 목록(enum)이 필요해서 코드 목록을 `app/rag/etf_codes.py` **한 곳**에 두고, 도구 enum·설명이 여기서 나온다(#267). 종목을 더하거나 빼면 이 파일과 프롬프트를 같이 고친다. ai-server 목록에 있지만 Spring에서 꺼진 종목은 422(아래 검사 순서 6)로 되묻는다.
@@ -79,10 +86,10 @@
 | 0 | 내부 키 | 없음·불일치 → `401 INVALID_INTERNAL_KEY` |
 | 1 | 본문 JSON 파싱, `memberId`가 정수인지(`isIntegralNumber()`, `7.5`·`"7"`은 실패), `conditionChanges`가 객체인지 | 실패 → `400 MALFORMED_REQUEST` |
 | 2 | 값이 `null`인 키를 먼저 지운다 | — |
-| 3 | 허용 6개 밖의 키(`heldAssets`, `existingMonthlyContribution`, 오타 키 등) | 하나라도 있으면 **요청 전체 거절** `422 FIELD_NOT_CHANGEABLE`. `errors`에는 허용 밖 키만 담는다 |
-| 4 | 허용 키의 값이 JSON 숫자가 아님(문자열·불리언·객체·배열). **예외: `etfProductCode`는 JSON 문자열이 아니면**(숫자·불리언·객체·배열) | `400 MALFORMED_REQUEST` |
+| 3 | 허용 7개 밖의 키(`heldAssets`, `existingMonthlyContribution`, 오타 키 등) | 하나라도 있으면 **요청 전체 거절** `422 FIELD_NOT_CHANGEABLE`. `errors`에는 허용 밖 키만 담는다 |
+| 4 | 허용 키의 값이 JSON 숫자가 아님(문자열·불리언·객체·배열). **예외: `etfProductCode`·`goalCustomName`은 JSON 문자열이 아니면**(숫자·불리언·객체·배열) | `400 MALFORMED_REQUEST` |
 | 5 | 남은 키가 0개 | `422 VALIDATION_FAILED`, `errors=[{field:"conditionChanges", reason:"REQUIRED"}]` |
-| 6 | 범위(`OUT_OF_RANGE`), 정수 아님(`NOT_INTEGER`, 예 `500000.5`), 소수 자릿수 초과(`TOO_MANY_DECIMALS`). `etfProductCode`가 활성 종목 목록에 없음(`OUT_OF_RANGE`, `min`·`max`·`unit`·`minDisplay`·`maxDisplay` 없음) | `422 VALIDATION_FAILED`. **걸린 키를 모두** `errors`에 담는다 |
+| 6 | 범위(`OUT_OF_RANGE`), 정수 아님(`NOT_INTEGER`, 예 `500000.5`), 소수 자릿수 초과(`TOO_MANY_DECIMALS`). `etfProductCode`가 활성 종목 목록에 없음(`OUT_OF_RANGE`, `min`·`max`·`unit`·`minDisplay`·`maxDisplay` 없음). `goalCustomName`이 앞뒤 공백을 뗀 1~100자가 아님(`OUT_OF_RANGE`) | `422 VALIDATION_FAILED`. **걸린 키를 모두** `errors`에 담는다 |
 | 7 | 그 회원의 `plan` 행 없음 | `409 NO_PLAN` |
 | 8 | `current`와 `changed` 모두 이미 목표 초과(보유 자산 ≥ 각 목표 금액, FR-RES-01, D-092) | `409 ALREADY_EXCEEDED` (한쪽만 초과이면 `200` 비대칭 비교) |
 | 9 | 계산 | 성공 `200` / 서버 오류 `500 CALC_FAILED` |
@@ -271,7 +278,7 @@ Spring 내장 `ProblemDetail`(RFC 9457)에 확장 필드 `code`, `errors`를 더
 
 ### C3-3. 범위 수치의 출처 (수치는 임시)
 
-- 허용 범위는 **`backend/src/main/resources/config/rules.yml` › `input.fields.<FIELD>.{required,min,max,unit,scale}`** 한 곳에 두고 plan 모듈 `@ConfigurationProperties`로 읽는다. 대화 경로 허용 키는 `rules.yml › change-paths.CHAT.fields`(숫자 키 5개. `etfProductCode`는 범위 대신 활성 종목 목록으로 검사, #157). 검사는 `ConditionValidator.validate(ChangePath.CHAT, values)`. `InputField` enum ↔ camelCase 키 매핑을 둔다.
+- 허용 범위는 **`backend/src/main/resources/config/rules.yml` › `input.fields.<FIELD>.{required,min,max,unit,scale}`** 한 곳에 두고 plan 모듈 `@ConfigurationProperties`로 읽는다. 대화 경로 허용 키는 `rules.yml › change-paths.CHAT.fields`(숫자 키 5개. `etfProductCode`는 범위 대신 활성 종목 목록으로 검사, #157. `goalCustomName`은 글자 수로 검사하고 바꾼 개수에 세지 않는다, #345). 검사는 `ConditionValidator.validate(ChangePath.CHAT, values)`. `InputField` enum ↔ camelCase 키 매핑을 둔다.
 - 지금은 Spring 전용이다. `db/moved-to-code.md`의 "두 서버가 함께 읽는 `config/rules.yml`"은 이 위치로 고친다(ai-server는 오류 본문으로 받으므로 읽을 필요가 없다). 필요해지면 repo 루트로 옮긴다.
 - 오류 본문의 `min`·`max`·`unit`·`scale`은 **이 설정 값을 그대로** 내보낸다. **ai-server는 범위 수치를 하드코딩하지 않는다.**
 - 지금 쓸 값(**임시**, TBD-09·TBD-10 확정 시 `rules.yml`만 바꾼다):

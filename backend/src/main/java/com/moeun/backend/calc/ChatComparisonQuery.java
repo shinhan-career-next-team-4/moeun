@@ -27,11 +27,11 @@ public interface ChatComparisonQuery {
      * 버전이 바뀌어도 기록의 버전을 쓴다. 범위 검사는 하지 않는다(저장된 대화의 값은 이미 검사를 통과했다). 타입만 바꾼다.
      * <p>기준 시나리오는 calc_run에 없어 지금 계획의 값이다. 기준 시나리오를 바꾸는 기능이 생기면 인자로 받아야 한다.
      *
-     * @param conditionChanges 대화 메시지에 저장된 바꾼 조건. 키는 대화로 바꿀 수 있는 6개(goalAmount, monthlySavingAmount,
-     *     savingsRatioPct, savingsRateInputPct, targetPeriodMonths는 숫자, etfProductCode는 문자열, D-097). null 값은
-     *     무시한다. 종목을 바꾼 기록이면 changed는 calc_run에 남긴 그 종목의 가격 버전으로 계산한다
+     * @param conditionChanges 대화 메시지에 저장된 바꾼 조건. 키는 대화로 바꿀 수 있는 7개(goalAmount, monthlySavingAmount,
+     *     savingsRatioPct, savingsRateInputPct, targetPeriodMonths는 숫자, etfProductCode·goalCustomName은 문자열,
+     *     D-097·#345). 목표 이름은 계산에 쓰지 않는다. null 값은 무시한다. 종목을 바꾼 기록이면 changed는 calc_run에 남긴 그 종목의 가격 버전으로 계산한다
      * @return 없는·남의·PLAN 기록이면 빈 값
-     * @throws IllegalArgumentException 허용 6개 밖의 키, 타입이 맞지 않는 값, 정수 자리의 소수처럼 타입을 바꿀 수 없을 때
+     * @throws IllegalArgumentException 허용 7개 밖의 키, 타입이 맞지 않는 값, 정수 자리의 소수처럼 타입을 바꿀 수 없을 때
      */
     Optional<ChatComparisonView> recompute(long memberId, long calcRunId, Map<String, JsonNode> conditionChanges);
 }
