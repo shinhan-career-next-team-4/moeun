@@ -62,6 +62,15 @@ class CitationQueryServiceTest {
                 .param(document).query(Long.class).single();
     }
 
+    /** chunkId와 같은 문서의 다른 청크. */
+    long otherChunkOfSameDocument(long chunkId, int chunkNo) {
+        return jdbc.sql("INSERT INTO rag_chunk (document_id, chunk_no, content) "
+                        + "SELECT document_id, ?, 'other chunk' FROM rag_chunk WHERE id = ? "
+                        + "ON CONFLICT ON CONSTRAINT uq_rag_chunk_doc_no DO UPDATE SET content = EXCLUDED.content "
+                        + "RETURNING id")
+                .params(chunkNo, chunkId).query(Long.class).single();
+    }
+
     void cite(long messageId, int rank, long chunkId) {
         jdbc.sql("INSERT INTO chat_message_citation (message_id, rank, chunk_id) VALUES (?, ?, ?)")
                 .params(messageId, rank, chunkId).update();
@@ -86,6 +95,44 @@ class CitationQueryServiceTest {
         assertThat(found.get(second)).containsExactly(
                 new Citation("A 운용사 간이투자설명서", "https://example.com/rag/a", "rag-org-A"));
         assertThat(found.getOrDefault(plain, List.of())).isEmpty();
+    }
+
+    /** 인용은 청크 단위지만 화면의 출처는 문서 단위다(#375). 같은 문서는 처음 인용한 순위에 한 번만 나온다. */
+    @Test
+    void chunksOfSameDocumentAreReturnedOnceAtFirstRank() {
+        long tigerFirst = sourceChunk("rag-org-B", "B 운용사 투자설명서", "https://example.com/rag/b");
+        long tigerSecond = otherChunkOfSameDocument(tigerFirst, 2);
+        long tigerThird = otherChunkOfSameDocument(tigerFirst, 3);
+        long kodex = sourceChunk("rag-org-A", "A 운용사 간이투자설명서", "https://example.com/rag/a");
+        long answer = message("같은 문서를 여러 번 인용한 답변");
+        cite(answer, 1, tigerFirst);
+        cite(answer, 2, kodex);
+        cite(answer, 3, tigerSecond);
+        cite(answer, 4, tigerThird);
+
+        Map<Long, List<Citation>> found = citations.findByMessageIds(List.of(answer));
+
+        assertThat(found.get(answer)).containsExactly(
+                new Citation("B 운용사 투자설명서", "https://example.com/rag/b", "rag-org-B"),
+                new Citation("A 운용사 간이투자설명서", "https://example.com/rag/a", "rag-org-A"));
+    }
+
+    /** 문서 하나만 여러 청크로 인용해도 한 건이다. 다른 메시지의 같은 문서 인용은 그 메시지에 따로 남는다. */
+    @Test
+    void duplicatesAreRemovedPerMessageOnly() {
+        long first = sourceChunk("rag-org-B", "B 운용사 투자설명서", "https://example.com/rag/b");
+        long second = otherChunkOfSameDocument(first, 2);
+        long one = message("첫 답변");
+        long other = message("둘째 답변");
+        cite(one, 1, first);
+        cite(one, 2, second);
+        cite(other, 1, second);
+
+        Map<Long, List<Citation>> found = citations.findByMessageIds(List.of(one, other));
+
+        Citation documentB = new Citation("B 운용사 투자설명서", "https://example.com/rag/b", "rag-org-B");
+        assertThat(found.get(one)).containsExactly(documentB);
+        assertThat(found.get(other)).containsExactly(documentB);
     }
 
     @Test

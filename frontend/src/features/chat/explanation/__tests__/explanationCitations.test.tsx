@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Issue #374: ETF 위험 근거는 결과 화면 고정 블록(EtfRiskNotice)이 맡는다. 대화 패널은 결과 설명의 출처를
 // 'ETF 위험 설명'으로 따로 접지 않고, 질문 답·비교 답과 같은 출처 목록으로 보인다(#283의 접기 블록은 지웠다).
-import { cleanup, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { bubble, chatPage, explanationDone, freshId, makeStore, mountChat, view } from "./helpers";
 
@@ -31,9 +31,11 @@ async function mountWith(messages: Parameters<typeof chatPage>[0]) {
 }
 
 describe("#374 결과 설명의 출처", () => {
-  it("결과 설명에 출처가 오면 접지 않고 다른 답처럼 바로 보인다", async () => {
+  it("결과 설명의 출처도 다른 답과 같은 출처 칩이고, 'ETF 위험 설명' 접기 버튼은 없다", async () => {
     await mountWith([explanationDone(5001, CONTENT, CITATIONS)]);
     const message = bubble(5001)!;
+    // 모든 답의 출처는 운용사 칩으로 접힌다(#375). 펼치면 다른 답과 같은 목록이다
+    act(() => fireEvent.click(within(within(message).getByTestId("chat-citations")).getByRole("button")));
 
     expect(within(message).getAllByRole("link").map((a) => a.textContent)).toEqual(CITATIONS.map((c) => c.title));
     expect(within(message).queryByRole("button", { name: /ETF 위험 설명/ })).toBeNull();

@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 // Issue #54 AC-2: 설명 메시지의 출처 링크(FR-AI-03, D-028, C12b-3, 결정 U-3, 결정 3 T-1·T-2).
 // 출처 영역은 말풍선(data-testid="chat-message") 안의 data-testid="chat-citations", 항목은 data-testid="chat-citation"이다.
-import { cleanup, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { copy, userMsg } from "../../__tests__/helpers";
-import { bodyTextWithoutCitations, bubble, chatPage, explanationDone, explanationFailed, expandEtfRisk, makeStore, mountChat } from "./helpers";
+import { bodyTextWithoutCitations, bubble, chatPage, explanationDone, explanationFailed, makeStore, mountChat } from "./helpers";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -37,13 +37,19 @@ const CITATIONS = [
 const CONTENT =
   "지금 계획대로 이어 가면 평균일 때 3년 뒤 약 1,712만원이 돼요. 목표인 약 2,000만원보다 약 288만원 부족해요. S&P500 추종 ETF의 과거 흐름을 바탕으로 한 가정이며, 미래 수익을 보장하지 않아요.";
 
+/** 접힌 출처 칩을 펼친다(#375). 칩이 없는 메시지는 그대로 둔다. */
+function openCitations(el: HTMLElement): void {
+  const chip = el.querySelector<HTMLButtonElement>('[data-testid="chat-citations"] button[aria-expanded="false"]');
+  if (chip) act(() => fireEvent.click(chip));
+}
+
 async function mountWith(messages: Parameters<typeof chatPage>[0]) {
   const { store } = makeStore(); // view가 없어 F-3은 나가지 않는다. 복원(F-2)으로 받은 메시지만 그린다.
   const mounted = await mountChat(store, { get: [chatPage(messages, false)] });
-  // 결과 설명의 출처는 접혀서 나온다(#283). 링크 표기를 보려고 모두 펼친다.
+  // 출처는 운용사 칩으로 접혀서 나온다(#375). 링크 표기를 보려고 모두 펼친다.
   for (const message of messages) {
     const el = bubble(message.id);
-    if (el) expandEtfRisk(el);
+    if (el) openCitations(el);
   }
   return mounted;
 }

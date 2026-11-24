@@ -56,6 +56,9 @@ chat:
   # 다른 ETF 종목으로 비교하는 버튼(#275, D-097). 지금 계획 종목은 빼고 보여 준다. 권하는 말은 쓰지 않는다(CP-06)
   etfChipsLabel: "다른 종목으로 비교해 보기"
   etfChipQuestion: "{name}로 바꾸면 어때요?"
+  # 대화 답의 출처 칩(#375). 스크린리더가 읽는 칩 이름(접혀 있어도 운용사를 모두 알린다)과, 첫 기관 뒤에 보이는 나머지 문서 수
+  citationsChipLabel: "출처 {n}건: {orgs}"
+  citationsMore: "+{n}"
   # 질문 예시 버튼(D-064, D-090). 값·변화량 없이 조건만 고른다
   exampleQuestion:
     goalAmount: "목표 금액을 바꿔 보고 싶어요"
