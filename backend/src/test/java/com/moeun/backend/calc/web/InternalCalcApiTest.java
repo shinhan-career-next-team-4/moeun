@@ -270,6 +270,53 @@ class InternalCalcApiTest {
     }
 
     @Test
+    @DisplayName("목표 금액을 바꾼 비교는 시나리오마다 diff.<S>.gapToGoalDelta를 목표 대비 차이의 방향 단어로 내려준다(#285)")
+    void formatsGapToGoalDeltaWhenGoalAmountChanges() throws Exception {
+        savePlan(5_000_000L);
+
+        JsonNode body = readBody(postCalc(request(changes("goalAmount", 30_000_000))).andExpect(status().isOk()));
+
+        JsonNode display = body.get("display");
+        JsonNode byScenario = body.get("diff").get("byScenario");
+        assertThat(byScenario).isNotEmpty();
+        for (int index = 0; index < byScenario.size(); index++) {
+            String scenario = byScenario.get(index).get("scenario").asString();
+            long before = body.get("current").get("scenarios").get(index).get("gapToGoal").asLong();
+            long after = body.get("changed").get("scenarios").get(index).get("gapToGoal").asLong();
+            assertThat(display.get("diff." + scenario + ".gapToGoalDelta").asString())
+                    .isEqualTo(formatter.formatDifference(after - before))
+                    .endsWith("감소")
+                    .isNotEqualTo(display.get("diff." + scenario + ".afterTaxAssetDelta").asString());
+        }
+        assertThat(byScenario.get(0).has("gapToGoalDelta")).isFalse();
+    }
+
+    @Test
+    @DisplayName("목표 금액을 바꾸지 않은 비교의 gapToGoalDelta는 afterTaxAssetDelta와 같다(#285)")
+    void gapToGoalDeltaEqualsAssetDeltaWhenGoalUnchanged() throws Exception {
+        savePlan(5_000_000L);
+
+        JsonNode body = readBody(postCalc(request(changes("monthlySavingAmount", 500_000))).andExpect(status().isOk()));
+
+        JsonNode display = body.get("display");
+        for (JsonNode diff : body.get("diff").get("byScenario")) {
+            String prefix = "diff." + diff.get("scenario").asString() + ".";
+            assertThat(display.get(prefix + "gapToGoalDelta").asString())
+                    .isEqualTo(display.get(prefix + "afterTaxAssetDelta").asString());
+        }
+    }
+
+    @Test
+    @DisplayName("한쪽이 초과라 byScenario가 비면 gapToGoalDelta 키도 만들지 않는다(#285)")
+    void omitsGapToGoalDeltaForAsymmetricComparison() throws Exception {
+        savePlan(5_000_000L);
+
+        JsonNode body = readBody(postCalc(request(changes("goalAmount", 4_000_000))).andExpect(status().isOk()));
+
+        body.get("display").propertyNames().forEach(key -> assertThat(key).doesNotEndWith(".gapToGoalDelta"));
+    }
+
+    @Test
     @DisplayName("미달 계획에서 목표를 낮춰 changed만 초과가 되면 비대칭 비교와 changed.heldAssets를 내려준다")
     void buildsAsymmetricComparisonWhenChangedBecomesExceeded() throws Exception {
         savePlan(5_000_000L);
