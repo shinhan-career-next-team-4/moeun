@@ -59,7 +59,8 @@ class DefaultSeedConfigTest {
         EtfSeries series = referenceDataService.findRepresentativeEtfSeries().orElseThrow();
 
         assertThat(series.version().baseDate()).isEqualTo(LocalDate.of(2026, 10, 31));
-        assertThat(series.version().versionLabel()).isEqualTo("investing-2016-10-2026-10");
+        // application.yml의 S&P500 version-label. CSV를 바꿔 재적재하면 라벨이 바뀐다(#327)
+        assertThat(series.version().versionLabel()).isEqualTo("investing-2016-10-2026-10-r2");
         assertThat(series.version().source()).contains("달러 지수");
     }
 
