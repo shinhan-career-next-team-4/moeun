@@ -160,6 +160,8 @@ class Turn:
     goal_changed_note_params: tuple[str, str] | None = None
     compared_etf_names: tuple[str, ...] = ()   # 종목을 바꾼 비교의 두 쪽 종목 이름(계산 display, D-097)
     changed_already_exceeded: bool = False
+    # 이번 요청에서 200을 받은 계산의 보낸 조건(changes.changed()). 같은 계산을 Spring에 다시 보내지 않는다(#317)
+    calculated: list[dict[str, Any]] = field(default_factory=list)
     # 이번 요청의 계산 200 응답 display 값과 422 minDisplay·maxDisplay. 숫자 대조의 근거다(요청마다 따로, FR-AI-02)
     number_evidence: list[str] = field(default_factory=list)
 

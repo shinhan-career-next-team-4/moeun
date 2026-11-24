@@ -21,8 +21,9 @@ _TOKEN = re.compile(
 _TAIL_PREFIX = "0123456789,."
 # 억·만 뒤의 원은 단위를 다시 적은 것이다. 사용자가 "1억으로"라고 말하고 답이 "1억 원"이라고 써도 같은 금액이다(#317)
 _WON_AFTER_UNIT = re.compile(r"(?<=[억만])\s*원$")
-# 원을 뗀 'N억' 뒤에 더 작은 단위가 이어지면 다른 금액이다("1억 5천만원", "1억5000만원"의 1억)
-_EOK_CONTINUES = re.compile(r"\s*(?:\d|[일이삼사오육칠팔구]?[십백천])")
+# 원을 뗀 'N억'·'N만' 뒤에 수·더 작은 단위·반·다른 화폐가 이어지면 다른 금액이다
+# ("1억 5천만원", "1억 오만원", "1억 반", "1만5천원", "100만 달러"). 모르는 말이 이어져도 거절 쪽으로 틀린다
+_UNIT_CONTINUES = re.compile(r"\s*(?:\d|[일이삼사오육칠팔구]?[십백천만]|반|달러)")
 
 
 def _in_evidence(token: str, evidence: list[str]) -> bool:
@@ -36,12 +37,12 @@ def _in_evidence(token: str, evidence: list[str]) -> bool:
 
 
 def _bare_in_evidence(bare: str, evidence: list[str]) -> bool:
-    """원을 뗀 'N억'·'N만'이 근거에 토큰 경계로 있고, 억 뒤에 더 작은 단위가 이어지지 않는다."""
+    """원을 뗀 'N억'·'N만'이 근거에 토큰 경계로 있고, 뒤에 다른 금액을 만드는 말이 이어지지 않는다."""
     for text in evidence:
         start = text.find(bare)
         while start != -1:
             end = start + len(bare)
-            continues = bare.endswith("억") and _EOK_CONTINUES.match(text, end)
+            continues = _UNIT_CONTINUES.match(text, end)
             if (start == 0 or text[start - 1] not in _TAIL_PREFIX) and not continues:
                 return True
             start = text.find(bare, start + 1)

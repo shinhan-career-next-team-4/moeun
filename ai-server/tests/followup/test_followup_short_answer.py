@@ -99,6 +99,11 @@ def test_won_after_eok_or_man_is_the_same_amount_the_user_said(content: str, evi
         pytest.param("1억 원이 목표예요.", "11억으로", id="다른 숫자의 꼬리"),
         pytest.param("2억 원이 목표예요.", "1억으로", id="다른 값"),
         pytest.param("30 만원씩 넣어요.", "약 30만원", id="숫자·단위 사이 띄어쓰기는 그대로 본다"),
+        pytest.param("1만 원이에요.", "1만5천원으로", id="만 뒤 숫자"),
+        pytest.param("1만 원이에요.", "1만 오천원으로", id="만 뒤 한글 수"),
+        pytest.param("100만 원이에요.", "100만 달러면?", id="다른 화폐"),
+        pytest.param("1억 원이 목표예요.", "1억 오만원으로", id="억 뒤 한 글자+만"),
+        pytest.param("1억 원이 목표예요.", "1억 반으로", id="억 뒤 반"),
     ],
 )
 def test_won_suffix_does_not_accept_a_different_amount(content: str, evidence: str) -> None:
@@ -202,6 +207,36 @@ async def test_different_call_after_a_calc_still_goes_to_spring() -> None:
     assert calc.calls == [{"monthly_saving_amount": 1_500_000}, {"goal_amount": EOK}]
 
 
+async def test_alternating_calls_after_a_calc_are_not_sent_to_spring_again() -> None:
+    """A → B → A로 되돌아와도 이번 요청에서 이미 보낸 조건이면 다시 보내지 않는다(리뷰 낮음 4)"""
+    monthly = {**NULLS, "monthly_saving_amount": 1_500_000}
+    calc = FakeCalc(response=CALC_RESULT)
+    claude = FakeClaude([
+        tool_resp("recalculate", GOAL_EOK, "tu_1"),
+        tool_resp("recalculate", monthly, "tu_2"),
+        tool_resp("recalculate", GOAL_EOK, "tu_3"),
+        text_resp("RECALC_RESULT", RECALC_TEXT),
+    ])
+    await make_agent(claude, calc).run(request("1억으로 바꿀게", AFTER_MONTHLY_AND_GOAL_LOOKUP))
+    assert calc.calls == [{"goal_amount": EOK}, {"monthly_saving_amount": 1_500_000}]
+
+
+async def test_call_emptied_by_the_carry_filter_is_not_called_already_calculated() -> None:
+    """이어받은 조건만 넘겨 걸러서 빈 호출은 같은 계산이 아니므로 기존 '바꿀 조건이 없습니다'를 돌려준다(리뷰 낮음 5)"""
+    calc = FakeCalc(response=CALC_RESULT)
+    claude = FakeClaude([
+        tool_resp("recalculate", {**NULLS, "target_period_months": 48}, "tu_1"),
+        tool_resp("recalculate", {**NULLS, "monthly_saving_amount": 1_500_000}, "tu_2"),
+        text_resp("RECALC_RESULT", "기간을 4년으로 바꿨어요."),
+    ])
+    history = [("user", "매달 150만원으로 하면요?"), ("assistant", "월 저축액을 바꿨어요.")]
+    await make_agent(claude, calc).run(request("기간을 4년으로 하면요?", history))
+
+    assert calc.calls == [{"target_period_months": 48}]
+    [result] = tool_results(claude, 2)
+    assert "바꿀 조건이 없습니다" in result["content"]
+
+
 async def test_last_round_without_a_calc_keeps_tools_and_fails_as_before() -> None:
     """계산 결과가 없으면 마지막 라운드도 도구를 막지 않는다. 결과 없는 답을 억지로 만들지 않는다"""
     claude = FakeClaude([tool_resp("search_documents", {"query": "q", "doc_type": "ANY"}, f"tu_{i}") for i in range(2)])
@@ -233,6 +268,15 @@ async def test_empty_model_answer_gets_another_round_with_tools() -> None:
         if m["role"] == "user" and isinstance(m["content"], str) and "content가 비어" in m["content"]
     ]
     assert len(notes) == 1
+
+
+async def test_empty_recalc_answer_gets_only_one_more_round() -> None:
+    """빈 RECALC_RESULT가 또 나오면 더 부르지 않고 기존처럼 거부한다(리뷰 낮음 6)"""
+    claude = FakeClaude([text_resp("RECALC_RESULT", ""), text_resp("RECALC_RESULT", ""), text_resp("ANSWER", "안 불려요")])
+    with pytest.raises(AgentError) as err:
+        await make_agent(claude, FakeCalc()).run(request("1억으로 바꿀게"))
+    assert err.value.code == "FORBIDDEN_EXPRESSION"
+    assert len(claude.calls) == 2
 
 
 async def test_empty_recalc_answer_in_the_last_round_still_fails() -> None:

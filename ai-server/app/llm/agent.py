@@ -225,6 +225,7 @@ class ChatAgent:
             turn.number_evidence.append(source)
         messages = build_messages(req)
         called: list[str] = []   # 도구 호출 순서. 한도를 넘으면 실패 상세로 남긴다
+        empty_recalc_retried = False
 
         for round_no in range(self._max_rounds):
             last_round = round_no == self._max_rounds - 1
@@ -252,7 +253,8 @@ class ChatAgent:
                     messages.append(BetaUserMessageParam(role="user", content=results))   # 결과는 한 메시지에 모두
                 case _:
                     final = _parse_final(resp)
-                    if _empty_recalc_without_calc(turn, final) and not last_round:
+                    if _empty_recalc_without_calc(turn, final) and not last_round and not empty_recalc_retried:
+                        empty_recalc_retried = True
                         trace.info("empty recalc answer: message_id=%s round=%s", req.message_id, round_no + 1)
                         messages.append(BetaAssistantMessageParam(role="assistant", content=resp.content))
                         messages.append(BetaUserMessageParam(role="user", content=_EMPTY_RECALC_NOTE))
@@ -362,6 +364,8 @@ class ChatAgent:
         if turn.validation_failed:
             raise CalcError("허용 범위 오류를 이미 받았습니다. 값을 고쳐 다시 계산하지 말고 사용자에게 되물으세요.")
         changes = ConditionChanges.model_validate(args)
+        # 모델이 인자를 하나라도 넣었는지. 거르기 전 값으로 같은 계산 반복을 판단한다(#317)
+        requested = changes.changed()
         said = turn.req.text or ""
         name = changes.goal_custom_name.strip() if changes.goal_custom_name is not None else None
         if name is not None:
@@ -391,13 +395,15 @@ class ChatAgent:
             changes = changes.model_copy(update={"etf_product_code": None})
             if not changes.changed():
                 raise CalcError(_SAME_PRODUCT_ERROR)
-        if turn.calc_run_id is not None and changes.changed() in ({}, turn.condition_changes):
+        # 모델이 빈 인자로 불렀거나 이미 보낸 조건이면 다시 계산하지 않는다. 걸러서 빈 것은 아래 되묻기 오류다
+        if turn.calculated and (not requested or changes.changed() in turn.calculated):
             raise CalcError(_ALREADY_CALCULATED_ERROR)
         if not changes.changed():
             raise CalcError(_NO_CHANGE_ERROR)
         if said and not check_amount_units(said, changes):
             raise CalcError("목표 금액의 단위(원·만원·억원)가 발화와 맞지 않습니다. 정확한 금액을 다시 물으세요.")
         result = await self._calc.recalculate(turn.req.member_id, turn.req.baseline_scenario, changes)
+        turn.calculated.append(changes.changed())
         if changes.etf_product_code is not None and _changed_product(result) is None:
             # 계획 종목을 몰라 넘긴 키를 Spring이 계획과 같은 종목으로 봤다(C2-2). 남기면 비교 카드에 값 없는 종목 줄이
             # 생기므로 뺀다(#294)
