@@ -347,6 +347,9 @@ export function ResultPage() {
               </>
             )}
 
+            {/* 면책(#59)은 목표 초과 화면에도 있어야 해서 분기 밖, 본문(스크롤 영역) 안에 둔다 */}
+            <Disclaimer />
+
             {/* 적용·되돌리기 안내. 되돌린 계획이 목표 초과여도 보이게 분기 밖에 둔다 */}
             {applyFeedback && (
               <p role="status" className="text-sm text-text-muted">
@@ -355,7 +358,6 @@ export function ResultPage() {
             )}
           </div>
         </ResultLayout>
-        <Disclaimer />
       </div>
       {confirming !== null && (
         <ConfirmApplyDialog
