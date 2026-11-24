@@ -1,4 +1,4 @@
-package com.moeun.backend.chat.web.alternative;
+package com.moeun.backend.calc.web.alternative;
 
 import java.math.BigDecimal;
 import java.util.List;

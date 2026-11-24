@@ -17,7 +17,7 @@
 | P-4 | `GET /api/plan` | `200 PlanView` | `calc.web`(A) | 예 | C12a-6 |
 | P-5 | `POST /api/plan/undo` | `200 {revision}` | `plan.web`(A) | 예 | C12a-8 |
 | P-6 | `POST /api/plan/apply` | `200 {revision}` | `plan.web`(A) | 예 | C12a-9 (#68 확정) |
-| A-1 | `POST /api/alternatives` | `200 {hasAlternatives, alternatives}` | `chat.web.alternative`(B) | 예 | 5절 A-1 (#66, #258) |
+| A-1 | `POST /api/alternatives` | `200 {hasAlternatives, alternatives}` | `calc.web.alternative`(B) | 예 | 5절 A-1 (#66, #258) |
 | F-1 | `POST /api/chat/messages` | `202 {userMessageId, assistantMessageId}` | `chat`(B) | 예 | C12b-4 |
 | F-2 | `GET /api/chat/messages?afterId={id}` | `200 {messages, hasPending, answerPending}` | `chat`(B) | 아니오(`@SkipRenewal`) | C12b-5 |
 | F-3 | `POST /api/chat/explanations` | `202 {}` | `chat`(B) | 예 | C12b-3a |

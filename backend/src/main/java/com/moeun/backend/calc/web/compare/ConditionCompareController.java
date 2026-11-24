@@ -1,4 +1,4 @@
-package com.moeun.backend.chat.web.compare;
+package com.moeun.backend.calc.web.compare;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;

@@ -1,6 +1,9 @@
 package com.moeun.backend;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.junit.jupiter.api.Test;
+import org.springframework.modulith.core.ApplicationModule;
 import org.springframework.modulith.core.ApplicationModules;
 import org.springframework.modulith.docs.Documenter;
 
@@ -12,6 +15,17 @@ class ModularityTests {
     @Test
     void verifyModules() {
         modules.verify();
+    }
+
+    /** 대안·조건 비교 REST는 calc 공개 API만 부르므로 calc에 둔다(#309). */
+    @Test
+    void alternativeAndCompareControllersBelongToCalc() {
+        assertThat(modules.getModuleByType("AlternativeController")).map(ModularityTests::name).contains("calc");
+        assertThat(modules.getModuleByType("ConditionCompareController")).map(ModularityTests::name).contains("calc");
+    }
+
+    private static String name(ApplicationModule module) {
+        return module.getIdentifier().toString();
     }
 
     @Test
