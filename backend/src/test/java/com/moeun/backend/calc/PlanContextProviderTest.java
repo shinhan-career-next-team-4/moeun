@@ -31,7 +31,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.moeun.backend.calc.application.CompareConditionsUseCase;
-import com.moeun.backend.calc.application.PlanContextProviderImpl;
+import com.moeun.backend.calc.application.RecalculatingPlanContextProvider;
 import com.moeun.backend.config.TestcontainersConfig;
 import com.moeun.backend.plan.ConditionOverride;
 import com.moeun.backend.plan.PlanSaveResult;
@@ -185,7 +185,7 @@ class PlanContextProviderTest {
 
         assertThat(view.calcRunId()).isEqualTo(latestPlanRunId(saved.planVersionId()));
         assertThat(countPlanRuns()).isEqualTo(1);
-        Method method = PlanContextProviderImpl.class.getMethod("findForCurrentPlan", long.class);
+        Method method = RecalculatingPlanContextProvider.class.getMethod("findForCurrentPlan", long.class);
         assertThat(method.getAnnotation(Transactional.class).readOnly()).isFalse();
     }
 
