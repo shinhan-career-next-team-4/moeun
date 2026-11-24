@@ -33,6 +33,16 @@ function Row({ label, value, tone = "normal", suffix }: RowProps) {
   );
 }
 
+/** 달성 불가 안내. 월 저축액은 서버가 준 상한 금액을 넣고, 없으면 상한 없이 안내한다. */
+function unreachableMessage(key: AlternativeKey, limit?: string): string {
+  if (key === "monthlySavingAmount") {
+    return limit
+      ? COPY["alt.unreachable.monthlySavingAmount"].replace("{limit}", limit)
+      : COPY["alt.unreachable.monthlySavingAmountNoLimit"];
+  }
+  return COPY[`alt.unreachable.${key}`];
+}
+
 /** 대안 카드 하나(FR-ALT-02). 서버 값이 없는 줄은 그리지 않고, 하나도 없으면 안내만 보여 준다. 달성이 어려우면 그 안내만 보인다(#343). */
 export function AlternativeCard({
   alternativeKey,
@@ -64,7 +74,7 @@ export function AlternativeCard({
           />
         </dl>
       ) : unreachable ? (
-        <p className="text-sm leading-relaxed text-danger">{COPY[`alt.unreachable.${alternativeKey}`]}</p>
+        <p className="text-sm leading-relaxed text-danger">{unreachableMessage(alternativeKey, values?.unreachableLimit)}</p>
       ) : (
         <p className="text-xs text-text-muted">{COPY["alt.valuePending"]}</p>
       )}

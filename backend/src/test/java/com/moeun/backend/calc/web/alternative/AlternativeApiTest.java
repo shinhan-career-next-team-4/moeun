@@ -122,6 +122,8 @@ class AlternativeApiTest extends AlternativeTestSupport {
             assertThat(card.get("changed").isNull()).isTrue();
             assertThat(card.get("changes").size()).isZero();
         }
+        // 월 저축액 카드는 못 찾은 상한 금액을 서식해서 싣는다
+        assertThat(cards.get(0).get("display").get("limit.monthlySavingAmount").asString()).contains("1,000만원");
     }
 
     private static boolean avgAchieved(JsonNode result) {

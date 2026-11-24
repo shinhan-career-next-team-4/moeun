@@ -48,7 +48,12 @@ public record AlternativeView(boolean needed, List<Alternative> alternatives) {
 
         /** 허용 범위 안에서 목표를 달성하는 값이 없는 카드(#343). */
         public static Alternative unreachable(AlternativeKey key) {
-            return new Alternative(key, null, null, Map.of(), true);
+            return unreachable(key, Map.of());
+        }
+
+        /** 달성하는 값이 없는 카드. display에 안내에 쓸 값(예: 시도한 상한 금액)을 싣는다. */
+        public static Alternative unreachable(AlternativeKey key, Map<String, String> display) {
+            return new Alternative(key, null, null, display, true);
         }
     }
 }
