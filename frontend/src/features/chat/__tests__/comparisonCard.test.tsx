@@ -7,6 +7,7 @@ import okMock from "../../../mocks/chat/get-comparison.200.json";
 import goalChangedMock from "../../../mocks/chat/get-comparison.200-goal-changed.json";
 import asymmetricExceededMock from "../../../mocks/chat/get-comparison.200-asymmetric-exceeded.json";
 import changedExceededMock from "../../../mocks/chat/get-comparison.200-changed-exceeded.json";
+import goalNameMock from "../../../mocks/chat/get-comparison.200-goal-name.json";
 
 afterEach(cleanup);
 
@@ -71,5 +72,34 @@ describe("ComparisonCard", () => {
     expect(applyBtn.disabled).toBe(false);
     fireEvent.click(applyBtn);
     expect(onApply).toHaveBeenCalledWith(1036);
+  });
+
+  it("목표 이름만 바뀌면 이름 행(지금 이름 → 바꿀 이름)과 결과가 그대로라는 안내를 표시한다(#345)", () => {
+    const onApply = vi.fn();
+    const view = goalNameMock.responses[0].body as ComparisonView;
+    render(<ComparisonCard comparison={view} currentGoalName="내 집 마련" onApply={onApply} />);
+
+    const nameRow = screen.getByTestId("comparison-condition-goalCustomName");
+    expect(nameRow.textContent).toContain("목표 이름");
+    expect(nameRow.textContent).toContain("내 집 마련");
+    expect(nameRow.textContent).toContain("가게 보증금");
+    expect(screen.queryByTestId("comparison-condition-goalAmount")).toBeNull();
+    expect(screen.getByTestId("comparison-goal-name-note").textContent).toBe("목표 이름만 바꿔서 예상 결과는 그대로예요");
+    expect(screen.queryByTestId("comparison-goal-changed-note")).toBeNull();
+    expect(screen.getByTestId("comparison-diff-delta").textContent).toContain("변화 없음");
+
+    fireEvent.click(screen.getByTestId("comparison-apply"));
+    expect(onApply).toHaveBeenCalledWith(1037);
+  });
+
+  it("목표 이름과 목표 금액을 함께 바꾸면 이름 행과 목표 금액 행·주의 문구를 모두 표시한다(#345)", () => {
+    const base = goalChangedMock.responses[0].body as ComparisonView;
+    const view: ComparisonView = { ...base, changedKeys: ["goalAmount", "goalCustomName"], goalCustomName: "가게 보증금" };
+    render(<ComparisonCard comparison={view} currentGoalName="내 집 마련" onApply={vi.fn()} />);
+
+    expect(screen.getByTestId("comparison-condition-goalCustomName").textContent).toContain("가게 보증금");
+    expect(screen.getByTestId("comparison-condition-goalAmount").textContent).toContain("약 1,650만원");
+    expect(screen.getByTestId("comparison-goal-changed-note")).not.toBeNull();
+    expect(screen.queryByTestId("comparison-goal-name-note")).toBeNull();
   });
 });

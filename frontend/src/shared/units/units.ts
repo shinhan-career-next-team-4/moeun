@@ -112,3 +112,8 @@ export function formatFieldError(error: ServerFieldError, copy: CopyMap = COPY):
 export function goalLabel(code: string, copy: CopyMap = COPY): string {
   return copy[`goal.${code}`] ?? code;
 }
+
+/** 계획의 목표 이름. 직접 입력(CUSTOM)이고 이름이 있으면 그 이름, 아니면 goal.<goalType> 문구다(조건 바, #341). */
+export function goalName(goalType: string, goalCustomName: string | null | undefined, copy: CopyMap = COPY): string {
+  return goalType === "CUSTOM" && goalCustomName ? goalCustomName : goalLabel(goalType, copy);
+}

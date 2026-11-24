@@ -35,6 +35,8 @@ chat:
   goalAmountChangedNote: "목표 금액이 {currentGoal}에서 {changedGoal}으로 바뀌어, 달성 여부는 각각 자기 목표 기준이에요."
   changedAlreadyExceeded: "이 조건으로 적용하면 이미 목표를 넘은 상태가 돼요"
   cardAlreadyExceeded: "가진 자산 {heldAssets}이 목표 금액 {goalAmount}을 이미 넘었어요"
+  # 목표 이름만 바꾼 비교 카드 안내(#345). 이름은 계산에 쓰지 않아 숫자가 양쪽 같다
+  goalNameOnlyNote: "목표 이름만 바꿔서 예상 결과는 그대로예요"
   # AI 답변 실패 안내(FR-AI-04). FAILED 메시지의 content
   failed: "답변을 만들지 못했어요. 잠시 후 다시 질문해 주세요"
   pollingFailed: "답변을 불러오지 못하고 있어요. 잠시 후 다시 시도해 주세요"
@@ -193,6 +195,8 @@ scenarioMethod:
 
 # 비교 카드(H-15, C12b-6). 키는 conditions의 camelCase 키와 같다
 condition:
+  # 목표 이름(#345). 계산 조건은 아니지만 비교 카드 행 라벨로 쓴다
+  goalCustomName: "목표 이름"
   goalAmount: "목표 금액"
   monthlySavingAmount: "월 저축액"
   etfProductCode: "ETF 종목"

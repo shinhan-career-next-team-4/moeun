@@ -25,6 +25,8 @@ export interface Comparison {
   baselineScenario: string;
   /** 숫자 조건 행의 늘림·줄임(바뀐 조건만). 종목은 방향이 없다. */
   conditionDirections: Readonly<Record<string, Direction>>;
+  /** 바꿀 목표 이름(최상위 goalCustomName, #345). 이름을 바꾸지 않은 비교면 null. */
+  changedGoalName: string | null;
 }
 
 export type ComparisonSideKey = "current" | "changed";
@@ -36,6 +38,12 @@ export const GOAL_KEY = "goalAmount";
 
 /** ETF 종목은 바꿨을 때만 카드 맨 뒤 행으로 보인다(D-097). 값은 conditions.<side>.etfProductName display다. */
 export const ETF_KEY = "etfProductCode";
+
+/**
+ * 목표 이름은 바꿨을 때만 카드 맨 앞 행으로 보인다(#345). 계산 조건이 아니라 conditions·display에 없고,
+ * 바꿀 이름은 최상위 goalCustomName, 지금 이름은 공유 계획 store에서 읽는다.
+ */
+export const GOAL_NAME_KEY = "goalCustomName";
 export const ETF_NAME_FIELD = "etfProductName";
 
 /** 카드 조건 행 순서. 목표 금액을 바꾼 비교면 맨 앞에, 종목을 바꾼 비교면 맨 뒤에 그 행을 둔다. */
@@ -102,9 +110,11 @@ export function parseComparison(body: unknown): Comparison | null {
     if (assetDirection === null) return null;
     scenarios.push({ scenario, achievementChange: item.achievementChange, assetDirection, gapDirection: assetDirection });
   }
-  const allowedKeys: readonly string[] = [GOAL_KEY, ...CONDITION_KEYS, ETF_KEY];
+  const allowedKeys: readonly string[] = [GOAL_NAME_KEY, GOAL_KEY, ...CONDITION_KEYS, ETF_KEY];
   if (!Array.isArray(changedKeys) || !changedKeys.every((key) => allowedKeys.includes(key))) return null;
   if (changedKeys.includes(GOAL_KEY) && !(shown(`conditions.current.${GOAL_KEY}`) && shown(`conditions.changed.${GOAL_KEY}`))) return null;
+  const changedGoalName = typeof body.goalCustomName === "string" ? body.goalCustomName.trim() : "";
+  if (changedKeys.includes(GOAL_NAME_KEY) && changedGoalName === "") return null;
   if (changedKeys.includes(ETF_KEY) && !(shown(conditionDisplayKey("current", ETF_KEY)) && shown(conditionDisplayKey("changed", ETF_KEY)))) return null;
   if (changedKeys.includes(GOAL_KEY)) {
     // 목표가 바뀌면 목표 대비는 자산과 따로 움직인다. 양쪽 raw 목표 대비의 크기로만 방향을 정한다(차이 값은 서버에 없다)
@@ -143,5 +153,6 @@ export function parseComparison(body: unknown): Comparison | null {
     exceeded,
     baselineScenario,
     conditionDirections,
+    changedGoalName: changedKeys.includes(GOAL_NAME_KEY) ? changedGoalName : null,
   };
 }

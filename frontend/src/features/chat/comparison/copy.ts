@@ -8,6 +8,9 @@ export const CONDITION_LABELS: Record<string, string> = {
 
 export const GOAL_LABEL = "목표 금액";
 
+/** 목표 이름 행 라벨(condition.goalCustomName, #345). */
+export const GOAL_NAME_LABEL = "목표 이름";
+
 export const ETF_LABEL = "ETF 종목";
 
 /** 비교 카드 제목과 변화 방향 문구(#284). */

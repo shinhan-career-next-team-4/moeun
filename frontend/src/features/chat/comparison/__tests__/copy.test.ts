@@ -17,6 +17,11 @@ describe("비교 카드 문구 상수는 copy/copy.ko.yml과 같다", () => {
     expect(GOAL_LABEL).toBe(copy["condition.goalAmount"]);
   });
 
+  it("목표 이름 행 라벨은 condition.goalCustomName (#345)", async () => {
+    const { GOAL_NAME_LABEL } = await loadCopy();
+    expect(GOAL_NAME_LABEL).toBe(copy["condition.goalCustomName"]);
+  });
+
   it("achievementChange.* 4개", async () => {
     const { ACHIEVEMENT_CHANGE_LABELS } = await loadCopy();
     expect(Object.keys(ACHIEVEMENT_CHANGE_LABELS)).toHaveLength(4);

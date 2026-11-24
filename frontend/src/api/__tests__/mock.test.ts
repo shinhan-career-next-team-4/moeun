@@ -67,11 +67,11 @@ describe("AC-2·AC-11 기본 파일: 키마다 기본 파일이 하나 있고 �
   });
 });
 
-describe("AC-5·AC-11 useMock: 같은 키의 다른 파일을 고른다 (파일 83개 전부)", () => {
+describe("AC-5·AC-11 useMock: 같은 키의 다른 파일을 고른다 (파일 84개 전부)", () => {
   const files = allMockFiles().filter((f) => prefixOf(f) !== "common");
 
-  it("목 파일은 chat 40 + auth 6 + plan 31 + alternative 6 = 83개이고, 공통 파일 1개를 뺀 나머지가 위 접두어 표에 모두 속한다", () => {
-    expect(allMockFiles()).toHaveLength(83);
+  it("목 파일은 chat 41 + auth 6 + plan 31 + alternative 6 = 84개이고, 공통 파일 1개를 뺀 나머지가 위 접두어 표에 모두 속한다", () => {
+    expect(allMockFiles()).toHaveLength(84);
     expect(files.every((f) => prefixOf(f) in KEY_BY_PREFIX)).toBe(true);
   });
 

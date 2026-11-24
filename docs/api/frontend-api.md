@@ -1163,6 +1163,7 @@ record PlanUndoResult(long planVersionId, long revision) {}
 - 본문 = `/internal/calc` 성공 응답(C2-3~C2-6)에서 `calcRunId`를 빼고 `messageId`·`applicable`·`changedKeys`를 더한 것. 목 파일에는 internal-calc 부록 A-1 값을 줄임 없이 넣는다.
 - **`changedKeys`**: 저장된 `condition_changes`의 키 목록(camelCase). 계산이 아니라 저장값의 키를 그대로 꺼낸 것. 프론트는 카드에서 "무엇을 바꿨나"를 강조하는 데만 쓴다. **[v3] 순서는 보장하지 않는다. 프론트는 집합으로 쓴다**(포함 여부만 본다). 화면에 행을 그리는 순서는 프론트가 `conditions`의 고정 4키 순서(internal-calc C2-2 표)로 정한다. 왜: `condition_changes`는 `jsonb`라 PostgreSQL이 키 순서를 보존하지 않는다. 순서를 약속하면 정렬 코드가 생기고, 집합이면 코드가 0줄이다.
 - `messageId` 에코는 유지(목 파일 식별용).
+- **[v4, #345] `goalCustomName`**(선택): 대화로 목표 이름을 바꾼 비교면 `changedKeys`에 `"goalCustomName"`이 들어가고(혼자 또는 `goalAmount` 등과 함께), 최상위에 바꿀 이름(trim, 1~100자)이 온다. 바꾸지 않았으면 키가 없다. 이름은 계산에 쓰지 않아 `conditions`·`display`에 키가 없고, 이름만 바꾼 비교는 양쪽 숫자가 같다(`diff`는 0, "변화 없음"). 프론트는 카드 맨 앞에 "목표 이름" 행(지금 이름 → 바꿀 이름)을 강조해 보이고, 지금 이름은 계획(조건 바와 같은 규칙: CUSTOM이면 `plan.goalCustomName`, 아니면 문구표 `goal.<goalType>`)에서 읽는다. 이름만 바꾼 비교에는 `chat.goalNameOnlyNote` 안내를 더한다. `changedKeys`에 있는데 이름이 없거나 비었으면 카드 대신 불러오기 실패로 본다. F-5로 적용하면 계획은 `goalType:"CUSTOM"` + 그 이름이 된다(#341 조건 바 이름 수정과 같은 규칙, D-081).
 - `display` 포함, `monthlyPoints`(그래프) 제외(R-6, Q-039 3번 권장과 같음).
 
 **계산 방식**
@@ -1595,6 +1596,7 @@ config ──▶ (auth, plan, calc, chat: 보안 필터 등록·예외 처리. �
 | `get-comparison.200-goal-changed.json` (`/1034`) | F-4 | 200 | 목표 금액 변경 비교(D-090), `conditions.current.goalAmount`·`conditions.changed.goalAmount` 분리, `messageId: 1034` |
 | `get-comparison.200-asymmetric-exceeded.json` (`/1035`) | F-4 | 200 | 현재 초과에서 목표 상향 비대칭 비교(D-092), `current.status=ALREADY_EXCEEDED`, `diff.byScenario=[]`, `messageId: 1035` |
 | `get-comparison.200-changed-exceeded.json` (`/1036`) | F-4 | 200 | 바꾼 조건 초과 비대칭 비교(D-092), `changed.status=ALREADY_EXCEEDED`, `diff.byScenario=[]`, `messageId: 1036` |
+| `get-comparison.200-goal-name.json` (`/1037`) | F-4 | 200 | **[v4, #345]** 목표 이름만 바꾼 비교. `changedKeys: ["goalCustomName"]`, 최상위 `goalCustomName: "가게 보증금"`, 양쪽 조건·결과가 같고 `diff`는 0(`display`는 "변화 없음"), `messageId: 1037` |
 | `get-comparison.400.json` | F-4 | 400 | `MALFORMED_REQUEST` |
 | `get-comparison.404.json` | F-4 | 404 | `NOT_FOUND` |
 | `get-comparison.500.json` | F-4 | 500 | `INTERNAL_ERROR`(재계산 실패) |

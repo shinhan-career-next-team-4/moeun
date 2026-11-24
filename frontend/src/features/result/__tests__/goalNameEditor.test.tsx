@@ -28,6 +28,13 @@ describe("목표 이름 바로 수정 (#341)", () => {
     expect((screen.getByLabelText("목표 이름") as HTMLInputElement).value).toBe("내 집 마련");
   });
 
+  it("대화로 이름을 바꿔 적용한 계획(CUSTOM + 이름)이면 그 이름을 보인다(#345)", () => {
+    const applied = { ...view, plan: { ...view.plan, goalType: "CUSTOM", goalCustomName: "가게 보증금" } } as ResultPlanView;
+    render(<GoalNameEditor view={applied} />);
+
+    expect(screen.getByRole("button", { name: "목표 이름 수정: 가게 보증금" }).textContent).toBe("가게 보증금");
+  });
+
   it("새 이름을 저장하면 PUT /api/plan에 CUSTOM과 trim한 이름을 싣고 나머지 조건은 그대로 보낸다", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(jsonResponse(200, view));
     vi.stubGlobal("fetch", fetchSpy);
