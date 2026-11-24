@@ -17,6 +17,7 @@ function stubChatFetch() {
 }
 
 afterEach(() => {
+  window.localStorage.removeItem("moeun.chatPanel");
   cleanup();
   vi.unstubAllGlobals();
 });
@@ -33,10 +34,10 @@ function renderLayout() {
 const panel = () => screen.getByTestId("result-panel");
 
 describe("데스크톱(1024px 이상)", () => {
-  it("패널이 열려 있고 360px 고정 폭 클래스를 쓴다. 본문·조건 바도 보인다", () => {
+  it("패널이 열려 있고 기본 폭 360px를 쓴다. 본문·조건 바도 보인다", () => {
     stubViewport(true);
     renderLayout();
-    expect(panel().className).toContain("lg:w-[360px]");
+    expect(panel().style.getPropertyValue("--chat-panel-width")).toBe("360px");
     expect(panel().className).not.toContain("hidden");
     expect(screen.getByText("본문")).toBeTruthy();
     expect(screen.getByText("조건 바")).toBeTruthy();
@@ -132,5 +133,58 @@ describe("새 설명 점 표시", () => {
     fireEvent.click(screen.getByTestId("result-panel-open"));
     expect(screen.queryByTestId("result-panel-unread")).toBeNull();
     vi.useRealTimers();
+  });
+});
+
+describe("폭 조절과 좌·우 위치(#362)", () => {
+  const handle = () => screen.getByTestId("result-panel-resize");
+
+  it("키보드로 폭을 키우고 줄이며 280~720px 안에 머물고 기억한다", () => {
+    stubViewport(true);
+    vi.stubGlobal("innerWidth", 2000);
+    renderLayout();
+
+    fireEvent.keyDown(handle(), { key: "ArrowLeft" });
+    expect(panel().style.getPropertyValue("--chat-panel-width")).toBe("376px");
+    expect(JSON.parse(window.localStorage.getItem("moeun.chatPanel") ?? "{}").width).toBe(376);
+
+    for (let i = 0; i < 40; i += 1) fireEvent.keyDown(handle(), { key: "ArrowLeft" });
+    expect(panel().style.getPropertyValue("--chat-panel-width")).toBe("720px");
+    for (let i = 0; i < 80; i += 1) fireEvent.keyDown(handle(), { key: "ArrowRight" });
+    expect(panel().style.getPropertyValue("--chat-panel-width")).toBe("280px");
+  });
+
+  it("제목 옆 단추로 왼쪽·오른쪽을 바꾸고, 바뀐 위치와 폭을 다음 방문에도 쓴다", () => {
+    stubViewport(true);
+    renderLayout();
+    expect(panel().className).not.toContain("lg:border-r");
+
+    fireEvent.click(screen.getByRole("button", { name: "대화창을 왼쪽으로 옮기기" }));
+    expect(panel().className).toContain("lg:border-r");
+    expect(screen.getByRole("button", { name: "대화창을 오른쪽으로 옮기기" })).toBeTruthy();
+    expect(JSON.parse(window.localStorage.getItem("moeun.chatPanel") ?? "{}").side).toBe("left");
+
+    cleanup();
+    renderLayout();
+    expect(panel().className).toContain("lg:border-r");
+  });
+
+  it("왼쪽 패널에서는 방향키가 반대로 움직인다(오른쪽 끝이 안쪽 가장자리)", () => {
+    stubViewport(true);
+    vi.stubGlobal("innerWidth", 2000);
+    renderLayout();
+    fireEvent.click(screen.getByRole("button", { name: "대화창을 왼쪽으로 옮기기" }));
+
+    fireEvent.keyDown(handle(), { key: "ArrowRight" });
+    expect(panel().style.getPropertyValue("--chat-panel-width")).toBe("376px");
+  });
+
+  it("저장된 값이 깨져 있으면 기본값(오른쪽, 360px)으로 연다", () => {
+    stubViewport(true);
+    window.localStorage.setItem("moeun.chatPanel", "{깨짐");
+    renderLayout();
+
+    expect(panel().style.getPropertyValue("--chat-panel-width")).toBe("360px");
+    expect(panel().className).not.toContain("lg:border-r");
   });
 });
