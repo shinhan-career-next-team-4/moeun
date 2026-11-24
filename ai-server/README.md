@@ -56,7 +56,7 @@ curl -s localhost:8000/health        # 200
 
 대화가 "답변을 만들지 못했어요"로 끝나면 이 서버 로그를 본다. `POST /chat 401`이면 `INTERNAL_API_KEY`가 backend와 다르다.
 
-대화 로그(#316)는 콘솔과 `logs/ai-server.log`(자정마다 나눔, `LOG_RETENTION_DAYS`일 보관, 기본 7일)에 남는다. `moeun.ai.trace` 로거가 메시지 id(`message_id=`)별로 받은 요청(text·history·planContext), 도구 호출의 입력·결과, 모델 답(거절된 답 포함), 최종 답, 실패 코드와 상세(걸린 숫자, 도구 호출 순서)를 남긴다. API 키·내부 키는 가린다(`***`). Spring 로그의 `messageId`로 찾으면 된다.
+대화 로그(#316)는 콘솔과 `logs/ai-server.log`(자정마다 나눔, `LOG_RETENTION_DAYS`일 보관, 기본 7일)에 남는다. `moeun.ai.trace` 로거가 메시지 id(`message_id=`)별로 받은 요청(text·history·planContext), 도구 호출의 입력·결과, 모델 답(거절된 답 포함), 최종 답, 실패 코드와 상세(걸린 숫자, 도구 호출 순서)를 남긴다. API 키·내부 키는 가린다(`***`). Spring 로그의 `messageId`로 찾으면 된다. Spring은 `backend/logs/backend.log`에 같은 정책으로 남긴다. `LOG_RETENTION_DAYS=0`은 ai-server에서는 파일 로그를 끄지만 Spring(logback)에서는 지우지 않는다는 뜻이라 Spring에는 1 이상을 쓴다.
 
 ## 문서 적재
 

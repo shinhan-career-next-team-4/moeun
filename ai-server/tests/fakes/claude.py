@@ -11,7 +11,12 @@ from app.schemas import DocType, RetrievedChunk
 
 def text_resp(message_type: str, content: str = "답", citations: list[int] | None = None) -> SimpleNamespace:
     payload = {"message_type": message_type, "content": content, "citation_chunk_ids": citations or []}
-    return SimpleNamespace(stop_reason="end_turn", content=[BetaTextBlock(type="text", text=json.dumps(payload))])
+    text = json.dumps(payload, ensure_ascii=False)
+    return SimpleNamespace(stop_reason="end_turn", content=[BetaTextBlock(type="text", text=text)])
+
+
+def raw_resp(text: str, stop_reason: str = "end_turn") -> SimpleNamespace:
+    return SimpleNamespace(stop_reason=stop_reason, content=[BetaTextBlock(type="text", text=text)])
 
 
 def tool_resp(name: str, input_: dict[str, Any], id_: str = "tu_1") -> SimpleNamespace:

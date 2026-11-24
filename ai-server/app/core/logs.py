@@ -1,5 +1,6 @@
 """로그 설정(#316). 대화가 실패하면 원인을 끝까지 좇을 수 있게 요청·답 본문까지 남긴다. 대신 줄마다 시각을 붙이고,
-파일은 자정마다 나눠 보관 기간이 지나면 지운다. API 키·내부 키 같은 비밀값은 어떤 로그에도 남기지 않는다."""
+파일은 자정마다 나눠 보관 기간이 지나면 지운다. API 키·내부 키 같은 비밀값은 우리가 단 핸들러(콘솔·파일)에서 가린다.
+uvicorn 로거도 루트로 올려 같은 핸들러·시각·가림을 거친다."""
 
 import logging
 from collections.abc import Iterable
@@ -13,6 +14,7 @@ FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 FILE_NAME = "ai-server.log"
 MASK = "***"
 _OWNED = "_moeun_logging"
+_UVICORN_LOGGERS = ("uvicorn", "uvicorn.error", "uvicorn.access")
 
 
 class _IsoTimeFormatter(logging.Formatter):
@@ -30,7 +32,10 @@ class SecretMask(logging.Filter):
         self._secrets = tuple(s for s in secrets if s)
 
     def filter(self, record: logging.LogRecord) -> bool:
-        message = record.getMessage()
+        try:
+            message = record.getMessage()
+        except (TypeError, ValueError):   # 인자가 틀린 로그 호출. 요청을 깨지 않게 handleError로 넘긴다
+            return True
         masked = message
         for secret in self._secrets:
             masked = masked.replace(secret, MASK)
@@ -66,3 +71,8 @@ def configure_logging(settings: Settings) -> None:
         handler.addFilter(mask)
         setattr(handler, _OWNED, True)
         root.addHandler(handler)
+    # uvicorn은 자기 핸들러로만 쓰고 위로 올리지 않는다. 접근 로그("POST /chat 401")도 날짜별 파일에 남게 루트로 올린다
+    for name in _UVICORN_LOGGERS:
+        uvicorn_logger = logging.getLogger(name)
+        uvicorn_logger.handlers.clear()
+        uvicorn_logger.propagate = True

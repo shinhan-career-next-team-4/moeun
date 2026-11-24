@@ -121,7 +121,8 @@ management:
         enabled: true
 
 logging:
-  # 원인 추적용 로그 파일(#316). 날짜별로 나누고 보관 기간(기본 7일)이 지나면 지운다
+  # 원인 추적용 로그 파일(#316). 날짜별로 나누고 보관 기간(기본 7일)이 지나면 지운다.
+  # LOG_RETENTION_DAYS는 1 이상으로 둔다. logback은 0이면 지우지 않는다(ai-server는 0이면 파일을 끈다)
   file:
     name: ${LOG_DIR:logs}/backend.log
   logback:

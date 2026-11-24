@@ -102,6 +102,7 @@ class ChatAiFailureLogTest extends ChatIntegrationTestSupport {
         String id = String.valueOf(assistantId);
         for (ILoggingEvent event : related) {
             assertThat(event.getThrowableProxy()).as("예외를 붙이지 않는다").isNull();
+            assertThat(event.getFormattedMessage()).as("문장에는 값을 넣지 않는다").doesNotContain(MARKER);
             // 구조화된 필드는 messageId, memberId, 오류 분류, 상태 코드, 원인 상세를 담는다
             assertThat(values(event)).as("구조화된 필드가 있어야 한다").isNotEmpty().hasSizeLessThanOrEqualTo(5);
             assertThat(values(event)).contains(id);

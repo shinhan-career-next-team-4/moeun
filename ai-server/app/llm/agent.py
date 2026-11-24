@@ -4,7 +4,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from anthropic import AsyncAnthropic
+from anthropic import APIError, AsyncAnthropic
 from anthropic.types.beta import (
     BetaAssistantMessageParam,
     BetaMessageParam,
@@ -106,7 +106,7 @@ _TOOL_ERRORS = (CalcError, ValidationError, KeyError, ValueError, RuntimeError)
 
 
 def _correction(reason: ForbiddenReason, etf_name: str | None) -> str:
-    """재시도 때 모델에게 붙이는 교정 지시. 걸린 표현을 빼거나 바꾸라고만 하고 본문은 다시 적지 않는다(P-2, P-7)."""
+    """재시도 때 모델에게 붙이는 교정 지시. 걸린 표현을 빼거나 바꾸라고만 하고 본문은 다시 적지 않는다(P-2)."""
     if reason == ForbiddenReason.STOCK_RECOMMENDATION:
         return (
             "방금 쓴 답변은 개별 주식 종목을 추천하는 표현이 있어 거부됐습니다. "
@@ -179,6 +179,9 @@ class ChatAgent:
         except AgentError as e:
             trace.warning("chat failed: message_id=%s code=%s detail=%s", req.message_id, e.code, e.detail)
             raise
+        except APIError as e:   # 모델·판정 모델 호출 실패도 이 메시지의 실패로 남긴다
+            trace.warning("chat failed: message_id=%s llm=%s detail=%s", req.message_id, type(e).__name__, e)
+            raise
         trace.info("chat answer: message_id=%s body=%s", req.message_id, resp.model_dump_json(by_alias=True))
         return resp
 
@@ -202,6 +205,7 @@ class ChatAgent:
 
         for _ in range(self._max_rounds):
             resp = await self._create(messages)
+            _trace_model_answer(req, resp, attempt=1)
 
             match resp.stop_reason:
                 case "refusal":
@@ -222,7 +226,6 @@ class ChatAgent:
                     messages.append(BetaUserMessageParam(role="user", content=results))   # 결과는 한 메시지에 모두
                 case _:
                     final = _parse_final(resp)
-                    _trace_model_answer(req, final, attempt=1)
                     try:
                         await self._check_body(final)
                         return assemble(turn, final)
@@ -268,17 +271,17 @@ class ChatAgent:
         retry_messages = [*messages, BetaUserMessageParam(role="user", content=correction)]
         # tool_choice none은 이 호출에만 준다(요청 지역)
         retry = await self._create(retry_messages, client=self._retry_client, tool_choice={"type": "none"})
+        _trace_model_answer(req, retry, attempt=2)
         match retry.stop_reason:
             case "refusal":
                 return assemble(turn, _OUT_OF_SCOPE_ANSWER)   # 서버가 만든 입력으로 같은 보정을 거친다(P-4)
             case "max_tokens":
-                if _answer_text(retry):   # 텍스트가 있으면 잘린 JSON이다. 본문은 detail에 싣지 않는다(P-17, D-2)
+                if _answer_text(retry):   # 텍스트가 있으면 잘린 JSON이다. 원문은 model answer 로그에 있다(P-17, D-2)
                     raise AgentError(ErrorCode.BAD_OUTPUT, "max_tokens")
                 raise AgentError(ErrorCode.MAX_TOKENS)
             case "tool_use":
                 raise AgentError(ErrorCode.FORBIDDEN_EXPRESSION, "tool_use on retry")   # PD-009. 도구를 실행하지 않는다
         final = _parse_final(retry)
-        _trace_model_answer(req, final, attempt=2)
         try:
             await self._check_body(final)
             return assemble(turn, final)
@@ -445,13 +448,18 @@ def _trace_tool(turn: Turn, block: BetaToolUseBlock, result: Any) -> None:
     )
 
 
-def _trace_model_answer(req: ChatRequest, final: FinalAnswer, *, attempt: int) -> None:
-    """보정·검사 전의 모델 답. 숫자 불일치·금지 표현으로 거절된 답도 여기 남는다."""
-    trace.info("model answer: message_id=%s attempt=%s body=%s", req.message_id, attempt, final.model_dump_json())
+def _trace_model_answer(req: ChatRequest, resp: Any, *, attempt: int) -> None:
+    """파싱·검사 전 모델 원문. 형식 오류·잘린 답·숫자 불일치·금지 표현으로 거절된 답도 여기 남는다.
+    도구만 부른 응답은 원문이 없어 남기지 않는다(도구 줄에 남는다)."""
+    text = _answer_text(resp)
+    if text:
+        trace.info(
+            "model answer: message_id=%s attempt=%s stop=%s body=%s", req.message_id, attempt, resp.stop_reason, text
+        )
 
 
 def _parse_final(resp: Any) -> FinalAnswer:
-    """최종 응답 파싱. 오류 문구에 모델 원문(input_value)이 실리지 않게 오류 종류와 위치만 남긴다(P-16, P-7)."""
+    """최종 응답 파싱. 오류 detail에는 오류 종류와 위치만 싣는다(P-16). 원문은 model answer 로그에 있다(#316)."""
     try:
         return FinalAnswer.model_validate_json(_answer_text(resp))
     except ValidationError as e:

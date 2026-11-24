@@ -81,7 +81,7 @@ public class ChatAnswerListener {
                 answer = aiClient.chat(request);
             } catch (RuntimeException e) {
                 // 원인 추적용으로 분류·상태 코드와 상세(ai-server 응답 본문 또는 예외 메시지)를 남긴다(#123, #316).
-                // 값은 구조화된 필드(key-value)로 운반한다. 로그 파일은 보관 기간이 지나면 지운다
+                // 값은 구조화된 필드(key-value)로 운반한다. 문장에는 값을 넣지 않는다. 로그 파일은 보관 기간이 지나면 지운다
                 var warn = LOG.atWarn()
                         .addKeyValue("messageId", message.id())
                         .addKeyValue("memberId", message.memberId())

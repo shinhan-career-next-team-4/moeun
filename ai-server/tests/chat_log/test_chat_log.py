@@ -19,7 +19,7 @@ from app.llm.errors import AgentError
 from app.main import _agent_error, _llm_error
 from app.schemas import ChatRequest
 from tests.fakes import FakeCalc
-from tests.fakes.claude import FakeClaude, FakeRetriever, PassJudge, text_resp, tool_resp
+from tests.fakes.claude import FakeClaude, FakeRetriever, PassJudge, raw_resp, text_resp, tool_resp
 from tests.paths import REPO
 
 PLAN_CONTEXT = json.loads(
@@ -91,6 +91,31 @@ async def test_number_mismatch_detail_and_rejected_answer_are_logged(caplog: pyt
     assert err.value.code == ErrorCode.NUMBER_MISMATCH
     assert "9억원" in err.value.detail
     assert body in _messages(caplog)   # 거절된 모델 답 본문
+
+
+async def test_malformed_model_answer_raw_text_is_logged(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.INFO)
+    raw = '{"message_type": "ANSWER", "content": "잘린 답 원문'
+
+    with pytest.raises(AgentError) as err:
+        await _agent(FakeClaude([raw_resp(raw)])).run(_question("어떻게 돼요?"))
+
+    assert err.value.code == ErrorCode.BAD_OUTPUT
+    assert "잘린 답 원문" in _messages(caplog)
+
+
+async def test_llm_api_failure_is_logged_with_message_id(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.INFO)
+
+    class FailingClaude(FakeClaude):
+        async def _create(self, **kwargs: object) -> object:
+            raise anthropic.APIConnectionError(request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"))
+
+    with pytest.raises(anthropic.APIConnectionError):
+        await _agent(FailingClaude([])).run(_question("어떻게 돼요?"))
+
+    failed = [m for m in _messages(caplog).splitlines() if "chat failed" in m]
+    assert failed and f"message_id={MESSAGE_ID}" in failed[0] and "APIConnectionError" in failed[0]
 
 
 # ---- 실패 핸들러 ----
@@ -172,3 +197,21 @@ def test_retention_zero_turns_off_file_log(tmp_path: Path) -> None:
         for handler in root.handlers[:]:
             if handler not in before:
                 root.removeHandler(handler)
+
+
+def test_bad_log_call_does_not_raise_through_mask(configured: Path) -> None:
+    """인자가 틀린 로그 호출이 가림 필터에서 예외로 올라와 요청을 깨지 않는다(logging은 handleError로 처리한다)."""
+    logging.raiseExceptions = False
+    try:
+        logging.getLogger("moeun.ai").warning("a %s %s", 1)
+    finally:
+        logging.raiseExceptions = True
+
+
+def test_uvicorn_access_log_goes_to_daily_file(configured: Path) -> None:
+    logging.getLogger("uvicorn.access").info('127.0.0.1 - "POST /chat HTTP/1.1" 401')
+    for handler in logging.getLogger().handlers:
+        handler.flush()
+
+    content = next(p for p in configured.iterdir()).read_text(encoding="utf-8")
+    assert '"POST /chat HTTP/1.1" 401' in content

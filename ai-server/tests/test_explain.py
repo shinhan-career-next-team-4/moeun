@@ -253,7 +253,7 @@ def _bad_requests() -> dict[str, tuple[ChatRequest, str, str]]:
 
 
 @pytest.mark.parametrize("case", ["null", "mismatch", "display-missing", "polluted-display-missing"])
-async def test_ac12_400_and_502_log_only_calc_run_id_and_error_code(case: str, caplog: pytest.LogCaptureFixture):
+async def test_ac12_400_and_502_log_calc_run_id_and_error_code(case: str, caplog: pytest.LogCaptureFixture):
     req, code, calc_run_id = _bad_requests()[case]
     caplog.set_level(logging.DEBUG)
 
@@ -266,7 +266,7 @@ async def test_ac12_400_and_502_log_only_calc_run_id_and_error_code(case: str, c
         assert secret not in str(err), secret   # Spring에 가는 오류에는 본문이 없다. 로그는 #316부터 남긴다
 
 
-def test_ac12_422_logs_no_plan_context_body(caplog: pytest.LogCaptureFixture):
+def test_ac12_422_when_result_status_is_missing(caplog: pytest.LogCaptureFixture):
     plan = load("plan-context-polluted.json")
     del plan["result"]["status"]
     caplog.set_level(logging.DEBUG)
