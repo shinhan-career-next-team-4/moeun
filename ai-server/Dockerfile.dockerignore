@@ -1,0 +1,9 @@
+# 루트 컨텍스트에서 ai-server 이미지에 필요한 것만 고른다(비밀값 .env, 로컬 데이터가 들어가지 않게)
+*
+!ai-server/pyproject.toml
+!ai-server/uv.lock
+!ai-server/.python-version
+!ai-server/app
+!copy/copy.ko.yml
+!scripts/ingest
+**/__pycache__
