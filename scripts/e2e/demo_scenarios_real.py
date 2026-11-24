@@ -14,8 +14,8 @@ from oracle import unknown_numbers
 from test_12_conversation import _NOTICE_PHRASES
 
 RUNS = int(os.getenv("RUNS", "5"))
-PLAN = dict(goalType="HOUSE", goalAmount=20_000_000, targetPeriodMonths=36, heldAssets=5_000_000,
-            monthlySavingAmount=300_000, savingsRatioPct=50, savingsRateInputPct=3.12, goalCustomName=None)
+PLAN = {"goalType": "HOUSE", "goalAmount": 20_000_000, "targetPeriodMonths": 36, "heldAssets": 5_000_000,
+        "monthlySavingAmount": 300_000, "savingsRatioPct": 50, "savingsRateInputPct": 3.12, "goalCustomName": None}
 api = c.Api(c.BASE_URL)
 
 
