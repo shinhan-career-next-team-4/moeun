@@ -35,14 +35,14 @@
 | `infrastructure` | 외부 기술 어댑터: `JdbcClient` 쿼리, ai-server HTTP 클라이언트, 파일 읽기. `domain`의 포트를 구현한다 | `web` |
 | `web` | 컨트롤러, 요청·응답 DTO, 요청 JSON 해석 | `domain`의 리포지토리(서비스를 거친다) |
 
-`infrastructure`는 지금 없다. 새 어댑터는 처음부터 `infrastructure`에 두고, 기존 것은 리팩터링 Issue에서 옮긴다.
+`infrastructure`는 chat에만 있다(#312, `JdbcChatMessageRepository`). 새 어댑터는 처음부터 `infrastructure`에 두고, 기존 것은 리팩터링 Issue에서 옮긴다.
 
 #308 시점에 남아 있는 위반 중 `ArchitectureTests`가 **검사하지 않는** 것(리팩터링 대상):
 
 - `JdbcClient`를 `infrastructure` 밖에서 쓴다: `calc.application.CalcRunRecorder`, `rag.CitationQueryService`(chat은 #312에서 `chat.infrastructure.JdbcChatMessageRepository`로 옮겼다)
 - ai-server HTTP 클라이언트가 `application`에 있다: `chat.application.AiChatClient`
 - `application`·루트가 Jackson으로 JSON을 해석한다: `plan.application.PlanService`(적용 변경 맵만, #310), `chat.application`(`ChatComparisonService`, `ChatAnswerListener`, `AiChatClient` 등), `calc.application`(`ConditionChanges`, `ChatComparisonRecomputer`), 루트 `plan.PlanApplyService`·`ConditionValidator`, `calc.ChatComparisonQuery`
-- 규칙이 서비스에 몰려 있다: plan은 #310에서 엔티티로 옮겼다(본보기). 다른 모듈은 리팩터링 Issue에서 같은 방식으로 옮긴다
+- 규칙이 서비스에 몰려 있다: plan은 #310에서 엔티티로, chat의 메시지 상태 전이는 #312에서 `ChatMessage`로 옮겼다(본보기). 다른 모듈은 리팩터링 Issue에서 같은 방식으로 옮긴다
 
 이 목록이 줄면 `application`→Jackson 같은 규칙을 `ArchitectureTests`에 추가한다.
 

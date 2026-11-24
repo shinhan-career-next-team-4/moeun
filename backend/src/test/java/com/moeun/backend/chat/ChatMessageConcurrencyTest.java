@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import com.moeun.backend.chat.domain.ChatMessage;
 import com.moeun.backend.chat.domain.ChatMessageRepository;
+import com.moeun.backend.chat.domain.MessageTransition;
 import com.moeun.backend.chat.domain.MessageType;
 
 /**
@@ -89,6 +90,30 @@ class ChatMessageConcurrencyTest extends ChatIntegrationTestSupport {
         assertThat(messages.apply(message.fail(FAILED_CONTENT))).isZero();
         assertThat(statusOf(id)).isEqualTo("COMPLETED");
         assertThat(contentOf(id)).isEqualTo("답변");
+    }
+
+    @Test
+    @DisplayName("오래된 PENDING 일괄 정리는 행마다 ChatMessage.fail과 같은 전이다(계산 기록·기준 시나리오를 남긴다)")
+    void bulkCleanupMatchesChatMessageFail() {
+        long calcRunId = insertCalcRun(memberId, "PLAN");
+        long id = jdbc.sql("INSERT INTO chat_message (member_id, role, message_type, status, calc_run_id, "
+                        + "baseline_scenario) VALUES (?, 'ASSISTANT', 'EXPLANATION', 'PENDING', ?, 'GOOD') "
+                        + "RETURNING id")
+                .params(memberId, calcRunId).query(Long.class).single();
+        MessageTransition expected = messages.findPending(id, memberId).orElseThrow().fail(FAILED_CONTENT);
+
+        assertThat(cleanUp()).isEqualTo(1);
+
+        StoredRow stored = jdbc.sql("SELECT status, message_type, content, calc_run_id, baseline_scenario, "
+                        + "condition_changes::text AS changes FROM chat_message WHERE id = ?")
+                .param(id)
+                .query((rs, row) -> new StoredRow(rs.getString("status"), rs.getString("message_type"),
+                        rs.getString("content"), rs.getObject("calc_run_id", Long.class),
+                        rs.getString("baseline_scenario"), rs.getString("changes")))
+                .single();
+        assertThat(stored).isEqualTo(new StoredRow(expected.status().name(), expected.type().name(),
+                expected.content(), expected.calcRunId(), expected.baselineScenario(),
+                expected.conditionChangesJson()));
     }
 
     // ---------- 동시(행 잠금 대기) ----------
@@ -188,5 +213,9 @@ class ChatMessageConcurrencyTest extends ChatIntegrationTestSupport {
     }
 
     private record Outcome(int first, int second) {
+    }
+
+    private record StoredRow(String status, String type, String content, Long calcRunId, String baselineScenario,
+            String conditionChanges) {
     }
 }

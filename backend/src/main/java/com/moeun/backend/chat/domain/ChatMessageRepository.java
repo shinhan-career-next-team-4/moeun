@@ -49,7 +49,11 @@ public interface ChatMessageRepository {
 
     Optional<ChatMessage> findPending(long id, long memberId);
 
-    /** 행이 아직 {@code transition.from()} 상태일 때만 반영한다. @return 바뀐 행 수(0 또는 1) */
+    /**
+     * 행이 아직 {@code transition.from()} 상태일 때만 반영한다. 값은 미리 읽어 둔 행에서 계산했다({@link MessageTransition}).
+     *
+     * @return 바뀐 행 수(0 또는 1)
+     */
     int apply(MessageTransition transition);
 
     /** F-4: 그 회원의 COMPLETED RECALC_RESULT 한 행. 없는·남의·다른 종류·COMPLETED가 아닌 행은 모두 빈 값이다. */
