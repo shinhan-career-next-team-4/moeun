@@ -21,6 +21,8 @@ export interface AlternativeValues {
   gapToGoal?: string;
   /** `약 4,856만원 · 미달` 같은 나빴던 때 */
   badAfterTaxAsset?: string;
+  /** 허용 범위 안에서 목표를 달성하는 값을 찾지 못했다(#343). 카드는 '달성이 어려워요' 안내만 보이고 버튼은 막힌다 */
+  unreachable?: boolean;
   /** 서버가 변동이 커진다고 알려 준 대안(W-10). 판정은 화면이 하지 않는다 */
   volatilityWarning?: boolean;
   /** '비교하기'가 비교 영역에 채우고 '내 계획으로 적용'이 P-6으로 보낼 조건 */

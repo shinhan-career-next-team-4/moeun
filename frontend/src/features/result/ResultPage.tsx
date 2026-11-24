@@ -60,11 +60,7 @@ export function ResultPage() {
     /** 적용이 422로 거절됐다. 다시 받을 때까지 대안 적용을 막는다 */
     blocked: boolean;
   } | null>(null);
-  const [periodMonths, setPeriodMonths] = useState<number | undefined>(undefined);
-  const [periodError, setPeriodError] = useState<string | null>(null);
   const [alternativesFailed, setAlternativesFailed] = useState(false);
-  // 마지막으로 서버가 받아 준 기간. 422가 나면 이 값으로 되돌린다
-  const validPeriod = useRef<number | undefined>(undefined);
   const [applying, setApplying] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [applyFeedback, setApplyFeedback] = useState<string | null>(null);
@@ -103,11 +99,6 @@ export function ResultPage() {
     setPrefill(null);
   }
 
-  function submitPeriod(months: number) {
-    setPeriodError(null);
-    setPeriodMonths(months);
-  }
-
   /** 대안 카드의 '내 계획으로 적용'(#258). 확인창을 거쳐 P-6 ALTERNATIVE로 적용한다 */
   function openAlternativeConfirm(values: AlternativeValues) {
     if (alternatives === null || !values.comparison || !values.changes) return;
@@ -138,7 +129,7 @@ export function ResultPage() {
    */
   function settleApply(
     outcome: ApplyOutcome,
-    { revision: sent, changes, path }: { revision: number; changes: ConditionChanges; path: "COMPARE" | "ALTERNATIVE" },
+    { revision: sent, path }: { revision: number; changes: ConditionChanges; path: "COMPARE" | "ALTERNATIVE" },
     onFailed: () => void,
   ): number | null {
     switch (outcome.kind) {
@@ -148,11 +139,6 @@ export function ResultPage() {
         setResetSeq((seq) => seq + 1);
         // 요청 중에 계획 상태가 비워졌으면(다른 계정 로그인 등) 다시 채우지 않는다(대화 적용 onApplied와 같다)
         if (planStore.getState().revision === null) return null;
-        // 기한 카드를 적용했으면 적어 둔 기간은 이제 내 계획 기간이다. 다음 요청에 싣지 않는다
-        if (path === "ALTERNATIVE" && changes.targetPeriodMonths !== undefined) {
-          validPeriod.current = undefined;
-          setPeriodMonths(undefined);
-        }
         planStore.acceptRevision(outcome.revision);
         if (planStore.getState().revision === outcome.revision) {
           undoSeq.current += 1;
@@ -237,10 +223,9 @@ export function ResultPage() {
     if (revision === null) return;
     let active = true;
     const fetchedAt = revision;
-    requestAlternatives({ request: (method, path, body) => api.request(method, path, body) }, periodMonths).then((result) => {
+    requestAlternatives({ request: (method, path, body) => api.request(method, path, body) }).then((result) => {
       if (!active) return;
       if (result.ok) {
-        validPeriod.current = periodMonths;
         setAlternativesFailed(false);
         setAlternatives({
           revision: fetchedAt,
@@ -250,11 +235,7 @@ export function ResultPage() {
         });
         return;
       }
-      if (result.kind === "periodInvalid") {
-        // 안내는 기한 카드 안에 두고, 마지막으로 받아 준 기간으로 되돌린다(이전 카드 유지)
-        setPeriodError(COPY["alt.periodInvalid"]);
-        setPeriodMonths(validPeriod.current);
-      } else if (result.kind === "noPlan") {
+      if (result.kind === "noPlan") {
         planStore.acceptNoPlan(fetchedAt);
       } else if (result.kind === "failed") {
         setAlternatives(null);
@@ -264,7 +245,7 @@ export function ResultPage() {
     return () => {
       active = false;
     };
-  }, [revision, periodMonths]);
+  }, [revision]);
 
   useEffect(() => {
     if (planStore.getState().view === null) {
@@ -384,8 +365,6 @@ export function ResultPage() {
                   onCompare={prefillComparison}
                   onApply={openAlternativeConfirm}
                   applyEnabled={alternatives !== null && !alternatives.blocked && alternatives.revision === revision}
-                  onPeriodSubmit={submitPeriod}
-                  periodError={periodError}
                   loadFailed={alternativesFailed}
                 />
                 {/* 비교 영역(#65). 조건을 바꿔 현재 조건과 나란히 본다 */}
