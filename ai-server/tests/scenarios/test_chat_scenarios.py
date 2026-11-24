@@ -132,6 +132,7 @@ CASES = [
     # --- 고정 문구 ---
     Case("C9 보유 자산 변경", [Turn("보유 자산을 1억으로 바꿔줘", ("ANSWER",), None, UNCHANGEABLE)]),
     Case("C10 목표 종류 변경", [Turn("목표 종류를 결혼 자금으로 바꿔줘", ("ANSWER",), None, UNCHANGEABLE)]),
+    Case("C10b 목표 이름 변경(#345)", one("목표를 가게 보증금으로 바꿔줘", [{"goal_custom_name": "가게 보증금"}])),
     Case("C11 계획 없음", [Turn("내 계획 결과가 어때?", ("ANSWER",), None, NO_PLAN)], plan="none"),
     # --- 초과 계획 ---
     Case("C12 초과 계획 질문", [Turn("내 계획은 어때?", ("ANSWER", "CLARIFY", "EXPLANATION"), None)], plan="exceeded"),

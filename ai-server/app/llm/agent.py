@@ -41,11 +41,13 @@ from app.llm.assemble import (
     out_of_scope_content,
 )
 from app.llm.conditions import (
+    GOAL_TYPE_WORD,
     carried_amount_sources,
     check_amount_units,
     drop_carried_conditions,
+    names_goal,
     pointed_source,
-    said_goal_name,
+    without_goal_name,
 )
 from app.llm.context import build_messages, check_plan_context, plan_model_input
 from app.llm.errors import AgentError, ForbiddenAnswer, ForbiddenReason
@@ -98,8 +100,10 @@ GOAL_NAME_ONLY_NOTE = (
     "바뀐 이름과 결과가 그대로라는 것만 한 문장으로 답하고 금액은 말하지 마세요."
 )
 _GOAL_NAME_NOT_SAID_ERROR = (
-    "목표 이름은 사용자가 이번에 말한 이름만 넣습니다. 지어내지 말고 어떤 이름으로 바꿀지 되물으세요."
+    "goal_custom_name은 사용자가 이번에 목표 이름을 바꾸라고 말한 이름만 넣습니다. 이름을 바꾸라는 말이 없으면 "
+    "goal_custom_name을 null로 두고, 이름이 분명하지 않으면 어떤 이름으로 바꿀지 되물으세요."
 )
+_GOAL_TYPE_ERROR = "목표 종류는 대화로 바꾸지 않습니다. 계산하지 말고 정해진 안내 문구로 답하세요."
 _ALL_SAVINGS_PCT = 100
 _SAME_PRODUCT_ERROR = "이미 계획의 종목입니다. 계산하지 말고 지금 계획이 이미 그 종목이라고만 답하세요."
 
@@ -340,15 +344,27 @@ class ChatAgent:
         if turn.validation_failed:
             raise CalcError("허용 범위 오류를 이미 받았습니다. 값을 고쳐 다시 계산하지 말고 사용자에게 되물으세요.")
         changes = ConditionChanges.model_validate(args)
-        # history가 있을 때만 이어받은 값이 생길 수 있다. 계산 전에 거른다(assemble에서만 거르면
-        # calc_run_id는 누적 값으로 계산된 채 condition_changes만 달라진다)
+        said = turn.req.text or ""
+        name = changes.goal_custom_name.strip() if changes.goal_custom_name is not None else None
+        if name is not None:
+            # 이름은 사용자가 이번에 바꾸라고 말한 것만 받는다(#345). 이름 속 숫자·낱말은 다른 조건으로 읽지 않는다
+            if GOAL_TYPE_WORD in said:
+                raise CalcError(_GOAL_TYPE_ERROR)
+            if not names_goal(said, name):
+                raise CalcError(_GOAL_NAME_NOT_SAID_ERROR)
+            said = without_goal_name(said, name)
+            changes = changes.model_copy(update={"goal_custom_name": None})
+        # history가 있으면 이어받은 값이 생길 수 있다. 계산 전에 거른다(assemble에서만 거르면
+        # calc_run_id는 누적 값으로 계산된 채 condition_changes만 달라진다). 이름을 바꾸면 이름을 뺀 발화로 거른다
         dropped: list[str] = []
-        if turn.req.text and turn.req.history:
-            filtered = drop_carried_conditions(turn.req.text, changes, turn.req.history)
+        if said and (turn.req.history or name is not None):
+            filtered = drop_carried_conditions(said, changes, turn.req.history)
             dropped = sorted(changes.changed().keys() - filtered.changed().keys())
             if dropped:
                 log.info("dropped carried conditions for message %s: %s", turn.req.message_id, dropped)
             changes = filtered
+        if name is not None:
+            changes = changes.model_copy(update={"goal_custom_name": name})
         # 계획에 저장된 종목(ETF 0%여도 있음, #297). 모르면(#297 전 Spring) 가정하지 않고 키를 Spring에 넘긴다.
         # Spring은 계획과 같은 종목이면 바꾸지 않은 것으로 본다(internal-calc C2-2, #294)
         planned = stored_plan_product(turn.req)
@@ -357,14 +373,9 @@ class ChatAgent:
             changes = changes.model_copy(update={"etf_product_code": None})
             if not changes.changed():
                 raise CalcError(_SAME_PRODUCT_ERROR)
-        if changes.goal_custom_name is not None:
-            name = changes.goal_custom_name.strip()
-            if not turn.req.text or not said_goal_name(turn.req.text, name):
-                raise CalcError(_GOAL_NAME_NOT_SAID_ERROR)
-            changes = changes.model_copy(update={"goal_custom_name": name})
         if not changes.changed():
             raise CalcError("바꿀 조건이 없습니다. 무엇을 바꿀지 사용자에게 되물으세요.")
-        if turn.req.text and not check_amount_units(turn.req.text, changes):
+        if said and not check_amount_units(said, changes):
             raise CalcError("목표 금액의 단위(원·만원·억원)가 발화와 맞지 않습니다. 정확한 금액을 다시 물으세요.")
         result = await self._calc.recalculate(turn.req.member_id, turn.req.baseline_scenario, changes)
         if changes.etf_product_code is not None and _changed_product(result) is None:
