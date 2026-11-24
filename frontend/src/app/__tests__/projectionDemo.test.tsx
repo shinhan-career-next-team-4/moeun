@@ -34,7 +34,7 @@ describe("예상 자산 그래프 데모 라우트", () => {
     renderAt(PROJECTION_DEMO_PATH);
 
     expect(screen.getByRole("heading", { name: "예상 자산 그래프 데모" })).toBeTruthy();
-    expect(screen.getByText("mock 데이터로 그린 화면입니다. 서버 연동 전 확인용이에요.")).toBeTruthy();
+    expect(screen.getByText("mock 데이터로 그린 화면이에요. 서버 연동 전 확인용이에요.")).toBeTruthy();
     expect(screen.getByRole("group", { name: "예상 자산 누적 그래프" })).toBeTruthy();
     expect(fetchSpy).not.toHaveBeenCalled();
   });

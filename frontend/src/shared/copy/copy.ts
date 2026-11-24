@@ -178,9 +178,9 @@ export const COPY = {
   "projection.unitMonthly": "월별",
   "projection.unitYearly": "연별",
   "projection.chartLabel": "예상 자산 누적 그래프",
-  "projection.notice": "예상치이며 실제 수익을 보장하지 않습니다.",
+  "projection.notice": "예상치라서 실제 수익을 보장하지 않아요.",
   "projection.demoTitle": "예상 자산 그래프 데모",
-  "projection.demoNotice": "mock 데이터로 그린 화면입니다. 서버 연동 전 확인용이에요.",
+  "projection.demoNotice": "mock 데이터로 그린 화면이에요. 서버 연동 전 확인용이에요.",
 } as const satisfies Record<string, string>;
 
 export type CopyMap = Record<string, string>;
