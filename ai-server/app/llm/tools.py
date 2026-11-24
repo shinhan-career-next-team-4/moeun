@@ -39,6 +39,10 @@ _CONDITION_FIELDS = {
         "description": "ETF 종목 코드. "
         + ", ".join(f"{code}={name}" for code, name in PRODUCT_INDEX_NAMES.items()),
     },
+    # 계산에는 쓰지 않지만 적용(F-5)이 계산 기록으로 기준 계획을 찾으므로 함께 보낸다(#345)
+    "goal_custom_name": _nullable(
+        "string", description="새 목표 이름. 사용자가 이번 발화에서 말한 이름을 그대로 넣는다(예: 가게 보증금)"
+    ),
 }
 
 TOOLS: list[BetaToolParam] = [
@@ -46,7 +50,7 @@ TOOLS: list[BetaToolParam] = [
         "name": "recalculate",
         "description": (
             "사용자의 현재 계획에서 일부 조건만 바꿔 Spring 계산 엔진으로 다시 계산한다. "
-            "바꿀 수 있는 조건은 목표 금액·월 저축액·적금 비중·적금 금리·기한·ETF 종목 여섯 가지이고, "
+            "바꿀 수 있는 조건은 목표 금액·월 저축액·적금 비중·적금 금리·기한·ETF 종목 여섯 가지와 목표 이름이고, "
             "바꾸지 않는 조건은 null로 둔다. "
             "금액은 원 단위 정수, 기한은 개월 수."
         ),
