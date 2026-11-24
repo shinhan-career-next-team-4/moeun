@@ -11,10 +11,14 @@ interface ScenarioCardsProps {
   scenarioMethod: string | null;
   /** 계산에 쓴 ETF 종목의 화면 이름(`display["assumptions.etfProductName"]`). 없으면 산정 방식만 보인다(#156). */
   productName?: string;
+  /** 고른 카드(#298). `onSelect`와 함께 줄 때만 쓴다. */
+  selected?: ScenarioCode;
+  /** 있으면 카드가 단추가 되어, 누르면 그 시나리오를 고른다(예상 자산 그래프의 시나리오 선택, #298). 없으면 지금처럼 보기만 한다. */
+  onSelect?: (code: ScenarioCode) => void;
 }
 
 /** 3구간 비교 카드(FR-RES-03, #50, C12a-7). */
-export function ScenarioCards({ scenarios, display, scenarioMethod, productName }: ScenarioCardsProps) {
+export function ScenarioCards({ scenarios, display, scenarioMethod, productName, selected, onSelect }: ScenarioCardsProps) {
   const methodText = scenarioMethodLine(scenarioMethod, productName);
   const byCode = new Map(scenarios.map((s) => [s.scenario, s]));
   const ordered = SCENARIO_ORDER.map((code) => byCode.get(code)).filter(
@@ -32,16 +36,39 @@ export function ScenarioCards({ scenarios, display, scenarioMethod, productName 
           const reachText = item.isAchieved
             ? display[`${item.scenario}.goalReachMonth`]
             : COPY["result.notReachedInPeriod"];
+          const asset = display[`${item.scenario}.afterTaxAsset`];
+          const gap = display[`${item.scenario}.gapToGoal`];
+          const gapTone = item.isAchieved ? "text-success" : "text-danger";
+
+          // 단추 카드: 안에는 문장 요소(span)만 둔다
+          if (onSelect) {
+            const isSelected = selected === item.scenario;
+            return (
+              <button
+                key={item.scenario}
+                type="button"
+                aria-pressed={isSelected}
+                onClick={() => onSelect(item.scenario)}
+                className={`flex flex-col gap-2 rounded-xl border p-5 text-left shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+                  isSelected ? "border-primary bg-primary-soft ring-1 ring-primary" : "border-border bg-surface hover:bg-surface-muted"
+                }`}
+              >
+                <span className="text-sm font-semibold text-text-muted">{COPY[`scenario.${item.scenario}`]}</span>
+                <span className="text-xl font-bold text-text">{asset}</span>
+                <span className={`text-sm font-medium ${gapTone}`}>{gap}</span>
+                {reachText && <span className="mt-auto pt-2 text-xs text-text-muted">{reachText}</span>}
+              </button>
+            );
+          }
+
           return (
             <article
               key={item.scenario}
               className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5 shadow-sm"
             >
               <h3 className="text-sm font-semibold text-text-muted">{COPY[`scenario.${item.scenario}`]}</h3>
-              <p className="text-xl font-bold text-text">{display[`${item.scenario}.afterTaxAsset`]}</p>
-              <p className={`text-sm font-medium ${item.isAchieved ? "text-success" : "text-danger"}`}>
-                {display[`${item.scenario}.gapToGoal`]}
-              </p>
+              <p className="text-xl font-bold text-text">{asset}</p>
+              <p className={`text-sm font-medium ${gapTone}`}>{gap}</p>
               {reachText && <p className="mt-auto pt-2 text-xs text-text-muted">{reachText}</p>}
             </article>
           );

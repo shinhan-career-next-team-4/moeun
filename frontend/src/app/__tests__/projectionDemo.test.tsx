@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import App from "../App";
+import { formatMoneyShort } from "../../features/projection/formatMoney";
+import { buildMockProjection, buildMockScenarioCards, MOCK_PROJECTION } from "../../features/projection/mockProjection";
 import { PROJECTION_DEMO_PATH } from "../routes";
 
 // 예상 자산 누적 그래프 데모 페이지(#298). mock 데이터로 그리는 확인용이라 개발 환경에서만 열린다.
@@ -36,6 +38,47 @@ describe("예상 자산 그래프 데모 라우트", () => {
     expect(screen.getByRole("group", { name: "예상 자산 누적 그래프" })).toBeTruthy();
     expect(screen.getByText("10년 뒤 예상 자산")).toBeTruthy();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("위쪽 3구간 카드가 시나리오 버튼이다: 처음엔 평균이 눌려 있고 카드를 누르면 그래프 숫자가 바뀐다", () => {
+    renderAt(PROJECTION_DEMO_PATH);
+
+    expect(screen.getByRole("button", { name: /평균/ }).getAttribute("aria-pressed")).toBe("true");
+    const headline = screen.getByRole("region", { name: "10년 뒤 예상 자산" });
+    expect(within(headline).getByText(`${formatMoneyShort(MOCK_PROJECTION.AVG[119].total)}원`)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /좋았던 때/ }));
+
+    expect(screen.getByRole("button", { name: /좋았던 때/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: /평균/ }).getAttribute("aria-pressed")).toBe("false");
+    expect(within(headline).getByText(`${formatMoneyShort(MOCK_PROJECTION.GOOD[119].total)}원`)).toBeTruthy();
+  });
+
+  it("그래프 안의 '하위 10%·상위 10%' 시나리오 버튼은 없다", () => {
+    renderAt(PROJECTION_DEMO_PATH);
+
+    expect(screen.queryByText("하위 10%")).toBeNull();
+    expect(screen.queryByText("상위 10%")).toBeNull();
+  });
+
+  it("데모 전용 '데모 기간'을 30년으로 바꾸면 30년치가 그려지고 카드 금액도 30년 값이 된다", () => {
+    renderAt(PROJECTION_DEMO_PATH);
+
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "데모 기간" })).getByRole("radio", { name: "30년" }));
+
+    expect(screen.getByRole("region", { name: "30년 뒤 예상 자산" })).toBeTruthy();
+    const { display } = buildMockScenarioCards(buildMockProjection(30));
+    expect(screen.getByRole("button", { name: /평균/ }).textContent).toContain(display["AVG.afterTaxAsset"]);
+  });
+
+  it("기간을 바꿔도 고른 시나리오는 유지된다", () => {
+    renderAt(PROJECTION_DEMO_PATH);
+    fireEvent.click(screen.getByRole("button", { name: /나빴던 때/ }));
+
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "데모 기간" })).getByRole("radio", { name: "20년" }));
+
+    expect(screen.getByRole("button", { name: /나빴던 때/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("region", { name: "20년 뒤 예상 자산" })).toBeTruthy();
   });
 
   it("개발 환경이 아니면(운영 빌드) 데모 경로는 열리지 않는다", () => {

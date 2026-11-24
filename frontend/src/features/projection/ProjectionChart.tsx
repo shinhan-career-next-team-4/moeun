@@ -8,31 +8,26 @@ import { formatPeriod } from "./period";
 import { toYearly } from "./selectPoints";
 import type { ProjectionData, ProjectionScenario, ProjectionUnit } from "./types";
 
-const SCENARIOS: readonly ProjectionScenario[] = ["LOW", "BASE", "HIGH"];
+const SCENARIOS: readonly ProjectionScenario[] = ["GOOD", "AVG", "BAD"];
 
 const UNIT_OPTIONS: readonly ChipOption<ProjectionUnit>[] = [
   { value: "monthly", label: COPY["projection.unitMonthly"] },
   { value: "yearly", label: COPY["projection.unitYearly"] },
 ];
 
-const SCENARIO_OPTIONS: readonly ChipOption<ProjectionScenario>[] = SCENARIOS.map((value) => ({
-  value,
-  label: COPY[`projection.scenario${value}`],
-}));
-
 export interface ProjectionChartProps {
-  /** 시나리오 3개의 월별 점. 모두 서버가 계산한 값이고 이 화면은 그리기만 한다. */
+  /** 시나리오 3개의 월별 점(최대 360개월). 모두 서버가 계산한 값이고 이 화면은 그리기만 한다. */
   data: ProjectionData;
-  defaultScenario?: ProjectionScenario;
+  /** 어느 시나리오를 그릴지. 위쪽 3구간 카드가 고르고, 이 화면은 받은 값만 그린다. */
+  scenario: ProjectionScenario;
   defaultUnit?: ProjectionUnit;
 }
 
 /**
- * "N년 뒤 예상 자산" 누적 그래프 화면(#298): 상단 결론 숫자, 범례, 토글 두 개, 그래프, 안내 문구.
- * 토글(월별/연별, 시나리오)은 화면 안의 상태이고, 값은 받은 data에서 고르기만 한다.
+ * "N년 뒤 예상 자산" 누적 그래프 화면(#298): 상단 결론 숫자, 범례, 월별/연별 토글, 그래프, 안내 문구.
+ * 월별/연별은 화면 안의 상태이고, 값은 받은 data에서 고르기만 한다.
  */
-export function ProjectionChart({ data, defaultScenario = "BASE", defaultUnit = "monthly" }: ProjectionChartProps) {
-  const [scenario, setScenario] = useState<ProjectionScenario>(defaultScenario);
+export function ProjectionChart({ data, scenario, defaultUnit = "monthly" }: ProjectionChartProps) {
   const [unit, setUnit] = useState<ProjectionUnit>(defaultUnit);
 
   const monthly = data[scenario];
@@ -54,10 +49,7 @@ export function ProjectionChart({ data, defaultScenario = "BASE", defaultUnit = 
         <p className="text-lg font-semibold text-success">{COPY["projection.profit"].replace("{amount}", formatMoneyShort(last.profit))}</p>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <ChipGroup label={COPY["projection.unitLabel"]} options={UNIT_OPTIONS} value={unit} onChange={setUnit} />
-        <ChipGroup label={COPY["projection.scenarioLabel"]} options={SCENARIO_OPTIONS} value={scenario} onChange={setScenario} />
-      </div>
+      <ChipGroup label={COPY["projection.unitLabel"]} options={UNIT_OPTIONS} value={unit} onChange={setUnit} />
 
       <ul aria-label={COPY["projection.legendLabel"]} className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted">
         {LAYERS.map((layer) => (
