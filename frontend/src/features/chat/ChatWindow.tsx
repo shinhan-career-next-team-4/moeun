@@ -154,7 +154,8 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleA
   const etfProducts = useEtfProducts(deps.api, etfProductCode);
   const goalName = useSyncExternalStore(subscribe, () => planGoalName(store.getState()));
 
-  const comparison = useComparison(comparisonController, chat.messages, settledStatus === "ALREADY_EXCEEDED");
+  // 목표를 이미 넘긴 계획도 목표 금액을 올리는 비교는 적용할 수 있어서 적용 버튼을 숨기지 않는다(#382)
+  const comparison = useComparison(comparisonController, chat.messages, false);
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
