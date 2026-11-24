@@ -1,29 +1,21 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { COPY } from "../../shared/copy/copy";
-import { ChipGroup, type ChipOption } from "../../shared/ui";
 import { ScenarioCards } from "../result/ScenarioCards";
-import { buildMockProjection, buildMockScenarioCards } from "./mockProjection";
+import { buildMockScenarioCards, MOCK_PROJECTION } from "./mockProjection";
 import { ProjectionChart } from "./ProjectionChart";
 import type { ProjectionScenario } from "./types";
 
-/** 데모에서 고를 수 있는 기간(년). 컴포넌트는 최대 30년까지 받는다. */
-const PERIOD_YEARS = [10, 20, 30] as const;
-
-const PERIOD_OPTIONS: readonly ChipOption<string>[] = PERIOD_YEARS.map((years) => ({
-  value: String(years),
-  label: COPY["projection.axisYear"].replace("{n}", String(years)),
-}));
+// 카드용 mock은 한 번만 만든다(그래프 데이터는 10년치 MOCK_PROJECTION)
+const MOCK_CARDS = buildMockScenarioCards(MOCK_PROJECTION);
 
 /**
  * 예상 자산 누적 그래프를 mock 데이터로 확인하는 데모 페이지(#298). 서버 연동 전 확인용이다.
  * 위쪽 3구간 카드가 시나리오 버튼이고, 고른 시나리오를 아래 그래프가 그린다.
- * 연동되면 이 페이지·mock·"데모 기간"은 지우고, 결과 화면에서 같은 카드와 ProjectionChart에 서버 응답을 넘기면 된다.
+ * 연동되면 이 페이지와 mock은 지우고, 결과 화면에서 같은 카드와 ProjectionChart에 서버 응답을 넘기면 된다.
+ * (컴포넌트는 최대 30년까지 받는다. 데모는 10년치만 보여 준다)
  */
 export function ProjectionDemoPage() {
-  const [years, setYears] = useState(10);
   const [scenario, setScenario] = useState<ProjectionScenario>("AVG");
-  const data = useMemo(() => buildMockProjection(years), [years]);
-  const cards = useMemo(() => buildMockScenarioCards(data), [data]);
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8 sm:px-6">
@@ -31,21 +23,15 @@ export function ProjectionDemoPage() {
         <h1 className="text-xl font-bold text-text">{COPY["projection.demoTitle"]}</h1>
         <p className="mt-1 text-sm text-text-muted">{COPY["projection.demoNotice"]}</p>
       </div>
-      <ChipGroup
-        label={COPY["projection.demoPeriodLabel"]}
-        options={PERIOD_OPTIONS}
-        value={String(years)}
-        onChange={(value) => setYears(Number(value))}
-      />
       <ScenarioCards
-        scenarios={cards.scenarios}
-        display={cards.display}
+        scenarios={MOCK_CARDS.scenarios}
+        display={MOCK_CARDS.display}
         scenarioMethod="ROLLING_DISTRIBUTION"
         productName="S&P500 추종 ETF"
         selected={scenario}
         onSelect={setScenario}
       />
-      <ProjectionChart data={data} scenario={scenario} />
+      <ProjectionChart data={MOCK_PROJECTION} scenario={scenario} />
     </div>
   );
 }

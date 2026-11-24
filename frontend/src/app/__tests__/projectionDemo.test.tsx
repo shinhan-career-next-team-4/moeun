@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom";
 import App from "../App";
 import { formatMoneyShort } from "../../features/projection/formatMoney";
-import { buildMockProjection, buildMockScenarioCards, MOCK_PROJECTION } from "../../features/projection/mockProjection";
+import { MOCK_PROJECTION } from "../../features/projection/mockProjection";
 import { PROJECTION_DEMO_PATH } from "../routes";
 
 // 예상 자산 누적 그래프 데모 페이지(#298). mock 데이터로 그리는 확인용이라 개발 환경에서만 열린다.
@@ -61,24 +61,12 @@ describe("예상 자산 그래프 데모 라우트", () => {
     expect(screen.queryByText("상위 10%")).toBeNull();
   });
 
-  it("데모 전용 '데모 기간'을 30년으로 바꾸면 30년치가 그려지고 카드 금액도 30년 값이 된다", () => {
+  it("기간을 고르는 '데모 기간' 버튼은 없고 10년치가 그려진다", () => {
     renderAt(PROJECTION_DEMO_PATH);
 
-    fireEvent.click(within(screen.getByRole("radiogroup", { name: "데모 기간" })).getByRole("radio", { name: "30년" }));
-
-    expect(screen.getByRole("region", { name: "30년 뒤 예상 자산" })).toBeTruthy();
-    const { display } = buildMockScenarioCards(buildMockProjection(30));
-    expect(screen.getByRole("button", { name: /평균/ }).textContent).toContain(display["AVG.afterTaxAsset"]);
-  });
-
-  it("기간을 바꿔도 고른 시나리오는 유지된다", () => {
-    renderAt(PROJECTION_DEMO_PATH);
-    fireEvent.click(screen.getByRole("button", { name: /나빴던 때/ }));
-
-    fireEvent.click(within(screen.getByRole("radiogroup", { name: "데모 기간" })).getByRole("radio", { name: "20년" }));
-
-    expect(screen.getByRole("button", { name: /나빴던 때/ }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("region", { name: "20년 뒤 예상 자산" })).toBeTruthy();
+    expect(screen.queryByRole("radiogroup", { name: "데모 기간" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "30년" })).toBeNull();
+    expect(screen.getByRole("region", { name: "10년 뒤 예상 자산" })).toBeTruthy();
   });
 
   it("개발 환경이 아니면(운영 빌드) 데모 경로는 열리지 않는다", () => {
