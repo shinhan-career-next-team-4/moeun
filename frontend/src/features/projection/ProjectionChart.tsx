@@ -7,6 +7,9 @@ import { ProjectionUnitToggle } from "./ProjectionUnitToggle";
 import { toYearly } from "./selectPoints";
 import type { ProjectionData, ProjectionScenario, ProjectionUnit } from "./types";
 
+/** 월별/연별 토글은 이 개월 수(5년) 이상일 때만 보인다. 그보다 짧으면 월별로만 그린다. */
+const UNIT_TOGGLE_MIN_MONTHS = 60;
+
 const SCENARIOS: readonly ProjectionScenario[] = ["GOOD", "AVG", "BAD"];
 
 export interface ProjectionChartProps {
@@ -29,7 +32,8 @@ export function ProjectionChart({ data, scenario, defaultUnit = "monthly" }: Pro
 
   // 범례의 최종 금액은 월별/연별과 상관없이 마지막 달 값이다
   const last = monthly[monthly.length - 1];
-  const points = unit === "yearly" ? toYearly(monthly) : monthly;
+  const showUnitToggle = last.month >= UNIT_TOGGLE_MIN_MONTHS;
+  const points = showUnitToggle && unit === "yearly" ? toYearly(monthly) : monthly;
   const monthRange = { min: monthly[0].month, max: last.month };
   // 세로축은 모든 시나리오 중 가장 큰 합계 기준: 시나리오를 바꿔도 축이 출렁이지 않는다
   const maxValue = Math.max(0, ...SCENARIOS.flatMap((key) => (data[key] ?? []).map((point) => point.total)));
@@ -47,7 +51,7 @@ export function ProjectionChart({ data, scenario, defaultUnit = "monthly" }: Pro
             </li>
           ))}
         </ul>
-        <ProjectionUnitToggle unit={unit} onChange={setUnit} />
+        {showUnitToggle && <ProjectionUnitToggle unit={unit} onChange={setUnit} />}
       </div>
 
       <AreaChart
