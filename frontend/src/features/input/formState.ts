@@ -14,6 +14,7 @@ import type { FormErrors, FormField, GoalType, PlanForm, PutPlanRequest } from "
 
 export const FIELD_ORDER: FormField[] = [
   "goalType",
+  "goalCustomName",
   "goalAmount",
   "targetPeriodMonths",
   "heldAssets",
@@ -26,6 +27,7 @@ export const FIELD_ORDER: FormField[] = [
 export function emptyForm(): PlanForm {
   return {
     goalType: null,
+    goalCustomName: "",
     goalAmount: "",
     periodKnown: true,
     savingKnown: true,
@@ -45,6 +47,7 @@ export function formFromPlan(plan: ResultPlanBody): PlanForm {
   const { years, months } = splitMonths(plan.targetPeriodMonths);
   return {
     goalType: plan.goalType as GoalType,
+    goalCustomName: plan.goalCustomName ?? "",
     goalAmount: wonToManwon(plan.goalAmount),
     periodKnown: true,
     savingKnown: true,
@@ -64,6 +67,8 @@ export function formFromPlan(plan: ResultPlanBody): PlanForm {
 export function validateClientForm(form: PlanForm): FormErrors {
   const errors: FormErrors = {};
   if (form.goalType === null) errors.goalType = COPY["validation.REQUIRED"];
+  // 직접 입력이면 목표 이름이 필요하다. 길이(100자)는 서버 422에 맡긴다(C12a-5-4)
+  if (form.goalType === "CUSTOM" && isBlank(form.goalCustomName)) errors.goalCustomName = COPY["validation.REQUIRED"];
 
   if (isBlank(form.goalAmount)) errors.goalAmount = COPY["validation.REQUIRED"];
   else if (!manwonToWon(form.goalAmount).ok) errors.goalAmount = COPY["input.invalidAmountFormat"];
@@ -132,7 +137,7 @@ export function buildPutPlanBody(
   return {
     expectedRevision,
     goalType: form.goalType,
-    goalCustomName: null,
+    goalCustomName: form.goalType === "CUSTOM" ? form.goalCustomName.trim() : null,
     goalAmount: goalAmount.won,
     targetPeriodMonths: toMonths(years, months),
     heldAssets: heldAssets.won,
