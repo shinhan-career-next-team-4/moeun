@@ -77,5 +77,6 @@ uv run --no-project --with httpx --with pytest pytest scripts/e2e -k s5_5 -v
 | `test_12_conversation.py` | S8 실제 대화 실패의 회귀: 금액 표현, 되묻기 뒤 금액만 답하기, 답 길이, 세금 안내 없음, 다른 ETF 출처 (`-m ai`, #234) |
 | `journeys.py` | 타깃 사용자 7명의 여정 데이터 |
 | `test_20_journeys.py` | S9 여정 실행 (입력·판정·대안 + 대화·적용·되돌리기) |
+| `demo_scenarios_real.py` | 데모 대화 시나리오(`docs/demo-scenarios.md`) 5개를 진짜 Spring에 붙여 N회 실행(pytest 아님, #57) |
 | `journeys.md` | 실행 후 생기는 여정 기록 (git 제외) |
 | `report.md` | 실행 후 생기는 페르소나별 결과 표 (git 제외) |
