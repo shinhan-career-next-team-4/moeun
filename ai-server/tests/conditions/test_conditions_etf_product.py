@@ -70,10 +70,18 @@ class NoStockJudge:
         return False
 
 
-def plan(savings_ratio_pct: int | None = None) -> dict[str, Any]:
-    """계획 종목 S&P500(SP500)인 planContext. ETF 0% 계획은 종목 표시 키가 없다."""
+def plan(savings_ratio_pct: int | None = None, stored_product: str | None = "SP500") -> dict[str, Any]:
+    """계획 종목 S&P500(SP500)인 planContext. ETF 0% 계획은 종목 표시 키가 없다.
+
+    stored_product는 conditions.etfProductCode(계획에 저장된 종목, #297)다. None이면 그 키를 뺀다(#297 전 Spring).
+    """
     name = "plan-context-basic.json" if savings_ratio_pct is None else "plan-context-etf0.json"
-    return json.loads((PLAN_DIR / name).read_text(encoding="utf-8"))
+    context: dict[str, Any] = json.loads((PLAN_DIR / name).read_text(encoding="utf-8"))
+    if stored_product is None:
+        context["conditions"].pop("etfProductCode", None)
+    else:
+        context["conditions"]["etfProductCode"] = stored_product
+    return context
 
 
 def kospi_response(changed_ratio: int = 50, code: str = "069500", name: str = KOSPI) -> dict[str, Any]:
@@ -200,13 +208,12 @@ def unchanged_product_response(changed_ratio: int = 100) -> dict[str, Any]:
 
 
 async def test_etf_zero_plan_sends_the_product_key_to_spring():
-    """ETF 0% 계획은 planContext에 종목 코드가 없다. 계획에는 SP500이 아닌 종목이 저장돼 있을 수 있으므로(#154)
-    같은 종목이라고 가정해 빼지 않고 Spring에 넘긴다(#294)"""
+    """계획 종목을 모르면(ETF 0%이고 #297 전 Spring) 같은 종목이라고 가정해 빼지 않고 Spring에 넘긴다(#294)"""
     _, _, calc = await run(
         tool_resp({"etf_product_code": "SP500", "monthly_saving_amount": 500_000}),
         text_resp("RECALC_RESULT", "월 50만원으로 계산했어요."),
         text="S&P500으로 하고 월 50만원 넣으면?", calc=FakeCalc(unchanged_product_response()),
-        plan_context=plan(savings_ratio_pct=100),
+        plan_context=plan(savings_ratio_pct=100, stored_product=None),
     )
     assert calc.calls == [{"etf_product_code": "SP500", "monthly_saving_amount": 500_000}]
 
@@ -217,7 +224,7 @@ async def test_etf_zero_plan_drops_the_key_spring_saw_as_unchanged():
         tool_resp({"etf_product_code": "SP500", "monthly_saving_amount": 500_000}),
         text_resp("RECALC_RESULT", "월 50만원으로 계산했어요."),
         text="S&P500으로 하고 월 50만원 넣으면?", calc=FakeCalc(unchanged_product_response()),
-        plan_context=plan(savings_ratio_pct=100),
+        plan_context=plan(savings_ratio_pct=100, stored_product=None),
     )
     assert resp.condition_changes == {"monthly_saving_amount": 500_000}
 
@@ -237,12 +244,45 @@ async def test_etf_zero_plan_product_only_same_as_plan_is_the_plan_product():
     resp, claude, calc = await run(
         tool_resp({"etf_product_code": "SP500"}), text_resp("ANSWER", "지금 계획의 종목과 같아서 바꿀 것이 없어요."),
         text="S&P500으로 바꾸면?", calc=FakeCalc(unchanged_product_response()),
-        plan_context=plan(savings_ratio_pct=100),
+        plan_context=plan(savings_ratio_pct=100, stored_product=None),
     )
     assert calc.calls == [{"etf_product_code": "SP500"}]
     assert any("이미 계획의 종목" in r for r in claude.tool_results())
     assert resp.message_type == "ANSWER"
     assert resp.condition_changes is None
+
+
+async def test_etf_zero_plan_same_stored_product_is_not_calculated():
+    """ETF 0% 계획도 planContext가 계획의 종목을 알려 주면(#297) 같은 종목만 바꾸라는 말은 계산하지 않는다"""
+    resp, claude, calc = await run(
+        tool_resp({"etf_product_code": "SP500"}), text_resp("ANSWER", "지금 계획의 종목과 같아서 바꿀 것이 없어요."),
+        text="S&P500으로 바꾸면?", plan_context=plan(savings_ratio_pct=100),
+    )
+    assert calc.calls == []
+    assert any("이미 계획의 종목" in r for r in claude.tool_results())
+    assert resp.condition_changes is None
+
+
+async def test_etf_zero_plan_same_stored_product_is_dropped_before_calc():
+    """같은 종목 키는 계산 전에 빼고 나머지 조건만 계산한다(#297)"""
+    resp, _, calc = await run(
+        tool_resp({"etf_product_code": "SP500", "monthly_saving_amount": 500_000}),
+        text_resp("RECALC_RESULT", "월 50만원으로 계산했어요."),
+        text="S&P500으로 하고 월 50만원 넣으면?", calc=FakeCalc(unchanged_product_response()),
+        plan_context=plan(savings_ratio_pct=100),
+    )
+    assert calc.calls == [{"monthly_saving_amount": 500_000}]
+    assert resp.condition_changes == {"monthly_saving_amount": 500_000}
+
+
+async def test_etf_zero_plan_with_another_stored_product_sends_sp500():
+    """ETF 0% 계획에 다른 종목(069500)이 저장돼 있으면 S&P500은 바꾼 종목이라 Spring에 넘긴다(#297)"""
+    _, _, calc = await run(
+        tool_resp({"etf_product_code": "SP500"}), text_resp("RECALC_RESULT", ETF_ZERO_SENTENCE),
+        text="S&P500으로 바꾸면?", calc=FakeCalc(kospi_response(changed_ratio=100, code="SP500", name="S&P500 추종 ETF")),
+        plan_context=plan(savings_ratio_pct=100, stored_product="069500"),
+    )
+    assert calc.calls == [{"etf_product_code": "SP500"}]
 
 
 async def test_etf_note_is_absent_when_the_changed_side_uses_etf():

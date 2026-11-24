@@ -6,7 +6,8 @@
     "monthlySavingAmount": 100000,
     "targetPeriodMonths": 3,
     "savingsRatioPct": 100,
-    "savingsRateInputPct": 3.12
+    "savingsRateInputPct": 3.12,
+    "etfProductCode": "SP500"
   },
   "result": {
     "status": "CALCULATED",

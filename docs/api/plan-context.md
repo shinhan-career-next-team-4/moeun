@@ -54,7 +54,7 @@
 
 ## C1a-3. `conditions`
 
-계산에 **실제로 쓴 값**. 6개 키가 항상 모두 있다.
+계산에 **실제로 쓴 값** 6개와 계획의 ETF 종목 코드. 7개 키가 항상 모두 있다.
 
 | 키 | JSON 타입 | 단위 | 출처 | display 키 |
 |---|---|---|---|---|
@@ -64,9 +64,11 @@
 | `targetPeriodMonths` | integer | MONTH | `CalcInput.targetPeriodMonths` | `conditions.targetPeriodMonths` |
 | `savingsRatioPct` | integer | PCT | `CalcInput.savingsRatioPct`(해석된 비중) | `conditions.savingsRatioPct` |
 | `savingsRateInputPct` | number | PCT(연, 세전) | `CalcInput.savingsRatePct`(실제 쓴 금리) | `conditions.savingsRateInputPct` |
+| `etfProductCode` | string | — | `PlanView.etfProductCode`(그 계획 버전에 저장된 종목) | 없음 |
 
 - 출처는 `CalcInput`(ConditionResolver 결과) 하나. 왜: `plan_version.savings_rate_input_pct`는 NULL일 수 있어 raw 컬럼을 읽으면 틀린다. `/internal/calc`의 `conditions.current`(4키)와 같은 매퍼를 쓴다.
 - `CalcInput`의 `monthlySavingAmount`·`targetPeriodMonths`는 nullable 타입이다. 해커톤에서는 항상 값이 있지만(D-045) DTO는 nullable 그대로 두고 null이면 `null`로 보낸다(원칙 3).
+- **[#297] `etfProductCode`는 계획에 저장된 종목**이다. ETF 0%(적금 100%)여도 있다. 계산에 쓴 종목은 `result.assumptions.etfProductCode`(C1a-5, ETF 0%면 null)이고 뜻이 다르다. ai-server는 대화로 종목을 바꿀 때 계획과 같은 종목인지 이 값으로 먼저 본다(D-097). PLAN 기록으로 만들면 그 기록의 계획 버전 값이다. 모델에는 넘기지 않는다.
 - **와이어에는 남기고 모델에는 넘기지 않는다.** ai-server `PlanContext`는 이 객체를 **선택 필드**로 둔다. 왜 남기나: 제공자 비용이 매퍼 하나이고 로그·fixture 대조에 쓰인다.
 
 ## C1a-4. `result`
@@ -199,7 +201,8 @@
 | `result.assumptions.scenarioMethod`, `.excludedItems` | 키 필수, 값 null 가능 | |
 | `display` | 필수 | JSON 객체가 아니면 422. 값 타입은 아래 필터에서 처리 |
 | `calcRunId` | 선택 | EXPLAIN에서는 아래 검사로 사실상 필수 |
-| `conditions`, 그 밖의 raw 필드 | 선택(선언하지 않아도 됨) | 이름이 바뀌어도 모델 입력이 깨지지 않음 |
+| `conditions.etfProductCode` | 선택 | [#297] 계획 종목 판단에만 읽는다. 없으면(옛 Spring) `result.assumptions.etfProductCode` → 종목 표시 이름 순으로 읽는다 |
+| `conditions`의 나머지, 그 밖의 raw 필드 | 선택(선언하지 않아도 됨) | 이름이 바뀌어도 모델 입력이 깨지지 않음 |
 
   왜: 모델이 쓰는 필드가 사라지면 즉시 422로 드러나고, 모델이 안 쓰는 raw 필드 변경에는 깨지지 않는다.
 - **display 필터**: `display`는 `dict[str, Any]`로 받고, **키가 허용 패턴에 맞고 값이 문자열인 항목만** 남긴다. 나머지는 조용히 버린다. 값 내용 필터는 두지 않는다.

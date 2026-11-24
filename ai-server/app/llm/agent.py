@@ -48,7 +48,7 @@ from app.llm.conditions import (
 )
 from app.llm.context import build_messages, check_plan_context, plan_model_input
 from app.llm.errors import AgentError, ForbiddenAnswer, ForbiddenReason
-from app.llm.etf import plan_product, search_etf_codes
+from app.llm.etf import search_etf_codes, stored_plan_product
 from app.llm.judge import LlmStockJudge
 from app.llm.plan import plan_etf_name
 from app.llm.prompts import SYSTEM_PROMPT
@@ -331,9 +331,9 @@ class ChatAgent:
             if dropped:
                 log.info("dropped carried conditions for message %s: %s", turn.req.message_id, dropped)
             changes = filtered
-        # ETF 0% 계획은 planContext에 종목 코드가 없다. 계획에는 SP500이 아닌 종목도 저장되므로(#154) 모르면 가정하지
-        # 않고 키를 Spring에 넘긴다. Spring은 계획과 같은 종목이면 바꾸지 않은 것으로 본다(internal-calc C2-2, #294)
-        planned = plan_product(turn.req)
+        # 계획에 저장된 종목(ETF 0%여도 있음, #297). 모르면(#297 전 Spring) 가정하지 않고 키를 Spring에 넘긴다.
+        # Spring은 계획과 같은 종목이면 바꾸지 않은 것으로 본다(internal-calc C2-2, #294)
+        planned = stored_plan_product(turn.req)
         if changes.etf_product_code is not None and changes.etf_product_code == planned:
             # 계획과 같은 종목은 바꾸지 않은 것이다(D-097)
             changes = changes.model_copy(update={"etf_product_code": None})
