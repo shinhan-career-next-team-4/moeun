@@ -9,10 +9,7 @@ paths:
 ## 경계
 
 - 모듈은 `com.moeun.backend` 바로 아래의 패키지다. 의존 방향은 `package-info.java`의 `@ApplicationModule(allowedDependencies = ...)`로 고정한다. `{}`는 의존 없음이다.
-- 모듈 루트 패키지는 공개 API다. 다른 모듈이 쓰는 서비스, 이벤트, DTO만 둔다. 나머지는 하위 패키지에 두며 밖에서 접근할 수 없다.
-  - `domain`: 엔티티, 리포지토리
-  - `application`: 유스케이스 서비스, 이벤트 리스너
-  - `web`: 컨트롤러, 요청·응답 DTO
+- 모듈 루트 패키지는 공개 API다. 다른 모듈이 쓰는 서비스, 이벤트, DTO만 둔다. 나머지는 하위 패키지에 두며 밖에서 접근할 수 없다. 하위 패키지(`domain`·`application`·`infrastructure`·`web`)의 책임과 금지 의존은 `ARCHITECTURE.md`가 기준이다.
 - 다른 모듈의 엔티티와 리포지토리를 쓰지 않는다. JPA 연관관계는 모듈 안에서만 맺고, 다른 모듈의 행은 ID(`Long`)로 참조한다.
 - 순환 의존은 금지다. 역방향 호출이 필요하면 이벤트로 푼다.
 

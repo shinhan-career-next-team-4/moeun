@@ -17,12 +17,12 @@ import {
   type ConditionChanges,
   type EtfApplyRequest,
 } from "../compare";
+import { ProjectionChart, type ProjectionScenario } from "../projection";
 import { AssumptionsSection } from "./AssumptionsSection";
 import { Disclaimer } from "./Disclaimer";
 import { GoalBar } from "./GoalBar";
 import { PlanConditionBar } from "./PlanConditionBar";
 import { ResultLayout } from "./ResultLayout";
-import { ResultChart } from "./ResultChart";
 import { ScenarioCards } from "./ScenarioCards";
 import { UndoToast } from "./UndoToast";
 import type { ResultPlanView } from "./types";
@@ -34,6 +34,8 @@ const getSnapshot = () => planStore.getState();
 export function ResultPage() {
   const { view, revision } = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const [loadError, setLoadError] = useState(false);
+  // 3구간 카드로 고른 시나리오(#315). 비어 있으면 기준 시나리오를 그린다
+  const [pickedScenario, setPickedScenario] = useState<ProjectionScenario | null>(null);
   // 비교 영역(#65)은 프론트 상태만 쓴다. 적용 전까지 내 계획은 바뀌지 않는다(FR-CMP-02)
   const [comparison, setComparison] = useState<ComparisonView | null>(null);
   const [comparing, setComparing] = useState(false);
@@ -296,6 +298,14 @@ export function ResultPage() {
   const data = view.body as ResultPlanView;
   const { result, display, baselineResultScenario } = data;
   const isExceeded = result.status === "ALREADY_EXCEEDED";
+  // 영역 그래프(#315)는 서버 projection이 있을 때만 그린다. 고른 시나리오가 응답에 없으면 기준 → 응답의 첫 시나리오 순으로 고른다
+  const projection = result.projection ?? {};
+  const projectionScenarios = result.scenarios.map((s) => s.scenario).filter((code) => (projection[code] ?? []).length > 0);
+  const chartScenario =
+    (pickedScenario && projectionScenarios.includes(pickedScenario) ? pickedScenario : null) ??
+    (baselineResultScenario && projectionScenarios.includes(baselineResultScenario) ? baselineResultScenario : null) ??
+    projectionScenarios[0] ??
+    null;
   const baseline = baselineResultScenario
     ? result.scenarios.find((s) => s.scenario === baselineResultScenario)
     : undefined;
@@ -356,13 +366,10 @@ export function ResultPage() {
                   display={display}
                   scenarioMethod={result.assumptions.scenarioMethod}
                   productName={display["assumptions.etfProductName"]}
+                  selected={chartScenario ?? undefined}
+                  onSelect={chartScenario ? setPickedScenario : undefined}
                 />
-                <ResultChart
-                  scenarios={result.scenarios}
-                  goalAmount={result.goalAmount}
-                  display={display}
-                  principalPoints={result.principalPoints}
-                />
+                {chartScenario && <ProjectionChart data={projection} scenario={chartScenario} />}
                 {/* ETF 종목 비교(#156). 종목을 골라 저장 없이 미리본다. ETF 0%면 스스로 숨는다 */}
                 <EtfCompareSection
                   currentProductName={display["assumptions.etfProductName"] ?? ""}

@@ -49,7 +49,7 @@ Issue 하나를 끝까지 처리하는 상세 절차는 `.claude/workflows/work-
 
 ## 명령
 
-- backend: `cd backend && ./gradlew checkstyleMain checkstyleTest test` (Docker 필요. 빠른 검사는 `--tests ModularityTests`)
+- backend: `cd backend && ./gradlew checkstyleMain checkstyleTest test` (Docker 필요. 빠른 검사는 `--tests ModularityTests --tests ArchitectureTests`)
 - ai-server: `cd ai-server && uv run ruff check . && uv run mypy && uv run pytest`
 - frontend: (프로젝트 초기 설정 Issue에서 정함)
 

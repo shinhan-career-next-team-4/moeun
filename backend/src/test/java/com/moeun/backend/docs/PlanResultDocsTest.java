@@ -93,8 +93,12 @@ class PlanResultDocsTest {
                                 fieldWithPath("result.targetMonth").description("목표월(yyyy-MM)"),
                                 subsectionWithPath("result.scenarios")
                                         .description("GOOD·AVG·BAD(ETF 0%면 AVG). monthlyPoints는 month·afterTaxAsset만"),
+                                subsectionWithPath("result.monthlyDetails")
+                                        .description("월별 표시 문자열(month·label·principal·afterTaxAsset). 월을 눌렀을 때의 값"),
                                 subsectionWithPath("result.principalPoints")
                                         .description("누적 납입 원금 월별 점(month·principal). 보유 자산 + 월 저축액 × 경과 개월"),
+                                subsectionWithPath("result.projection")
+                                        .description("시나리오별 월별 층(원금·적금이자·ETF손익·합계)"),
                                 subsectionWithPath("result.assumptions").description("가정 보기"),
                                 subsectionWithPath("display").description("표시 문자열 맵(C1a-6 키·형식)"))
                         .build())));
@@ -130,8 +134,12 @@ class PlanResultDocsTest {
                                 fieldWithPath("result.targetMonth").description("목표월(yyyy-MM)"),
                                 subsectionWithPath("result.scenarios")
                                         .description("GOOD·AVG·BAD(ETF 0%면 AVG). monthlyPoints는 month·afterTaxAsset만"),
+                                subsectionWithPath("result.monthlyDetails")
+                                        .description("월별 표시 문자열(month·label·principal·afterTaxAsset). 월을 눌렀을 때의 값"),
                                 subsectionWithPath("result.principalPoints")
                                         .description("누적 납입 원금 월별 점(month·principal). 보유 자산 + 월 저축액 × 경과 개월"),
+                                subsectionWithPath("result.projection")
+                                        .description("시나리오별 월별 층(원금·적금이자·ETF손익·합계)"),
                                 subsectionWithPath("result.assumptions").description("가정 보기"),
                                 subsectionWithPath("display").description("표시 문자열 맵(C1a-6 키·형식)"))
                         .build())));

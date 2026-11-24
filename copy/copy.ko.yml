@@ -280,6 +280,8 @@ result:
     ROLLING_DISTRIBUTION: "과거 10년 수익률로 1만 가지 경우를 계산해 세 구간 (가정 보기 참고)"
   # W-04 와이어프레임: 그래프 범례
   chartLegendPrincipal: "누적 납입 원금"
+  monthDetailLabel: "월별 상세"
+  monthDetailClose: "닫기"
   chartLegendGoal: "목표선"
   loadFailed: "결과를 불러오지 못했어요. 다시 시도해 주세요"
   # 결과 화면용 초과 안내(FR-RES-01, D-090·D-092). 대화창용 chat.alreadyExceeded와 합치지 않는다
@@ -317,3 +319,23 @@ goal:
   TRAVEL: "여행"
   EMERGENCY_FUND: "비상금"
   CUSTOM: "직접 입력"
+
+# 예상 자산 누적 그래프(#298). 금액은 서버 값을 줄여서 보일 뿐 화면이 만들지 않는다
+projection:
+  axisYear: "{n}년"
+  periodMonths: "{m}개월"
+  periodYears: "{y}년"
+  periodYearsMonths: "{y}년 {m}개월"
+  principal: "원금"
+  savingsInterest: "적금 이자"
+  etfGain: "ETF 수익"
+  total: "합계"
+  legendEntry: "{label} {amount}"
+  legendLabel: "범례"
+  unitLabel: "그래프 단위"
+  unitMonthly: "월별"
+  unitYearly: "연별"
+  chartLabel: "예상 자산 누적 그래프"
+  notice: "예상치이며 실제 수익을 보장하지 않습니다."
+  demoTitle: "예상 자산 그래프 데모"
+  demoNotice: "mock 데이터로 그린 화면입니다. 서버 연동 전 확인용이에요."

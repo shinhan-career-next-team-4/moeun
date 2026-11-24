@@ -1,12 +1,7 @@
 import type { PlanStatus, PlanView } from "../../api/planStore";
+import type { ProjectionPoint } from "../projection/types";
 
 export type ScenarioCode = "GOOD" | "AVG" | "BAD";
-
-/** 누적 납입 원금의 월별 점(`result.principalPoints`, C12a-6-2). 서버 값을 그대로 쓴다 */
-export interface PrincipalPoint {
-  month: string;
-  principal: number;
-}
 
 export interface MonthlyPoint {
   month: string;
@@ -59,8 +54,8 @@ export interface ResultPlanView extends PlanView {
     calcStartMonth: string;
     targetMonth: string;
     scenarios: ScenarioResult[];
-    /** 누적 납입 원금 월별 점(하단 막대 그래프용). 보유 자산 + 월 저축액 × 경과 개월을 서버가 내려 준다 */
-    principalPoints?: PrincipalPoint[];
+    /** 시나리오별 월별 층(원금·적금 이자·ETF 수익, C12a-6-4). 누적 영역 그래프가 그린다. 이미 목표 초과면 빈 객체 */
+    projection?: Partial<Record<ScenarioCode, ProjectionPoint[]>>;
     assumptions: Assumptions;
   };
   display: Record<string, string>;

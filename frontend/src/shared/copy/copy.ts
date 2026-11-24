@@ -48,6 +48,8 @@ export const COPY = {
   "result.scenarioMethodShort.ROLLING_DISTRIBUTION":
     "과거 10년 수익률로 1만 가지 경우를 계산해 세 구간 (가정 보기 참고)",
   "result.chartLegendPrincipal": "누적 납입 원금",
+  "result.monthDetailLabel": "월별 상세",
+  "result.monthDetailClose": "닫기",
   "result.chartLegendGoal": "목표선",
   "result.loadFailed": "결과를 불러오지 못했어요. 다시 시도해 주세요",
   "result.alreadyExceeded":
@@ -162,6 +164,23 @@ export const COPY = {
   "goal.TRAVEL": "여행",
   "goal.EMERGENCY_FUND": "비상금",
   "goal.CUSTOM": "직접 입력",
+  "projection.axisYear": "{n}년",
+  "projection.periodMonths": "{m}개월",
+  "projection.periodYears": "{y}년",
+  "projection.periodYearsMonths": "{y}년 {m}개월",
+  "projection.principal": "원금",
+  "projection.savingsInterest": "적금 이자",
+  "projection.etfGain": "ETF 수익",
+  "projection.total": "합계",
+  "projection.legendEntry": "{label} {amount}",
+  "projection.legendLabel": "범례",
+  "projection.unitLabel": "그래프 단위",
+  "projection.unitMonthly": "월별",
+  "projection.unitYearly": "연별",
+  "projection.chartLabel": "예상 자산 누적 그래프",
+  "projection.notice": "예상치이며 실제 수익을 보장하지 않습니다.",
+  "projection.demoTitle": "예상 자산 그래프 데모",
+  "projection.demoNotice": "mock 데이터로 그린 화면입니다. 서버 연동 전 확인용이에요.",
 } as const satisfies Record<string, string>;
 
 export type CopyMap = Record<string, string>;

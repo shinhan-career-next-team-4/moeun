@@ -146,7 +146,8 @@ class PlanResultApiTest {
         assertThat(body.get("plan").get("savingsRatioPct").isNull()).isTrue();
         assertThat(body.get("plan").get("etfProductCode").asString()).isEqualTo("SP500");   // 새 계획은 대표 상품(#154)
         assertThat(body.get("result").propertyNames()).containsExactlyInAnyOrder("status", "goalAmount",
-                "calcStartMonth", "targetMonth", "scenarios", "principalPoints", "assumptions");
+                "calcStartMonth", "targetMonth", "scenarios", "principalPoints", "monthlyDetails",
+                "projection", "assumptions");
         JsonNode scenario = body.get("result").get("scenarios").get(0);
         assertThat(scenario.has("annualReturnPct")).isFalse();
         assertThat(scenario.has("goalReachMonth")).isTrue();
@@ -176,6 +177,73 @@ class PlanResultApiTest {
         assertThat(points.get(36).get("principal").asLong()).isEqualTo(held + monthly * 36);
         assertThat(points.get(36).get("principal").asLong())
                 .isEqualTo(body.get("result").get("scenarios").get(0).get("principal").asLong());
+    }
+
+    @Test
+    @DisplayName("projection은 시나리오마다 1~N개월 층(원금·적금이자·ETF손익)을 담고 합이 엔진 세후 자산과 같다(#315)")
+    void projectionSplitsEnginePoints() throws Exception {
+        JsonNode body = readBody(putPlan(request()).andExpect(status().isOk()));
+        CurrentPlanResult engineResult = transactions.execute(status ->
+                resultService.findForCurrentPlan(memberId).orElseThrow());
+
+        JsonNode projection = body.get("result").get("projection");
+        for (ScenarioResult scenario : engineResult.result().scenarios()) {
+            JsonNode points = projection.get(scenario.scenario().name());
+            List<MonthlyPoint> enginePoints = scenario.monthlyPoints();
+            assertThat(points).hasSize(enginePoints.size() - 1);
+            for (int month = 1; month < enginePoints.size(); month++) {
+                JsonNode point = points.get(month - 1);
+                assertThat(point.get("month").asInt()).isEqualTo(month);
+                assertThat(point.get("principal").asLong()).isEqualTo(enginePoints.get(month).principal());
+                assertThat(point.get("total").asLong()).isEqualTo(enginePoints.get(month).afterTaxAsset());
+                assertThat(point.get("principal").asLong() + point.get("savingsInterest").asLong()
+                        + point.get("etfGain").asLong()).isEqualTo(point.get("total").asLong());
+                assertThat(point.get("profit").asLong())
+                        .isEqualTo(point.get("savingsInterest").asLong() + point.get("etfGain").asLong());
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("monthlyDetails는 월마다 서버가 서식한 표시 문자열을 담고, 첫·끝 월은 display 값과 글자까지 같다(#292)")
+    void monthlyDetailsAreServerFormatted() throws Exception {
+        JsonNode body = readBody(putPlan(request()).andExpect(status().isOk()));
+
+        JsonNode details = body.get("result").get("monthlyDetails");
+        JsonNode display = body.get("display");
+        assertThat(details).hasSize(37);
+        for (JsonNode detail : details) {
+            assertThat(detail.propertyNames()).containsExactlyInAnyOrder("month", "label", "principal",
+                    "afterTaxAsset");
+            assertThat(detail.get("afterTaxAsset").propertyNames()).containsExactlyInAnyOrder("GOOD", "AVG", "BAD");
+        }
+        // 월 라벨은 가로축 양 끝 라벨과 같은 서식이다
+        assertThat(details.get(0).get("label").asString()).isEqualTo(display.get("calcStartMonth").asString());
+        assertThat(details.get(36).get("label").asString()).isEqualTo(display.get("targetMonth").asString());
+        // 끝 월의 값은 3구간 카드·총 납입 원금 표시값과 같은 문자열이다
+        for (String scenario : List.of("GOOD", "AVG", "BAD")) {
+            assertThat(details.get(36).get("afterTaxAsset").get(scenario).asString())
+                    .isEqualTo(display.get(scenario + ".afterTaxAsset").asString());
+        }
+        assertThat(details.get(36).get("principal").asString()).isEqualTo(display.get("AVG.principal").asString());
+        // 월은 monthlyPoints와 같은 달이다
+        JsonNode points = body.get("result").get("scenarios").get(1).get("monthlyPoints");
+        for (int k = 0; k < 37; k++) {
+            assertThat(details.get(k).get("month").asString()).isEqualTo(points.get(k).get("month").asString());
+        }
+    }
+
+    @Test
+    @DisplayName("ETF 0%(적금 100%)면 monthlyDetails의 afterTaxAsset은 AVG 하나다")
+    void monthlyDetailsHaveAvgOnlyWithoutEtf() throws Exception {
+        Map<String, Object> savingsOnly = request();
+        savingsOnly.put("savingsRatioPct", 100);
+
+        JsonNode body = readBody(putPlan(savingsOnly).andExpect(status().isOk()));
+
+        JsonNode details = body.get("result").get("monthlyDetails");
+        assertThat(details).hasSize(37);
+        assertThat(details.get(36).get("afterTaxAsset").propertyNames()).containsExactly("AVG");
     }
 
     @Test
@@ -251,6 +319,7 @@ class PlanResultApiTest {
 
         assertThat(body.get("result").get("status").asString()).isEqualTo("ALREADY_EXCEEDED");
         assertThat(body.get("result").get("principalPoints")).isEmpty();
+        assertThat(body.get("result").get("monthlyDetails")).isEmpty();
         assertThat(body.get("result").get("scenarios")).isEmpty();
         assertThat(body.get("baselineResultScenario").isNull()).isTrue();
         assertThat(body.get("revision").asLong()).isEqualTo(1L);

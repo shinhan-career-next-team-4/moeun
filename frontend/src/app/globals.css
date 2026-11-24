@@ -24,3 +24,23 @@ body {
   color: var(--color-text);
   font-family: var(--font-sans);
 }
+
+/* 예상 자산 누적 그래프(#298): 왼쪽에서 오른쪽으로 차오르듯 그린다. "동작 줄이기"를 켠 사람에게는 바로 보인다 */
+@keyframes projection-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.projection-reveal {
+  animation: projection-reveal 0.9s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .projection-reveal {
+    animation: none;
+  }
+}
