@@ -126,13 +126,15 @@ interface ChatWindowProps {
   deps?: ChatDeps;
   /** 패널 머리글 오른쪽에 붙는 단추(접기·닫기). 배치는 부르는 쪽이 정한다. */
   headerAction?: ReactNode;
+  /** 제목 바로 옆에 붙는 단추(예: 패널 위치 전환, #362). */
+  titleAction?: ReactNode;
   /** 대기 중이던 어시스턴트 메시지가 끝날 때마다 부른다(서랍이 닫혀 있을 때 점 표시용). 복원된 지난 대화는 부르지 않는다. */
   onAssistantMessage?: () => void;
   /** 패널이 보이는 중인지. 숨겨진 동안은 스크롤이 먹지 않아서, 다시 보이는 순간 맨 아래로 내린다. */
   visible?: boolean;
 }
 
-export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, onAssistantMessage, visible = true }: ChatWindowProps) {
+export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleAction, onAssistantMessage, visible = true }: ChatWindowProps) {
   // 같은 인스턴스를 담은 새 deps 객체로 다시 그려도 폴링·비교 상태가 초기화되지 않게 인스턴스 기준으로 안정화한다(P-67).
   const deps = useMemo<ChatDeps>(
     () => ({ api: givenDeps.api, polling: givenDeps.polling, planStore: givenDeps.planStore }),
@@ -258,7 +260,10 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, onAssi
     >
       <header className="shrink-0 border-b border-border px-5 py-4">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-base font-bold text-text">{COPY.panelTitle}</h2>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <h2 className="text-base font-bold text-text">{COPY.panelTitle}</h2>
+            {titleAction}
+          </div>
           <div className="flex items-center gap-1">
             {canRetry && (
               <button
