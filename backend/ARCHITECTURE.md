@@ -33,8 +33,8 @@
 
 - `JdbcClient`를 `infrastructure` 밖에서 쓴다: `chat.domain.ChatMessageRepository`(이것만 domain이라 동결됨), `calc.application.CalcRunRecorder`, `chat.application.ChatAnswerListener`, `rag.CitationQueryService`
 - ai-server HTTP 클라이언트가 `application`에 있다: `chat.application.AiChatClient`
-- `application`·루트가 Jackson으로 JSON을 해석한다: `plan.application.PlanService`·`PlanInputValidator`, `chat.application`(`ChatComparisonService`, `ChatAnswerListener`, `AiChatClient` 등), `calc.application`(`ConditionChanges`, `PlanContextProviderImpl`), 루트 `plan.PlanInput`·`PlanApplyService`·`ConditionValidator`, `calc.ChatComparisonQuery`
-- 규칙이 서비스에 몰려 있다: `plan.application.PlanService`(306줄), 행동이 거의 없는 `Plan`·`PlanVersion`
+- `application`·루트가 Jackson으로 JSON을 해석한다: `plan.application.PlanService`(적용 변경 맵만, #310), `chat.application`(`ChatComparisonService`, `ChatAnswerListener`, `AiChatClient` 등), `calc.application`(`ConditionChanges`, `PlanContextProviderImpl`), 루트 `plan.PlanApplyService`·`ConditionValidator`, `calc.ChatComparisonQuery`
+- 규칙이 서비스에 몰려 있다: plan은 #310에서 엔티티로 옮겼다(본보기). 다른 모듈은 리팩터링 Issue에서 같은 방식으로 옮긴다
 
 이 목록이 줄면 `application`→Jackson 같은 규칙을 `ArchitectureTests`에 추가한다.
 

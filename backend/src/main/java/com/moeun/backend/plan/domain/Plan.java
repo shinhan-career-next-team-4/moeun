@@ -1,5 +1,7 @@
 package com.moeun.backend.plan.domain;
 
+import org.hibernate.annotations.DynamicUpdate;
+
 import com.moeun.backend.plan.NothingToUndoException;
 import com.moeun.backend.plan.PlanChangedException;
 
@@ -14,8 +16,10 @@ import jakarta.persistence.Version;
 /**
  * 사용자별 현재 계획 포인터. revision은 JPA {@code @Version}이라 포인터를 옮기면 저장 시점에
  * {@code UPDATE ... WHERE revision = ?}로 낙관적 락이 걸린다. 첫 행은 PlanRepository.insertIfAbsent로 넣는다.
+ * 바뀐 컬럼만 UPDATE한다(@DynamicUpdate). 포인터를 옮기는 저장이 읽어 둔 baseline_scenario를 덮어쓰지 않게 하려는 것이다.
  */
 @Entity
+@DynamicUpdate
 @Table(name = "plan")
 public class Plan {
 
