@@ -19,6 +19,7 @@ class AgentError(Exception):
     def __init__(self, code: ErrorCode, detail: str = ""):
         super().__init__(f"{code}: {detail}")
         self.code = code
+        self.detail = detail   # 원인 추적용 로그에만 쓴다. Spring에는 code만 간다(#316)
 
 
 class ForbiddenAnswer(AgentError):

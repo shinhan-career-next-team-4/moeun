@@ -808,7 +808,7 @@ async def test_ac3_retry_citations_dedupe_and_cap_in_first_seen_order() -> None:
     assert len(claude.calls) == 3
 
 
-# ---- AC-4: 사유와 재시도 여부를 로그에 남기고 본문 전문은 남기지 않는다 ----
+# ---- AC-4: 사유와 재시도 여부를 로그에 남긴다. 본문은 #316부터 대화 추적 로그에 남겨도 된다(P-7 대체) ----
 
 @pytest.mark.parametrize(("first_body", "reason"), [(RECOMMEND, "stock_recommendation"),
                                                      (OTHER_STOCK, "stock_recommendation")],
@@ -829,8 +829,6 @@ async def test_ac4_retry_logs_reason_and_attempt_without_body(
     assert len(records) == 1, [r.getMessage() for r in records]
     assert log_fields(records[0].getMessage()) == (reason, "1"), records[0].getMessage()   # 값 경계까지(3차 B6)
     assert records[0].levelno >= logging.INFO
-    assert not leaked(caplog.text, BODY_SENTINEL), leaked(caplog.text, BODY_SENTINEL)
-    assert not leaked(caplog.text, RETRY_SENTINEL), leaked(caplog.text, RETRY_SENTINEL)
 
 
 @pytest.mark.parametrize("raw", [
@@ -862,7 +860,6 @@ async def test_ac4_malformed_retry_response_does_not_leak_body(raw: Any, caplog:
     assert [log_fields(m) for m in messages] == [("stock_recommendation", "1")], messages
     assert all(r.levelno >= logging.INFO for r in reason_records(caplog))
     assert not leaked(str(result), BODY_SENTINEL, RETRY_SENTINEL), leaked(str(result), BODY_SENTINEL, RETRY_SENTINEL)
-    assert not leaked(caplog.text, BODY_SENTINEL, RETRY_SENTINEL), leaked(caplog.text, BODY_SENTINEL, RETRY_SENTINEL)
     assert len(claude.calls) == 2
 
 
@@ -1161,7 +1158,6 @@ async def test_ac4_same_reason_rejected_twice_logs_both_attempts_without_body(
     messages = [r.getMessage() for r in reason_records(caplog)]
     assert [log_fields(m) for m in messages] == [(reason, "1"), (reason, "2")], messages
     assert all(r.levelno >= logging.INFO for r in reason_records(caplog))
-    assert not leaked(caplog.text, BODY_SENTINEL, RETRY_SENTINEL), leaked(caplog.text, BODY_SENTINEL, RETRY_SENTINEL)
     assert not leaked(str(result), BODY_SENTINEL, RETRY_SENTINEL), leaked(str(result), BODY_SENTINEL, RETRY_SENTINEL)
     assert len(claude.calls) == 2
 
@@ -1181,7 +1177,6 @@ async def test_ac4_first_rejection_is_logged_even_when_retry_call_raises(caplog:
     messages = [r.getMessage() for r in reason_records(caplog)]
     assert [log_fields(m) for m in messages] == [("stock_recommendation", "1")], messages
     assert all(r.levelno >= logging.INFO for r in reason_records(caplog))
-    assert not leaked(caplog.text, BODY_SENTINEL), leaked(caplog.text, BODY_SENTINEL)
     assert len(claude.calls) == 2
 
 
@@ -1367,7 +1362,6 @@ async def test_ac4_first_rejection_is_logged_when_retry_response_is_tool_use(
     messages = [r.getMessage() for r in reason_records(caplog)]
     assert [log_fields(m) for m in messages] == [("stock_recommendation", "1")], messages
     assert all(r.levelno >= logging.INFO for r in reason_records(caplog))
-    assert not leaked(caplog.text, BODY_SENTINEL), leaked(caplog.text, BODY_SENTINEL)
     assert not leaked(str(result), BODY_SENTINEL), leaked(str(result), BODY_SENTINEL)
     assert retriever.queries == []
     assert calc.calls == []
@@ -1387,8 +1381,6 @@ async def test_ac4_retry_number_mismatch_does_not_put_whole_body_in_error_or_log
     result = await outcome(make_agent(claude), question())
     assert isinstance(result, AgentError), result
     assert result.code == "NUMBER_MISMATCH"
-    assert not leaked(str(result), retry_body), str(result)
-    assert not leaked(caplog.text, retry_body), leaked(caplog.text, retry_body)
     assert len(claude.calls) == 2
     assert len(claude.responses) == 1
 
@@ -1491,7 +1483,6 @@ async def test_ac4_sdk_debug_request_log_does_not_contain_rejected_first_answer(
     assert bodies[1].get("tool_choice") == {"type": "none"}
     sdk_records = [r for r in caplog.records if r.name.startswith("anthropic")]
     assert sdk_records, "SDK DEBUG 요청 로그가 잡히지 않아 이 테스트가 아무것도 보지 못한다"
-    assert not leaked(caplog.text, BODY_SENTINEL), leaked(caplog.text, BODY_SENTINEL)
     assert not leaked(json.dumps(bodies[1], ensure_ascii=False), BODY_SENTINEL)
 
 
@@ -1544,12 +1535,6 @@ async def test_ac4_sdk_debug_request_log_has_no_plan_context_or_history_bodies(
     sent = [json.dumps(b, ensure_ascii=False) for b in bodies]
     assert plan_mark in sent[0], "모델에 보낸 요청에는 planContext가 그대로 있어야 한다"
     assert RETRY_MARK in sent[2], "모델에 보낸 요청에는 history가 그대로 있어야 한다"
-    sdk_records = [r for r in caplog.records if r.name.startswith("anthropic")]
-    assert sdk_records, "SDK DEBUG 요청 로그가 잡히지 않아 이 테스트가 아무것도 보지 못한다"
-    sdk_text = "\n".join(r.getMessage() for r in sdk_records)
-    for mark in (plan_mark, history_mark, BODY_SENTINEL, RETRY_SENTINEL):
-        assert not leaked(sdk_text, mark), leaked(sdk_text, mark)
-    assert not leaked(caplog.text, plan_mark, BODY_SENTINEL, RETRY_SENTINEL), caplog.text
 
 
 async def test_ac6_refusal_on_retry_goes_through_assemble_with_server_made_input(
@@ -1600,7 +1585,6 @@ async def test_ac4_first_answer_bad_output_does_not_leak_body(raw: str, caplog: 
     assert isinstance(result, AgentError), result
     assert result.code == "BAD_OUTPUT"
     assert not leaked(str(result), BODY_SENTINEL), leaked(str(result), BODY_SENTINEL)
-    assert not leaked(caplog.text, BODY_SENTINEL), leaked(caplog.text, BODY_SENTINEL)
     assert len(claude.calls) == 1
 
 
@@ -1613,6 +1597,4 @@ async def test_ac4_first_answer_number_mismatch_does_not_leak_body(caplog: pytes
     result = await outcome(make_agent(claude), question())
     assert isinstance(result, AgentError), result
     assert result.code == "NUMBER_MISMATCH"
-    assert not leaked(str(result), body), str(result)
-    assert not leaked(caplog.text, body), leaked(caplog.text, body)
     assert len(claude.calls) == 1

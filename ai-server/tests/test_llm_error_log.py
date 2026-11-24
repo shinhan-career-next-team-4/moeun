@@ -23,7 +23,6 @@ async def test_llm_error_log_has_type_and_status_but_not_sdk_message(caplog: pyt
 
     assert response.status_code == 502
     assert json.loads(bytes(response.body)) == {"error": "LLM_UNAVAILABLE"}
-    assert echoed not in caplog.text
     assert "BadRequestError" in caplog.text
     assert "400" in caplog.text
 

@@ -77,24 +77,12 @@ __all__ = [
 ]
 
 log = logging.getLogger(__name__)
+# 대화 한 건의 원인 추적 로그(#316). 요청·도구 입출력·모델 답·최종 답을 message_id와 함께 본문까지 남긴다
+trace = logging.getLogger("moeun.ai.trace")
 
 
-class _RedactRequestBody(logging.Filter):
-    """SDK가 DEBUG에서 남기는 "Request options" 레코드에서 messages·system을 뺀다. 요청 JSON 전체에는
-    planContext 본문과 이전 답변(history, 재시도로 살아남은 답 포함)이 들어 있어 어떤 로그에도 본문을 남기지 않는
-    원칙(P-7, AC-4)을 깬다. 모델에 보내는 요청은 건드리지 않고 로그 레코드만 고친다. 로거 레벨은 그대로다."""
-
-    _DROPPED = ("messages", "system")
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        options = record.args
-        if isinstance(options, dict) and isinstance(options.get("json_data"), dict):
-            body = {k: v for k, v in options["json_data"].items() if k not in self._DROPPED}
-            record.args = {**options, "json_data": body}
-        return True
-
-
-logging.getLogger("anthropic._base_client").addFilter(_RedactRequestBody())
+def _json(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, default=str)
 
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 EXCLUDED_NOTE = "excludedConditions는 이번 발화에 없어 계산에서 뺐습니다. 답변에서 이 조건의 값을 말하지 마세요."
@@ -185,6 +173,16 @@ class ChatAgent:
         }
 
     async def run(self, req: ChatRequest) -> ChatResponse:
+        trace.info("chat request: message_id=%s body=%s", req.message_id, req.model_dump_json(by_alias=True))
+        try:
+            resp = await self._run(req)
+        except AgentError as e:
+            trace.warning("chat failed: message_id=%s code=%s detail=%s", req.message_id, e.code, e.detail)
+            raise
+        trace.info("chat answer: message_id=%s body=%s", req.message_id, resp.model_dump_json(by_alias=True))
+        return resp
+
+    async def _run(self, req: ChatRequest) -> ChatResponse:
         match req:
             case ChatRequest(mode=ChatMode.QUESTION, text=None | ""):
                 raise AgentError(ErrorCode.BAD_REQUEST, "text is required for QUESTION")
@@ -200,6 +198,7 @@ class ChatAgent:
         if req.text and (source := pointed_source(req.text, req.history)) is not None:
             turn.number_evidence.append(source)
         messages = build_messages(req)
+        called: list[str] = []   # 도구 호출 순서. 한도를 넘으면 실패 상세로 남긴다
 
         for _ in range(self._max_rounds):
             resp = await self._create(messages)
@@ -211,6 +210,7 @@ class ChatAgent:
                     raise AgentError(ErrorCode.MAX_TOKENS)
                 case "tool_use":
                     tool_uses = [b for b in resp.content if isinstance(b, BetaToolUseBlock)]
+                    called.extend(b.name for b in tool_uses)
                     messages.append(BetaAssistantMessageParam(role="assistant", content=resp.content))
                     results = await asyncio.gather(*(self._call_tool(turn, b) for b in tool_uses))
                     if turn.fixed_copy_key is not None:   # 모델을 더 부르지 않는다
@@ -222,6 +222,7 @@ class ChatAgent:
                     messages.append(BetaUserMessageParam(role="user", content=results))   # 결과는 한 메시지에 모두
                 case _:
                     final = _parse_final(resp)
+                    _trace_model_answer(req, final, attempt=1)
                     try:
                         await self._check_body(final)
                         return assemble(turn, final)
@@ -233,7 +234,7 @@ class ChatAgent:
                         log.info("forbidden expression: reason=%s attempt=1 message_id=%s", e.reason, req.message_id)
                         return await self._retry(turn, messages, e.reason)
 
-        raise AgentError(ErrorCode.TOO_MANY_ROUNDS)
+        raise AgentError(ErrorCode.TOO_MANY_ROUNDS, ",".join(called))
 
     async def _create(self, messages: list[BetaMessageParam], *, client: Any = None, **extra: Any) -> Any:
         return await (client or self._client).beta.messages.create(
@@ -261,7 +262,7 @@ class ChatAgent:
 
     async def _retry(self, turn: Turn, messages: list[BetaMessageParam], reason: ForbiddenReason) -> ChatResponse:
         """교정 지시를 붙여 모델을 한 번만 다시 부른다. 도구는 실행하지 않고 첫 호출과 같은 분기·보정을 거친다(P-4, P-6).
-        거부된 첫 답은 요청에 싣지 않는다. SDK DEBUG 로그가 요청 JSON 전체를 남기기 때문이다(P-7, D-1)."""
+        거부된 첫 답은 요청에 싣지 않는다. 모델이 그 답을 고쳐 쓰지 않고 새로 쓰게 하려는 것이다(D-1)."""
         req = turn.req
         correction = _correction(reason, plan_etf_name(req))
         retry_messages = [*messages, BetaUserMessageParam(role="user", content=correction)]
@@ -277,6 +278,7 @@ class ChatAgent:
             case "tool_use":
                 raise AgentError(ErrorCode.FORBIDDEN_EXPRESSION, "tool_use on retry")   # PD-009. 도구를 실행하지 않는다
         final = _parse_final(retry)
+        _trace_model_answer(req, final, attempt=2)
         try:
             await self._check_body(final)
             return assemble(turn, final)
@@ -291,13 +293,17 @@ class ChatAgent:
                 raise KeyError(f"unknown tool {block.name}")
             content = await handler(turn, dict(block.input))
         except CalcRejected as e:
-            return self._on_rejected(turn, block, e)
+            result = self._on_rejected(turn, block, e)
         except CalcFailed as e:
+            _trace_tool(turn, block, f"CalcFailed {e.code}: {e.detail}")
             raise AgentError(e.code, e.detail) from e
         except _TOOL_ERRORS as e:
             log.info("tool %s failed for message %s: %s", block.name, turn.req.message_id, e)
-            return {"type": "tool_result", "tool_use_id": block.id, "content": f"Error: {e}", "is_error": True}
-        return {"type": "tool_result", "tool_use_id": block.id, "content": content}
+            result = {"type": "tool_result", "tool_use_id": block.id, "content": f"Error: {e}", "is_error": True}
+        else:
+            result = {"type": "tool_result", "tool_use_id": block.id, "content": content}
+        _trace_tool(turn, block, result.get("content"))
+        return result
 
     def _on_rejected(self, turn: Turn, block: BetaToolUseBlock, e: CalcRejected) -> BetaToolResultBlockParam:
         if e.code == SpringRejectCode.VALIDATION_FAILED:
@@ -430,6 +436,18 @@ def _refusal(req: ChatRequest) -> ChatResponse:
 
 def _answer_text(resp: Any) -> str:
     return "".join(b.text for b in resp.content if isinstance(b, BetaTextBlock))
+
+
+def _trace_tool(turn: Turn, block: BetaToolUseBlock, result: Any) -> None:
+    trace.info(
+        "tool call: message_id=%s name=%s input=%s result=%s",
+        turn.req.message_id, block.name, _json(block.input), result if isinstance(result, str) else _json(result),
+    )
+
+
+def _trace_model_answer(req: ChatRequest, final: FinalAnswer, *, attempt: int) -> None:
+    """보정·검사 전의 모델 답. 숫자 불일치·금지 표현으로 거절된 답도 여기 남는다."""
+    trace.info("model answer: message_id=%s attempt=%s body=%s", req.message_id, attempt, final.model_dump_json())
 
 
 def _parse_final(resp: Any) -> FinalAnswer:

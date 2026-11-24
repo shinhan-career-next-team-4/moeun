@@ -38,7 +38,7 @@ def _agent(claude: FakeClaude, calc: FakeCalc | None = None, max_rounds: int = 4
 def _question(text: str) -> ChatRequest:
     return ChatRequest(
         memberId=1, messageId=MESSAGE_ID, mode="QUESTION", text=text, baselineScenario="AVG",
-        planContext=PLAN_CONTEXT, history=[{"role": "ASSISTANT", "content": "어떤 금액을 바꿀까요?"}],
+        planContext=PLAN_CONTEXT, history=[{"role": "assistant", "content": "어떤 금액을 바꿀까요?"}],
     )
 
 
@@ -52,20 +52,20 @@ async def test_logs_request_tool_io_and_answer_with_message_id(caplog: pytest.Lo
     caplog.set_level(logging.INFO)
     claude = FakeClaude([
         tool_resp("recalculate", {"monthly_saving_amount": 500_000}),
-        text_resp("RECALC_RESULT", "월 50만원이면 평균일 때 약 2,050만원이 돼요."),
+        text_resp("RECALC_RESULT", "월 50만원으로 바꾼 결과를 정리했어요."),
     ])
     calc = FakeCalc()
 
-    await _agent(claude, calc).run(_question("모으는 돈이요"))
+    await _agent(claude, calc).run(_question("월 50만원으로 하면 어때요?"))
 
     logged = [r.getMessage() for r in caplog.records if f"message_id={MESSAGE_ID}" in r.getMessage()]
     text = "\n".join(logged)
-    assert "모으는 돈이요" in text                          # 받은 요청 text
+    assert "월 50만원으로 하면 어때요?" in text              # 받은 요청 text
     assert "어떤 금액을 바꿀까요?" in text                   # history
     assert "약 1,712만원" in text                            # planContext display
     assert "recalculate" in text and "500000" in text       # 도구 이름·입력
     assert '"calcRunId"' in text                            # 도구 결과(계산 응답)
-    assert "월 50만원이면 평균일 때 약 2,050만원이 돼요." in text   # 최종 답
+    assert "월 50만원으로 바꾼 결과를 정리했어요." in text    # 최종 답
 
 
 async def test_too_many_rounds_detail_lists_tools_called(caplog: pytest.LogCaptureFixture) -> None:

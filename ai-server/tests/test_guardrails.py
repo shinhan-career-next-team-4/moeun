@@ -321,7 +321,7 @@ async def test_judge_api_error_on_first_answer_propagates_without_retry(caplog: 
 
 
 async def test_judge_api_error_on_retry_answer_propagates_after_first_rejection_log(caplog: pytest.LogCaptureFixture):
-    """재시도 답을 판정하다 API 오류가 나면 오류가 올라간다. 첫 거부의 사유·시도 번호는 로그에 한 번, 본문은 남지 않는다"""
+    """재시도 답을 판정하다 API 오류가 나면 오류가 올라간다. 첫 거부의 사유·시도 번호는 로그에 한 번 남는다"""
     caplog.set_level(logging.DEBUG)
     first = "비밀표지QZ 삼성전자 주식을 추천해요."
     claude = FakeClaude([text_resp("ANSWER", first), text_resp("ANSWER", "재시도 답이에요. 이 ETF를 추천해요.")])
@@ -329,4 +329,3 @@ async def test_judge_api_error_on_retry_answer_propagates_after_first_rejection_
         await make_agent(claude, FakeJudge(True, API_ERROR)).run(question())
     assert len(claude.calls) == 2
     assert caplog.text.count("reason=stock_recommendation attempt=1") == 1
-    assert "비밀표지QZ" not in caplog.text

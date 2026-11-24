@@ -1,4 +1,4 @@
-"""#256 /chat이 AgentError로 끝나면 오류 코드만 로그에 남긴다(원인 추적). 본문이 섞인 detail은 남기지 않는다."""
+"""#256 /chat이 AgentError로 끝나면 오류 코드를 로그에 남긴다(원인 추적). 상세도 남기는 정책은 #316(tests/chat_log)."""
 
 import json
 import logging
@@ -22,11 +22,3 @@ async def test_agent_error_logs_its_code(caplog: pytest.LogCaptureFixture, code:
     assert json.loads(bytes(response.body)) == {"error": code}
     assert [r for r in caplog.records if r.levelno == logging.WARNING and code in r.getMessage()]
 
-
-async def test_agent_error_log_leaves_out_detail(caplog: pytest.LogCaptureFixture) -> None:
-    secret_body = "목표 금액 약 5,000만원을 3년 안에 모으는 계획의 답 본문"
-    with caplog.at_level(logging.DEBUG):
-        await _agent_error(None, AgentError(ErrorCode.BAD_OUTPUT, secret_body))  # type: ignore[arg-type]
-
-    assert "BAD_OUTPUT" in caplog.text
-    assert secret_body not in caplog.text

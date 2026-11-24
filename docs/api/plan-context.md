@@ -225,7 +225,7 @@
 
 - 400·422·502 모두 Spring은 `FAILED`로 기록한다(FR-AI-04, #41 기준과 같아 Spring 추가 분기 없음).
 - **422 본문은 FastAPI 기본을 그대로 둔다**(G-6). `ai-server/README.md`의 "실패는 `{"error": CODE}`" 규칙에는 "요청 검증 실패(422)는 FastAPI 기본 본문 `{detail: [...]}`" 예외가 있다.
-- **`planContext` 본문을 로그에 남기지 않는다.** 422 `detail`에 값이 에코될 수 있으므로 로그에는 `calcRunId`와 오류 코드만.
+- **[#316] `planContext` 본문은 ai-server 대화 추적 로그에 남긴다.** 원인 추적을 위해서다. 로그는 날짜별로 나눠 보관 기간(기본 7일)이 지나면 지운다. **Spring에 돌려주는 오류 본문에는 여전히 코드만 싣는다**(422는 FastAPI 기본). 이전 규칙("로그에는 `calcRunId`와 오류 코드만")을 대체한다.
 - `CONTEXT_DISPLAY_MISSING`은 도구 쪽 `CALC_DISPLAY_MISSING`과 쌍으로 상수화한다.
 
 **display 요구 키**(필터를 거친 뒤 기준):

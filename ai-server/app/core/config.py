@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"   # chunk_embedding.model_code 값으로도 쓴다
     rag_top_k: int = 5
 
+    # 대화 로그 보관(#316). 파일은 자정마다 나누고 이 일수만큼 남긴다. 0이면 파일을 쓰지 않는다
+    log_dir: str = "logs"
+    log_retention_days: int = 7
+
 
 @lru_cache
 def get_settings() -> Settings:
