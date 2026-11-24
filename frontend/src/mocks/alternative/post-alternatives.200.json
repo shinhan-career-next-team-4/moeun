@@ -197,6 +197,7 @@
               "conditions.changed.targetPeriodMonths": "3년 0개월",
               "diff.AVG.afterTaxAssetDelta": "약 117만원 증가",
               "diff.GOOD.afterTaxGainDelta": "약 11만원 증가",
+              "diff.GOOD.gapToGoalDelta": "약 119만원 증가",
               "diff.GOOD.afterTaxAssetDelta": "약 119만원 증가",
               "changed.GOOD.principal": "약 1,688만원",
               "current.AVG.afterTaxGain": "약 91만원",
@@ -204,6 +205,7 @@
               "diff.GOOD.principalDelta": "약 108만원 증가",
               "diff.AVG.principalDelta": "약 108만원 증가",
               "diff.AVG.afterTaxGainDelta": "약 9만원 증가",
+              "diff.AVG.gapToGoalDelta": "약 117만원 증가",
               "current.AVG.principal": "약 1,580만원",
               "current.BAD.afterTaxAsset": "약 1,654만원",
               "current.GOOD.afterTaxGain": "약 109만원",
@@ -229,6 +231,7 @@
               "changed.BAD.afterTaxGain": "약 81만원",
               "changed.AVG.principal": "약 1,688만원",
               "diff.BAD.afterTaxGainDelta": "약 7만원 증가",
+              "diff.BAD.gapToGoalDelta": "약 115만원 증가",
               "changed.targetMonth": "2029년 11월"
             }
           },
@@ -430,6 +433,7 @@
               "conditions.changed.targetPeriodMonths": "3년 0개월",
               "diff.AVG.afterTaxAssetDelta": "약 10만원 증가",
               "diff.GOOD.afterTaxGainDelta": "약 14만원 증가",
+              "diff.GOOD.gapToGoalDelta": "약 14만원 증가",
               "diff.GOOD.afterTaxAssetDelta": "약 14만원 증가",
               "changed.GOOD.principal": "약 1,580만원",
               "current.AVG.afterTaxGain": "약 91만원",
@@ -437,6 +441,7 @@
               "diff.GOOD.principalDelta": "변화 없음",
               "diff.AVG.principalDelta": "변화 없음",
               "diff.AVG.afterTaxGainDelta": "약 10만원 증가",
+              "diff.AVG.gapToGoalDelta": "약 10만원 증가",
               "current.AVG.principal": "약 1,580만원",
               "current.BAD.afterTaxAsset": "약 1,654만원",
               "current.GOOD.afterTaxGain": "약 109만원",
@@ -462,6 +467,7 @@
               "changed.BAD.afterTaxGain": "약 80만원",
               "changed.AVG.principal": "약 1,580만원",
               "diff.BAD.afterTaxGainDelta": "약 7만원 증가",
+              "diff.BAD.gapToGoalDelta": "약 7만원 증가",
               "changed.targetMonth": "2029년 11월"
             }
           }

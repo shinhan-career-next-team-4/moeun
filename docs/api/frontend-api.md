@@ -1155,6 +1155,7 @@ record PlanUndoResult(long planVersionId, long revision) {}
 - **버튼 활성 한 줄**: 활성 = (이 메시지 id = 가진 메시지 중 최대 `RECALC_RESULT` id) AND (F-4 `applicable=true`) AND (이 메시지가 계획 `revision`이 마지막으로 바뀐 뒤에 도착함, C12b-7-4) ⟵ 셋째 조건의 범위는 쟁점 X-2였고 결정됨(D-069: 계획이 바뀐 모든 순간).
 - 카드 문구: `diff.byScenario[].achievementChange` 4값과 **[v3] 조건 4개의 행 라벨**(월 저축액·저축 비중·적금 금리·목표 기간)은 프론트가 문구표에서 키로 찾는다. 프론트가 라벨을 지어내지 않는다. 키 목록은 #18·#53 수용 기준에 적는다.
 - ETF 0%(`savingsRatioPct=100`)면 시나리오가 AVG 하나다. 카드는 1개·3개를 모두 그린다(목 `get-comparison.200-etf0.json`).
+- 목표 대비 차이 값은 `display["diff.<S>.gapToGoalDelta"]`(internal-calc C2-6, #285)를 그대로 쓴다. 목표 금액을 바꾼 비교에도 있다. 방향 색은 양쪽 `gapToGoal`의 크기로 정한다.
 
 ### C12b-7. F-5 대화 비교 결과 적용 `POST /api/chat/messages/{messageId}/apply`
 

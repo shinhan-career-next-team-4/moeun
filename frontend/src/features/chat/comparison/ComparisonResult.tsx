@@ -157,11 +157,11 @@ function Details({ data }: { data: Comparison }) {
             text={data.display[`diff.${scenario}.afterTaxAssetDelta`]}
           />
           <span data-testid="chat-comparison-gap">{data.display[`changed.${scenario}.gapToGoal`]}</span>
-          {/* 목표가 그대로면 목표 대비 차이 = 예상 자산 차이(목표 대비 = 자산 − 목표). 목표가 바뀌면 서버에 차이 값이 없어 방향만 */}
+          {/* 목표 대비 차이는 서버 값(#285). 키가 없으면 목표가 그대로일 때만 같은 값인 예상 자산 차이를 쓰고, 아니면 방향만 */}
           <ResultChange
             testId="chat-comparison-gap-delta"
             direction={gapDirection}
-            text={goalChanged ? undefined : data.display[`diff.${scenario}.afterTaxAssetDelta`]}
+            text={data.display[`diff.${scenario}.gapToGoalDelta`] ?? (goalChanged ? undefined : data.display[`diff.${scenario}.afterTaxAssetDelta`])}
           />
           <span data-testid="chat-comparison-achievement">{ACHIEVEMENT_CHANGE_LABELS[achievementChange] ?? ""}</span>
         </div>

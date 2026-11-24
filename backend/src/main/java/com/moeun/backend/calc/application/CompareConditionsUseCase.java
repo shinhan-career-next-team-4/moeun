@@ -215,6 +215,9 @@ public class CompareConditionsUseCase {
             display.put(prefix + "afterTaxAssetDelta", formatter.formatDifference(diff.afterTaxAssetDelta()));
             display.put(prefix + "principalDelta", formatter.formatDifference(diff.principalDelta()));
             display.put(prefix + "afterTaxGainDelta", formatter.formatDifference(diff.afterTaxGainDelta()));
+            // 목표 대비 차이는 표시만 둔다(#285). raw는 양쪽 결과의 gapToGoal에 이미 있다
+            display.put(prefix + "gapToGoalDelta",
+                    formatter.formatDifference(comparison.gapToGoalDelta(diff.scenario())));
         }
         return display;
     }

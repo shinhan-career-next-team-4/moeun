@@ -38,6 +38,17 @@ public record CalcComparison(CalcResult current, CalcResult changed, Conditions 
     }
 
     /**
+     * 목표 대비 차이(changed.gapToGoal − current.gapToGoal, #285). 각 쪽은 자기 목표 기준이라 목표를 바꾸면
+     * 예상 자산 차이와 다르다. raw 필드로 내보내지 않고 display에만 쓴다(계약 C2-5).
+     *
+     * @param scenario byScenario에 있는 시나리오(양쪽에 모두 있음)
+     */
+    public long gapToGoalDelta(Scenario scenario) {
+        return Diff.find(changed, scenario).orElseThrow().gapToGoal()
+                - Diff.find(current, scenario).orElseThrow().gapToGoal();
+    }
+
+    /**
      * 대화로 바꿀 수 있는 조건의 계산에 실제 쓴 값. 목표 금액은 결과의 {@code goalAmount}에 있다.
      *
      * @param monthlySavingAmount 월 저축액(원)

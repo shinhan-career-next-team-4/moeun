@@ -137,7 +137,7 @@ class InternalCalcDocsTest {
     }
 
     @Test
-    @DisplayName("A-1 성공 응답과 키·타입이 같다(display 키 47개 포함)")
+    @DisplayName("A-1 성공 응답과 키·타입이 같다(display 키 50개 포함)")
     void matchesSuccessExampleShape() throws Exception {
         savePlan(5_000_000L);
 
