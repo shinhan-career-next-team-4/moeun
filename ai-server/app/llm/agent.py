@@ -21,6 +21,7 @@ from app.core.contract import (
     CALC_SIDES,
     CHANGED_SIDE,
     CURRENT_SIDE,
+    ETF_CODE,
     ETF_NAME,
     GOAL_AMOUNT,
     SAVINGS_RATIO,
@@ -52,7 +53,6 @@ from app.llm.judge import LlmStockJudge
 from app.llm.plan import plan_etf_name
 from app.llm.prompts import SYSTEM_PROMPT
 from app.llm.tools import FINAL_FORMAT, TOOLS, Calculator, DocumentSearch, FinalAnswer
-from app.rag.etf_codes import REPRESENTATIVE_PRODUCT
 from app.schemas import (
     ChatMode,
     ChatRequest,
@@ -104,6 +104,7 @@ ETF_ZERO_NOTE = (
     f"바꾼 쪽의 ETF 비중이 0%라 종목은 결과에 영향이 없습니다. 종목 소개 없이 '{ETF_ZERO_SENTENCE}' 한 문장으로 답하세요."
 )
 _ALL_SAVINGS_PCT = 100
+_SAME_PRODUCT_ERROR = "이미 계획의 종목입니다. 계산하지 말고 지금 계획이 이미 그 종목이라고만 답하세요."
 
 # Spring이 모델 없이 고정 문장으로 답하라고 거절한 코드 → 문구표 키(D-056)
 _FIXED_COPY_KEYS: dict[str, str] = {
@@ -330,18 +331,25 @@ class ChatAgent:
             if dropped:
                 log.info("dropped carried conditions for message %s: %s", turn.req.message_id, dropped)
             changes = filtered
-        # ETF 0% 계획은 planContext에 종목 코드가 없지만 Spring은 #154 전까지 대표 상품으로 본다(internal-calc C2-2)
-        planned = plan_product(turn.req) or (REPRESENTATIVE_PRODUCT if turn.req.plan_context is not None else None)
+        # ETF 0% 계획은 planContext에 종목 코드가 없다. 계획에는 SP500이 아닌 종목도 저장되므로(#154) 모르면 가정하지
+        # 않고 키를 Spring에 넘긴다. Spring은 계획과 같은 종목이면 바꾸지 않은 것으로 본다(internal-calc C2-2, #294)
+        planned = plan_product(turn.req)
         if changes.etf_product_code is not None and changes.etf_product_code == planned:
-            # 계획과 같은 종목은 바꾸지 않은 것이다(D-097). 키를 남기면 F-4·F-5가 적용할 수 없는 비교로 본다(#268)
+            # 계획과 같은 종목은 바꾸지 않은 것이다(D-097)
             changes = changes.model_copy(update={"etf_product_code": None})
             if not changes.changed():
-                raise CalcError("이미 계획의 종목입니다. 계산하지 말고 지금 계획이 이미 그 종목이라고만 답하세요.")
+                raise CalcError(_SAME_PRODUCT_ERROR)
         if not changes.changed():
             raise CalcError("바꿀 조건이 없습니다. 무엇을 바꿀지 사용자에게 되물으세요.")
         if turn.req.text and not check_amount_units(turn.req.text, changes):
             raise CalcError("목표 금액의 단위(원·만원·억원)가 발화와 맞지 않습니다. 정확한 금액을 다시 물으세요.")
         result = await self._calc.recalculate(turn.req.member_id, turn.req.baseline_scenario, changes)
+        if changes.etf_product_code is not None and _changed_product(result) is None:
+            # 계획 종목을 몰라 넘긴 키를 Spring이 계획과 같은 종목으로 봤다(C2-2). 남기면 비교 카드에 값 없는 종목 줄이
+            # 생기므로 뺀다(#294)
+            changes = changes.model_copy(update={"etf_product_code": None})
+            if not changes.changed():
+                raise CalcError(_SAME_PRODUCT_ERROR)
         turn.calc_run_id = result["calcRunId"]
         turn.condition_changes = changes.changed()
         if turn.req.text and turn.req.history:
@@ -387,6 +395,13 @@ class ChatAgent:
             )
         payload = [c.model_dump(by_alias=False, exclude={"distance"}) for c in chunks]
         return json.dumps(payload, ensure_ascii=False)
+
+
+def _changed_product(result: dict[str, Any]) -> object:
+    """계산 응답 conditions.changed.etfProductCode(C2-3). Spring이 종목을 바꾸지 않은 것으로 봤으면 없다."""
+    conditions = result.get("conditions")
+    changed = conditions.get(CHANGED_SIDE) if isinstance(conditions, dict) else None
+    return changed.get(ETF_CODE) if isinstance(changed, dict) else None
 
 
 def _changed_savings_ratio(result: dict[str, Any]) -> object:

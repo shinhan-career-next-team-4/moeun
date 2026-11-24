@@ -39,6 +39,7 @@ SAVINGS_RATIO = "savingsRatioPct"
 CONDITION_FIELDS = (HELD_ASSETS, "monthlySavingAmount", "targetPeriodMonths", SAVINGS_RATIO, "savingsRateInputPct")
 
 TAX_RATE = "taxRatePct"
+ETF_CODE = "etfProductCode"
 ETF_NAME = "etfProductName"
 ETF_TAX_RATE = "etfGainTaxRatePct"
 ASSUMPTION_FIELDS = ("savingsRateBaseMonth", "sp500BaseDate", TAX_RATE, ETF_NAME, ETF_TAX_RATE)
