@@ -14,6 +14,8 @@ export interface AlternativeCardResponse {
   display: Record<string, string>;
   /** 허용 범위 안에서 목표를 달성하는 값을 찾지 못했다(#343). 옛 응답에는 없다 */
   unreachable?: boolean;
+  /** 바꾼 조건으로 계산한 결과. 기준 시나리오(평균)가 목표를 달성했는지만 쓴다(판정은 서버, #352) */
+  changed?: { scenarios?: { scenario: string; isAchieved: boolean }[] } | null;
 }
 
 export interface AlternativeResponse {
@@ -48,6 +50,7 @@ export async function requestAlternatives(deps: AlternativesDeps, targetPeriodMo
 /** 카드 한 장의 본문(A-1-1). 키가 없는 줄은 비운다 */
 function toValues(card: AlternativeCardResponse): AlternativeValues | undefined {
   const { key, display, changes, diff } = card;
+  const avgAchieved = card.changed?.scenarios?.find((s) => s.scenario === "AVG")?.isAchieved;
   if (card.unreachable) return { unreachable: true };
   if (Object.keys(changes).length === 0 || diff === null) return undefined;
   const current = display[`conditions.current.${key}`];
@@ -62,6 +65,7 @@ function toValues(card: AlternativeCardResponse): AlternativeValues | undefined 
     gapToGoal: display["changed.AVG.gapToGoal"],
     badAfterTaxAsset:
       badAsset && badGap ? COPY["alt.badValue"].replace("{asset}", badAsset).replace("{gap}", badGap) : undefined,
+    achieved: avgAchieved === true,
     changes,
     // 확인창(#68)이 같은 모양을 받는다. 대안은 저장된 비교가 아니라 방금 계산한 값이라 늘 적용할 수 있다
     comparison: { applicable: true, changedKeys: [key], display, diff },

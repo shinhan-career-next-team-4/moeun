@@ -16,7 +16,7 @@ interface AlternativeCardProps {
 interface RowProps {
   label: string;
   value?: string;
-  tone?: "normal" | "warn";
+  tone?: "normal" | "warn" | "good";
   suffix?: string;
 }
 
@@ -25,7 +25,7 @@ function Row({ label, value, tone = "normal", suffix }: RowProps) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <dt className="shrink-0 text-xs text-text-muted">{label}</dt>
-      <dd className={`text-right text-sm font-medium ${tone === "warn" ? "text-danger" : "text-text"}`}>
+      <dd className={`text-right text-sm font-medium ${tone === "warn" ? "text-danger" : tone === "good" ? "text-primary" : "text-text"}`}>
         {value}
         {suffix && <span className="ml-1 whitespace-nowrap">{suffix}</span>}
       </dd>
@@ -54,8 +54,8 @@ export function AlternativeCard({
         <dl className="flex flex-col gap-1.5">
           <Row label={COPY["alt.rowChangedCondition"]} value={values.changedCondition} />
           <Row label={COPY["alt.rowChange"]} value={values.change} />
-          <Row label={COPY["alt.rowAvgAsset"]} value={values.avgAfterTaxAsset} />
-          <Row label={COPY["alt.rowGapToGoal"]} value={values.gapToGoal} />
+          <Row label={COPY["alt.rowAvgAsset"]} value={values.avgAfterTaxAsset} tone={values.achieved ? "good" : "normal"} />
+          <Row label={COPY["alt.rowGapToGoal"]} value={values.gapToGoal} tone={values.achieved ? "good" : "normal"} />
           <Row
             label={COPY["alt.rowBad"]}
             value={values.badAfterTaxAsset}

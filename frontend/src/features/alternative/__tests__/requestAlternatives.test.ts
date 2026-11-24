@@ -75,3 +75,21 @@ describe("달성이 어려운 대안(#343)", () => {
     expect(values.targetPeriodMonths).toBeUndefined();
   });
 });
+
+describe("달성 판정 옮기기(#352)", () => {
+  it("changed의 AVG가 달성이면 achieved, 아니면 false다", () => {
+    const base = { changes: { monthlySavingAmount: 1 }, diff: {} as never, display: {} };
+    const values = toAlternativeValues({
+      hasAlternatives: true,
+      alternatives: [
+        { key: "monthlySavingAmount", ...base, changed: { scenarios: [{ scenario: "AVG", isAchieved: true }] } },
+        { key: "targetPeriodMonths", ...base, changed: { scenarios: [{ scenario: "AVG", isAchieved: false }] } },
+        { key: "savingsRatioPct", ...base },
+      ],
+    });
+
+    expect(values.monthlySavingAmount?.achieved).toBe(true);
+    expect(values.targetPeriodMonths?.achieved).toBe(false);
+    expect(values.savingsRatioPct?.achieved).toBe(false);
+  });
+});
