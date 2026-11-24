@@ -7,8 +7,8 @@ import { ProjectionUnitToggle } from "./ProjectionUnitToggle";
 import { toYearly } from "./selectPoints";
 import type { ProjectionData, ProjectionScenario, ProjectionUnit } from "./types";
 
-/** 월별/연별 토글은 이 개월 수(5년) 이상일 때만 보인다. 그보다 짧으면 월별로만 그린다. */
-const UNIT_TOGGLE_MIN_MONTHS = 60;
+/** 월별/연별 토글은 이 개월 수(3년) 이상일 때만 보인다. 그보다 짧으면 월별로만 그린다. */
+const UNIT_TOGGLE_MIN_MONTHS = 36;
 
 const SCENARIOS: readonly ProjectionScenario[] = ["GOOD", "AVG", "BAD"];
 

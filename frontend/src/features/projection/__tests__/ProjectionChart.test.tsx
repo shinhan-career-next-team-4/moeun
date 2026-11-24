@@ -37,7 +37,7 @@ describe("예상 자산 누적 그래프 화면 ProjectionChart (#298)", () => {
     expect(legend.compareDocumentPosition(chart()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it.each([[4, false], [5, true], [10, true]])("%i년 기간이면 월별/연별 토글 표시는 %s다", (years, shown) => {
+  it.each([[2, false], [3, true], [10, true]])("%i년 기간이면 월별/연별 토글 표시는 %s다", (years, shown) => {
     render(<ProjectionChart data={buildMockProjection(years)} scenario="AVG" />);
 
     expect(screen.queryByRole("radio", { name: "월별" }) !== null).toBe(shown);
