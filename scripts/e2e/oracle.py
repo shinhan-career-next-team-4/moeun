@@ -140,3 +140,17 @@ def unknown_numbers(content: str, *sources) -> set[int]:
             src = " ".join(str(v) for v in src.values())
         allowed |= manwon_numbers(src)
     return manwon_numbers(content) - allowed
+
+
+# 한글(음절·자모), ASCII(영문·숫자·기본 문장부호), 공백, 문구표가 쓰는 가운뎃점·따옴표·말줄임표·화살표·대시만 허용한다
+_ALLOWED_CHAR = re.compile(r"[가-힣ㄱ-ㆎ\x20-\x7e\s·‘’“”…→–—]")
+
+
+def foreign_chars(text: str) -> list[str]:
+    """AI 문장에 섞인 허용 밖 문자(키릴 등), 나온 순서대로 한 번씩."""
+    return list(dict.fromkeys(ch for ch in text or "" if not _ALLOWED_CHAR.fullmatch(ch)))
+
+
+def citation_orgs(citations: list[dict]) -> set[str]:
+    """출처의 서로 다른 운용사. 같은 문서·같은 기관이 여러 번 나와도 한 곳으로 센다(FR-AI-03)."""
+    return {c["orgName"] for c in citations}

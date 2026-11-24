@@ -9,7 +9,8 @@ LLM 시나리오는 가끔 흔들릴 수 있다. 실패하면 메시지 본문(a
 import pytest
 
 from conftest import WIREFRAME_PLAN, ask, current_view, expect, explain, ratio_of, save_plan_ok
-from oracle import unknown_numbers
+from journeys import RISK_QUESTION
+from oracle import citation_orgs, unknown_numbers
 
 pytestmark = [pytest.mark.ai, pytest.mark.usefixtures("ai_ready")]
 P = WIREFRAME_PLAN
@@ -37,14 +38,19 @@ def test_s5_1_explanation_uses_only_calc_numbers(api, fresh):
     assert not bad, f"설명에 계산 결과에 없는 금액 {sorted(bad)}만원\n{msg['content']}"
 
 
-def test_s5_2_explanation_cites_source_for_etf(api, fresh):
-    """ETF가 섞인 계획의 위험 설명에는 출처(공시 문서)가 붙는다(와이어프레임 'ETF 위험 설명 + 출처')."""
+def test_s5_2_etf_risk_question_cites_sources(api, fresh):
+    """ETF 위험을 물으면 서로 다른 운용사 공시 2곳 이상을 출처로 단다(FR-AI-03).
+
+    결과 설명(F-3)은 결과만 말하고 출처를 붙이지 않는다(기준표 Q3, S8-9). 결과 화면의 공시 출처는 고정 블록이다(#374).
+    """
     if ratio_of(fresh) == 100:
         pytest.skip("ETF 0% 계획")
-    msg = explain(api, fresh["calcRunId"])
-    assert msg["citations"], f"출처 없음. RAG 문서를 적재했는지 확인(scripts/ingest)\n{msg['content']}"
+    msg = ask(api, RISK_QUESTION)
+    assert msg["messageType"] == "ANSWER", f"{msg['messageType']}: {msg['content']}"
     for c in msg["citations"]:
         assert c["title"] and c["sourceUrl"] and c["orgName"], c
+    orgs = citation_orgs(msg["citations"])
+    assert len(orgs) >= 2, f"서로 다른 운용사 출처 2곳 이상이어야 함: {orgs}. 공시 적재 확인(scripts/ingest)\n{msg['content']}"
 
 
 def test_s5_3_explanation_for_exceeded_plan_is_fixed_sentence(api):

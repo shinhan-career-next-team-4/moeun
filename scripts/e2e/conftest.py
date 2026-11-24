@@ -19,6 +19,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from oracle import foreign_chars
+
 BASE_URL = os.getenv("E2E_BASE_URL", "http://localhost:8080")
 AI_URL = os.getenv("E2E_AI_URL", "http://localhost:8000")
 LOGIN_ID = os.getenv("E2E_LOGIN_ID")
@@ -134,6 +136,12 @@ def wait_settled(api: Api, after_id: int, timeout: float = 90) -> list[dict]:
     pytest.fail(f"{timeout}초 안에 답이 오지 않음(afterId={after_id})")
 
 
+def assert_clean_text(msg: dict) -> None:
+    """AI 답에 한글·영문·숫자·기본 문장부호 밖의 문자(키릴 등)가 없다(#376)."""
+    bad = foreign_chars(msg["content"])
+    assert not bad, f"AI 답에 허용 밖 문자 {bad}\n{msg['content']}"
+
+
 def ask(api: Api, text: str, timeout: float = 90) -> dict:
     """질문(F-1) → 답이 끝날 때까지 폴링 → ASSISTANT 메시지."""
     body = expect(api.post("/api/chat/messages", json={"text": text}), 202)
@@ -141,6 +149,7 @@ def ask(api: Api, text: str, timeout: float = 90) -> dict:
     msgs = wait_settled(api, body["userMessageId"] - 1, timeout)
     answer = next(m for m in msgs if m["id"] == aid)
     assert answer["status"] == "COMPLETED", f"답변 실패: {answer}"
+    assert_clean_text(answer)
     return answer
 
 
@@ -151,6 +160,7 @@ def explain(api: Api, calc_run_id: int, timeout: float = 90) -> dict:
     msgs = wait_settled(api, before, timeout)
     mine = [m for m in msgs if m["role"] == "ASSISTANT"]
     assert mine, "설명 메시지가 생기지 않음"
+    assert_clean_text(mine[-1])
     return mine[-1]
 
 
@@ -197,7 +207,48 @@ def report(pid: str, **cols) -> None:
     REPORT.setdefault(pid, {}).update(cols)
 
 
+JOURNAL: dict[str, dict] = {}
+
+
+def journal(jid: str, journey: dict) -> dict:
+    """여정 기록(journeys.md). 같은 여정의 테스트들이 같은 dict에 쓴다."""
+    entry = JOURNAL.setdefault(jid, {"journey": journey})
+    return entry
+
+
+def _write_journal() -> None:
+    def amount(won):
+        return f"{won // 10_000:,}만원"
+    lines = ["# 사용자 여정 실행 기록", "", "pytest가 끝날 때 자동으로 만든다. 숫자는 서버 응답, 답은 AI 원문이다.", ""]
+    for jid in sorted(JOURNAL):
+        e = JOURNAL[jid]
+        j, p = e["journey"], e["journey"]["plan"]
+        lines += [f"## {jid}. {j['name']}", "",
+                  f"- **계기:** {j['trigger']}", f"- **하려는 일:** {j['job']}",
+                  f"- **입력:** 목표 {amount(p['goalAmount'])} / {p['targetPeriodMonths']}개월 / "
+                  f"보유 {amount(p['heldAssets'])} / 월 {amount(p['monthlySavingAmount'])}"
+                  + (f" / 금리 {p['savingsRateInputPct']}%" if p['savingsRateInputPct'] is not None else "")
+                  + (f" / 적금 {p['savingsRatioPct']}%" if p['savingsRatioPct'] is not None else "")]
+        if "판정" in e:
+            lines.append(f"- **판정:** {e['판정']}")
+        if "대안" in e:
+            lines.append(f"- **대안:** {e['대안']}")
+        for st in e.get("단계", []):
+            if "질문" in st:
+                lines += ["", f"**{st['no']}. 질문:** {st['질문']}  ", f"AI({st['종류']}): {st['답']}"]
+                if st.get("바뀐 결과(평균)"):
+                    lines.append(f"  → 바뀐 조건의 평균 예상 자산 {st['바뀐 결과(평균)']}")
+            else:
+                lines += ["", f"**{st['no']}. {st['동작']}:** {st.get('결과') or st.get('답', '')}"]
+            if st.get("출처"):
+                lines.append(f"  출처: {st['출처']}")
+        lines.append("")
+    (Path(__file__).parent / "journeys.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def pytest_sessionfinish(session, exitstatus):
+    if JOURNAL:
+        _write_journal()
     if not REPORT:
         return
     cols = ["이름", "목표", "기간", "원금", "판정", "좋았던 때", "평균", "나빴던 때", "적금만(명세 계산)",

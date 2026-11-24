@@ -15,7 +15,7 @@ cd backend && ./gradlew bootRun --args='--spring.profiles.active=local'
 
 # ai-server (AI 시나리오용, .env에 ANTHROPIC_API_KEY·OPENAI_API_KEY)
 cd ai-server && uv run uvicorn app.main:app --port 8000
-# 출처 시나리오(S5-2)는 RAG 문서 적재가 필요하다: scripts/ingest
+# 출처 시나리오(S5-2, S9 J6)는 RAG 문서 적재가 필요하다: scripts/ingest
 ```
 
 ## 2. 돌리기 (repo 루트에서)
@@ -28,6 +28,9 @@ uv run --no-project --with httpx --with pytest pytest scripts/e2e -m "not ai" -v
 
 # 전체 (LLM 호출 포함, 수 분)
 uv run --no-project --with httpx --with pytest pytest scripts/e2e -v
+
+# 타깃 사용자 여정(발표용 7명)
+uv run --no-project --with httpx --with pytest pytest scripts/e2e -k s9 -v
 
 # 페르소나 시나리오만
 uv run --no-project --with httpx --with pytest pytest scripts/e2e -k "s6 or s7" -v
@@ -66,9 +69,13 @@ uv run --no-project --with httpx --with pytest pytest scripts/e2e -k s5_5 -v
 | `test_01_auth.py` | S0 로그인·인증 |
 | `test_02_plan.py` | S1 입력 → 결과 ① |
 | `test_03_compare_alternatives.py` | S2 정확값, S3 조건 비교(③), S4 대안 카드(②) |
+| `test_00_oracle.py` | 오라클 함수(허용 밖 문자, 운용사 수) 확인. 서버 불필요 |
 | `test_04_chat_ai.py` | S5 AI 설명·대화 (`-m ai`) |
 | `scenarios.py` | 페르소나 16개, 대화 질문 6종 |
 | `test_10_personas.py` | S6 페르소나 x 목표 성질 (핵심) |
 | `test_11_persona_chat.py` | S7 페르소나 x 말투 (`-m ai`) |
 | `test_12_conversation.py` | S8 실제 대화 실패의 회귀: 금액 표현, 되묻기 뒤 금액만 답하기, 답 길이, 세금 안내 없음, 다른 ETF 출처 (`-m ai`, #234) |
+| `journeys.py` | 타깃 사용자 7명의 여정 데이터 |
+| `test_20_journeys.py` | S9 여정 실행 (입력·판정·대안 + 대화·적용·되돌리기) |
+| `journeys.md` | 실행 후 생기는 여정 기록 (git 제외) |
 | `report.md` | 실행 후 생기는 페르소나별 결과 표 (git 제외) |
