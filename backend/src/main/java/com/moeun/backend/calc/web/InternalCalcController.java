@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.moeun.backend.calc.CalcRejectedException;
+import com.moeun.backend.calc.application.CalcRejectedException;
 import com.moeun.backend.calc.application.CompareConditionsUseCase;
 import com.moeun.backend.calc.application.ConditionChanges;
 import com.moeun.backend.plan.ChangePath;

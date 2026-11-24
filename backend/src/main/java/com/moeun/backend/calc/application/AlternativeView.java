@@ -1,10 +1,12 @@
-package com.moeun.backend.calc;
+package com.moeun.backend.calc.application;
 
 import java.util.List;
 import java.util.Map;
 
+import com.moeun.backend.calc.CalcComparison;
+
 /**
- * 대안 산출 결과(FR-ALT-01·03). chat이 쓰는 calc의 공개 타입이라 calc 하위 패키지 타입을 싣지 않는다.
+ * 대안 산출 결과(FR-ALT-01·03). calc 안(대안 REST)에서만 쓴다(#309, #311).
  *
  * @param needed 대안을 보여줄지. 기준 시나리오로 목표를 달성했거나 이미 넘은 계획이면 false(대안 없음)
  * @param alternatives needed일 때 {@link AlternativeKey} 선언 순서의 3개. needed가 아니면 빈 목록

@@ -18,7 +18,7 @@ import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import com.moeun.backend.calc.CalcRejectedException;
+import com.moeun.backend.calc.application.CalcRejectedException;
 import com.moeun.backend.calc.application.Formatter;
 import com.moeun.backend.plan.FieldError;
 

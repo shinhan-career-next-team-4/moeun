@@ -11,11 +11,89 @@
 | `refdata` | 기준 데이터와 버전(ETF 가격은 종목별) | data_version, savings_avg_rate, etf_monthly, etf_product_version, calc_param | — |
 | `calc` | 계산 엔진, 계산 기록, 내 계획 조회·입력 저장·대안·조건 비교 REST, `/internal/calc` | calc_run | plan, refdata, config(copy) |
 | `rag` | 인용 출처 조회(읽기 전용) | source_org, rag_document, rag_chunk, chunk_embedding | — |
-| `chat` | 대화 저장, ai-server 비동기 호출 | chat_message, chat_message_citation | calc, rag, plan, auth, config :: copy |
+| `chat` | 대화 저장, ai-server 비동기 호출 | chat_message, chat_message_citation | calc :: plan-context, calc :: chat-comparison, calc :: calc-run-etf, rag, plan, auth, config :: copy |
 
 - REST 위치: 내 계획 조회·입력 저장(`GET`/`PUT /api/plan`)은 `calc.web`, 되돌리기(`POST /api/plan/undo`)와 대안·비교 적용(`POST /api/plan/apply`, #68)은 `plan.web`이다. 저장과 계산을 한 트랜잭션으로 묶으려고 부르는 쪽(calc)에 둔다. 대안(`POST /api/alternatives`)과 조건 비교(`POST /api/compare`)는 calc 공개 API만 부르므로 `calc.web.alternative`·`calc.web.compare`에 둔다(#309). 대화 적용은 chat 모듈이 `PlanApplyService`를 직접 부른다.
 - `config`는 보안 같은 앱 전역 설정이다.
 - 의존 방향의 기준은 각 모듈의 `package-info.java`이며, 바꿀 때는 이 표도 같이 고친다.
+
+### 모듈 의존 그림
+
+Modulith `Documenter`가 지금 코드로 만든 그림이다(UML 스타일). `ModuleDiagramTest`가 이 블록이 코드와 같은지 확인하고, 다르면 실패 메시지에 새 그림을 보여준다. 모듈이나 의존을 바꾸면 그 그림으로 이 블록을 바꾼다. GitHub는 plantuml을 그리지 않으므로 IDE 플러그인이나 plantuml 렌더러로 본다.
+
+- chat → calc는 named interface 세 개(`plan-context`, `chat-comparison`, `calc-run-etf`)로만 이어진다(#311). 그림에는 모듈 단위 "uses"로 나온다.
+
+```plantuml
+@startuml
+
+set separator none
+top to bottom direction
+hide stereotype
+
+skinparam {
+  componentStyle uml1
+}
+
+<style>
+  root {
+    BackgroundColor: #ffffff;
+    FontColor: #444444;
+  }
+  // Element,Component
+  .Element-RWxlbWVudCxDb21wb25lbnQ= {
+    BackgroundColor: #ffffff;
+    LineColor: #444444;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #444444;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Relationship
+  .Relationship-UmVsYXRpb25zaGlw {
+    LineThickness: 2;
+    LineStyle: 10-10;
+    LineColor: #444444;
+    FontColor: #444444;
+    FontSize: 24;
+  }
+  // BackendApplication
+  .Boundary-QmFja2VuZEFwcGxpY2F0aW9u {
+    BackgroundColor: #ffffff;
+    LineColor: #444444;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #444444;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+  }
+</style>
+
+rectangle "BackendApplication\n<size:16>[Software System]</size>" <<Boundary-QmFja2VuZEFwcGxpY2F0aW9u>> {
+  component "==인증\n<size:16>[Component: Module]</size>" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as BackendApplication.BackendApplication.인증
+  component "==Config\n<size:16>[Component: Module]</size>" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as BackendApplication.BackendApplication.Config
+  component "==내 계획\n<size:16>[Component: Module]</size>" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as BackendApplication.BackendApplication.내계획
+  component "==RAG 자료\n<size:16>[Component: Module]</size>" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as BackendApplication.BackendApplication.RAG자료
+  component "==기준 데이터\n<size:16>[Component: Module]</size>" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as BackendApplication.BackendApplication.기준데이터
+  component "==계산\n<size:16>[Component: Module]</size>" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as BackendApplication.BackendApplication.계산
+  component "==AI 대화\n<size:16>[Component: Module]</size>" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as BackendApplication.BackendApplication.AI대화
+}
+
+BackendApplication.BackendApplication.AI대화 --> BackendApplication.BackendApplication.인증 <<Relationship-UmVsYXRpb25zaGlw>> : "listens to"
+BackendApplication.BackendApplication.AI대화 --> BackendApplication.BackendApplication.Config <<Relationship-UmVsYXRpb25zaGlw>> : "uses"
+BackendApplication.BackendApplication.AI대화 --> BackendApplication.BackendApplication.계산 <<Relationship-UmVsYXRpb25zaGlw>> : "uses"
+BackendApplication.BackendApplication.AI대화 --> BackendApplication.BackendApplication.내계획 <<Relationship-UmVsYXRpb25zaGlw>> : "uses"
+BackendApplication.BackendApplication.AI대화 --> BackendApplication.BackendApplication.RAG자료 <<Relationship-UmVsYXRpb25zaGlw>> : "uses"
+BackendApplication.BackendApplication.계산 --> BackendApplication.BackendApplication.내계획 <<Relationship-UmVsYXRpb25zaGlw>> : "listens to"
+BackendApplication.BackendApplication.계산 --> BackendApplication.BackendApplication.내계획 <<Relationship-UmVsYXRpb25zaGlw>> : "uses"
+BackendApplication.BackendApplication.계산 --> BackendApplication.BackendApplication.기준데이터 <<Relationship-UmVsYXRpb25zaGlw>> : "uses"
+BackendApplication.BackendApplication.계산 --> BackendApplication.BackendApplication.Config <<Relationship-UmVsYXRpb25zaGlw>> : "uses"
+
+@enduml
+```
 
 ## 모듈 내부 패키지
 

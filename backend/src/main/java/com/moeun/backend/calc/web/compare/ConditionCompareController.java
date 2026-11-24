@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.moeun.backend.calc.CalcRejectedException;
-import com.moeun.backend.calc.ConditionComparisonQuery;
+import com.moeun.backend.calc.application.CalcRejectedException;
+import com.moeun.backend.calc.application.ConditionComparisonQuery;
 import com.moeun.backend.config.copy.CopyBook;
 import com.moeun.backend.plan.ChangePath;
 import com.moeun.backend.plan.ConditionOverride;

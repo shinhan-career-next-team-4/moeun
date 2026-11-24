@@ -36,6 +36,8 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.moeun.backend.auth.application.JwtTokenService;
+import com.moeun.backend.calc.application.CurrentPlanResult;
+import com.moeun.backend.calc.application.CurrentPlanResultService;
 import com.moeun.backend.config.TestcontainersConfig;
 
 import jakarta.servlet.http.Cookie;

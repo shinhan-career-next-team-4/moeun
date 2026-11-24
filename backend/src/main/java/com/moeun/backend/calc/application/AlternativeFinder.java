@@ -8,14 +8,11 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.moeun.backend.calc.AlternativeKey;
-import com.moeun.backend.calc.AlternativeQuery;
-import com.moeun.backend.calc.AlternativeView;
-import com.moeun.backend.calc.AlternativeView.Alternative;
 import com.moeun.backend.calc.CalcInput;
 import com.moeun.backend.calc.CalcResult;
 import com.moeun.backend.calc.CalcStatus;
 import com.moeun.backend.calc.ScenarioResult;
+import com.moeun.backend.calc.application.AlternativeView.Alternative;
 import com.moeun.backend.calc.application.CompareConditionsUseCase.ComputedComparison;
 import com.moeun.backend.plan.ChangePath;
 import com.moeun.backend.plan.ConditionOverride;

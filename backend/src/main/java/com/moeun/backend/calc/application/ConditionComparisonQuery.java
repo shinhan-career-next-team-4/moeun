@@ -1,5 +1,6 @@
-package com.moeun.backend.calc;
+package com.moeun.backend.calc.application;
 
+import com.moeun.backend.calc.ChatComparisonView;
 import com.moeun.backend.plan.ConditionOverride;
 
 /**

@@ -1,4 +1,4 @@
-package com.moeun.backend.calc;
+package com.moeun.backend.calc.application;
 
 /**
  * 대안 값 산출의 공개 API(FR-ALT-01·03). 계산은 모두 calc가 하고 웹 계층({@code POST /api/alternatives})은 부르기만

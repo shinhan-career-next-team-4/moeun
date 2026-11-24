@@ -15,7 +15,7 @@ import org.springframework.modulith.docs.Documenter.Options;
 
 /**
  * ARCHITECTURE.md의 모듈 의존 그림이 Modulith Documenter가 지금 코드로 만든 그림과 같은지 본다(#311).
- * 다르면 실패 메시지의 그림으로 ARCHITECTURE.md의 plantuml 블록을 바꾼다. Gradle 테스트의 작업 디렉터리는 backend/다.
+ * 줄 순서는 보지 않는다. 다르면 실패 메시지의 그림으로 ARCHITECTURE.md의 plantuml 블록을 바꾼다. Gradle 테스트의 작업 디렉터리는 backend/다.
  */
 class ModuleDiagramTest {
 
@@ -35,7 +35,8 @@ class ModuleDiagramTest {
         String documented = document.substring(begin + BEGIN.length(), document.indexOf(END, begin + BEGIN.length()))
                 .strip();
 
-        assertThat(documented).as("ARCHITECTURE.md의 모듈 그림을 아래 그림으로 바꾼다:%n%s", generated)
-                .isEqualTo(generated);
+        // Documenter는 관계 줄의 순서를 매번 같게 내지 않는다. 줄 집합으로 비교한다
+        assertThat(documented.lines().sorted().toList()).as("ARCHITECTURE.md의 모듈 그림을 아래 그림으로 바꾼다:%n%s",
+                generated).isEqualTo(generated.lines().sorted().toList());
     }
 }
