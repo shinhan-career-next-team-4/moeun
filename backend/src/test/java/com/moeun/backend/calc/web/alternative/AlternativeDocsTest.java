@@ -1,4 +1,4 @@
-package com.moeun.backend.chat.alternative;
+package com.moeun.backend.calc.web.alternative;
 
 import static com.epages.restdocs.apispec.MockMvcRestDocumentationWrapper.document;
 import static com.epages.restdocs.apispec.ResourceDocumentation.resource;

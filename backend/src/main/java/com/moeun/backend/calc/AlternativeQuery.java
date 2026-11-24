@@ -1,6 +1,9 @@
 package com.moeun.backend.calc;
 
-/** 대안 값 산출의 공개 API(FR-ALT-01·03). 계산은 모두 calc가 하고 chat은 부르기만 한다(NFR-INT-01). 기록을 남기지 않는다. */
+/**
+ * 대안 값 산출의 공개 API(FR-ALT-01·03). 계산은 모두 calc가 하고 웹 계층({@code POST /api/alternatives})은 부르기만
+ * 한다(NFR-INT-01). 기록을 남기지 않는다.
+ */
 public interface AlternativeQuery {
 
     /**

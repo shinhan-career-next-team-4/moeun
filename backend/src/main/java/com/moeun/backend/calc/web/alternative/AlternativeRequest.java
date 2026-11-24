@@ -1,4 +1,4 @@
-package com.moeun.backend.chat.web.alternative;
+package com.moeun.backend.calc.web.alternative;
 
 /**
  * 대안 요청. 본문은 비어 있어도 된다.
