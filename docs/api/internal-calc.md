@@ -151,7 +151,7 @@
 | `byScenario[].achievementChange` | `STAYS_ACHIEVED` / `STAYS_MISSED` / `MISS_TO_ACHIEVE` / `ACHIEVE_TO_MISS` | `isAchieved` 전후 |
 
 - 포인터 규칙을 적은 이유: `CalcResult.findBaselineResult()`는 기준 시나리오가 없으면 다른 시나리오로 폴백하므로, 그대로 쓰면 `byScenario`에 없는 이름이 나올 수 있다. #32 테스트로 "포인터는 항상 `byScenario`에 있음"을 고정한다.
-- `comparable` 플래그와 `gapToGoalDelta`는 두지 않는다. 목표가 바뀔 때도 각 시나리오의 `gapToGoal`은 각자 자기 목표 기준이다.
+- `comparable` 플래그와 raw `gapToGoalDelta`는 두지 않는다. 목표가 바뀔 때도 각 시나리오의 `gapToGoal`은 각자 자기 목표 기준이다. 목표 대비 차이는 `display["diff.<S>.gapToGoalDelta"]` 문자열로만 준다(C2-6, #285).
 - 기간을 바꾸면 서로 다른 달의 자산을 비교한다. 이 값이 맞다(사용자는 "기한을 늘리면 그때 얼마"를 묻는다). 기간은 `display`의 `conditions.*.targetPeriodMonths`·`*.targetMonth`로 말한다.
 - **달성 시점의 차이(몇 개월 빨라짐)는 계약에 두지 않는다.** 모델은 `display`의 `current.<S>.goalReachMonth`·`changed.<S>.goalReachMonth`를 각각 인용할 수는 있지만 두 달 사이의 개월 수를 말하지 않는다(프롬프트 규칙). 왜: 한쪽이 `null`인 경우가 많아 뜻이 애매하고, 필요해지면 다음 버전에 필드로 더한다.
 - 시나리오 수가 다르면(비중 100 ↔ 그 밖) `byScenario`에는 AVG만 남는다. ai-server는 `changed.scenarios`와 그 `display`로 새 3구간을 설명한다.
@@ -170,6 +170,7 @@ CP-04 형식(`Formatter`)으로 Spring이 만든 문자열의 **평평한 맵**(
 | `<side>.<S>.gapToGoal` | **[D-055 확정]** CP-04 그대로 `부호 + 약 N만원 + 달성/미달` (`-약 288만원 미달`, `+약 501만원 달성`) | |
 | `<side>.<S>.goalReachMonth` | `YYYY년 M월` | 값이 `null`이면 **키를 만들지 않는다**. 모델은 키가 없으면 "기간 안에 도달하지 않아요"처럼 시점 없이 말한다 |
 | `diff.<S>.afterTaxAssetDelta`, `diff.<S>.principalDelta`, `diff.<S>.afterTaxGainDelta` | **[D-055 확정]** 방향 단어 `약 N만원 증가` / `약 N만원 감소` | |
+| `diff.<S>.gapToGoalDelta` | D-055 차이 형식(`약 N만원 증가`·`약 N만원 감소`·`변화 없음`) | **#285.** `changed.<S>.gapToGoal − current.<S>.gapToGoal`. `byScenario`에 있는 시나리오마다 **항상** 만든다. 목표 금액이 그대로면 값이 `afterTaxAssetDelta`와 같다. raw 값은 두지 않는다(양쪽 `gapToGoal`에 있음) |
 | `conditions.<side>.monthlySavingAmount` | `약 N만원` | |
 | `conditions.<side>.targetPeriodMonths` | `n년 n개월` | |
 | `conditions.<side>.savingsRatioPct` | `적금 a : ETF b` | 비중 표시는 이 형식 하나만 쓴다(CP-04). `errors[].minDisplay`·`maxDisplay`도 같다(C3-1) |

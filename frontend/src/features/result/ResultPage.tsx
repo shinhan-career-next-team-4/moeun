@@ -20,6 +20,7 @@ import {
 import { AssumptionsSection } from "./AssumptionsSection";
 import { Disclaimer } from "./Disclaimer";
 import { GoalBar } from "./GoalBar";
+import { MonthDetailPanel } from "./MonthDetailPanel";
 import { PlanConditionBar } from "./PlanConditionBar";
 import { ResultLayout } from "./ResultLayout";
 import { ResultChart } from "./ResultChart";
@@ -34,6 +35,8 @@ const getSnapshot = () => planStore.getState();
 export function ResultPage() {
   const { view, revision } = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const [loadError, setLoadError] = useState(false);
+  // 그래프에서 고른 달(YYYY-MM). 월별 상세(#292)가 이 달의 값을 보여 준다
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   // 비교 영역(#65)은 프론트 상태만 쓴다. 적용 전까지 내 계획은 바뀌지 않는다(FR-CMP-02)
   const [comparison, setComparison] = useState<ComparisonView | null>(null);
   const [comparing, setComparing] = useState(false);
@@ -296,6 +299,9 @@ export function ResultPage() {
   const data = view.body as ResultPlanView;
   const { result, display, baselineResultScenario } = data;
   const isExceeded = result.status === "ALREADY_EXCEEDED";
+  // 월별 표시 문자열이 있을 때만 월을 고를 수 있다. 고른 달이 새 응답에 없으면 상세는 닫힌 것으로 본다
+  const monthlyDetails = result.monthlyDetails ?? [];
+  const selectedDetail = monthlyDetails.find((detail) => detail.month === selectedMonth) ?? null;
   const baseline = baselineResultScenario
     ? result.scenarios.find((s) => s.scenario === baselineResultScenario)
     : undefined;
@@ -362,7 +368,14 @@ export function ResultPage() {
                   goalAmount={result.goalAmount}
                   display={display}
                   principalPoints={result.principalPoints}
+                  selectedMonth={selectedDetail?.month ?? null}
+                  onSelectMonth={
+                    monthlyDetails.length > 0
+                      ? (month) => setSelectedMonth((prev) => (prev === month ? null : month))
+                      : undefined
+                  }
                 />
+                {selectedDetail && <MonthDetailPanel detail={selectedDetail} onClose={() => setSelectedMonth(null)} />}
                 {/* ETF 종목 비교(#156). 종목을 골라 저장 없이 미리본다. ETF 0%면 스스로 숨는다 */}
                 <EtfCompareSection
                   currentProductName={display["assumptions.etfProductName"] ?? ""}

@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.restdocs.test.autoconfigure.AutoConfigureRestDocs;
+import org.springframework.restdocs.payload.JsonFieldType;
 
 import com.epages.restdocs.apispec.ResourceSnippetParameters;
 
@@ -46,7 +47,9 @@ class ChatPollingDocsTest extends ChatIntegrationTestSupport {
                                         .description("본문. PENDING이면 null"),
                                 fieldWithPath("messages[].citations[]").optional()
                                         .description("출처(순서가 순위). 없으면 빈 배열"),
-                                fieldWithPath("messages[].createdAt").description("생성 시각(ISO-8601)"))
+                                fieldWithPath("messages[].createdAt").description("생성 시각(ISO-8601)"),
+                                fieldWithPath("messages[].etfIncluded").optional().type(JsonFieldType.BOOLEAN)
+                                        .description("완료된 EXPLANATION에만. 그 설명의 계산에 ETF가 들어갔는지(#305)"))
                         .build())));
     }
 }

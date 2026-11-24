@@ -24,6 +24,8 @@ export interface ChatMessage {
   content: string | null;
   citations: ChatCitation[];
   createdAt: string;
+  /** 완료된 결과 설명에만 있다. 그 설명의 계산에 ETF가 들어갔는지(C12b-3, #305). */
+  etfIncluded?: boolean;
 }
 
 /** GET /api/chat/messages 응답(F-2). */

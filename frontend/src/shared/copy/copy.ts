@@ -48,6 +48,8 @@ export const COPY = {
   "result.scenarioMethodShort.ROLLING_DISTRIBUTION":
     "과거 10년 수익률로 1만 가지 경우를 계산해 세 구간 (가정 보기 참고)",
   "result.chartLegendPrincipal": "누적 납입 원금",
+  "result.monthDetailLabel": "월별 상세",
+  "result.monthDetailClose": "닫기",
   "result.chartLegendGoal": "목표선",
   "result.loadFailed": "결과를 불러오지 못했어요. 다시 시도해 주세요",
   "result.alreadyExceeded":

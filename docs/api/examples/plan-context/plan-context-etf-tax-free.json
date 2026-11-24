@@ -6,7 +6,8 @@
     "monthlySavingAmount": 300000,
     "targetPeriodMonths": 36,
     "savingsRatioPct": 50,
-    "savingsRateInputPct": 3.12
+    "savingsRateInputPct": 3.12,
+    "etfProductCode": "069500"
   },
   "result": {
     "status": "CALCULATED",

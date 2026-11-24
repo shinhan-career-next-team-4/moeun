@@ -97,7 +97,8 @@ uv run moeun-ingest --file docs/a.pdf --doc-type DISCLOSURE --org "OO자산운�
 | `result.assumptions.isDefaultSavingsRate` | 필수 |
 | `result.assumptions.{scenarioMethod, excludedItems}` | 키 필수, 값 null 가능 |
 | `calcRunId` | 선택 (EXPLAIN에서는 일치 검사) |
-| `conditions`, 그 밖의 raw 필드 | 선택 (읽지 않음) |
+| `conditions.etfProductCode` | 선택 (계획에 저장된 종목. 대화로 종목을 바꿀 때 같은 종목인지 보는 데만 쓴다, #297) |
+| `conditions`의 나머지, 그 밖의 raw 필드 | 선택 (읽지 않음) |
 
 검사 순서(`ChatAgent.run()`):
 

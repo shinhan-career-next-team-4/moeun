@@ -357,6 +357,56 @@ class ChatPollingApiTest extends ChatIntegrationTestSupport {
         }
     }
 
+    // ---------- #305 결과 설명의 ETF 포함 여부(그 설명의 계산 기록 기준) ----------
+
+    /** 그 calc_run이 ETF 가격 버전을 쓴 것으로 만든다(sp500_version_id NULL = ETF 0%). */
+    void markEtfUsed(long calcRunId) {
+        long etfVersion = jdbc.sql("INSERT INTO data_version "
+                        + "(data_kind, version_label, base_date, source, product_code) "
+                        + "VALUES ('ETF_PRICE', 'chat-test-etf', DATE '2026-11-01', 'chat test', 'SP500') "
+                        + "ON CONFLICT ON CONSTRAINT uq_data_version_label DO UPDATE SET source = EXCLUDED.source "
+                        + "RETURNING id")
+                .query(Long.class).single();
+        jdbc.sql("UPDATE calc_run SET sp500_version_id = ? WHERE id = ?").params(etfVersion, calcRunId).update();
+    }
+
+    @Test
+    void completedExplanationCarriesEtfIncludedOfItsOwnCalcRun() throws Exception {
+        long withEtfRun = insertCalcRun(memberId, "PLAN");
+        markEtfUsed(withEtfRun);
+        long withEtf = insertExplanation(memberId, "COMPLETED", "ETF 있는 설명", withEtfRun, "AVG", Instant.now());
+        long noEtfRun = insertCalcRun(memberId, "PLAN");
+        long noEtf = insertExplanation(memberId, "COMPLETED", "ETF 없는 설명", noEtfRun, "AVG", Instant.now());
+
+        for (Long afterId : new Long[] {null, withEtf - 1}) {
+            JsonNode body = poll(cookie, afterId);
+            assertThat(messageOf(body, withEtf).get("etfIncluded").asBoolean()).as("afterId=%s", afterId).isTrue();
+            assertThat(messageOf(body, withEtf).get("etfIncluded").isBoolean()).isTrue();
+            assertThat(messageOf(body, noEtf).get("etfIncluded").asBoolean()).as("afterId=%s", afterId).isFalse();
+        }
+    }
+
+    @Test
+    void etfIncludedIsOnlyOnCompletedExplanations() throws Exception {
+        long calcRun = insertCalcRun(memberId, "PLAN");
+        markEtfUsed(calcRun);
+        long question = insertMessage(memberId, "USER", "QUESTION", "COMPLETED", "질문");
+        long answer = insertMessage(memberId, "ASSISTANT", "ANSWER", "COMPLETED", "답변");
+        long recalc = jdbc.sql("INSERT INTO chat_message (member_id, role, message_type, status, content, "
+                        + "calc_run_id, baseline_scenario, condition_changes) "
+                        + "VALUES (?, 'ASSISTANT', 'RECALC_RESULT', 'COMPLETED', '재계산', ?, 'AVG', "
+                        + "CAST('{\"monthlySavingAmount\":500000}' AS jsonb)) RETURNING id")
+                .params(memberId, calcRun).query(Long.class).single();
+        long pending = insertExplanation(memberId, "PENDING", null, calcRun, "AVG", Instant.now());
+        long failed = insertExplanation(memberId, "FAILED", "실패", calcRun, "AVG", Instant.now());
+
+        JsonNode body = poll(cookie, null);
+
+        for (long id : new long[] {question, answer, recalc, pending, failed}) {
+            assertThat(messageOf(body, id).has("etfIncluded")).as("message %s", id).isFalse();
+        }
+    }
+
     // ---------- AC-4 응답 모양: 정해진 키만 ----------
 
     @Test

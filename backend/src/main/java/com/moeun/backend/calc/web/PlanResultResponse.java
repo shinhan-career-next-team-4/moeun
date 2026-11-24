@@ -2,6 +2,7 @@ package com.moeun.backend.calc.web;
 
 import java.math.BigDecimal;
 import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +39,7 @@ record PlanResultResponse(long revision, long calcRunId, Scenario baselineResult
         CalcResult result = current.result();
         Scenario baseline = result.findBaselineResult().map(ScenarioResult::scenario).orElse(null);
         return new PlanResultResponse(current.plan().revision(), current.calcRunId(), baseline,
-                current.plan().canUndo(), PlanValues.from(current.plan()), ResultView.from(result),
+                current.plan().canUndo(), PlanValues.from(current.plan()), ResultView.from(result, formatter),
                 withGapBadges(current.display(), result, formatter));
     }
 
@@ -71,20 +72,49 @@ record PlanResultResponse(long revision, long calcRunId, Scenario baselineResult
     /**
      * @param principalPoints 누적 납입 원금 월별 점(그래프 하단 막대). 엔진이 점마다 이미 담는 원금(보유 자산 + 월 저축액 ×
      *     경과 개월)이라 시나리오와 무관하게 같다. 새로 계산하지 않고 첫 시나리오의 점에서 옮긴다. 시나리오가 없으면(이미 목표 초과) 빈 목록이다
+     * @param monthlyDetails 그래프에서 월을 눌렀을 때 보여 줄 월별 표시 문자열(#292). 숫자는 엔진 점 그대로이고 서식만 서버
+     *     Formatter가 한다(화면은 금액을 만들지 않는다, NFR-INT-01). 시나리오가 없으면 빈 목록이다
      */
     record ResultView(CalcStatus status, long goalAmount, YearMonth calcStartMonth, YearMonth targetMonth,
-            List<ScenarioView> scenarios, List<PrincipalPointView> principalPoints, Assumptions assumptions) {
+            List<ScenarioView> scenarios, List<PrincipalPointView> principalPoints,
+            List<MonthDetailView> monthlyDetails, Assumptions assumptions) {
 
-        static ResultView from(CalcResult result) {
+        static ResultView from(CalcResult result, Formatter formatter) {
             return new ResultView(result.status(), result.goalAmount(), result.calcStartMonth(), result.targetMonth(),
                     result.scenarios().stream().map(ScenarioView::from).toList(), principalPointsOf(result),
-                    result.assumptions());
+                    MonthDetailView.listOf(result, formatter), result.assumptions());
         }
 
         private static List<PrincipalPointView> principalPointsOf(CalcResult result) {
             return result.scenarios().stream().findFirst()
                     .map(scenario -> scenario.monthlyPoints().stream().map(PrincipalPointView::from).toList())
                     .orElseGet(List::of);
+        }
+    }
+
+    /**
+     * 월 하나의 표시 문자열. {@code afterTaxAsset}은 응답에 있는 시나리오(GOOD·AVG·BAD 순, ETF 0%면 AVG)만 담는다.
+     */
+    record MonthDetailView(YearMonth month, String label, String principal, Map<Scenario, String> afterTaxAsset) {
+
+        static List<MonthDetailView> listOf(CalcResult result, Formatter formatter) {
+            List<ScenarioResult> scenarios = result.scenarios();
+            if (scenarios.isEmpty()) {
+                return List.of();
+            }
+            List<MonthDetailView> details = new ArrayList<>();
+            List<MonthlyPoint> first = scenarios.get(0).monthlyPoints();
+            for (int k = 0; k < first.size(); k++) {
+                MonthlyPoint point = first.get(k);
+                Map<Scenario, String> assets = new LinkedHashMap<>();
+                for (ScenarioResult scenario : scenarios) {
+                    long asset = scenario.monthlyPoints().get(k).afterTaxAsset();
+                    assets.put(scenario.scenario(), formatter.formatAmount(asset));
+                }
+                details.add(new MonthDetailView(point.month(), formatter.formatMonth(point.month()),
+                        formatter.formatAmount(point.principal()), assets));
+            }
+            return details;
         }
     }
 

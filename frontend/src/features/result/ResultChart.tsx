@@ -13,13 +13,13 @@ export interface ResultChartProps {
   onSelectMonth?: (month: string, index: number) => void;
 }
 
-const SCENARIO_SERIES: { code: ScenarioCode; color: string; label: string }[] = [
+export const SCENARIO_SERIES: { code: ScenarioCode; color: string; label: string }[] = [
   { code: "GOOD", color: "#dc2626", label: COPY["scenario.GOOD"] },
   { code: "AVG", color: "#16a34a", label: COPY["scenario.AVG"] },
   { code: "BAD", color: "#2563eb", label: COPY["scenario.BAD"] },
 ];
 
-const PRINCIPAL_LINE_COLOR = "#000000";
+export const PRINCIPAL_LINE_COLOR = "#000000";
 const GOAL_COLOR = "#c2410c";
 const AXIS_COLOR = "#5f6b77";
 const GUIDE_COLOR = "#64748b";

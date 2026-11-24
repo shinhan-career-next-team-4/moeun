@@ -107,7 +107,8 @@ class PlanContextSerializationTest {
         CalcInput input = toInput(fixture.get("conditions"), result);
         CalcResult calcResult = toResult(result);
         Map<String, String> display = builder.build(input, calcResult, "", "conditions.");
-        return PlanContextView.of(fixture.get("calcRunId").asLong(), input, calcResult, display);
+        return PlanContextView.of(fixture.get("calcRunId").asLong(), input,
+                textOrNull(fixture.get("conditions").get("etfProductCode")), calcResult, display);
     }
 
     /**
@@ -189,7 +190,8 @@ class PlanContextSerializationTest {
                 "goalCustomName", "existingMonthlyContribution");
         assertThat(actual.get("result").get("assumptions")).isNotNull();
         assertThat(actual.get("conditions").propertyNames()).containsExactlyInAnyOrder("goalAmount", "heldAssets",
-                "monthlySavingAmount", "targetPeriodMonths", "savingsRatioPct", "savingsRateInputPct");
+                "monthlySavingAmount", "targetPeriodMonths", "savingsRatioPct", "savingsRateInputPct",
+                "etfProductCode");
         assertThat(actual.get("result").get("scenarios").get(0).has("isAchieved")).isTrue();
         assertThat(actual.get("result").get("assumptions").has("isDefaultSavingsRate")).isTrue();
     }

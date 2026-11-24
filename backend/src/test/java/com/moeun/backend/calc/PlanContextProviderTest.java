@@ -129,7 +129,7 @@ class PlanContextProviderTest {
 
         assertThat(view.calcRunId()).isEqualTo(then.calcRunId());
         assertThat(view.conditions().monthlySavingAmount()).isEqualTo(300_000L);
-        assertThat(view.conditions()).isEqualTo(ConditionsView.from(then.input()));
+        assertThat(view.conditions()).isEqualTo(ConditionsView.from(then.input(), then.plan().etfProductCode()));
         assertThat(view.result()).isEqualTo(CalcResultView.from(then.result()));
         assertThat(view.result().baselineScenario()).isEqualTo(Scenario.AVG);
         assertThat(view.display()).isEqualTo(then.display());
@@ -345,5 +345,55 @@ class PlanContextProviderTest {
                 .isGreaterThan(sp500.result().scenarios().get(1).afterTaxAsset());
         // 그 뒤 활성 S&P500으로 다시 기록하지 않았는지(기록은 그대로)
         assertThat(sp500.result().assumptions().etfProductCode()).isEqualTo("SP500");
+    }
+
+    /** ETF 0% 계획(적금 100%)을 저장하고, 계획 버전에 그 종목이 저장된 것처럼 만든다(준비 단계에서만 행을 직접 고친다). */
+    private PlanSaveResult saveEtfZeroPlanWithProduct(String etfProductCode) {
+        PlanSaveResult saved = planSaveService.save(memberId, valid().goalAmount(20_000_000L).targetPeriodMonths(36)
+                .heldAssets(5_000_000L).monthlySavingAmount(300_000L).savingsRatioPct(100).build(), null);
+        jdbc.sql("UPDATE plan_version SET etf_product_code = ? WHERE id = ?")
+                .param(etfProductCode).param(saved.planVersionId()).update();
+        awaitEventsCompleted();
+        return saved;
+    }
+
+    @Test
+    @DisplayName("ETF 0% 계획도 현재 계획 컨텍스트의 conditions에 계획에 저장된 종목 코드가 있다. 계산에 쓴 종목은 없다(#297)")
+    void currentPlanContextCarriesPlanProductWithoutEtf() {
+        saveEtfZeroPlanWithProduct("069500");
+
+        PlanContextView view = provider.findForCurrentPlan(memberId).orElseThrow();
+
+        assertThat(view.conditions().etfProductCode()).isEqualTo("069500");
+        assertThat(view.result().assumptions().etfProductCode()).isNull();
+    }
+
+    @Test
+    @DisplayName("ETF 0% 계획의 PLAN 기록으로 만들면 그 뒤 계획의 종목이 바뀌어도 그 기록의 계획 버전 종목 코드다(#297)")
+    void recordedContextCarriesItsPlanVersionProduct() {
+        PlanSaveResult first = saveEtfZeroPlanWithProduct("069500");
+        long calcRunId = resultService.findForCurrentPlan(memberId).orElseThrow().calcRunId();
+        PlanSaveResult second = savePlan(memberId, 5_000_000L, 300_000L, first.revision());
+        jdbc.sql("UPDATE plan_version SET etf_product_code = 'SP500' WHERE id = ?")
+                .param(second.planVersionId()).update();
+
+        PlanContextView view = provider.findForCalcRun(memberId, calcRunId, Scenario.AVG).orElseThrow();
+
+        assertThat(view.conditions().etfProductCode()).isEqualTo("069500");
+        assertThat(view.result().assumptions().etfProductCode()).isNull();
+    }
+
+    @Test
+    @DisplayName("ETF가 있는 계획은 현재·기록 두 경로 모두 conditions의 종목 코드와 계산에 쓴 종목 코드가 같다(#297)")
+    void etfPlanProductMatchesCalculatedProduct() {
+        savePlan(memberId, 5_000_000L, 300_000L, null);
+
+        PlanContextView current = provider.findForCurrentPlan(memberId).orElseThrow();
+        PlanContextView recorded = provider.findForCalcRun(memberId, current.calcRunId(), Scenario.AVG).orElseThrow();
+
+        assertThat(current.conditions().etfProductCode()).isEqualTo("SP500")
+                .isEqualTo(current.result().assumptions().etfProductCode());
+        assertThat(recorded.conditions().etfProductCode()).isEqualTo("SP500")
+                .isEqualTo(recorded.result().assumptions().etfProductCode());
     }
 }
