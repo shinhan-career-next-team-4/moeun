@@ -173,6 +173,32 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
       expect(screen.queryByText(/과거 10년 수익률로 1만 가지 경우를 계산해 세 구간/)).toBeNull();
     });
 
+    it("(#374) ETF가 섞인 계획이면 3구간 아래에 원금 미보장 문구와 운용사 공시 링크가 보인다", async () => {
+      // 목(A1 예시)에는 종목 코드가 없다. 실제 서버는 ETF가 있으면 assumptions.etfProductCode를 준다(#150)
+      const body = structuredClone(planMock.responses[0].body) as {
+        result: { assumptions: { etfProductCode?: string | null } };
+      };
+      body.result.assumptions.etfProductCode = "SP500";
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, body)));
+      renderResult();
+
+      const notice = await screen.findByRole("note", { name: "운용사 공시" });
+      expect(within(notice).getByText("ETF는 원금을 보장하지 않으며 예금자보호 대상이 아니에요")).toBeTruthy();
+      expect(within(notice).getAllByRole("link")).toHaveLength(2);
+      // 3구간 카드 다음에 온다
+      const cards = screen.getByLabelText("세 가지 경우 비교");
+      expect(cards.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("(#374 예외) 적금 100% 계획이면 원금 미보장 문구와 공시 링크가 없다", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, etf0Mock.responses[0].body)));
+      renderResult();
+
+      await screen.findByLabelText("세 가지 경우 비교");
+      expect(screen.queryByRole("note", { name: "운용사 공시" })).toBeNull();
+      expect(screen.queryByText(/원금을 보장하지 않으며/)).toBeNull();
+    });
+
     it("(W-19) 면책 문구에 다섯 가지가 모두 들어 있다", async () => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
       renderResult();
@@ -209,6 +235,35 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
         expect(screen.queryByLabelText('결과 요약')).toBeNull()
         expect(screen.queryByLabelText('세 가지 경우 비교')).toBeNull()
         expect(screen.queryByRole('group', { name: '예상 자산 누적 그래프' })).toBeNull()
+    })
+
+    it('(#374 예외) ALREADY_EXCEEDED인데 3구간이 없으면(#370 이전 서버) 원금 미보장 문구와 공시 링크가 없다', async () => {
+        const body = structuredClone(exceededMock.responses[0].body) as {
+            result: { scenarios: unknown[]; assumptions: { etfProductCode?: string | null } }
+        }
+        expect(body.result.scenarios).toHaveLength(0)
+        body.result.assumptions.etfProductCode = 'SP500'
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, body)))
+        renderResult()
+
+        await screen.findByLabelText('목표 초과 안내')
+        expect(screen.queryByRole('note', { name: '운용사 공시' })).toBeNull()
+        expect(screen.queryByText(/원금을 보장하지 않으며/)).toBeNull()
+    })
+
+    it('(#374, #370) ALREADY_EXCEEDED여도 ETF가 섞인 3구간을 보이면 원금 미보장 문구와 공시 링크도 보인다', async () => {
+        // #370부터 목표를 넘어도 결과를 계산해 안내 아래에 3구간을 잇는다. 3구간이 있으면 그 위험 고지도 같이 있어야 한다
+        const body = structuredClone(planMock.responses[0].body) as {
+            result: { status: string; assumptions: { etfProductCode?: string | null } }
+        }
+        body.result.status = 'ALREADY_EXCEEDED'
+        body.result.assumptions.etfProductCode = 'SP500'
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, body)))
+        renderResult()
+
+        await screen.findByLabelText('목표 초과 안내')
+        const notice = screen.getByRole('note', { name: '운용사 공시' })
+        expect(within(notice).getAllByRole('link')).toHaveLength(2)
     })
 
     it('ETF 0%면 평균 1개 카드만 그린다', async () => {

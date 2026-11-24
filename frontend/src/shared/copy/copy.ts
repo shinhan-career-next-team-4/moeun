@@ -56,6 +56,8 @@ export const COPY = {
     "가진 자산 {heldAssets}이 목표 금액 {goalAmount}을 이미 넘었어요. 대화로 목표 금액을 더 높게 바꿔 볼 수 있어요",
   "result.notReachedInPeriod": "목표 기간 안에는 목표 금액에 닿지 못해요",
   "result.scenarioNotice": "세 가지 경우는 과거 데이터의 범위를 나눈 시나리오이고 미래를 예측한 값이 아니에요",
+  "result.etfPrincipalRisk": "ETF는 원금을 보장하지 않으며 예금자보호 대상이 아니에요",
+  "result.etfDisclosureLabel": "운용사 공시",
   "result.defaultSavingsRate": "적금 금리는 평균 금리를 기본값으로 사용했어요",
   "condition.goalCustomName": "목표 이름",
   "condition.goalAmount": "목표 금액",
