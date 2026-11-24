@@ -19,8 +19,10 @@ public record PlanContextView(long calcRunId, ConditionsView conditions, CalcRes
         display = Map.copyOf(display);
     }
 
-    /** 계산 조건·결과와 이미 만든 display로 컨텍스트를 만든다. 숫자를 새로 만들지 않는다. */
-    public static PlanContextView of(long calcRunId, CalcInput input, CalcResult result, Map<String, String> display) {
-        return new PlanContextView(calcRunId, ConditionsView.from(input), CalcResultView.from(result), display);
+    /** 계산 조건·계획의 ETF 종목·결과와 이미 만든 display로 컨텍스트를 만든다. 숫자를 새로 만들지 않는다. */
+    public static PlanContextView of(long calcRunId, CalcInput input, String etfProductCode, CalcResult result,
+            Map<String, String> display) {
+        return new PlanContextView(calcRunId, ConditionsView.from(input, etfProductCode), CalcResultView.from(result),
+                display);
     }
 }

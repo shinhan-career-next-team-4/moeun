@@ -129,7 +129,7 @@ class PlanContextProviderTest {
 
         assertThat(view.calcRunId()).isEqualTo(then.calcRunId());
         assertThat(view.conditions().monthlySavingAmount()).isEqualTo(300_000L);
-        assertThat(view.conditions()).isEqualTo(ConditionsView.from(then.input()));
+        assertThat(view.conditions()).isEqualTo(ConditionsView.from(then.input(), then.plan().etfProductCode()));
         assertThat(view.result()).isEqualTo(CalcResultView.from(then.result()));
         assertThat(view.result().baselineScenario()).isEqualTo(Scenario.AVG);
         assertThat(view.display()).isEqualTo(then.display());

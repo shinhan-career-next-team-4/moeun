@@ -87,7 +87,7 @@ public class PlanContextProviderImpl implements PlanContextProvider, ChatCompari
             CalcResult result = calcEngine.calculate(resolved, data.params(), data.sp500());
             Map<String, String> display = displayBuilder.build(resolved.input(), result, NO_PREFIX,
                     CONDITIONS_PREFIX);
-            return PlanContextView.of(calcRunId, resolved.input(), result, display);
+            return PlanContextView.of(calcRunId, resolved.input(), plan.etfProductCode(), result, display);
         });
     }
 
@@ -97,8 +97,8 @@ public class PlanContextProviderImpl implements PlanContextProvider, ChatCompari
         // 결과 화면과 같은 서비스를 그대로 부른다. 같은 계획 버전이면 기록을 다시 남기지 않고(G-18), 동시에 불려도
         // 그 서비스의 회원 단위 잠금으로 기록은 하나다(C12a-6-6)
         return currentPlanResultService.findForCurrentPlan(memberId)
-                .map(current -> PlanContextView.of(current.calcRunId(), current.input(), current.result(),
-                        current.display()));
+                .map(current -> PlanContextView.of(current.calcRunId(), current.input(),
+                        current.plan().etfProductCode(), current.result(), current.display()));
     }
 
     @Override
