@@ -65,7 +65,7 @@ interface BubbleProps {
   /** 실패한 설명 아래에 [다시 시도]를 그릴 때만 준다. "설명 다시 요청"과 같은 동작이다. */
   onRetry?: () => void;
   retryDisabled?: boolean;
-  /** 계획이 ETF 0%면 결과 설명의 ETF 위험 설명을 그리지 않는다(#283). */
+  /** 지금 계획이 ETF 0%인지. 서버가 그 설명의 ETF 포함 여부를 주지 않았을 때만 쓴다(#283, #305). */
   planHasNoEtf?: boolean;
 }
 
@@ -73,7 +73,9 @@ function BubbleCitations({ message, planHasNoEtf }: { message: ChatMessage; plan
   if (message.status !== "COMPLETED" || message.citations.length === 0) return null;
   // 질문 답·비교 답의 출처는 그대로 보이고, 결과 설명의 근거만 ETF 위험 설명으로 접는다.
   if (message.messageType !== "EXPLANATION") return <Citations citations={message.citations} />;
-  return planHasNoEtf ? null : <EtfRiskCitations citations={message.citations} />;
+  // 설명이 나온 계산 기준(#305). 그 값이 없는 응답이면 지금 계획 기준이다
+  const etfIncluded = message.etfIncluded ?? !planHasNoEtf;
+  return etfIncluded ? <EtfRiskCitations citations={message.citations} /> : null;
 }
 
 function Bubble({ message, onRetry, retryDisabled, planHasNoEtf = false }: BubbleProps) {

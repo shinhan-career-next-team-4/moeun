@@ -659,7 +659,10 @@ test("F-2 메시지 모양: 키, 열거값, PENDING은 messageType·content가 n
       assert.deepEqual(Object.keys(b), ["messages", "hasPending", "answerPending"], name);
       let prevId = -1;
       for (const m of b.messages) {
-        assert.deepEqual(Object.keys(m), MESSAGE_KEYS, name);
+        // 완료된 결과 설명만 etfIncluded(boolean)를 더 싣는다(C12b-3, #305)
+        const completedExplanation = m.status === "COMPLETED" && m.messageType === "EXPLANATION";
+        assert.deepEqual(Object.keys(m), completedExplanation ? [...MESSAGE_KEYS, "etfIncluded"] : MESSAGE_KEYS, name);
+        if (completedExplanation) assert.equal(typeof m.etfIncluded, "boolean", name);
         assert.ok(m.id > prevId, `${name}: id 오름차순`);
         prevId = m.id;
         assert.ok(["USER", "ASSISTANT"].includes(m.role));

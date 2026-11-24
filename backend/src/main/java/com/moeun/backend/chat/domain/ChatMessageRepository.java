@@ -19,7 +19,7 @@ public class ChatMessageRepository {
 
     private static final RowMapper<MessageRow> MESSAGE_ROW = (rs, row) -> new MessageRow(rs.getLong("id"),
             rs.getString("role"), rs.getString("message_type"), rs.getString("status"), rs.getString("content"),
-            rs.getObject("created_at", OffsetDateTime.class));
+            rs.getObject("calc_run_id", Long.class), rs.getObject("created_at", OffsetDateTime.class));
 
     private final JdbcClient jdbc;
 
@@ -83,7 +83,7 @@ public class ChatMessageRepository {
 
     /** 복원: 최근 limit개를 id 오름차순으로(키셋 DESC LIMIT 뒤 뒤집기). */
     public List<MessageRow> findLatest(long memberId, int limit) {
-        List<MessageRow> rows = jdbc.sql("SELECT id, role, message_type, status, content, created_at "
+        List<MessageRow> rows = jdbc.sql("SELECT id, role, message_type, status, content, calc_run_id, created_at "
                         + "FROM chat_message WHERE member_id = ? ORDER BY id DESC LIMIT ?")
                 .params(memberId, limit).query(MESSAGE_ROW).list();
         Collections.reverse(rows);
@@ -92,7 +92,7 @@ public class ChatMessageRepository {
 
     /** 폴링: afterId보다 큰 id의 자기 메시지 전부를 id 오름차순으로. */
     public List<MessageRow> findAfter(long memberId, long afterId) {
-        return jdbc.sql("SELECT id, role, message_type, status, content, created_at "
+        return jdbc.sql("SELECT id, role, message_type, status, content, calc_run_id, created_at "
                         + "FROM chat_message WHERE member_id = ? AND id > ? ORDER BY id")
                 .params(memberId, afterId).query(MESSAGE_ROW).list();
     }
