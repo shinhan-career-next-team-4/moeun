@@ -4,7 +4,15 @@ import static com.tngtech.archunit.base.DescribedPredicate.not;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.simpleNameEndingWith;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Properties;
 
 import org.junit.jupiter.api.Test;
 
@@ -38,7 +46,7 @@ class ArchitectureTests {
 
     static final ArchRule DOMAIN_DOES_NOT_PARSE_JSON = noClasses()
         .that().resideInAPackage(DOMAIN)
-        .should().dependOnClassesThat().resideInAPackage("tools.jackson..")
+        .should().dependOnClassesThat().resideInAnyPackage("tools.jackson..", "com.fasterxml.jackson..")
         .as("domain은 Jackson에 의존하지 않는다(요청 JSON 해석은 web에서 끝낸다)");
 
     static final ArchRule DOMAIN_DOES_NOT_DEPEND_ON_OUTER_LAYERS = noClasses()
@@ -56,6 +64,12 @@ class ArchitectureTests {
         .that().resideInAPackage("com.moeun.backend..")
         .should().haveSimpleNameEndingWith("Impl")
         .as("클래스 이름은 Impl로 끝나지 않는다(구현 방식을 드러내는 이름을 쓴다)");
+
+    static final List<ArchRule> FROZEN_RULES = List.of(DOMAIN_DEPENDS_ONLY_ON_PERSISTENCE_SPRING,
+        DOMAIN_DOES_NOT_PARSE_JSON, DOMAIN_DOES_NOT_DEPEND_ON_OUTER_LAYERS, CONTROLLERS_DO_NOT_USE_REPOSITORIES,
+        NO_IMPL_SUFFIX);
+
+    static final Path STORED_RULES = Path.of("src/test/resources/archunit_store/stored.rules");
 
     static final JavaClasses PRODUCTION = new ClassFileImporter()
         .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
@@ -84,6 +98,20 @@ class ArchitectureTests {
     @Test
     void noImplSuffix() {
         FreezingArchRule.freeze(NO_IMPL_SUFFIX).check(PRODUCTION);
+    }
+
+    /**
+     * 저장소에 없는 규칙은 allowStoreUpdate 때문에 그 시점의 위반째로 조용히 동결된다. 규칙 설명(저장소 키)을 고치거나
+     * 규칙을 추가하면 여기서 실패하게 해서, 저장소 변경이 리뷰를 거치게 한다.
+     */
+    @Test
+    void storeHoldsExactlyTheFrozenRules() throws IOException {
+        Properties stored = new Properties();
+        try (InputStream in = Files.newInputStream(STORED_RULES)) {
+            stored.load(in);
+        }
+        assertThat(stored.stringPropertyNames())
+            .containsExactlyInAnyOrderElementsOf(FROZEN_RULES.stream().map(ArchRule::getDescription).toList());
     }
 
     // 아래는 규칙이 새 위반을 실제로 잡는지 archfixture의 표본으로 확인한다

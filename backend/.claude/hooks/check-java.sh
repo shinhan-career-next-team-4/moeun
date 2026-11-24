@@ -17,7 +17,11 @@ fi
 
 if ! output=$(./gradlew checkstyleMain checkstyleTest test --tests ModularityTests --tests ArchitectureTests -q 2>&1); then
     echo "Java 검사 실패 (checkstyle / ModularityTests / ArchitectureTests). 고친 뒤 다시 끝내세요." >&2
-    echo "$output" | grep -E 'WARN|ERROR|FAILED|Violation|violat|expected|error:|Rule ' | head -30 >&2
+    echo "$output" | grep -E 'WARN|ERROR|FAILED|Violation|violat|expected|error:' | head -30 >&2
+    # -q 출력에는 실패 이유가 없어 테스트 결과에서 ArchUnit 위반 메시지를 꺼낸다
+    grep -hE '>java.lang.AssertionError: Architecture Violation|^(Class|Method|Field|Constructor) &lt;' \
+        build/test-results/test/TEST-*ArchitectureTests.xml 2>/dev/null \
+        | sed -e 's/^.* - Rule /Rule /' -e 's/&lt;/</g' -e 's/&gt;/>/g' | head -20 >&2
     exit 2
 fi
 exit 0

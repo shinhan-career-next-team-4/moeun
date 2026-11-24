@@ -27,7 +27,16 @@
 | `infrastructure` | 외부 기술 어댑터: `JdbcClient` 쿼리, ai-server HTTP 클라이언트, 파일 읽기. `domain`의 포트를 구현한다 | `web` |
 | `web` | 컨트롤러, 요청·응답 DTO, 요청 JSON 해석 | `domain`의 리포지토리(서비스를 거친다) |
 
-`infrastructure`는 지금 없다. 기존 어댑터(`ChatMessageRepository`의 `JdbcClient`, `chat.application`의 HTTP 클라이언트)는 리팩터링 Issue에서 옮긴다. 새 어댑터는 처음부터 `infrastructure`에 둔다.
+`infrastructure`는 지금 없다. 새 어댑터는 처음부터 `infrastructure`에 두고, 기존 것은 리팩터링 Issue에서 옮긴다.
+
+#308 시점에 남아 있는 위반 중 `ArchitectureTests`가 **검사하지 않는** 것(리팩터링 대상):
+
+- `JdbcClient`를 `infrastructure` 밖에서 쓴다: `chat.domain.ChatMessageRepository`(이것만 domain이라 동결됨), `calc.application.CalcRunRecorder`, `chat.application.ChatAnswerListener`, `rag.CitationQueryService`
+- ai-server HTTP 클라이언트가 `application`에 있다: `chat.application.AiChatClient`
+- `application`·루트가 Jackson으로 JSON을 해석한다: `plan.application.PlanService`·`PlanInputValidator`, `chat.application`(`ChatComparisonService`, `ChatAnswerListener`, `AiChatClient` 등), `calc.application`(`ConditionChanges`, `PlanContextProviderImpl`), 루트 `plan.PlanInput`·`PlanApplyService`·`ConditionValidator`, `calc.ChatComparisonQuery`
+- 규칙이 서비스에 몰려 있다: `plan.application.PlanService`(306줄), 행동이 거의 없는 `Plan`·`PlanVersion`
+
+이 목록이 줄면 `application`→Jackson 같은 규칙을 `ArchitectureTests`에 추가한다.
 
 ## 책임 규칙
 
@@ -48,7 +57,7 @@
 ### 요청 JSON 해석은 web에서 끝낸다
 
 - 컨트롤러는 요청 본문을 요청 DTO(`record`)로 받거나, `JsonNode`로 받아야 할 때도 web에서 타입 있는 명령 객체로 바꿔서 서비스에 넘긴다.
-- `application`·`domain`은 `JsonNode`, `ObjectMapper`, HTTP 상태, 요청·응답 DTO를 모른다. 저장용 JSON 컬럼의 직렬화가 필요하면 `infrastructure`나 엔티티의 JPA 변환기에서 한다.
+- `application`·`domain`은 `JsonNode`, `ObjectMapper`, HTTP 상태, 요청·응답 DTO를 모른다. 저장용 JSON 컬럼의 직렬화가 필요하면 `infrastructure`에서 한다(JPA `AttributeConverter`도 Jackson을 쓰면 `infrastructure`에 둔다).
 - 응답 DTO 변환(`from(view)`)도 web에서 한다.
 
 ### 의존과 객체 생성
@@ -82,7 +91,7 @@
 | 규칙 | 검사 |
 |---|---|
 | domain은 Spring에 의존하지 않는다(JPA·Spring Data 제외) | `org.springframework..` 중 `org.springframework.data..` 밖 |
-| domain은 Jackson에 의존하지 않는다 | `tools.jackson..` |
+| domain은 Jackson에 의존하지 않는다 | `tools.jackson..`, `com.fasterxml.jackson..`(애너테이션) |
 | domain은 web·application에 의존하지 않는다 | `..web..`, `..application..` |
 | web은 domain 리포지토리를 직접 쓰지 않는다 | `domain`의 `*Repository` |
 | 클래스 이름은 `Impl`로 끝나지 않는다 | 단순 이름 |
@@ -90,5 +99,6 @@
 - 이 규칙들은 `FreezingArchRule`로 감쌌다. 도입 시점(#308)에 이미 있던 위반은 `src/test/resources/archunit_store/`에 기록되어 통과하고, 새 위반만 실패한다.
 - 위반을 고치면 저장소에서 저절로 빠진다(`allowStoreUpdate=true`). 그 변경을 같이 커밋한다.
 - 저장소에 위반을 손으로 추가하거나 다시 동결(`freeze.refreeze`)하지 않는다. 새 위반은 코드를 고친다.
-- 규칙을 추가할 때만 `archunit.properties`의 `allowStoreCreation`을 잠깐 `true`로 두고 한 번 돌려 저장소를 만든 뒤 `false`로 되돌린다.
+- 저장소에 없는 규칙은 처음 돌 때 그 시점의 위반째로 동결된다. 그래서 `storeHoldsExactlyTheFrozenRules`가 `stored.rules`의 키와 `FROZEN_RULES`의 설명이 정확히 같은지 확인한다. 규칙의 `.as(...)` 설명을 바꾸거나 규칙을 추가하면 이 테스트가 실패한다.
+- 규칙을 추가·이름 변경할 때는 `FROZEN_RULES`를 고치고, 한 번 돌려 바뀐 `stored.rules`와 새 저장소 파일을 확인한 뒤(옛 키·파일은 지운다) 동결되는 위반을 PR 본문에 적는다.
 - 각 규칙이 실제로 위반을 잡는지는 `src/test/java/com/moeun/backend/archfixture/`의 표본으로 확인한다.
