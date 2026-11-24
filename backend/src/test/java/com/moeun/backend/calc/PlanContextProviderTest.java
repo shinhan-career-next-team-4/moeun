@@ -248,14 +248,14 @@ class PlanContextProviderTest {
     }
 
     @Test
-    @DisplayName("이미 목표를 넘은 계획이면 scenarios가 비고 display에 목표 금액·보유 자산이 있다")
+    @DisplayName("이미 목표를 넘은 계획이어도 scenarios가 있고 display에 목표 금액·보유 자산이 있다")
     void buildsExceededContext() {
         savePlan(memberId, 25_000_000L, 300_000L, null);
 
         PlanContextView view = provider.findForCurrentPlan(memberId).orElseThrow();
 
         assertThat(view.result().status()).isEqualTo(CalcStatus.ALREADY_EXCEEDED);
-        assertThat(view.result().scenarios()).isEmpty();
+        assertThat(view.result().scenarios()).isNotEmpty();
         assertThat(view.display()).containsKeys("goalAmount", "conditions.heldAssets");
     }
 

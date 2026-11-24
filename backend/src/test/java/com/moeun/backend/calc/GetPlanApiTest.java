@@ -206,7 +206,9 @@ class GetPlanApiTest {
         JsonNode current = getPlan(cookie);
 
         assertThat(current.get("result").get("status").asString()).isEqualTo("ALREADY_EXCEEDED");
-        assertThat(current.get("baselineResultScenario").isNull()).isTrue();
+        // 초과여도 계산하므로 기준 시나리오가 있다(#370)
+        assertThat(current.get("baselineResultScenario").isNull()).isFalse();
+        assertThat(current.get("result").get("scenarios")).isNotEmpty();
         assertThat(current.get("revision").asLong()).isEqualTo(1L);
         assertThat(current.get("calcRunId").isNumber()).isTrue();
     }

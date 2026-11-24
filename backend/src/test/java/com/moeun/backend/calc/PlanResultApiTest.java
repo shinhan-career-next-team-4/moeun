@@ -312,7 +312,7 @@ class PlanResultApiTest {
     }
 
     @Test
-    @DisplayName("보유 자산 ≥ 목표면 ALREADY_EXCEEDED이고 revision·calcRunId는 있으며 기준 결과 시나리오는 null이다")
+    @DisplayName("보유 자산 ≥ 목표면 ALREADY_EXCEEDED이고 revision·calcRunId가 있으며 결과도 계산해서 싣는다")
     void returnsAlreadyExceeded() throws Exception {
         Map<String, Object> exceeded = request();
         exceeded.put("heldAssets", 25_000_000L);
@@ -320,10 +320,11 @@ class PlanResultApiTest {
         JsonNode body = readBody(putPlan(exceeded).andExpect(status().isOk()));
 
         assertThat(body.get("result").get("status").asString()).isEqualTo("ALREADY_EXCEEDED");
-        assertThat(body.get("result").get("principalPoints")).isEmpty();
-        assertThat(body.get("result").get("monthlyDetails")).isEmpty();
-        assertThat(body.get("result").get("scenarios")).isEmpty();
-        assertThat(body.get("baselineResultScenario").isNull()).isTrue();
+        // 초과여도 계산해서 결과를 싣는다(#370)
+        assertThat(body.get("result").get("principalPoints")).isNotEmpty();
+        assertThat(body.get("result").get("monthlyDetails")).isNotEmpty();
+        assertThat(body.get("result").get("scenarios")).isNotEmpty();
+        assertThat(body.get("baselineResultScenario").isNull()).isFalse();
         assertThat(body.get("revision").asLong()).isEqualTo(1L);
         assertThat(body.get("calcRunId").isNumber()).isTrue();
     }

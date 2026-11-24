@@ -375,6 +375,21 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
         ).toBeNull()
     })
 
+    // 이미 목표를 넘어도 결과를 보여 준다(#370)
+    it("목표 초과 안내를 맨 위에 두고, 계산된 3구간 카드도 함께 보인다", async () => {
+        const body = structuredClone(planMock.responses[0].body) as {
+            result: { status: string }
+        }
+        body.result.status = "ALREADY_EXCEEDED"
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, body)))
+        renderResult()
+
+        const banner = await screen.findByLabelText("목표 초과 안내")
+        const cards = screen.getByLabelText("세 가지 경우 비교")
+        expect(banner.compareDocumentPosition(cards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+        expect(cards.textContent).toContain("좋았던 때")
+    })
+
     // 결과 화면에서 숨긴 영역(#364): ETF 종목 비교 카드는 대화창 ETF 버튼으로 통합했고, 계산 가정은 보이지 않는다
     it("ETF 종목 비교 카드와 '계산에 사용한 가정' 영역은 보이지 않는다", async () => {
         vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)))

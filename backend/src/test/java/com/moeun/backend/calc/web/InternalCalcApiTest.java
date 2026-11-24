@@ -257,10 +257,10 @@ class InternalCalcApiTest {
         JsonNode body = readBody(postCalc(request(changes("goalAmount", 40_000_000))).andExpect(status().isOk()));
 
         assertThat(body.get("current").get("status").asString()).isEqualTo("ALREADY_EXCEEDED");
-        assertThat(body.get("current").get("scenarios")).isEmpty();
+        assertThat(body.get("current").get("scenarios")).hasSize(3);
         assertThat(body.get("changed").get("status").asString()).isEqualTo("CALCULATED");
         assertThat(body.get("changed").get("scenarios")).hasSize(3);
-        assertThat(body.get("diff").get("byScenario")).isEmpty();
+        assertThat(body.get("diff").get("byScenario")).hasSize(3);
         JsonNode display = body.get("display");
         assertThat(display.has("goalAmount")).isFalse();
         assertThat(display.get("conditions.current.goalAmount").asString()).isEqualTo("약 2,000만원");
@@ -316,14 +316,15 @@ class InternalCalcApiTest {
     }
 
     @Test
-    @DisplayName("한쪽이 초과라 byScenario가 비면 gapToGoalDelta 키도 만들지 않는다(#285)")
-    void omitsGapToGoalDeltaForAsymmetricComparison() throws Exception {
+    @DisplayName("한쪽이 초과여도 양쪽을 계산하므로 byScenario와 gapToGoalDelta가 있다(#370, #285)")
+    void hasGapToGoalDeltaEvenWhenOneSideExceeded() throws Exception {
         savePlan(5_000_000L);
 
         JsonNode body = readBody(postCalc(request(changes("goalAmount", 4_000_000))).andExpect(status().isOk()));
 
-        assertThat(body.get("diff").get("byScenario")).isEmpty();
-        body.get("display").propertyNames().forEach(key -> assertThat(key).doesNotEndWith(".gapToGoalDelta"));
+        assertThat(body.get("diff").get("byScenario")).isNotEmpty();
+        assertThat(body.get("display").propertyNames().stream().anyMatch(key -> key.endsWith(".gapToGoalDelta")))
+                .isTrue();
     }
 
     @Test
@@ -336,8 +337,8 @@ class InternalCalcApiTest {
         assertThat(body.get("current").get("status").asString()).isEqualTo("CALCULATED");
         assertThat(body.get("current").get("scenarios")).hasSize(3);
         assertThat(body.get("changed").get("status").asString()).isEqualTo("ALREADY_EXCEEDED");
-        assertThat(body.get("changed").get("scenarios")).isEmpty();
-        assertThat(body.get("diff").get("byScenario")).isEmpty();
+        assertThat(body.get("changed").get("scenarios")).hasSize(3);
+        assertThat(body.get("diff").get("byScenario")).hasSize(3);
         JsonNode display = body.get("display");
         assertThat(display.has("goalAmount")).isFalse();
         assertThat(display.get("conditions.current.goalAmount").asString()).isEqualTo("약 2,000만원");
