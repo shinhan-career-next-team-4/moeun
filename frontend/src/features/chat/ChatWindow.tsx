@@ -11,7 +11,7 @@ import {
 } from "react";
 import { api, planStore, polling } from "../../api";
 import { ApiError } from "../../api/errors";
-import { ComparisonNotices, ComparisonResult, isApplyActive, useComparison, useComparisonController, type ComparisonPlanStore } from "./comparison";
+import { applyEtfNow, ComparisonNotices, ComparisonResult, useComparison, useComparisonController, type ComparisonPlanStore } from "./comparison";
 import { COPY, unitChar } from "./copy";
 import { Citations, EtfRiskCitations } from "./explanation/Citations";
 import { planHasNoEtf } from "./planEtf";
@@ -209,28 +209,10 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleA
     stickToBottomRef.current = box.scrollHeight - box.scrollTop - box.clientHeight <= STICK_TO_BOTTOM_PX;
   }
 
-  // ETF 버튼(#358): 질문을 보내고, 그 답(비교 결과)이 오면 같은 종목을 내 계획에 적용한다(결과 화면 ETF 기준도 함께 바뀐다)
-  // 대기 중인 적용 대상은 ref에 둔다. 답이 오면 폴링이 메시지를 바꿔 아래 효과가 다시 돈다
-  const autoApplyIdRef = useRef<number | null>(null);
-  useEffect(() => {
-    const id = autoApplyIdRef.current;
-    if (id === null) return;
-    const message = chat.messages.find((m) => m.id === id);
-    if (message === undefined || message.status === "PENDING") return;
-    if (message.status === "FAILED" || message.messageType !== "RECALC_RESULT" || comparison.hideApply) {
-      // 비교가 오지 않은 답(되묻기·실패 등)이거나 적용할 수 없는 계획이면 적용하지 않는다
-      autoApplyIdRef.current = null;
-      return;
-    }
-    if (isApplyActive(comparison.snapshot, comparison.latestId, id)) {
-      autoApplyIdRef.current = null;
-      comparison.controller.apply(id);
-    }
-  }, [chat.messages, comparison]);
-
-  async function pickEtf(question: string): Promise<void> {
-    const assistantId = await send(question);
-    autoApplyIdRef.current = assistantId;
+  // ETF 버튼(#372): 질문을 보내 접수되면 AI 답을 기다리지 않고 바로 같은 종목을 내 계획에 적용한다(결과 화면 ETF 기준이 곧 바뀐다).
+  async function pickEtf(question: string, productCode: string): Promise<void> {
+    const accepted = await send(question);
+    if (accepted !== null) await applyEtfNow(comparisonDeps, productCode);
   }
 
   const trimmed = text.trim();
@@ -335,7 +317,7 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleA
         {!chat.messages.some((m) => m.role === "USER") && (
           <div data-testid="chat-empty" className="flex flex-col gap-3">
             <p className="text-sm text-text-muted">{COPY.emptyGuide}</p>
-            <Suggestions disabled={sending || answerBlocking} onPick={(question) => void pickEtf(question)} />
+            <Suggestions disabled={sending || answerBlocking} onPick={(question) => void send(question)} />
           </div>
         )}
       </div>
@@ -350,7 +332,7 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleA
             products={etfProducts}
             currentCode={etfProductCode}
             disabled={sending || answerBlocking}
-            onPick={(question) => void pickEtf(question)}
+            onPick={(question, code) => void pickEtf(question, code)}
           />
         )}
         <div className="flex items-end gap-2">
