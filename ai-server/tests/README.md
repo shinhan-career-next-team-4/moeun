@@ -48,6 +48,7 @@
 | | `chat_response/test_chat_response_prompt.py` | #252 대화 응답 기준표 규칙: 고지 반복 금지, 수익 약속 미언급, 결과 설명 조건 나열 금지·3문장 |
 | | `error_log/test_agent_error_log.py` | #256 /chat 실패 때 오류 코드(와 거부 사유)를 로그에 남김 |
 | | `chat_log/test_chat_log.py` | #316 대화 추적 로그(요청·도구 입출력·모델 답·실패 상세), 날짜별 파일 보관, ISO 시각, 비밀값 가리기 |
+| | `followup/test_followup_short_answer.py` | #317 되묻기 뒤 짧은 답: '1억 원' 숫자 대조, 계산 뒤 같은·빈 계산 반복 막기, 마지막 라운드 답 받기, 계산 없는 빈 RECALC_RESULT 한 번 더 |
 | | `test_etf_note_join.py` | 단서를 지워도 양옆 글자가 이어져 새 인용이 생기지 않음 |
 | | `test_etf_name_correction.py` | 계획 종목 표기 검사·교정 지시 |
 | | `test_etf_plan_name_claims.py` | 2라운드 리뷰 재현: 계획 종목 표기 거부(B3), 세율 인용 경계·줄바꿈 단서 제거·빈 본문 거부(B1·B2·B5), 코스피 계획에서 상품명 통과(B6) |

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { ChatWindow } from "../chat";
 import { COPY as CHAT_COPY } from "../chat/copy";
 
@@ -11,8 +11,46 @@ function isDesktop(): boolean {
 
 // 열린 패널: 좁은 화면은 오른쪽 서랍(768px 미만은 전체 화면), 데스크톱은 360px 고정 열.
 const PANEL_OPEN =
-  "fixed inset-y-0 right-0 z-40 flex min-h-0 w-full flex-col border-l border-border bg-surface shadow-xl md:w-[400px] lg:static lg:z-auto lg:w-[360px] lg:shrink-0 lg:shadow-none";
+  "fixed inset-y-0 right-0 z-40 flex min-h-0 w-full flex-col border-l border-border bg-surface shadow-xl md:w-[400px] lg:relative lg:z-auto lg:w-[var(--chat-panel-width)] lg:shrink-0 lg:shadow-none";
 const PANEL_CLOSED = "hidden";
+
+/** 대화 패널 너비(px, 데스크톱). 끌어서 바꾸고 브라우저에 기억한다(#362). */
+const PANEL_WIDTH_DEFAULT_PX = 360;
+const PANEL_WIDTH_MIN_PX = 280;
+const PANEL_WIDTH_MAX_PX = 720;
+const PANEL_WIDTH_STEP_PX = 16;
+const STORAGE_KEY = "moeun.chatPanel";
+
+type PanelSide = "left" | "right";
+interface PanelPrefs {
+  side: PanelSide;
+  width: number;
+}
+
+const clampWidth = (width: number): number => {
+  // 본문이 너무 좁아지지 않게 화면의 60%까지만 늘린다
+  const max = Math.max(PANEL_WIDTH_MIN_PX, Math.min(PANEL_WIDTH_MAX_PX, Math.floor(window.innerWidth * 0.6)));
+  return Math.min(max, Math.max(PANEL_WIDTH_MIN_PX, Math.round(width)));
+};
+
+function loadPrefs(): PanelPrefs {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "null") as Partial<PanelPrefs> | null;
+    const side: PanelSide = parsed?.side === "left" ? "left" : "right";
+    const width = typeof parsed?.width === "number" ? clampWidth(parsed.width) : PANEL_WIDTH_DEFAULT_PX;
+    return { side, width };
+  } catch {
+    return { side: "right", width: PANEL_WIDTH_DEFAULT_PX };
+  }
+}
+
+function savePrefs(prefs: PanelPrefs): void {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+  } catch {
+    // 저장이 막힌 브라우저에서는 이번 방문 동안만 유지한다
+  }
+}
 
 interface ResultLayoutProps {
   /** 헤더 아래에 고정되는 조건 바 */
@@ -29,6 +67,8 @@ interface ResultLayoutProps {
 export function ResultLayout({ bar, children }: ResultLayoutProps) {
   const [open, setOpen] = useState(isDesktop);
   const [unread, setUnread] = useState(false);
+  const [prefs, setPrefs] = useState<PanelPrefs>(loadPrefs);
+  const [dragging, setDragging] = useState(false);
   const openButtonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   // 사용자가 단추·Esc로 바꾼 뒤에만 포커스를 옮긴다(처음 그릴 때 포커스를 빼앗지 않는다).
@@ -47,6 +87,18 @@ export function ResultLayout({ bar, children }: ResultLayoutProps) {
     focusAfterToggleRef.current = false;
     (open ? panelRef.current : openButtonRef.current)?.focus();
   }, [open]);
+
+  function changePrefs(next: PanelPrefs) {
+    setPrefs(next);
+    savePrefs(next);
+  }
+
+  /** 안쪽 가장자리를 끌 때의 너비: 오른쪽 패널은 패널 오른쪽 끝에서 포인터까지, 왼쪽 패널은 왼쪽 끝에서 포인터까지다. */
+  function widthAt(clientX: number): number {
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (!rect) return prefs.width;
+    return clampWidth(prefs.side === "right" ? rect.right - clientX : clientX - rect.left);
+  }
 
   function closeOnEscape(event: KeyboardEvent) {
     if (event.key === "Escape") toggle(false);
@@ -76,7 +128,7 @@ export function ResultLayout({ bar, children }: ResultLayoutProps) {
           </button>
         )}
       </div>
-      <div className="flex min-h-0 flex-1">
+      <div className={`flex min-h-0 flex-1 ${prefs.side === "left" ? "lg:flex-row-reverse" : ""}`}>
         <div className="min-w-0 flex-1 lg:overflow-y-auto">{children}</div>
         {open && (
           <button
@@ -93,11 +145,58 @@ export function ResultLayout({ bar, children }: ResultLayoutProps) {
           tabIndex={-1}
           data-testid="result-panel"
           onKeyDown={closeOnEscape}
-          className={open ? PANEL_OPEN : PANEL_CLOSED}
+          style={{ "--chat-panel-width": `${prefs.width}px` } as CSSProperties}
+          className={`${open ? PANEL_OPEN : PANEL_CLOSED} ${prefs.side === "left" ? "lg:border-l-0 lg:border-r" : ""} ${dragging ? "lg:select-none" : ""}`}
         >
+          {open && (
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={CHAT_COPY.panelResize}
+              aria-valuenow={prefs.width}
+              aria-valuemin={PANEL_WIDTH_MIN_PX}
+              aria-valuemax={PANEL_WIDTH_MAX_PX}
+              tabIndex={0}
+              data-testid="result-panel-resize"
+              onPointerDown={(event) => {
+                event.currentTarget.setPointerCapture(event.pointerId);
+                setDragging(true);
+              }}
+              onPointerMove={(event) => {
+                if (dragging) setPrefs((current) => ({ ...current, width: widthAt(event.clientX) }));
+              }}
+              onPointerUp={() => {
+                setDragging(false);
+                savePrefs(prefs);
+              }}
+              onKeyDown={(event) => {
+                const grow = prefs.side === "right" ? "ArrowLeft" : "ArrowRight";
+                const shrink = prefs.side === "right" ? "ArrowRight" : "ArrowLeft";
+                if (event.key !== grow && event.key !== shrink) return;
+                event.preventDefault();
+                const delta = event.key === grow ? PANEL_WIDTH_STEP_PX : -PANEL_WIDTH_STEP_PX;
+                changePrefs({ ...prefs, width: clampWidth(prefs.width + delta) });
+              }}
+              className={`absolute inset-y-0 z-10 hidden w-1.5 cursor-col-resize hover:bg-primary/30 focus-visible:bg-primary/40 focus-visible:outline-none lg:block ${
+                prefs.side === "right" ? "-left-0.5" : "-right-0.5"
+              } ${dragging ? "bg-primary/40" : ""}`}
+            />
+          )}
           <ChatWindow
             visible={open}
             onAssistantMessage={showUnread}
+            titleAction={
+              <button
+                type="button"
+                data-testid="result-panel-side"
+                aria-label={prefs.side === "right" ? CHAT_COPY.panelMoveLeft : CHAT_COPY.panelMoveRight}
+                title={prefs.side === "right" ? CHAT_COPY.panelMoveLeft : CHAT_COPY.panelMoveRight}
+                onClick={() => changePrefs({ ...prefs, side: prefs.side === "right" ? "left" : "right" })}
+                className="hidden rounded-lg px-1.5 py-0.5 text-sm leading-none text-text-muted hover:bg-surface-muted lg:inline-block"
+              >
+                {prefs.side === "right" ? "⇤" : "⇥"}
+              </button>
+            }
             headerAction={
               <button
                 type="button"

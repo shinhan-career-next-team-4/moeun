@@ -25,7 +25,7 @@ export interface AlternativeValues {
   unreachable?: boolean;
   /** 달성 불가 안내에 쓸 시도한 상한(서버가 서식한 문자열, 월 저축액). 없으면 상한 없이 안내한다 */
   unreachableLimit?: string;
-  /** 이 대안으로 기준 시나리오(평균)가 목표를 달성한다(서버 판정, #352). 예상 자산·목표 대비 줄을 파랗게 보인다 */
+  /** 이 대안으로 기준 시나리오(평균)가 목표를 달성한다(서버 판정, #352). 예상 자산·목표 대비 줄을 초록으로 보인다 */
   achieved?: boolean;
   /** 서버가 변동이 커진다고 알려 준 대안(W-10). 판정은 화면이 하지 않는다 */
   volatilityWarning?: boolean;

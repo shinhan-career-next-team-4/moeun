@@ -25,7 +25,7 @@ function Row({ label, value, tone = "normal", suffix }: RowProps) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <dt className="shrink-0 text-xs text-text-muted">{label}</dt>
-      <dd className={`text-right text-sm font-medium ${tone === "warn" ? "text-danger" : tone === "good" ? "text-primary" : "text-text"}`}>
+      <dd className={`text-right text-sm font-medium ${tone === "warn" ? "text-danger" : tone === "good" ? "text-success" : "text-text"}`}>
         {value}
         {suffix && <span className="ml-1 whitespace-nowrap">{suffix}</span>}
       </dd>

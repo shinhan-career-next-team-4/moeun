@@ -11,7 +11,7 @@ import {
 } from "react";
 import { api, planStore, polling } from "../../api";
 import { ApiError } from "../../api/errors";
-import { ComparisonNotices, ComparisonResult, useComparison, useComparisonController, type ComparisonPlanStore } from "./comparison";
+import { ComparisonNotices, ComparisonResult, isApplyActive, useComparison, useComparisonController, type ComparisonPlanStore } from "./comparison";
 import { COPY, unitChar } from "./copy";
 import { Citations, EtfRiskCitations } from "./explanation/Citations";
 import { planHasNoEtf } from "./planEtf";
@@ -126,13 +126,15 @@ interface ChatWindowProps {
   deps?: ChatDeps;
   /** 패널 머리글 오른쪽에 붙는 단추(접기·닫기). 배치는 부르는 쪽이 정한다. */
   headerAction?: ReactNode;
+  /** 제목 바로 옆에 붙는 단추(예: 패널 위치 전환, #362). */
+  titleAction?: ReactNode;
   /** 대기 중이던 어시스턴트 메시지가 끝날 때마다 부른다(서랍이 닫혀 있을 때 점 표시용). 복원된 지난 대화는 부르지 않는다. */
   onAssistantMessage?: () => void;
   /** 패널이 보이는 중인지. 숨겨진 동안은 스크롤이 먹지 않아서, 다시 보이는 순간 맨 아래로 내린다. */
   visible?: boolean;
 }
 
-export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, onAssistantMessage, visible = true }: ChatWindowProps) {
+export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleAction, onAssistantMessage, visible = true }: ChatWindowProps) {
   // 같은 인스턴스를 담은 새 deps 객체로 다시 그려도 폴링·비교 상태가 초기화되지 않게 인스턴스 기준으로 안정화한다(P-67).
   const deps = useMemo<ChatDeps>(
     () => ({ api: givenDeps.api, polling: givenDeps.polling, planStore: givenDeps.planStore }),
@@ -207,39 +209,66 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, onAssi
     stickToBottomRef.current = box.scrollHeight - box.scrollTop - box.clientHeight <= STICK_TO_BOTTOM_PX;
   }
 
+  // ETF 버튼(#358): 질문을 보내고, 그 답(비교 결과)이 오면 같은 종목을 내 계획에 적용한다(결과 화면 ETF 기준도 함께 바뀐다)
+  // 대기 중인 적용 대상은 ref에 둔다. 답이 오면 폴링이 메시지를 바꿔 아래 효과가 다시 돈다
+  const autoApplyIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    const id = autoApplyIdRef.current;
+    if (id === null) return;
+    const message = chat.messages.find((m) => m.id === id);
+    if (message === undefined || message.status === "PENDING") return;
+    if (message.status === "FAILED" || message.messageType !== "RECALC_RESULT" || comparison.hideApply) {
+      // 비교가 오지 않은 답(되묻기·실패 등)이거나 적용할 수 없는 계획이면 적용하지 않는다
+      autoApplyIdRef.current = null;
+      return;
+    }
+    if (isApplyActive(comparison.snapshot, comparison.latestId, id)) {
+      autoApplyIdRef.current = null;
+      comparison.controller.apply(id);
+    }
+  }, [chat.messages, comparison]);
+
+  async function pickEtf(question: string): Promise<void> {
+    const assistantId = await send(question);
+    autoApplyIdRef.current = assistantId;
+  }
+
   const trimmed = text.trim();
   // 폴링이 실패로 멈추면 서버 값(answerPending)은 낡은 채로 남는다. 질문을 다시 보내 재개할 수 있어야 한다(서버가 409로 막으면 거기서 처리).
   const answerBlocking = chat.answerPending && !chat.pollingFailed;
   const sendable = trimmed.length >= 1 && trimmed.length <= MAX_LENGTH && !sending && !answerBlocking;
 
   // example이 있으면 예시 버튼 문장을 그대로 보내고 입력창에 써 둔 글은 지우지 않는다.
-  async function send(example?: string): Promise<void> {
+  // 반환값은 질문이 접수됐을 때의 어시스턴트 메시지 id다(ETF 버튼이 그 답이 오면 적용하려고 쓴다)
+  async function send(example?: string): Promise<number | null> {
     const body = example ?? trimmed;
-    if (sendingRef.current || sending || answerBlocking || body.length < 1 || body.length > MAX_LENGTH) return;
+    if (sendingRef.current || sending || answerBlocking || body.length < 1 || body.length > MAX_LENGTH) return null;
     sendingRef.current = true;
     setSending(true);
     setInputError(null);
     setToast(false);
     try {
       const response = await deps.api.request<ChatAccepted>("POST", "/api/chat/messages", { text: body });
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) return null;
       const createdAt = new Date().toISOString();
       accepted(
         { id: response.userMessageId, role: "USER", messageType: "QUESTION", status: "COMPLETED", content: body, citations: [], createdAt },
         { id: response.assistantMessageId, role: "ASSISTANT", messageType: null, status: "PENDING", content: null, citations: [], createdAt },
       );
       if (example === undefined) setText("");
+      return response.assistantMessageId;
     } catch (error) {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) return null;
       const code = error instanceof ApiError ? error.code : null;
-      if (code === "UNAUTHENTICATED") return; // 로그인 이동은 래퍼가 한다
+      if (code === "UNAUTHENTICATED") return null; // 로그인 이동은 래퍼가 한다
       if (code === "ANSWER_PENDING") {
         answerPendingElsewhere();
-        return;
+        return null;
       }
       const message = code === "VALIDATION_FAILED" && error instanceof ApiError ? validationMessage(error) : null;
       if (message !== null) setInputError(message);
       else setToast(true);
+      return null;
     } finally {
       sendingRef.current = false;
       if (mountedRef.current) setSending(false);
@@ -258,7 +287,10 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, onAssi
     >
       <header className="shrink-0 border-b border-border px-5 py-4">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-base font-bold text-text">{COPY.panelTitle}</h2>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <h2 className="text-base font-bold text-text">{COPY.panelTitle}</h2>
+            {titleAction}
+          </div>
           <div className="flex items-center gap-1">
             {canRetry && (
               <button
@@ -303,7 +335,7 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, onAssi
         {!chat.messages.some((m) => m.role === "USER") && (
           <div data-testid="chat-empty" className="flex flex-col gap-3">
             <p className="text-sm text-text-muted">{COPY.emptyGuide}</p>
-            <Suggestions disabled={sending || answerBlocking} onPick={(question) => void send(question)} />
+            <Suggestions disabled={sending || answerBlocking} onPick={(question) => void pickEtf(question)} />
           </div>
         )}
       </div>
@@ -318,7 +350,7 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, onAssi
             products={etfProducts}
             currentCode={etfProductCode}
             disabled={sending || answerBlocking}
-            onPick={(question) => void send(question)}
+            onPick={(question) => void pickEtf(question)}
           />
         )}
         <div className="flex items-end gap-2">
