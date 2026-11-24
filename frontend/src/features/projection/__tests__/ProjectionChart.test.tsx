@@ -122,10 +122,10 @@ describe("예상 자산 누적 그래프 화면 ProjectionChart (#298)", () => {
     expect(chart().querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 640 420");
   });
 
-  it("그래프 아래에 '예상치이며 실제 수익을 보장하지 않습니다.' 안내가 있다", () => {
+  it("그래프 아래에 '예상치라서 실제 수익을 보장하지 않아요.' 안내가 있다", () => {
     render(<ProjectionChart data={MOCK_PROJECTION} scenario="AVG" />);
 
-    const notice = screen.getByText("예상치이며 실제 수익을 보장하지 않습니다.");
+    const notice = screen.getByText("예상치라서 실제 수익을 보장하지 않아요.");
     expect(chart().compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
