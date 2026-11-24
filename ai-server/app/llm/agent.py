@@ -106,6 +106,16 @@ _GOAL_NAME_NOT_SAID_ERROR = (
 _GOAL_TYPE_ERROR = "목표 종류는 대화로 바꾸지 않습니다. 계산하지 말고 정해진 안내 문구로 답하세요."
 _ALL_SAVINGS_PCT = 100
 _SAME_PRODUCT_ERROR = "이미 계획의 종목입니다. 계산하지 말고 지금 계획이 이미 그 종목이라고만 답하세요."
+_NO_CHANGE_ERROR = "바꿀 조건이 없습니다. 무엇을 바꿀지 사용자에게 되물으세요."
+# 계산 200을 받은 뒤 빈 인자·같은 인자로 다시 부르면 Spring을 다시 부르지 않는다. "되물으세요"는 받은 결과와 어긋나
+# 모델이 계산을 되풀이했다(#317, S8-8d message 1708)
+_ALREADY_CALCULATED_ERROR = "이미 이 조건으로 계산했습니다. 다시 계산하지 말고 앞에서 받은 계산 결과로 답하세요."
+# 계산하지 않고 빈 본문의 RECALC_RESULT를 내면 한 번 더 부를 때 붙인다. 계산이 필요한 답이라 도구는 그대로 둔다(#317).
+# 그 밖의 빈 본문은 재시도 없이 거부한다(#155 P-10)
+_EMPTY_RECALC_NOTE = (
+    "방금 답의 content가 비어 있습니다. 조건을 바꾸는 요청이면 recalculate를 부르고, "
+    "아니면 같은 JSON 형식으로 content를 채워 답하세요."
+)
 
 # Spring이 모델 없이 고정 문장으로 답하라고 거절한 코드 → 문구표 키(D-056)
 _FIXED_COPY_KEYS: dict[str, str] = {
@@ -216,8 +226,11 @@ class ChatAgent:
         messages = build_messages(req)
         called: list[str] = []   # 도구 호출 순서. 한도를 넘으면 실패 상세로 남긴다
 
-        for _ in range(self._max_rounds):
-            resp = await self._create(messages)
+        for round_no in range(self._max_rounds):
+            last_round = round_no == self._max_rounds - 1
+            # 계산 결과가 있으면 마지막 라운드는 도구 없이 그 결과로 답하게 한다(#317). 결과가 없으면 막지 않는다
+            extra: dict[str, Any] = {"tool_choice": {"type": "none"}} if last_round and turn.calc_run_id else {}
+            resp = await self._create(messages, **extra)
             _trace_model_answer(req, resp, attempt=1)
 
             match resp.stop_reason:
@@ -239,6 +252,11 @@ class ChatAgent:
                     messages.append(BetaUserMessageParam(role="user", content=results))   # 결과는 한 메시지에 모두
                 case _:
                     final = _parse_final(resp)
+                    if _empty_recalc_without_calc(turn, final) and not last_round:
+                        trace.info("empty recalc answer: message_id=%s round=%s", req.message_id, round_no + 1)
+                        messages.append(BetaAssistantMessageParam(role="assistant", content=resp.content))
+                        messages.append(BetaUserMessageParam(role="user", content=_EMPTY_RECALC_NOTE))
+                        continue
                     try:
                         await self._check_body(final)
                         return assemble(turn, final)
@@ -373,8 +391,10 @@ class ChatAgent:
             changes = changes.model_copy(update={"etf_product_code": None})
             if not changes.changed():
                 raise CalcError(_SAME_PRODUCT_ERROR)
+        if turn.calc_run_id is not None and changes.changed() in ({}, turn.condition_changes):
+            raise CalcError(_ALREADY_CALCULATED_ERROR)
         if not changes.changed():
-            raise CalcError("바꿀 조건이 없습니다. 무엇을 바꿀지 사용자에게 되물으세요.")
+            raise CalcError(_NO_CHANGE_ERROR)
         if said and not check_amount_units(said, changes):
             raise CalcError("목표 금액의 단위(원·만원·억원)가 발화와 맞지 않습니다. 정확한 금액을 다시 물으세요.")
         result = await self._calc.recalculate(turn.req.member_id, turn.req.baseline_scenario, changes)
@@ -456,6 +476,10 @@ def _errors_for_model(errors: list[dict[str, Any]]) -> list[dict[str, Any]]:
         else item
         for item in errors
     ]
+
+
+def _empty_recalc_without_calc(turn: Turn, final: FinalAnswer) -> bool:
+    return final.message_type == "RECALC_RESULT" and turn.calc_run_id is None and not final.content.strip()
 
 
 def _refusal(req: ChatRequest) -> ChatResponse:

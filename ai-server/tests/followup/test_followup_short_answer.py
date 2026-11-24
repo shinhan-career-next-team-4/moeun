@@ -194,12 +194,12 @@ async def test_different_call_after_a_calc_still_goes_to_spring() -> None:
     """다른 조건으로 다시 계산하는 것은 막지 않는다(모델이 인자를 고친 경우)"""
     calc = FakeCalc(response=CALC_RESULT)
     claude = FakeClaude([
-        tool_resp("recalculate", {**NULLS, "goal_amount": 150_000_000}, "tu_1"),
+        tool_resp("recalculate", {**NULLS, "monthly_saving_amount": 1_500_000}, "tu_1"),
         tool_resp("recalculate", GOAL_EOK, "tu_2"),
         text_resp("RECALC_RESULT", RECALC_TEXT),
     ])
     await make_agent(claude, calc).run(request("1억으로 바꿀게", AFTER_MONTHLY_AND_GOAL_LOOKUP))
-    assert calc.calls == [{"goal_amount": 150_000_000}, {"goal_amount": EOK}]
+    assert calc.calls == [{"monthly_saving_amount": 1_500_000}, {"goal_amount": EOK}]
 
 
 async def test_last_round_without_a_calc_keeps_tools_and_fails_as_before() -> None:
@@ -211,11 +211,11 @@ async def test_last_round_without_a_calc_keeps_tools_and_fails_as_before() -> No
     assert all("tool_choice" not in call for call in claude.calls)
 
 
-# ---- 빈 본문: 도구 없이 빈 답을 내면 한 번 더 기회를 준다 ----
+# ---- 빈 본문: 계산 없이 빈 RECALC_RESULT를 내면 한 번 더 기회를 준다 ----
 
 async def test_empty_model_answer_gets_another_round_with_tools() -> None:
-    """재생에서 나온 실패: 도구를 부르지 않고 빈 본문의 RECALC_RESULT를 냈다. 거부하지 않고 다음 라운드에
-    도구를 그대로 둔 채 다시 부른다"""
+    """재생에서 나온 실패: 도구를 부르지 않고 빈 본문의 RECALC_RESULT를 냈다. 계산이 필요한 답이므로 거부하지 않고
+    다음 라운드에 도구를 그대로 둔 채 다시 부른다"""
     calc = FakeCalc(response=CALC_RESULT)
     claude = FakeClaude([
         text_resp("RECALC_RESULT", ""),
@@ -226,14 +226,27 @@ async def test_empty_model_answer_gets_another_round_with_tools() -> None:
 
     assert resp.message_type == "RECALC_RESULT"
     assert calc.calls == [{"goal_amount": EOK}]
-    second = claude.calls[1]
-    assert "tool_choice" not in second
-    assert second["messages"][-1]["role"] == "user"
-    assert isinstance(second["messages"][-1]["content"], str)
+    assert "tool_choice" not in claude.calls[1]
+    # FakeClaude는 messages를 참조로 남기므로 마지막 요청의 대화에서 안내를 찾는다
+    notes = [
+        m for m in claude.calls[-1]["messages"]
+        if m["role"] == "user" and isinstance(m["content"], str) and "content가 비어" in m["content"]
+    ]
+    assert len(notes) == 1
 
 
-async def test_empty_model_answer_in_the_last_round_still_fails() -> None:
-    claude = FakeClaude([raw_resp('{"message_type":"ANSWER","content":" ","citation_chunk_ids":[]}')])
+async def test_empty_recalc_answer_in_the_last_round_still_fails() -> None:
+    claude = FakeClaude([raw_resp('{"message_type":"RECALC_RESULT","content":" ","citation_chunk_ids":[]}')])
     with pytest.raises(AgentError) as err:
         await make_agent(claude, FakeCalc(), max_rounds=1).run(request("1억으로 바꿀게"))
     assert err.value.code == "FORBIDDEN_EXPRESSION"
+
+
+@pytest.mark.parametrize("message_type", ["ANSWER", "CLARIFY"])
+async def test_other_empty_answers_are_still_rejected_without_another_call(message_type: str) -> None:
+    """계산이 필요 없는 빈 답은 기존처럼 재시도 없이 거부한다(#155 P-10)"""
+    claude = FakeClaude([text_resp(message_type, " "), text_resp(message_type, "호출되면 안 돼요")])
+    with pytest.raises(AgentError) as err:
+        await make_agent(claude, FakeCalc()).run(request("1억으로 바꿀게"))
+    assert err.value.code == "FORBIDDEN_EXPRESSION"
+    assert len(claude.calls) == 1
