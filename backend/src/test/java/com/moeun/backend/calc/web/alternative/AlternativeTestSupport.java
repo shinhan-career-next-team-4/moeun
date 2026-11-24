@@ -75,12 +75,30 @@ abstract class AlternativeTestSupport {
                 .query(Long.class).single() == 0);
     }
 
+    /** 저장된 계획과 계산 기록을 지운다(같은 테스트 안에서 계획을 처음부터 다시 만들 때). */
+    void resetPlans() {
+        awaitEventsCompleted();
+        jdbc.sql("DELETE FROM calc_run").update();
+        jdbc.sql("DELETE FROM plan").update();
+        jdbc.sql("DELETE FROM plan_version").update();
+    }
+
+    /** 월 저축액은 미달 계획 그대로 두고 기간만 정한 입력. */
+    com.moeun.backend.plan.PlanInput validPlanWithPeriod(int months) {
+        return valid().goalAmount(GOAL).targetPeriodMonths(months).heldAssets(HELD)
+                .monthlySavingAmount(MISSING_MONTHLY).build();
+    }
+
     void savePlan(long monthlySavingAmount) {
         savePlan(monthlySavingAmount, HELD);
     }
 
     void savePlan(long monthlySavingAmount, long heldAssets) {
-        planSaveService.save(memberId, valid().goalAmount(GOAL).targetPeriodMonths(PERIOD).heldAssets(heldAssets)
+        savePlan(GOAL, monthlySavingAmount, heldAssets);
+    }
+
+    void savePlan(long goalAmount, long monthlySavingAmount, long heldAssets) {
+        planSaveService.save(memberId, valid().goalAmount(goalAmount).targetPeriodMonths(PERIOD).heldAssets(heldAssets)
                 .monthlySavingAmount(monthlySavingAmount).build(), null);
         awaitEventsCompleted();
     }

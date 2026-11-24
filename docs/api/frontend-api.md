@@ -1706,7 +1706,7 @@ public record PlanApplyResult(long planVersionId, Long previousVersionId, long r
 
 | 필드 | 뜻 |
 |---|---|
-| `targetPeriodMonths` | '기한을 늘리면' 카드에 쓸 원하는 기간(개월). 없으면 그 카드는 입력 전의 빈 카드다(D-020·D-039) |
+| `targetPeriodMonths` | (선택) '기한을 늘리면' 카드에 쓸 기간(개월). 주면 그 값으로 계산하고, **없으면 서버가 목표를 달성하는 가장 짧은 기간을 찾아 추천한다**(#343, D-039를 대체) |
 
 응답 `200`:
 ```json
@@ -1719,7 +1719,7 @@ public record PlanApplyResult(long planVersionId, Long previousVersionId, long r
       "display": { "conditions.current.monthlySavingAmount": "약 30만원", "conditions.changed.monthlySavingAmount": "약 33만원",
                    "diff.AVG.afterTaxAssetDelta": "약 117만원 증가", "changed.AVG.afterTaxAsset": "약 1,788만원",
                    "changed.AVG.gapToGoal": "-약 212만원 미달", "...": "비교 display(C12b-6)와 같은 키" } },
-    { "key": "targetPeriodMonths", "changes": {}, "conditions": null, "current": null, "changed": null, "diff": null, "display": {} },
+    { "key": "targetPeriodMonths", "changes": {}, "conditions": null, "current": null, "changed": null, "diff": null, "display": {}, "unreachable": true },
     { "key": "savingsRatioPct", "changes": { "savingsRatioPct": 40 }, "...": "" }
   ]
 }
@@ -1732,9 +1732,14 @@ public record PlanApplyResult(long planVersionId, Long previousVersionId, long r
 | `key` | 바꾼 조건 |
 | `changes` | `{key: 바꾼 값}`. '비교하기'가 비교 영역에 채우고, '내 계획으로 적용'이 P-6 `conditionChanges`로 보낸다. 빈 카드면 `{}` |
 | `display` | 비교 display(C12b-6)와 같은 키. 빈 카드면 `{}` |
+| `unreachable` | **[#343]** 허용 범위 안에서 목표를 달성하는 값을 찾지 못했다(달성이 어려움). 이때 `changes`는 `{}`이고 비교 값은 `null`이다 |
 
-- 대안 값(D-096 ①): 월 저축액은 현재의 **+10%**, 비중은 적금 **−10%p**(ETF +10%p)를 서버가 정한다. 기한은 사용자가 입력한다.
-- 바꿀 값이 없는 카드(기한 입력 전 등)는 `changes`가 비고 나머지가 `null`·`{}`인 빈 카드다.
+- 대안 값(#343, D-096 ①을 대체): 서버가 **기준 시나리오(평균, 세후)가 목표를 달성하는 값**을 계산 엔진으로 찾는다.
+  - 월 저축액: 달성하는 가장 작은 값(**만원 단위 올림**, 현재보다 크게, 상한 1,000만원).
+  - 기한: 달성하는 가장 짧은 기간(현재보다 길게, 상한 360개월). 요청에 `targetPeriodMonths`를 주면 그 값을 쓴다.
+  - 비중: 현재보다 ETF를 늘린 **10%p 단위** 값 중 현재와 가장 가까운 달성 값(ETF 100%까지).
+  - 상한 안에서 달성하는 값이 없으면 그 카드는 `unreachable:true`(달성이 어려움)이고 `changes`가 비는 카드다. 화면은 이유를 안내한다.
+- 이전 정책(월 저축액 +10%, 비중 −10%p, 기한은 사용자 입력, 2026-11-21 '역산식 두지 않음')은 사용자 결정으로 바뀌었다(2026-11-24).
 
 #### A-1-1. 카드 본문과 display 키 (D-096 ②)
 

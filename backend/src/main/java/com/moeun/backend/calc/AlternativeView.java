@@ -26,16 +26,27 @@ public record AlternativeView(boolean needed, List<Alternative> alternatives) {
      * @param changedValue 그 조건의 바꾼 값(월 저축액은 원, 기간은 개월, 비중은 %). 빈 카드면 null
      * @param comparison 현재 계획과 그 조건 하나만 바꾼 결과의 비교. 빈 카드면 null
      * @param display 비교의 표시 문자열 맵. 빈 카드면 빈 맵
+     * @param unreachable 허용 범위 안에서 목표를 달성하는 값을 찾지 못했다(달성이 어려움, #343). 이때 값·비교는 없다
      */
     public record Alternative(AlternativeKey key, Number changedValue, CalcComparison comparison,
-            Map<String, String> display) {
+            Map<String, String> display, boolean unreachable) {
 
         public Alternative {
             display = Map.copyOf(display);
         }
 
+        public Alternative(AlternativeKey key, Number changedValue, CalcComparison comparison,
+                Map<String, String> display) {
+            this(key, changedValue, comparison, display, false);
+        }
+
         public static Alternative empty(AlternativeKey key) {
-            return new Alternative(key, null, null, Map.of());
+            return new Alternative(key, null, null, Map.of(), false);
+        }
+
+        /** 허용 범위 안에서 목표를 달성하는 값이 없는 카드(#343). */
+        public static Alternative unreachable(AlternativeKey key) {
+            return new Alternative(key, null, null, Map.of(), true);
         }
     }
 }

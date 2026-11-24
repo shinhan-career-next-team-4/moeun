@@ -3,7 +3,8 @@ package com.moeun.backend.calc.application;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.OptionalLong;
+import java.util.function.LongPredicate;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,10 +34,17 @@ import com.moeun.backend.refdata.SavingsAvgRateData;
 /**
  * 대안 값 산출(FR-ALT-01·03). 기준 시나리오로 목표에 못 미치는 계획만 대안을 만들고, 대안마다 조건 하나만 바꿔
  * {@link CompareConditionsUseCase#computeComparison}(#32)으로 계산한다. 결과는 저장하지 않는다.
- * <p>월 저축액·비중의 후보값은 {@link AlternativeCandidatePolicy}가 정한다. 기한은 사용자가 입력한 기간이다.
+ * <p>대안 값은 기준 시나리오가 목표를 달성하는 값을 찾아 추천한다(#343). 기한은 사용자가 정해 보내면 그 값을 쓴다.
  */
 @Service
 class AlternativeFinder implements AlternativeQuery {
+
+    /** 월 저축액 추천은 만원 단위로 올린다. */
+    private static final long MONTHLY_UNIT = 10_000L;
+    /** 입력 규칙(rules.yml)의 상한. 이 안에서 못 찾으면 달성이 어렵다고 본다. */
+    private static final long MAX_MONTHLY_AMOUNT = 10_000_000L;
+    private static final long MAX_PERIOD_MONTHS = 360L;
+    private static final int RATIO_STEP = 10;
 
     private final PlanSaveService planSaveService;
     private final ReferenceDataService referenceDataService;
@@ -44,18 +52,16 @@ class AlternativeFinder implements AlternativeQuery {
     private final CalcEngine calcEngine;
     private final CompareConditionsUseCase compareConditions;
     private final ConditionValidator conditionValidator;
-    private final AlternativeCandidatePolicy policy;
 
     AlternativeFinder(PlanSaveService planSaveService, ReferenceDataService referenceDataService,
             ConditionResolver conditionResolver, CalcEngine calcEngine, CompareConditionsUseCase compareConditions,
-            ConditionValidator conditionValidator, AlternativeCandidatePolicy policy) {
+            ConditionValidator conditionValidator) {
         this.planSaveService = planSaveService;
         this.referenceDataService = referenceDataService;
         this.conditionResolver = conditionResolver;
         this.calcEngine = calcEngine;
         this.compareConditions = compareConditions;
         this.conditionValidator = conditionValidator;
-        this.policy = policy;
     }
 
     @Override
@@ -77,9 +83,7 @@ class AlternativeFinder implements AlternativeQuery {
 
         List<Alternative> alternatives = new ArrayList<>();
         for (AlternativeKey key : AlternativeKey.values()) {
-            Optional<Number> value = candidateValue(key, input, desiredTargetPeriodMonths);
-            alternatives.add(value.map(changed -> compute(key, changed, plan, params, etf, defaultRate))
-                    .orElseGet(() -> Alternative.empty(key)));
+            alternatives.add(alternativeFor(key, plan, input, desiredTargetPeriodMonths, params, etf, defaultRate));
         }
         return new AlternativeView(true, alternatives);
     }
@@ -102,15 +106,63 @@ class AlternativeFinder implements AlternativeQuery {
                 || current.findBaselineResult().map(ScenarioResult::isAchieved).orElse(false);
     }
 
-    private Optional<Number> candidateValue(AlternativeKey key, CalcInput input, Integer months) {
+    /**
+     * 대안 카드 하나. 사용자가 기간을 직접 정해 보냈으면 그 값을 쓰고, 아니면 목표를 달성하는 값을 찾는다(#343).
+     * 허용 범위 안에서 찾지 못하면 '달성이 어려움' 카드다.
+     */
+    private Alternative alternativeFor(AlternativeKey key, PlanView plan, CalcInput input, Integer desiredMonths,
+            CalcParams params, EtfSeries etf, SavingsAvgRateData defaultRate) {
+        if (key == AlternativeKey.TARGET_PERIOD_MONTHS && desiredMonths != null) {
+            return compute(key, desiredMonths, plan, params, etf, defaultRate);
+        }
+        LongPredicate achieves = value -> achieves(plan, onlyChanged(key, value), params, etf, defaultRate);
+        OptionalLong found = seek(key, input, achieves);
+        if (found.isEmpty()) {
+            return Alternative.unreachable(key);
+        }
+        return compute(key, found.getAsLong(), plan, params, etf, defaultRate);
+    }
+
+    private OptionalLong seek(AlternativeKey key, CalcInput input, LongPredicate achieves) {
         return switch (key) {
-            case MONTHLY_SAVING_AMOUNT -> policy.monthlySavingAmount(input).map(Number.class::cast);
-            case TARGET_PERIOD_MONTHS -> Optional.ofNullable(months).map(Number.class::cast);
-            case SAVINGS_RATIO_PCT -> policy.savingsRatioPct(input).map(Number.class::cast);
+            case MONTHLY_SAVING_AMOUNT -> {
+                long firstUnit = input.monthlySavingAmount() / MONTHLY_UNIT + 1;
+                OptionalLong unit = GoalSeeker.smallestAchieving(firstUnit, MAX_MONTHLY_AMOUNT / MONTHLY_UNIT,
+                        candidate -> achieves.test(candidate * MONTHLY_UNIT));
+                yield unit.isPresent() ? OptionalLong.of(unit.getAsLong() * MONTHLY_UNIT) : OptionalLong.empty();
+            }
+            case TARGET_PERIOD_MONTHS -> GoalSeeker.smallestAchieving(input.targetPeriodMonths() + 1L,
+                    MAX_PERIOD_MONTHS, achieves);
+            case SAVINGS_RATIO_PCT -> GoalSeeker.firstAchieving(ratioCandidates(input.savingsRatioPct()), achieves);
         };
     }
 
-    private Alternative compute(AlternativeKey key, Number value, PlanView plan, CalcParams params, EtfSeries etf,
+    /** 현재 적금 비중보다 낮은(ETF를 늘린) 10%p 단위 후보를 현재에서 가까운 순서로 준다. 0이 ETF 100%다. */
+    private static long[] ratioCandidates(int currentRatioPct) {
+        int first = (currentRatioPct - 1) / RATIO_STEP * RATIO_STEP;
+        int count = first / RATIO_STEP + 1;
+        if (currentRatioPct <= 0) {
+            return new long[0];
+        }
+        long[] candidates = new long[count];
+        for (int i = 0; i < count; i++) {
+            candidates[i] = first - (long) i * RATIO_STEP;
+        }
+        return candidates;
+    }
+
+    /** 바꾼 조건 하나로 계산했을 때 기준 시나리오가 목표를 달성하는지. */
+    private boolean achieves(PlanView plan, ConditionOverride changes, CalcParams params, EtfSeries etf,
+            SavingsAvgRateData defaultRate) {
+        if (!conditionValidator.validate(ChangePath.ALTERNATIVE, changes).isEmpty()) {
+            return false;
+        }
+        ConditionResolver.ResolvedConditions changed = conditionResolver.resolveChanged(plan, changes, defaultRate,
+                params);
+        return isAchieved(calcEngine.calculate(changed, params, etf));
+    }
+
+    private Alternative compute(AlternativeKey key, long value, PlanView plan, CalcParams params, EtfSeries etf,
             SavingsAvgRateData defaultRate) {
         ComputedComparison computed = compareConditions.computeComparison(plan, onlyChanged(key, value), params, etf,
                 etf, defaultRate);
@@ -118,11 +170,11 @@ class AlternativeFinder implements AlternativeQuery {
     }
 
     /** 한 조건만 담은 바꾼 조건. 나머지는 null이라 현재 계획 그대로다(FR-ALT-03). */
-    private static ConditionOverride onlyChanged(AlternativeKey key, Number value) {
+    private static ConditionOverride onlyChanged(AlternativeKey key, long value) {
         return switch (key) {
-            case MONTHLY_SAVING_AMOUNT -> new ConditionOverride(value.longValue(), null, null, null, null, null);
-            case TARGET_PERIOD_MONTHS -> new ConditionOverride(null, value.intValue(), null, null, null, null);
-            case SAVINGS_RATIO_PCT -> new ConditionOverride(null, null, value.intValue(), null, null, null);
+            case MONTHLY_SAVING_AMOUNT -> new ConditionOverride(value, null, null, null, null, null);
+            case TARGET_PERIOD_MONTHS -> new ConditionOverride(null, (int) value, null, null, null, null);
+            case SAVINGS_RATIO_PCT -> new ConditionOverride(null, null, (int) value, null, null, null);
         };
     }
 }

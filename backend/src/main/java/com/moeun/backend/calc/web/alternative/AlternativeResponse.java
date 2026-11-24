@@ -20,22 +20,24 @@ record AlternativeResponse(boolean hasAlternatives, List<Card> alternatives) {
      * @param changes {@code {key: 바꾼 값}}. '비교하기'가 비교 영역에 채울 조건. 빈 카드면 빈 맵
      * @param conditions 두 계산에 쓴 조건. 바꾼 조건 하나만 current와 다르다
      * @param display 표시 문자열 맵(calc가 만든 그대로)
+     * @param unreachable 허용 범위 안에서 목표를 달성하는 값을 찾지 못했다(달성이 어려움, #343). 이때 changes는 비어 있다
      */
     record Card(String key, Map<String, Number> changes, Conditions conditions, CalcResultView current,
-            CalcResultView changed, CalcComparison.Diff diff, Map<String, String> display) {
+            CalcResultView changed, CalcComparison.Diff diff, Map<String, String> display,
+            boolean unreachable) {
 
         static Card from(AlternativeView.Alternative alternative) {
             String key = alternative.key().apiName();
             CalcComparison comparison = alternative.comparison();
             if (comparison == null) {
-                return new Card(key, Map.of(), null, null, null, null, Map.of());
+                return new Card(key, Map.of(), null, null, null, null, Map.of(), alternative.unreachable());
             }
             Conditions conditions = new Conditions(
                     Side.of(comparison.current().goalAmount(), comparison.conditions().current()),
                     Side.of(comparison.changed().goalAmount(), comparison.conditions().changed()));
             return new Card(key, Map.of(key, alternative.changedValue()), conditions,
                     CalcResultView.from(comparison.current()), CalcResultView.from(comparison.changed()),
-                    comparison.diff(), alternative.display());
+                    comparison.diff(), alternative.display(), false);
         }
     }
 
