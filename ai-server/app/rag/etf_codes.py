@@ -14,7 +14,6 @@ PRODUCT_DOC_CODES: dict[str, list[str]] = {
 _DISPLAY_KEYWORDS = {"S&P500": "SP500", "코스피200": "069500", "나스닥100": "133690"}
 # 대화로 바꿀 수 있는 종목 코드와 그 지수 이름(D-097). ai-server의 종목 목록은 이 파일 한 곳이고, 도구 enum과 설명이
 # 여기서 나온다. 활성 여부는 Spring이 검증한다(없는 코드는 422). 종목을 더하면 이 파일과 프롬프트를 같이 고친다
-REPRESENTATIVE_PRODUCT = "SP500"   # #154 전 계획 종목이 비어 있으면 Spring이 쓰는 대표 상품(internal-calc C2-2)
 PRODUCT_INDEX_NAMES: dict[str, str] = {product: keyword for keyword, product in _DISPLAY_KEYWORDS.items()}
 
 

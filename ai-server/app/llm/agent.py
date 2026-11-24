@@ -52,7 +52,6 @@ from app.llm.judge import LlmStockJudge
 from app.llm.plan import plan_etf_name
 from app.llm.prompts import SYSTEM_PROMPT
 from app.llm.tools import FINAL_FORMAT, TOOLS, Calculator, DocumentSearch, FinalAnswer
-from app.rag.etf_codes import REPRESENTATIVE_PRODUCT
 from app.schemas import (
     ChatMode,
     ChatRequest,
@@ -330,10 +329,11 @@ class ChatAgent:
             if dropped:
                 log.info("dropped carried conditions for message %s: %s", turn.req.message_id, dropped)
             changes = filtered
-        # ETF 0% 계획은 planContext에 종목 코드가 없지만 Spring은 #154 전까지 대표 상품으로 본다(internal-calc C2-2)
-        planned = plan_product(turn.req) or (REPRESENTATIVE_PRODUCT if turn.req.plan_context is not None else None)
+        # ETF 0% 계획은 planContext에 종목 코드가 없다. 계획에는 SP500이 아닌 종목도 저장되므로(#154) 모르면 가정하지
+        # 않고 키를 Spring에 넘긴다. Spring은 계획과 같은 종목이면 바꾸지 않은 것으로 본다(internal-calc C2-2, #294)
+        planned = plan_product(turn.req)
         if changes.etf_product_code is not None and changes.etf_product_code == planned:
-            # 계획과 같은 종목은 바꾸지 않은 것이다(D-097). 키를 남기면 F-4·F-5가 적용할 수 없는 비교로 본다(#268)
+            # 계획과 같은 종목은 바꾸지 않은 것이다(D-097)
             changes = changes.model_copy(update={"etf_product_code": None})
             if not changes.changed():
                 raise CalcError("이미 계획의 종목입니다. 계산하지 말고 지금 계획이 이미 그 종목이라고만 답하세요.")
