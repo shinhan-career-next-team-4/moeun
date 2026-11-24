@@ -18,13 +18,15 @@ export interface ProjectionChartProps {
   /** 어느 시나리오를 그릴지. 위쪽 3구간 카드가 고르고, 이 화면은 받은 값만 그린다. */
   scenario: ProjectionScenario;
   defaultUnit?: ProjectionUnit;
+  /** 계산 시작월("YYYY-MM", `result.calcStartMonth`). 있으면 가로축 눈금이 날짜로 나온다. */
+  startMonth?: string;
 }
 
 /**
  * 누적 그래프 화면(#298): 범례(항목 옆 최종 금액)와 월별/연별 토글이 한 줄, 그래프, 안내 문구.
  * 시나리오는 바깥(3구간 카드)이 고르고, 월별/연별은 이 화면 안의 상태다. 값은 받은 data에서 점을 고르기만 한다.
  */
-export function ProjectionChart({ data, scenario, defaultUnit = "monthly" }: ProjectionChartProps) {
+export function ProjectionChart({ data, scenario, defaultUnit = "monthly", startMonth }: ProjectionChartProps) {
   const [unit, setUnit] = useState<ProjectionUnit>(defaultUnit);
 
   const monthly = data[scenario] ?? [];
@@ -59,6 +61,7 @@ export function ProjectionChart({ data, scenario, defaultUnit = "monthly" }: Pro
         monthRange={monthRange}
         maxValue={maxValue}
         revealKey={scenario}
+        startMonth={startMonth}
         ariaLabel={COPY["projection.chartLabel"]}
       />
 

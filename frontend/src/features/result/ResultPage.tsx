@@ -369,7 +369,7 @@ export function ResultPage() {
                   selected={chartScenario ?? undefined}
                   onSelect={chartScenario ? setPickedScenario : undefined}
                 />
-                {chartScenario && <ProjectionChart data={projection} scenario={chartScenario} />}
+                {chartScenario && <ProjectionChart data={projection} scenario={chartScenario} startMonth={result.calcStartMonth} />}
                 {/* ETF 종목 비교(#156). 종목을 골라 저장 없이 미리본다. ETF 0%면 스스로 숨는다 */}
                 <EtfCompareSection
                   currentProductName={display["assumptions.etfProductName"] ?? ""}
