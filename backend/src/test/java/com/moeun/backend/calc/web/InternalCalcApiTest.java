@@ -279,16 +279,25 @@ class InternalCalcApiTest {
         JsonNode display = body.get("display");
         JsonNode byScenario = body.get("diff").get("byScenario");
         assertThat(byScenario).isNotEmpty();
-        for (int index = 0; index < byScenario.size(); index++) {
-            String scenario = byScenario.get(index).get("scenario").asString();
-            long before = body.get("current").get("scenarios").get(index).get("gapToGoal").asLong();
-            long after = body.get("changed").get("scenarios").get(index).get("gapToGoal").asLong();
+        for (JsonNode diff : byScenario) {
+            String scenario = diff.get("scenario").asString();
+            long before = gapToGoal(body.get("current"), scenario);
+            long after = gapToGoal(body.get("changed"), scenario);
             assertThat(display.get("diff." + scenario + ".gapToGoalDelta").asString())
                     .isEqualTo(formatter.formatDifference(after - before))
                     .endsWith("감소")
                     .isNotEqualTo(display.get("diff." + scenario + ".afterTaxAssetDelta").asString());
         }
         assertThat(byScenario.get(0).has("gapToGoalDelta")).isFalse();
+    }
+
+    private static long gapToGoal(JsonNode side, String scenario) {
+        for (JsonNode item : side.get("scenarios")) {
+            if (item.get("scenario").asString().equals(scenario)) {
+                return item.get("gapToGoal").asLong();
+            }
+        }
+        throw new AssertionError("no scenario " + scenario);
     }
 
     @Test
@@ -313,6 +322,7 @@ class InternalCalcApiTest {
 
         JsonNode body = readBody(postCalc(request(changes("goalAmount", 4_000_000))).andExpect(status().isOk()));
 
+        assertThat(body.get("diff").get("byScenario")).isEmpty();
         body.get("display").propertyNames().forEach(key -> assertThat(key).doesNotEndWith(".gapToGoalDelta"));
     }
 
