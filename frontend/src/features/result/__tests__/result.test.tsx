@@ -88,9 +88,9 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
     expect(scenarios.textContent).toContain("평균");
     expect(scenarios.textContent).toContain("나빴던 때");
     expect(screen.getByRole("img", { name: "목표 대비 예상 자산" })).toBeTruthy();
-        // 대화 패널에도 같은 고지가 있어서 페이지 면책(footer)을 짚는다
-        const footer = document.querySelector('footer') as HTMLElement
-        expect(within(footer).getByText(/실제 수령액이나 수익을 보장하지 않습니다/)).toBeTruthy()
+        // 대화 패널에도 같은 고지가 있어서 페이지 면책(본문 문단)을 짚는다
+        const disclaimer = screen.getByTestId('result-disclaimer')
+        expect(disclaimer.textContent).toMatch(/실제 수령액이나 수익을 보장하지 않습니다/)
   });
 
   // 와이어프레임 03 반영(#136). 숫자는 모두 서버 display 문자열을 그대로 쓴다.
