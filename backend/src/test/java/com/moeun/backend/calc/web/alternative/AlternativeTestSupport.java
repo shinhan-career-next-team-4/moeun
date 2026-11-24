@@ -1,4 +1,4 @@
-package com.moeun.backend.chat.alternative;
+package com.moeun.backend.calc.web.alternative;
 
 import static com.moeun.backend.plan.application.PlanInputBuilder.valid;
 import static org.awaitility.Awaitility.await;

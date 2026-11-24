@@ -1,4 +1,4 @@
-package com.moeun.backend.chat.compare;
+package com.moeun.backend.calc.web.compare;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

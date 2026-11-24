@@ -1,4 +1,4 @@
-package com.moeun.backend.chat.alternative;
+package com.moeun.backend.calc.web.alternative;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
