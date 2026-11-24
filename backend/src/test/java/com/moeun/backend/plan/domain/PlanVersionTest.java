@@ -113,7 +113,8 @@ class PlanVersionTest {
 
     @Test
     void conditionsRoundTripToInputForValidation() {
-        PlanConditions conditions = PlanConditions.from(valid().savingsRateInputPct("3.25").savingsRatioPct(40).build());
+        PlanConditions conditions = PlanConditions.from(
+                valid().savingsRateInputPct("3.25").savingsRatioPct(40).build());
 
         assertThat(PlanConditions.from(conditions.toInput())).isEqualTo(conditions);
     }
