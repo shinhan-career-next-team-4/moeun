@@ -33,5 +33,17 @@ public interface ChatComparisonQuery {
      * @return 없는·남의·PLAN 기록이면 빈 값
      * @throws IllegalArgumentException 허용 7개 밖의 키, 타입이 맞지 않는 값, 정수 자리의 소수처럼 타입을 바꿀 수 없을 때
      */
-    Optional<ChatComparisonView> recompute(long memberId, long calcRunId, Map<String, JsonNode> conditionChanges);
+    default Optional<ChatComparisonView> recompute(long memberId, long calcRunId,
+            Map<String, JsonNode> conditionChanges) {
+        return recompute(memberId, calcRunId, conditionChanges, Map.of());
+    }
+
+    /**
+     * 대화 조건 누적(#418, D-103)의 비교를 다시 계산한다. current는 기록의 계획 버전에 그때의 비교 기준 변경을 얹은 계획,
+     * changed는 거기에 바꾼 조건을 더 얹은 계획이다. 키·타입 규칙은 바꾼 조건과 같다.
+     *
+     * @param baselineChanges 대화 메시지에 저장된 비교 기준 변경. 비었으면 기록의 계획 버전과 비교한다
+     */
+    Optional<ChatComparisonView> recompute(long memberId, long calcRunId, Map<String, JsonNode> conditionChanges,
+            Map<String, JsonNode> baselineChanges);
 }
