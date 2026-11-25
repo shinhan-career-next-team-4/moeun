@@ -470,13 +470,15 @@ class ChatAgent:
                 turn.fixed_copy_values = {"condition": load_copy().get(f"condition.{field}")}
                 return "Error: 바꾼 적 없는 조건입니다."
         reverted, remaining = split_entries(entries, scope, field)
-        turn.revert = RevertAction(scope=scope, condition=field)
         payload: dict[str, Any] = {
             "reverted": [{"field": f} for f in dict.fromkeys(e.field for e in reverted)],
             "remaining": [{"field": f} for f in dict.fromkeys(e.field for e in remaining)],
         }
         left = accumulated_conditions(remaining)
+        # 되돌린 범위는 결과가 확정됐을 때만 남긴다. 남은 조건의 계산이 422·409로 끝나면 Spring이 목록을 지우지 않는다
+        action = RevertAction(scope=scope, condition=field)
         if not left.changed():
+            turn.revert = action
             payload["note"] = REVERT_ALL_NOTE
             return json.dumps(payload, ensure_ascii=False)
         base_id = turn.req.base_plan_version_id
@@ -485,6 +487,7 @@ class ChatAgent:
         result = await self._calc.recalculate(turn.req.member_id, turn.req.baseline_scenario, left, **base_kwargs)
         turn.calc_run_id = result["calcRunId"]
         turn.condition_changes = left.changed()
+        turn.revert = action
         display = result.get("display")
         if isinstance(display, dict):
             turn.number_evidence.extend(v for v in display.values() if isinstance(v, str))

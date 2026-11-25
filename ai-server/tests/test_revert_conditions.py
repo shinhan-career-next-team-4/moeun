@@ -20,6 +20,7 @@ from app.llm.prompts import SYSTEM_PROMPT
 from app.llm.revert import REVERT_EXPRESSIONS, infer_revert
 from app.llm.tools import TOOLS
 from app.schemas import ChatRequest, ConditionChanges, DocType, RetrievedChunk, Scenario
+from app.tools.calc import CalcRejected
 
 REPO = Path(__file__).resolve().parents[2]
 PLAN_CONTEXT = json.loads(
@@ -188,6 +189,19 @@ async def test_reverts_three_turns_ago_change_in_long_conversation():
     assert resp.revert.condition == "savingsRatioPct"
     sent = "\n".join(m["content"] for m in claude.calls[0]["messages"] if isinstance(m["content"], str))
     assert "질문 5" not in sent and "질문 15" in sent
+
+
+class RejectingCalc(FakeCalc):
+    async def recalculate(self, member_id: int, baseline: Scenario, changes: ConditionChanges, **kwargs: Any):
+        raise CalcRejected("VALIDATION_FAILED", [{"field": "savingsRatioPct", "reason": "OUT_OF_RANGE"}])
+
+
+async def test_rejected_recalculation_does_not_revert():
+    """(예외) 남은 조건을 다시 계산하다 422로 끝나면 되묻기로 답하고 목록은 그대로 둔다(revert 없음)."""
+    claude = FakeClaude([tool_resp(NAIVE_LAST), text_resp("CLARIFY", "허용 범위를 벗어났어요. 다시 알려 주세요")])
+    resp = await make_agent(claude, RejectingCalc()).run(question("원래대로", TWO))
+    assert resp.message_type == "CLARIFY"
+    assert resp.revert is None
 
 
 def test_system_prompt_has_revert_examples():
