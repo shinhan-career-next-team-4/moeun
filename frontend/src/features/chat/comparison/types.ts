@@ -46,15 +46,6 @@ export const ETF_KEY = "etfProductCode";
 export const GOAL_NAME_KEY = "goalCustomName";
 export const ETF_NAME_FIELD = "etfProductName";
 
-/** 카드 조건 행 순서. 목표 금액을 바꾼 비교면 맨 앞에, 종목을 바꾼 비교면 맨 뒤에 그 행을 둔다. */
-export function conditionKeysOf(changedKeys: ReadonlySet<string>): string[] {
-  return [
-    ...(changedKeys.has(GOAL_KEY) ? [GOAL_KEY] : []),
-    ...CONDITION_KEYS,
-    ...(changedKeys.has(ETF_KEY) ? [ETF_KEY] : []),
-  ];
-}
-
 /** 조건 행의 display 키. 종목은 코드가 아니라 화면 이름을 보인다. */
 export function conditionDisplayKey(side: ComparisonSideKey, key: string): string {
   return `conditions.${side}.${key === ETF_KEY ? ETF_NAME_FIELD : key}`;
