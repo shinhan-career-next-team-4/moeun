@@ -365,6 +365,9 @@ class ChatAgent:
         return {"type": "tool_result", "tool_use_id": block.id, "content": f"Error: {e.code}", "is_error": True}
 
     async def _recalculate(self, turn: Turn, args: dict[str, Any]) -> str:
+        if turn.reverting:
+            raise CalcError(_ONE_KIND_ERROR)
+        turn.recalculating = True
         if turn.validation_failed:
             raise CalcError("허용 범위 오류를 이미 받았습니다. 값을 고쳐 다시 계산하지 말고 사용자에게 되물으세요.")
         changes = ConditionChanges.model_validate(args)
@@ -455,6 +458,9 @@ class ChatAgent:
     async def _revert_conditions(self, turn: Turn, args: dict[str, Any]) -> str:
         """이 대화에서 쌓은 조건을 되돌린다(#419). 목록에서 되돌릴 항목을 빼고 남은 조건을 내 계획 대비로 다시 계산한다.
         남은 조건이 없으면 계산하지 않고 내 계획(planContext)으로 답하게 한다. 목록 변경은 응답의 revert로 Spring이 한다."""
+        if turn.recalculating:
+            raise CalcError(_ONE_KIND_ERROR)
+        turn.reverting = True
         entries = turn.req.accumulated_changes
         scope, condition = resolve_revert(turn.req.text or "", str(args.get("scope")), args.get("condition"))
         if not entries:
@@ -470,9 +476,11 @@ class ChatAgent:
                 turn.fixed_copy_values = {"condition": load_copy().get(f"condition.{field}")}
                 return "Error: 바꾼 적 없는 조건입니다."
         reverted, remaining = split_entries(entries, scope, field)
+        reverted_fields = list(dict.fromkeys(e.field for e in reverted))
+        remaining_fields = list(dict.fromkeys(e.field for e in remaining))
         payload: dict[str, Any] = {
-            "reverted": [{"field": f} for f in dict.fromkeys(e.field for e in reverted)],
-            "remaining": [{"field": f} for f in dict.fromkeys(e.field for e in remaining)],
+            "reverted": [{"field": f} for f in reverted_fields],
+            "remaining": [{"field": f} for f in remaining_fields],
         }
         left = accumulated_conditions(remaining)
         # 되돌린 범위는 결과가 확정됐을 때만 남긴다. 남은 조건의 계산이 422·409로 끝나면 Spring이 목록을 지우지 않는다
@@ -491,6 +499,9 @@ class ChatAgent:
         display = result.get("display")
         if isinstance(display, dict):
             turn.number_evidence.extend(v for v in display.values() if isinstance(v, str))
+            # 되돌린 뒤 값과 남은 값은 계산 응답의 changed 쪽 display 그대로다(같은 조건을 두 번 바꾼 경우도 맞다)
+            payload["reverted"] = [_with_value(f, display) for f in reverted_fields]
+            payload["remaining"] = [_with_value(f, display) for f in remaining_fields]
         payload["calc"] = result
         payload["note"] = REVERT_NOTE
         return json.dumps(payload, ensure_ascii=False)
@@ -517,8 +528,17 @@ class ChatAgent:
 
 REVERT_NOTE = (
     "reverted의 조건을 되돌리고 remaining의 조건만 남겨 내 계획 대비로 다시 계산했습니다. 답에 되돌린 조건과 그대로 남은 "
-    "조건을 함께 밝히세요. 값은 calc.display의 문자열만 인용하세요(되돌린 조건의 값은 conditions.current.<키>)."
+    "조건을 함께 밝히세요. 각 조건의 지금 값은 value 문자열을 그대로 인용하세요."
 )
+_ONE_KIND_ERROR = (
+    "되돌리기와 조건 변경은 한 번에 하나만 합니다. 먼저 한 것의 결과로 답하고, 나머지는 다음 질문으로 안내하세요."
+)
+
+
+def _with_value(field: str, display: dict[str, Any]) -> dict[str, Any]:
+    """조건과 그 지금 값(계산 응답 changed 쪽 display). 값이 없으면 조건만 둔다."""
+    value = display.get(calc_condition_key(CHANGED_SIDE, field))
+    return {"field": field, "value": value} if isinstance(value, str) else {"field": field}
 REVERT_ALL_NOTE = (
     "모든 변경을 되돌려 내 계획으로 돌아갔습니다. 계산하지 않았으니 결과는 <plan_context>의 display를 인용하고 "
     "message_type은 ANSWER로 답하세요."

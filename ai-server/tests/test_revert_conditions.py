@@ -17,10 +17,11 @@ from anthropic.types.beta import BetaTextBlock, BetaToolUseBlock
 from app.core.copy import load_copy
 from app.llm.agent import ChatAgent
 from app.llm.prompts import SYSTEM_PROMPT
-from app.llm.revert import REVERT_EXPRESSIONS, infer_revert
+from app.llm.revert import infer_revert, resolve_revert
 from app.llm.tools import TOOLS
 from app.schemas import ChatRequest, ConditionChanges, DocType, RetrievedChunk, Scenario
 from app.tools.calc import CalcRejected
+from tests.revert_cases import DEFINITE, MODEL_DECIDES
 
 REPO = Path(__file__).resolve().parents[2]
 PLAN_CONTEXT = json.loads(
@@ -204,6 +205,44 @@ async def test_rejected_recalculation_does_not_revert():
     assert resp.revert is None
 
 
+async def test_revert_and_recalculate_in_one_round_runs_only_the_first():
+    """한 라운드에 되돌리기와 조건 변경을 함께 부르면 먼저 부른 되돌리기만 실행하고 조건 변경은 거절한다.
+    둘 다 실행하면 목록 상태와 계산 기록이 어긋난다."""
+    blocks = [
+        BetaToolUseBlock(type="tool_use", id="tu_1", name="revert_conditions", input=NAIVE_LAST),
+        BetaToolUseBlock(type="tool_use", id="tu_2", name="recalculate", input={
+            "goal_amount": None, "monthly_saving_amount": 1_500_000, "savings_ratio_pct": None,
+            "savings_rate_input_pct": None, "target_period_months": None, "etf_product_code": None,
+            "goal_custom_name": None,
+        }),
+    ]
+    claude = FakeClaude([SimpleNamespace(stop_reason="tool_use", content=blocks), text_resp()])
+    calc = FakeCalc()
+    resp = await make_agent(claude, calc).run(question("비중은 원래대로 하고 월 150으로", TWO))
+    # 표현이 비중을 지목해 되돌리기는 비중만이고, 남은 월 저축액(150만)의 재계산 하나뿐이다. 조건 변경은 실행하지 않는다
+    assert calc.calls == [{"changes": {"monthly_saving_amount": 1_500_000}}]
+    assert resp.revert is not None and (resp.revert.scope, resp.revert.condition) == ("condition", "savingsRatioPct")
+    results = claude.calls[-1]["messages"][-1]["content"]
+    assert results[1]["is_error"] is True
+
+
+async def test_tool_result_carries_reverted_value_from_calc_display():
+    """150만 → 200만 뒤 "취소": 되돌린 뒤 값은 계산 display(changed 쪽)의 문자열을 그대로 싣는다(계획 값과 헷갈리지 않게)."""
+    twice = [MONTHLY, {"field": "monthlySavingAmount", "before": 1500000, "after": 2000000, "messageId": 14}]
+
+    class DisplayCalc(FakeCalc):
+        async def recalculate(self, member_id, baseline, changes, **kwargs):
+            await super().recalculate(member_id, baseline, changes, **kwargs)
+            return {"calcRunId": 88, "display": {"conditions.current.monthlySavingAmount": "약 30만원",
+                                                 "conditions.changed.monthlySavingAmount": "약 150만원"}}
+
+    claude = FakeClaude([tool_resp(NAIVE_LAST), text_resp("RECALC_RESULT", "월 저축액을 약 150만원으로 돌렸어요")])
+    await make_agent(claude, DisplayCalc()).run(question("취소", twice))
+    result = tool_result(claude)
+    assert result["reverted"] == [{"field": "monthlySavingAmount", "value": "약 150만원"}]
+    assert result["remaining"] == [{"field": "monthlySavingAmount", "value": "약 150만원"}]
+
+
 def test_system_prompt_has_revert_examples():
     for phrase in ("revert_conditions", "원래대로", "다 원래대로", "비중은 원래대로", "아니 전부"):
         assert phrase in SYSTEM_PROMPT
@@ -215,13 +254,22 @@ STATES = {0: [], 1: [RATIO], 2: TWO}
 
 
 def test_eval_set_has_at_least_twenty_expressions():
-    assert len(REVERT_EXPRESSIONS) >= 20
-    assert {scope for scope, _ in REVERT_EXPRESSIONS.values()} == {"last", "all", "condition"}
+    assert len(DEFINITE) + len(MODEL_DECIDES) >= 20
+    assert {scope for scope, _ in DEFINITE.values()} == {"last", "all", "condition"}
 
 
-@pytest.mark.parametrize("text", sorted(REVERT_EXPRESSIONS))
+@pytest.mark.parametrize("text", sorted(DEFINITE))
 def test_infer_revert_matches_expected_tool_call(text):
-    assert infer_revert(text) == REVERT_EXPRESSIONS[text]
+    assert infer_revert(text) == DEFINITE[text]
+
+
+@pytest.mark.parametrize("text", sorted(MODEL_DECIDES))
+def test_ambiguous_expressions_keep_model_choice(text):
+    """제외·조건 둘 이상·값으로 지목한 표현은 규칙이 정하지 않고 모델의 선택을 그대로 쓴다."""
+    # 규칙은 범위를 정하지 않거나(None) 가장 약한 해석(last)만 낸다. last는 모델의 선택을 덮지 않는다
+    assert infer_revert(text) in (None, ("last", None))
+    scope, condition = MODEL_DECIDES[text]
+    assert resolve_revert(text, scope, condition) == (scope, condition)
 
 
 @pytest.mark.parametrize("text", ["월 150만원으로 늘리면?", "금리 4%면?", "결과 설명해줘", "기간을 4년으로 바꾸면?"])
@@ -230,7 +278,7 @@ def test_infer_revert_ignores_non_revert_utterances(text):
 
 
 def _expected_outcome(text: str, state: list[dict[str, Any]]) -> tuple[str, str | None] | str:
-    scope, condition = REVERT_EXPRESSIONS[text]
+    scope, condition = DEFINITE[text]
     if not state:
         return "nothing"
     if scope == "condition":
@@ -242,7 +290,7 @@ def _expected_outcome(text: str, state: list[dict[str, Any]]) -> tuple[str, str 
 
 
 @pytest.mark.parametrize("state", sorted(STATES))
-@pytest.mark.parametrize("text", sorted(REVERT_EXPRESSIONS))
+@pytest.mark.parametrize("text", sorted(DEFINITE))
 async def test_eval_server_action_for_each_expression_and_state(text, state):
     """모델이 늘 last로 불러도(가장 단순한 선택) 서버가 표현대로 범위를 바로잡아 실행한다."""
     entries = STATES[state]

@@ -1,6 +1,6 @@
 """대화로 되돌리기 평가 세트를 실제 LLM으로 돌린다(Issue #419). 모델만 실제이고 Spring 계산은 fake다.
 
-표현마다(`REVERT_EXPRESSIONS`, 20개 이상) 변경 2개(비중 → 월 저축액) 상태에서 모델이 revert_conditions를 부르는지,
+표현마다(`tests/revert_cases.py`, 20개 이상) 변경 2개(비중 → 월 저축액) 상태에서 모델이 revert_conditions를 부르는지,
 고른 범위(scope, condition)가 기대와 같은지 센다. 서버가 표현으로 바로잡은 최종 범위는 늘 기대와 같아야 한다.
 비용이 들어 기본 `pytest`에서는 건너뛴다.
     MOEUN_RUN_LLM=1 uv run pytest tests/scenarios/test_revert_scenarios.py -s
@@ -14,8 +14,9 @@ import pytest
 
 from app.core.config import get_settings
 from app.llm.agent import ChatAgent
-from app.llm.revert import REVERT_EXPRESSIONS, camel_of
+from app.llm.revert import camel_of
 from app.schemas import ChatRequest
+from tests.revert_cases import DEFINITE, MODEL_DECIDES
 from tests.scenarios.test_demo_scenarios import PLAN, NoDocs, ScenarioCalc
 
 pytestmark = pytest.mark.skipif(
@@ -47,14 +48,17 @@ def _agent() -> tuple[ChatAgent, list[dict[str, Any]]]:
     return agent, calls
 
 
-@pytest.mark.parametrize("text", sorted(REVERT_EXPRESSIONS))
+CASES = {**DEFINITE, **MODEL_DECIDES}
+
+
+@pytest.mark.parametrize("text", sorted(CASES))
 async def test_model_picks_expected_revert_call(text: str) -> None:
     agent, calls = _agent()
     req = ChatRequest(memberId=1, messageId=30, mode="QUESTION", text=text, baselineScenario="AVG",
                       plan_context=PLAN, accumulatedChanges=TWO_CHANGES)
     resp = await agent.run(req)
 
-    scope, condition = REVERT_EXPRESSIONS[text]
+    scope, condition = CASES[text]
     assert calls, f"{text!r}: revert_conditions를 부르지 않았다"
     chosen = (calls[0].get("scope"), calls[0].get("condition"))
     print(f"{text!r}: model={chosen} expected={(scope, condition)}")

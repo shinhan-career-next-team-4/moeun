@@ -16,6 +16,8 @@ RevertScope = Literal["last", "all", "condition"]
 # 되돌리기 말. 범위 판정은 이 말이 있을 때만 한다(모두·처음 계열은 그것만으로 되돌리기다)
 _REVERT = re.compile(r"원래|아까\s*거|취소|없던\s*걸로|되돌|돌려|이전으로")
 _ALL = re.compile(r"다\s*(?:원래|취소|되돌|돌려)|전부|모두|싹\s*다|처음|내\s*계획대로|원래\s*계획|전체")
+# 제외를 말하는 표현("월 저축액은 그대로 두고 나머지 다"). 도구 하나로 나타낼 수 없어 모델에 맡긴다
+_EXCEPT = re.compile(r"나머지|빼고|말고|그대로\s*두고|제외")
 # 조건 이름. 하나만 가리킬 때만 그 조건으로 본다(둘 이상이면 범위를 모델에 맡긴다)
 _CONDITION_WORDS: dict[str, re.Pattern[str]] = {
     "savings_ratio_pct": re.compile(r"비중|비율"),
@@ -26,55 +28,28 @@ _CONDITION_WORDS: dict[str, re.Pattern[str]] = {
     "goal_custom_name": re.compile(r"목표\s*이름"),
 }
 
-# 평가 세트: 되돌리기 표현 → 기대 도구 호출(scope, condition). 실제 모델 평가(tests/scenarios)와 서버 보정이 같이 쓴다
-REVERT_EXPRESSIONS: dict[str, tuple[RevertScope, str | None]] = {
-    "원래대로": ("last", None),
-    "원래대로 해줘": ("last", None),
-    "아까 거로": ("last", None),
-    "아까 거 취소": ("last", None),
-    "취소": ("last", None),
-    "취소해 줘": ("last", None),
-    "없던 걸로": ("last", None),
-    "없던 걸로 해줘": ("last", None),
-    "방금 거 되돌려줘": ("last", None),
-    "되돌려줘": ("last", None),
-    "이전으로 돌려줘": ("last", None),
-    "처음으로": ("all", None),
-    "다 원래대로": ("all", None),
-    "전부 원래대로": ("all", None),
-    "내 계획대로": ("all", None),
-    "아니 전부": ("all", None),
-    "모두 취소": ("all", None),
-    "싹 다 되돌려줘": ("all", None),
-    "원래 계획으로": ("all", None),
-    "비중은 원래대로": ("condition", "savings_ratio_pct"),
-    "저축 비중 취소": ("condition", "savings_ratio_pct"),
-    "아까 바꾼 비중은 원래대로": ("condition", "savings_ratio_pct"),
-    "월 저축액은 원래대로": ("condition", "monthly_saving_amount"),
-    "금리는 원래대로": ("condition", "savings_rate_input_pct"),
-    "기간은 원래대로": ("condition", "target_period_months"),
-    "목표 금액 취소": ("condition", "goal_amount"),
-    "종목은 원래대로": ("condition", "etf_product_code"),
-}
-
-
 def infer_revert(text: str) -> tuple[RevertScope, str | None] | None:
-    """되돌리기 표현의 범위. 되돌리기 말이 없으면 None. condition은 snake_case 조건 이름이다."""
+    """표현이 분명히 가리키는 되돌리기 범위. 분명하지 않으면 None(모델의 선택을 따른다). condition은 snake_case 이름이다.
+
+    조건 이름을 먼저 본다. "비중만 원래 계획대로", "기간은 처음 계획대로"처럼 조건 하나를 지목하면 '모두'·'처음' 같은 말이
+    있어도 그 조건이다(목록 전부를 지우는 쪽으로 틀리지 않는다). "나머지", "빼고"처럼 제외를 말하거나 조건이 둘 이상이면
+    도구 하나로 나타낼 수 없어 모델에 맡긴다. 조건 이름 없이 '모두' 계열이면 all, 되돌리기 말만 있으면 last다.
+    """
     lowered = text.lower()
-    if _ALL.search(lowered):
-        return "all", None
-    if not _REVERT.search(lowered):
-        return None
     named = [name for name, pattern in _CONDITION_WORDS.items() if pattern.search(lowered)]
     if mentions_etf_product(lowered):
         named.append("etf_product_code")
+    if _EXCEPT.search(lowered) or len(named) > 1:
+        return None
     if len(named) == 1:
-        return "condition", named[0]
-    return "last", None
+        return ("condition", named[0]) if _REVERT.search(lowered) or _ALL.search(lowered) else None
+    if _ALL.search(lowered):
+        return "all", None
+    return ("last", None) if _REVERT.search(lowered) else None
 
 
 def resolve_revert(text: str, scope: str, condition: str | None) -> tuple[RevertScope, str | None]:
-    """모델이 고른 범위를 표현으로 바로잡는다. 표현이 모두(all)나 한 조건을 분명히 가리킬 때만 표현을 따른다.
+    """모델이 고른 범위를 표현으로 바로잡는다. 표현이 모두(all)나 한 조건을 분명히 가리킬 때만 표현을 따른다(infer_revert).
 
     "아니 전부"처럼 바로잡는 말에 모델이 앞 턴과 같은 범위를 골라도 표현대로 처리한다. "150은 취소"처럼 조건 이름 없이
     값으로 가리킨 것은 모델의 조건 선택을 따른다.

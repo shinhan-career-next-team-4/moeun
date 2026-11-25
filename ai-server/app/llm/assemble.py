@@ -159,6 +159,9 @@ class Turn:
     fixed_copy_key: str | None = None   # 문구표 고정 문장으로 끝내는 거절을 받았다
     fixed_copy_values: dict[str, str] = field(default_factory=dict)   # 고정 문장의 {자리} 값(#419)
     revert: RevertAction | None = None   # 이번 요청에서 실행한 되돌리기(#419)
+    # 되돌리기와 조건 변경은 한 요청에 하나만 한다(#419). 둘이 섞이면 목록 상태와 계산 기록이 어긋난다
+    reverting: bool = False
+    recalculating: bool = False
     goal_changed_note_params: tuple[str, str] | None = None
     compared_etf_names: tuple[str, ...] = ()   # 종목을 바꾼 비교의 두 쪽 종목 이름(계산 display, D-097)
     changed_already_exceeded: bool = False
@@ -372,5 +375,6 @@ def assemble(turn: Turn, final: FinalAnswer) -> ChatResponse:
         calc_run_id=calc_run_id,
         condition_changes=changes,
         citation_chunk_ids=citations,
-        revert=turn.revert,
+        # 목록을 지우는 것은 되돌린 결과를 보여 준 답(ANSWER·RECALC_RESULT)일 때만이다(#419)
+        revert=turn.revert if message_type in ("ANSWER", "RECALC_RESULT") else None,
     )
