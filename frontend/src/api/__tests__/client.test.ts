@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../errors";
 import { resolveApiMode } from "../client";
 import { resetMocks, useMock } from "../mock";
-import { LOGIN_PATH } from "../../app/routes";
+import { LOGIN_PATH, SIGNUP_PATH } from "../../app/routes";
 import { htmlResponse, jsonResponse, makeHarness, planView, problemResponse, readMock } from "./helpers";
 
 beforeEach(() => resetMocks());
@@ -117,6 +117,13 @@ describe("AC-9 로그인 화면에 머무는 경우", () => {
 
   it("이미 로그인 화면에 있을 때 UNAUTHENTICATED는 상태 비우기·폴링 중단만 하고 다시 이동하지 않는다", async () => {
     const h = liveWith(() => problemResponse(401, "UNAUTHENTICATED"), LOGIN_PATH);
+    await caught(h.client.request("GET", "/api/plan"));
+    expect(h.calls).toEqual(["clear", "stopAll"]);
+    expect(h.navigate).not.toHaveBeenCalled();
+  });
+
+  it("회원가입 화면에서도(#460) UNAUTHENTICATED로 로그인 화면으로 끌어가지 않는다(입력 중인 가입 양식 유지)", async () => {
+    const h = liveWith(() => problemResponse(401, "UNAUTHENTICATED"), SIGNUP_PATH);
     await caught(h.client.request("GET", "/api/plan"));
     expect(h.calls).toEqual(["clear", "stopAll"]);
     expect(h.navigate).not.toHaveBeenCalled();
@@ -270,6 +277,26 @@ describe("AC-3·AC-20 로그인·로그아웃 성공 처리", () => {
     await h.client.request("POST", "/api/auth/login", { loginId: "demo", password: "demo" });
     expect(authSync.notifyAuthChanged).toHaveBeenCalledTimes(1);
     expect(authSync.notifyAuthChanged).toHaveBeenCalledWith("login");
+  });
+
+  it("P-7 회원가입 200 -> 로그인과 같이 다른 탭에 'login' 알림(#460, D-078)", async () => {
+    const authSync = { notifyAuthChanged: vi.fn() };
+    const h = makeHarness({ mode: "mock", authSync });
+    await expect(
+      h.client.request("POST", "/api/auth/signup", { loginId: "saver01", password: "pass-1234" }),
+    ).resolves.toEqual({});
+    expect(authSync.notifyAuthChanged).toHaveBeenCalledTimes(1);
+    expect(authSync.notifyAuthChanged).toHaveBeenCalledWith("login");
+  });
+
+  it("회원가입 실패(409·422·500)는 성공 알림을 보내지 않는다(#460)", async () => {
+    const authSync = { notifyAuthChanged: vi.fn() };
+    const h = makeHarness({ mode: "mock", authSync, pathname: SIGNUP_PATH });
+    for (const file of ["post-signup.409-duplicate.json", "post-signup.422.json", "post-signup.500.json"]) {
+      useMock(file);
+      await caught(h.client.request("POST", "/api/auth/signup", {}));
+    }
+    expect(authSync.notifyAuthChanged).not.toHaveBeenCalled();
   });
 
   it("로그인 실패(401 INVALID_CREDENTIALS)·로그아웃 401은 성공 알림을 보내지 않는다", async () => {
