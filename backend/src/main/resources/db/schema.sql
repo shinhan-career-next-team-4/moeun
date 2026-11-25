@@ -203,6 +203,7 @@ CREATE TABLE IF NOT EXISTS chat_message (
     calc_run_id          BIGINT       REFERENCES calc_run(id),
     baseline_scenario    VARCHAR(10),                    -- 설명·재계산 당시 기준 시나리오
     condition_changes    JSONB,                          -- 인식한 변경 의도. RECALC_RESULT에서는 재계산에 쓴 바꾼 값
+    baseline_condition_changes JSONB,                    -- RECALC_RESULT의 비교 기준: 그때까지 쌓인 조건의 최종 값(#418, D-103). 없으면 NULL
     retry_of_message_id  BIGINT       REFERENCES chat_message(id),
     created_at           TIMESTAMPTZ  NOT NULL DEFAULT now(),
     CONSTRAINT ck_cm_role      CHECK (role IN ('USER','ASSISTANT')),
@@ -212,6 +213,8 @@ CREATE TABLE IF NOT EXISTS chat_message (
     CONSTRAINT ck_cm_content   CHECK (status = 'PENDING' OR content IS NOT NULL),
     CONSTRAINT ck_cm_baseline  CHECK (baseline_scenario IS NULL OR baseline_scenario IN ('GOOD','AVG','BAD')),
     CONSTRAINT ck_cm_changes   CHECK (condition_changes IS NULL OR jsonb_typeof(condition_changes) = 'object'),
+    CONSTRAINT ck_cm_baseline_changes CHECK (baseline_condition_changes IS NULL
+                                      OR jsonb_typeof(baseline_condition_changes) = 'object'),
     CONSTRAINT ck_cm_recalc    CHECK (message_type <> 'RECALC_RESULT'
                                       OR (calc_run_id IS NOT NULL AND condition_changes IS NOT NULL AND baseline_scenario IS NOT NULL)),
     CONSTRAINT ck_cm_explain   CHECK (message_type <> 'EXPLANATION' OR (calc_run_id IS NOT NULL AND baseline_scenario IS NOT NULL)),
@@ -220,6 +223,20 @@ CREATE TABLE IF NOT EXISTS chat_message (
 CREATE INDEX IF NOT EXISTS ix_chat_message_member ON chat_message (member_id, id);                       -- 대화 복원·폴링 키셋
 CREATE INDEX IF NOT EXISTS ix_chat_message_pending ON chat_message (created_at) WHERE status = 'PENDING';
 CREATE INDEX IF NOT EXISTS ix_chat_message_run ON chat_message (calc_run_id) WHERE calc_run_id IS NOT NULL;
+
+-- 대화 조건 누적의 변경 목록(#418, D-103). 대화에서 바꾼 조건을 바꾼 순서대로 남긴다. 최종 값이 아니라 목록이다.
+-- 그 질문을 접수한 계획 버전의 것만 쓴다(계획이 바뀌면 이전 목록은 쓰지 않는다). 적용·대화창 닫기·로그인·로그아웃 때 지운다.
+CREATE TABLE IF NOT EXISTS chat_condition_change (
+    id               BIGSERIAL    PRIMARY KEY,
+    member_id        BIGINT       NOT NULL REFERENCES member(id) ON DELETE CASCADE,
+    message_id       BIGINT       NOT NULL REFERENCES chat_message(id) ON DELETE CASCADE,   -- 그 변경을 계산한 RECALC_RESULT
+    plan_version_id  BIGINT       NOT NULL,             -- 그 질문을 접수한 계획 버전(다른 모듈 행은 ID로만 참조)
+    field            VARCHAR(30)  NOT NULL,             -- camelCase 조건 키(/internal/calc conditionChanges와 같다)
+    before_value     JSONB,                             -- 바꾸기 전 값. 계획에 값이 없었으면 NULL
+    after_value      JSONB        NOT NULL,             -- 바꾼 값
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_chat_condition_change_member ON chat_condition_change (member_id, plan_version_id, id);
 
 CREATE TABLE IF NOT EXISTS chat_message_citation (
     message_id  BIGINT   NOT NULL REFERENCES chat_message(id) ON DELETE CASCADE,
@@ -235,6 +252,8 @@ CREATE TABLE IF NOT EXISTS chat_message_citation (
 -- 옛 S&P500 버전(data_kind SP500)을 ETF 종목 SP500으로 바꾸고 가격을 etf_monthly로 옮긴다.
 -- data_version id는 그대로라 calc_run에 남은 옛 기록도 그대로 다시 계산된다.
 -- =========================================================
+-- #418: 대화 조건 누적의 비교 기준. 기존 대화 행은 NULL(기준 계획과 비교)이다
+ALTER TABLE chat_message ADD COLUMN IF NOT EXISTS baseline_condition_changes JSONB;
 ALTER TABLE data_version ADD COLUMN IF NOT EXISTS product_code VARCHAR(20);
 DROP INDEX IF EXISTS uq_data_version_active;
 ALTER TABLE data_version DROP CONSTRAINT IF EXISTS ck_data_kind;

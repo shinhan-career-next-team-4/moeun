@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 
 import com.moeun.backend.calc.ChatComparisonQuery;
 import com.moeun.backend.chat.domain.ChatMessageRepository;
+import com.moeun.backend.chat.domain.ConditionChangeRepository;
 import com.moeun.backend.chat.domain.RecalcResultRow;
 import com.moeun.backend.plan.ChangePath;
 import com.moeun.backend.plan.NoPlanException;
@@ -30,9 +31,11 @@ public class ChatApplyService {
     private final PlanApplyService planApply;
     private final PlanSaveService plans;
     private final JsonMapper json;
+    private final ConditionChangeRepository conditionChanges;
 
     ChatApplyService(ChatMessageRepository messages, ChatComparisonQuery comparisons, PlanApplyService planApply,
-            PlanSaveService plans, JsonMapper json) {
+            PlanSaveService plans, JsonMapper json, ConditionChangeRepository conditionChanges) {
+        this.conditionChanges = conditionChanges;
         this.messages = messages;
         this.comparisons = comparisons;
         this.planApply = planApply;
@@ -56,8 +59,11 @@ public class ChatApplyService {
             throw new StaleBaseVersionException();   // 최신이 아닌 비교도 plan 검사 9와 같은 409 STALE_COMPARISON이다
         }
         long baseVersionId = baseVersionId(memberId, messageId, row);
-        return planApply.apply(memberId, ChangePath.CHAT, StoredConditionChanges.parse(json, row), expectedRevision,
-                baseVersionId).revision();
+        // 쌓인 조건(비교 기준)과 이번 변경을 합친 최종 조건이 새 계획이 된다. 그 뒤 변경 목록을 비운다(#418, D-103)
+        long revision = planApply.apply(memberId, ChangePath.CHAT, StoredConditionChanges.merged(json, row),
+                expectedRevision, baseVersionId).revision();
+        conditionChanges.deleteAllOf(memberId);
+        return revision;
     }
 
     /**

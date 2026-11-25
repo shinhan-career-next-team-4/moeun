@@ -66,7 +66,7 @@ public interface ChatMessageRepository {
     Optional<QuestionMessage> findLatestQuestionBefore(long memberId, long beforeId);
 
     /** beforeId보다 앞선 COMPLETED 메시지 중 최근 limit개를 오래된 것부터. */
-    List<HistoryMessage> findCompletedBefore(long memberId, long beforeId, int limit);
+    List<HistoryRow> findCompletedBefore(long memberId, long beforeId, int limit);
 
     /** 인용 chunk를 순서(rank 1부터)대로 저장한다. 그 회원의 메시지일 때만 저장한다. */
     void insertCitations(long memberId, long messageId, List<Long> chunkIds);

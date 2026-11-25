@@ -43,6 +43,9 @@ class ChatComparisonDocsTest extends ChatComparisonTestSupport {
                                 fieldWithPath("applicable").description("지금 이 비교를 적용할 수 있는지"),
                                 fieldWithPath("changedKeys[]").description("바꾼 조건의 키(순서 보장 없음, 집합으로 쓴다). "
                                         + "목표 이름을 바꿨으면 goalCustomName이 들어간다"),
+                                fieldWithPath("accumulatedKeys").type(JsonFieldType.ARRAY)
+                                        .description("대화 중 쌓여 changed 쪽에 얹힌 조건 키(비교 기준 + 이번 변경, 순서 보장 없음, "
+                                                + "#418). 쌓인 조건이 없으면 빈 배열"),
                                 fieldWithPath("goalCustomName").type(JsonFieldType.STRING).optional()
                                         .description("적용하면 바뀔 목표 이름(앞뒤 공백 뗌, #345). 이름을 바꾸지 않은 비교면 키 없음"),
                                 subsectionWithPath("conditions").description("두 계산에 쓴 5개 조건 {current, changed}"),
