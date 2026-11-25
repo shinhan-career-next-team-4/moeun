@@ -20,10 +20,13 @@ import org.springframework.web.client.RestClientResponseException;
 import com.moeun.backend.calc.Scenario;
 import com.moeun.backend.chat.domain.ChatMessage;
 import com.moeun.backend.chat.domain.ChatMessageRepository;
+import com.moeun.backend.chat.domain.ConditionChange;
+import com.moeun.backend.chat.domain.ConditionChangeRepository;
 import com.moeun.backend.chat.domain.HistoryMessage;
 import com.moeun.backend.chat.domain.MessageType;
 import com.moeun.backend.chat.domain.QuestionMessage;
 import com.moeun.backend.config.copy.CopyBook;
+import com.moeun.backend.plan.PlanSaveService;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -39,7 +42,8 @@ import tools.jackson.databind.node.ObjectNode;
 public class ChatAnswerListener {
 
     private static final Logger LOG = LoggerFactory.getLogger(ChatAnswerListener.class);
-    private static final int HISTORY_LIMIT = 20;
+    // 대화 원문은 최근 10개(5번 주고받은 분량)까지만 보낸다(#418). 앞선 조건은 변경 목록이 대신 전한다
+    private static final int HISTORY_LIMIT = 10;
     private static final Map<String, String> CONDITION_KEYS = Map.of(
             "goal_amount", "goalAmount",
             "monthly_saving_amount", "monthlySavingAmount",
@@ -55,9 +59,14 @@ public class ChatAnswerListener {
     private final CopyBook copy;
     private final TransactionTemplate transactions;
     private final JsonMapper json;
+    private final ConditionChangeRepository conditionChanges;
+    private final PlanSaveService plans;
 
     ChatAnswerListener(ChatMessageRepository messages, PlanContextPort planContexts, AiChatClient aiClient,
-            CopyBook copy, TransactionTemplate transactions, JsonMapper json) {
+            CopyBook copy, TransactionTemplate transactions, JsonMapper json,
+            ConditionChangeRepository conditionChanges, PlanSaveService plans) {
+        this.conditionChanges = conditionChanges;
+        this.plans = plans;
         this.messages = messages;
         this.planContexts = planContexts;
         this.aiClient = aiClient;
@@ -96,7 +105,7 @@ public class ChatAnswerListener {
                 fail(message);
                 return;
             }
-            complete(message, answer);
+            complete(read.get(), answer);
         } catch (RuntimeException e) {
             LOG.warn("chat.answer.failed messageId={} memberId={}", message.id(), message.memberId(), e);
             fail(message);
@@ -146,13 +155,24 @@ public class ChatAnswerListener {
         }
         ChatMessage message = found.get();
         if (message.isExplanation()) {
-            return Optional.of(new Snapshot(message, null,
-                    messages.findCompletedBefore(message.memberId(), message.id(), HISTORY_LIMIT), null));
+            return Optional.of(new Snapshot(message, null, history(message.memberId(), message.id()), null,
+                    List.of()));
         }
         QuestionMessage question = messages.findLatestQuestionBefore(message.memberId(), message.id()).orElse(null);
-        List<HistoryMessage> history = question == null ? List.of()
-                : messages.findCompletedBefore(message.memberId(), question.id(), HISTORY_LIMIT);
-        return Optional.of(new Snapshot(message, question, history, event.basePlanVersionId()));
+        List<HistoryMessage> history = question == null ? List.of() : history(message.memberId(), question.id());
+        // 그 질문을 접수한 계획 버전에 쌓인 변경 목록(#418, D-103). 계획이 없으면 쌓인 것도 없다
+        Long baseVersion = event.basePlanVersionId();
+        List<ConditionChange> accumulated = baseVersion == null ? List.of()
+                : conditionChanges.findAll(message.memberId(), baseVersion);
+        return Optional.of(new Snapshot(message, question, history, baseVersion, accumulated));
+    }
+
+    /** 이전 결과 금액은 기록으로 넘기지 않는다(#418). 계산 결과·설명 글은 금액 없는 안내 문장으로 바꾼다. */
+    private List<HistoryMessage> history(long memberId, long beforeId) {
+        String omitted = copy.get("chat.historyResultOmitted");
+        return messages.findCompletedBefore(memberId, beforeId, HISTORY_LIMIT).stream()
+                .map(row -> row.toHistory(omitted))
+                .toList();
     }
 
     private AiChatRequest buildRequest(Snapshot snapshot) {
@@ -171,7 +191,7 @@ public class ChatAnswerListener {
         Scenario baseline = plan.map(PlanContextSnapshot::baselineScenario).orElse(Scenario.AVG);
         return new AiChatRequest(message.memberId(), message.id(), "QUESTION", snapshot.question().content(),
                 baseline.name(), null, plan.map(PlanContextSnapshot::body).orElse(null), snapshot.history(),
-                snapshot.basePlanVersionId());
+                snapshot.basePlanVersionId(), AccumulatedConditions.toRequest(json, snapshot.accumulated()));
     }
 
     private AiChatRequest buildExplainRequest(Snapshot snapshot) {
@@ -184,16 +204,29 @@ public class ChatAnswerListener {
                 plan.body(), snapshot.history(), null);
     }
 
-    /** 갱신과 citation 저장은 한 트랜잭션이다. 0행이면(그 사이 삭제·정리됨) 답을 버리고 citation도 넣지 않는다. */
-    private void complete(ChatMessage message, AiChatAnswer answer) {
+    /**
+     * 갱신·citation·변경 목록 저장은 한 트랜잭션이다. 0행이면(그 사이 삭제·정리됨) 답을 버리고 citation도 넣지 않는다.
+     * 다시 계산한 비교(RECALC_RESULT)면 그 계산의 비교 기준(쌓인 조건의 최종 값)을 남기고 이번 변경을 목록에 덧붙인다(#418).
+     * 되묻기(CLARIFY, 계산 엔진 422 포함)·일반 답은 목록을 건드리지 않는다.
+     */
+    private void complete(Snapshot snapshot, AiChatAnswer answer) {
+        ChatMessage message = snapshot.message();
+        MessageType type = MessageType.valueOf(answer.messageType());
+        String turnJson = conditionChangesJson(answer.conditionChanges());
+        boolean accumulates = type == MessageType.RECALC_RESULT && snapshot.basePlanVersionId() != null
+                && turnJson != null;
+        Map<String, JsonNode> baseline = AccumulatedConditions.fold(json, snapshot.accumulated());
+        String baselineJson = accumulates && !baseline.isEmpty() ? json.writeValueAsString(baseline) : null;
         Boolean saved = transactions.execute(status -> {
-            int updated = messages.apply(message.complete(MessageType.valueOf(answer.messageType()),
-                    answer.content(), answer.calcRunId(), answer.baselineScenario(),
-                    conditionChangesJson(answer.conditionChanges())));
+            int updated = messages.apply(message.complete(type, answer.content(), answer.calcRunId(),
+                    answer.baselineScenario(), turnJson, baselineJson));
             if (updated == 0) {
                 return false;
             }
             messages.insertCitations(message.memberId(), message.id(), answer.citationChunkIds());
+            if (accumulates) {
+                appendChanges(snapshot, baseline, turnJson);
+            }
             return true;
         });
         if (Boolean.TRUE.equals(saved)) {
@@ -201,6 +234,16 @@ public class ChatAnswerListener {
         } else {
             LOG.info("chat.answer.discarded messageId={} memberId={}", message.id(), message.memberId());
         }
+    }
+
+    private void appendChanges(Snapshot snapshot, Map<String, JsonNode> baseline, String turnJson) {
+        ChatMessage message = snapshot.message();
+        long planVersionId = snapshot.basePlanVersionId();
+        plans.findVersion(message.memberId(), planVersionId).ifPresent(plan -> {
+            Map<String, JsonNode> turn = StoredConditionChanges.parse(json, message.id(), turnJson);
+            conditionChanges.append(message.memberId(), message.id(), planVersionId,
+                    AccumulatedConditions.newEntries(json, baseline, turn, plan));
+        });
     }
 
     /** ai-server의 snake_case 조건 키를 camelCase로 바꾼다. 허용 7키(D-097, #345) 밖의 키는 그대로 둔다. */
@@ -227,6 +270,6 @@ public class ChatAnswerListener {
 
     /** 호출 전에 읽어 둔 값. 설명(EXPLAIN)이면 question이 없다. */
     private record Snapshot(ChatMessage message, QuestionMessage question, List<HistoryMessage> history,
-            Long basePlanVersionId) {
+            Long basePlanVersionId, List<ConditionChange> accumulated) {
     }
 }

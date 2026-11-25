@@ -11,7 +11,7 @@
 | `refdata` | 기준 데이터와 버전(ETF 가격은 종목별) | data_version, savings_avg_rate, etf_monthly, etf_product_version, calc_param | — |
 | `calc` | 계산 엔진, 계산 기록, 내 계획 조회·입력 저장·대안·조건 비교 REST, `/internal/calc` | calc_run | plan, refdata, config(copy) |
 | `rag` | 인용 출처 조회(읽기 전용) | source_org, rag_document, rag_chunk, chunk_embedding | — |
-| `chat` | 대화 저장, ai-server 비동기 호출 | chat_message, chat_message_citation | calc :: plan-context, calc :: chat-comparison, calc :: calc-run-etf, rag, plan, auth, config :: copy |
+| `chat` | 대화 저장, ai-server 비동기 호출, 대화 조건 누적(#418) | chat_message, chat_message_citation, chat_condition_change | calc :: plan-context, calc :: chat-comparison, calc :: calc-run-etf, rag, plan, auth, config :: copy |
 
 - REST 위치: 내 계획 조회·입력 저장(`GET`/`PUT /api/plan`)은 `calc.web`, 되돌리기(`POST /api/plan/undo`)와 대안·비교 적용(`POST /api/plan/apply`, #68)은 `plan.web`이다. 저장과 계산을 한 트랜잭션으로 묶으려고 부르는 쪽(calc)에 둔다. 대안(`POST /api/alternatives`)과 조건 비교(`POST /api/compare`)는 calc 공개 API만 부르므로 `calc.web.alternative`·`calc.web.compare`에 둔다(#309). 대화 적용은 chat 모듈이 `PlanApplyService`를 직접 부른다.
 - `config`는 보안 같은 앱 전역 설정이다.
