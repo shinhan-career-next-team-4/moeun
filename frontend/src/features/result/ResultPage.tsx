@@ -195,11 +195,13 @@ export function ResultPage() {
   // 대안은 계획이 바뀔 때마다(적용·되돌리기·입력 수정) 다시 받는다. 기한 카드에 적은 기간도 함께 보낸다(A-1-3)
   // revision이 바뀐 순간의 응답은 옛 계산 기준일 수 있어, 새 계산 결과(calcRunId)가 들어올 때도 다시 받는다
   const calcRunId = view?.calcRunId ?? null;
+  const viewRevision = view?.revision ?? null;
   // 지금 계획·계산 결과 기준으로 받은 응답인지. 아니면 새 응답이 올 때까지 빈 카드를 먼저 보여 준다
   const alternativesFresh =
     alternatives !== null && alternatives.revision === revision && alternatives.calcRunId === calcRunId;
   useEffect(() => {
-    if (revision === null) return;
+    // 적용·되돌리기는 revision이 먼저 바뀌고 계획 화면이 뒤따른다. 따라잡기 전에 보내면 요청이 두 번 나가므로 기다린다
+    if (revision === null || viewRevision !== revision) return;
     let active = true;
     const fetchedAt = revision;
     const fetchedCalcRunId = calcRunId;
@@ -226,7 +228,7 @@ export function ResultPage() {
     return () => {
       active = false;
     };
-  }, [revision, calcRunId]);
+  }, [revision, calcRunId, viewRevision]);
 
   useEffect(() => {
     if (planStore.getState().view === null) {

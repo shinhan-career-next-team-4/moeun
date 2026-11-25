@@ -144,7 +144,12 @@ describe("결과 화면 대안 카드 (#258, A-1, D-096)", () => {
   });
 
   it("대안을 받은 뒤 내 계획이 바뀌면 다시 불러와 새 revision 기준으로 다시 켠다", async () => {
-    const server = stubServer();
+    const server = stubServer({
+      plan: (read) => {
+        const body = planMock.responses[0].body;
+        return read === 1 ? body : { ...body, revision: 13, calcRunId: 553 };
+      },
+    });
     renderResult();
     const monthlyCard = await card("월 저축액을 바꾸면");
     const apply = () => within(monthlyCard).getByRole("button", { name: "내 계획으로 적용" }) as HTMLButtonElement;
@@ -153,15 +158,19 @@ describe("결과 화면 대안 카드 (#258, A-1, D-096)", () => {
 
     act(() => planStore.acceptRevision(13));
 
+    // 계획 화면이 새 revision을 따라잡기 전에는 보내지 않고, 적용도 막아 둔다
     expect(apply().disabled).toBe(true);
+    expect(server.alternativeCalls().length).toBe(before);
+    await act(async () => {
+      await planStore.loadPlan({ fresh: true });
+    });
     await waitFor(() => expect(server.alternativeCalls().length).toBe(before + 1));
     await waitFor(() => expect(apply().disabled).toBe(false));
   });
-  it("적용 직후 계산이 끝나기 전에 받은 '대안 없음'은, 새 계산 결과가 오면 다시 받아 카드를 보여 준다", async () => {
-    // 달성 상태 → 미달 목표로 적용: revision이 바뀐 순간의 응답은 옛 결과 기준(없음)이고, 새 계산 결과는 그 뒤에 온다
+  it("달성 상태에서 미달 목표로 적용하면 대안을 한 번만 다시 받아 카드를 보여 준다", async () => {
     let calls = 0;
     const server = stubServer({
-      alternatives: () => (++calls <= 2 ? noneMock : firstMock).responses[0].body,
+      alternatives: () => (++calls <= 1 ? noneMock : firstMock).responses[0].body,
       // 새 목표도 미달이라 계산 결과만 새것(calcRunId)이 된다
       plan: (read) => {
         const body = planMock.responses[0].body;
@@ -178,6 +187,7 @@ describe("결과 화면 대안 카드 (#258, A-1, D-096)", () => {
     });
 
     expect(await card("월 저축액을 바꾸면")).toBeTruthy();
+    expect(server.alternativeCalls().length).toBe(2);
   });
 
   it("적용 직후 새 대안을 기다리는 동안에도 빈 대안 카드를 먼저 보여 준다", async () => {
