@@ -1,4 +1,3 @@
-export { applyEtfNow } from "./applyEtfNow";
 export { ComparisonResult } from "./ComparisonResult";
 export { ComparisonNotices } from "./ComparisonNotices";
 export type { ComparisonPlanStore } from "./controller";

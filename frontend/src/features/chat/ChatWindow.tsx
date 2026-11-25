@@ -11,7 +11,7 @@ import {
 } from "react";
 import { api, planStore, polling } from "../../api";
 import { ApiError } from "../../api/errors";
-import { applyEtfNow, ComparisonNotices, ComparisonResult, useComparison, useComparisonController, type ComparisonPlanStore } from "./comparison";
+import { ComparisonNotices, ComparisonResult, useComparison, useComparisonController, type ComparisonPlanStore } from "./comparison";
 import { COPY, unitChar } from "./copy";
 import { Citations } from "./explanation/Citations";
 import { planGoalName } from "./planGoal";
@@ -204,12 +204,6 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleA
     stickToBottomRef.current = box.scrollHeight - box.scrollTop - box.clientHeight <= STICK_TO_BOTTOM_PX;
   }
 
-  // ETF 버튼(#372): 질문을 보내 접수되면 AI 답을 기다리지 않고 바로 같은 종목을 내 계획에 적용한다(결과 화면 ETF 기준이 곧 바뀐다).
-  async function pickEtf(question: string, productCode: string): Promise<void> {
-    const accepted = await send(question);
-    if (accepted !== null) await applyEtfNow(comparisonDeps, productCode);
-  }
-
   const trimmed = text.trim();
   // 폴링이 실패로 멈추면 서버 값(answerPending)은 낡은 채로 남는다. 질문을 다시 보내 재개할 수 있어야 한다(서버가 409로 막으면 거기서 처리).
   const answerBlocking = chat.answerPending && !chat.pollingFailed;
@@ -327,7 +321,8 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleA
             products={etfProducts}
             currentCode={etfProductCode}
             disabled={sending || answerBlocking}
-            onPick={(question, code) => void pickEtf(question, code)}
+            // ETF 버튼은 질문만 보낸다. 결과 화면 종목은 AI 비교 카드의 "내 계획으로 적용"을 눌러야 바뀐다(#400)
+            onPick={(question) => void send(question)}
           />
         )}
         <div className="flex items-end gap-2">
