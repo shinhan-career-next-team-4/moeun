@@ -294,7 +294,8 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleA
         ref={scrollRef}
         onScroll={rememberScrollPosition}
         data-testid="chat-messages"
-        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4"
+        // relative: 비교 카드의 sr-only 문구(position:absolute)가 이 스크롤 영역 안에 갇히게 한다. 없으면 문서 높이를 늘려 페이지 아래에 빈 공간이 생긴다(#398)
+        className="relative flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4"
       >
         {chat.messages.map((message) => (
           <Fragment key={message.id}>
