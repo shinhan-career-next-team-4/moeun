@@ -187,14 +187,13 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleA
   }, [chat.messages, comparison.snapshot, visible]);
 
   // 대화창을 닫으면 대화 세션이 끝난 것으로 보고 쌓인 조건(변경 목록)을 비운다(#418, D-103).
-  // 처음부터 닫혀 있던 창은 부르지 않는다. 실패해도 대화창은 그대로 두고, 다음 질문 때 서버의 목록이 그대로 쓰인다
-  const shownRef = useRef(visible);
+  // 열린 채로 화면을 떠나도(언마운트) 같다. 처음부터 닫혀 있던 창은 부르지 않는다.
+  // 실패해도 대화창은 그대로 두고, 다음 질문 때 서버의 목록이 그대로 쓰인다
+  const api = deps.api;
   useEffect(() => {
-    if (shownRef.current && !visible) {
-      deps.api.request("DELETE", "/api/chat/condition-changes").catch(() => {});
-    }
-    shownRef.current = visible;
-  }, [visible, deps.api]);
+    if (!visible) return;
+    return () => void api.request("DELETE", "/api/chat/condition-changes").catch(() => {});
+  }, [visible, api]);
 
   // 대기(PENDING)로 본 어시스턴트 메시지가 끝났을 때만 알린다. 새로고침으로 복원된 지난 답변은 대기를 거치지 않는다.
   useEffect(() => {

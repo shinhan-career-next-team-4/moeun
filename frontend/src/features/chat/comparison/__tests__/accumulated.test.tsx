@@ -51,6 +51,14 @@ describe("결과 카드 상단의 쌓인 조건(#418)", () => {
     );
   });
 
+  it("계약 목(get-comparison.200-accumulated)을 그대로 그리면 쌓인 조건과 이번 변경 행이 보인다", async () => {
+    await mountWith(comparison("get-comparison.200-accumulated.json", { messageId: ID }));
+    expect(accumulatedText()).toBe(
+      copy["comparison.accumulated"].replace("{conditions}", "월 저축액 약 200만원, 저축 비중 적금 30 : ETF 70"),
+    );
+    expect(conditionRows(ID).map((row) => row.getAttribute("data-key"))).toEqual(["monthlySavingAmount"]);
+  });
+
   it("쌓인 조건이 없으면(accumulatedKeys 없음) 표시하지 않는다", async () => {
     await mountWith(comparison("get-comparison.200.json"));
     expect(card(ID)).not.toBeNull();
@@ -84,14 +92,25 @@ describe("대화창을 닫으면 변경 목록을 비운다(#418)", () => {
     expect(api.calls.filter((c) => `${c.method} ${c.path}` === RESET)).toHaveLength(1);
   });
 
+  it("열린 채로 화면을 떠나도(언마운트) 한 번 부른다", async () => {
+    const { api, view } = await mountWith(thirdChange(), { [RESET]: [{ accumulatedKeys: [] }] });
+    view.unmount();
+    await flush();
+    expect(api.calls.filter((c) => `${c.method} ${c.path}` === RESET)).toHaveLength(1);
+  });
+
   it("처음부터 닫혀 있던 대화창은 부르지 않는다", async () => {
     const { api, deps, view } = await mountWith(thirdChange(), { [RESET]: [{ accumulatedKeys: [] }] });
     view.unmount();
-    // 닫힌 채로 처음 그린 대화창
+    await flush();
+    const resets = () => api.calls.filter((c) => `${c.method} ${c.path}` === RESET).length;
+    const before = resets(); // 열려 있던 창이 떠날 때 부른 1번
+    // 닫힌 채로 처음 그린 대화창은 그리고 떠나도 부르지 않는다
     const hidden = render(<ChatWindow deps={deps} visible={false} />);
     await flush();
-    expect(api.calls.filter((c) => `${c.method} ${c.path}` === RESET)).toHaveLength(0);
     hidden.unmount();
+    await flush();
+    expect(resets()).toBe(before);
   });
 
   it("비우기가 실패해도 대화창은 그대로다(오류를 밖으로 내지 않는다)", async () => {
