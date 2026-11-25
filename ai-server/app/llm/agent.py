@@ -42,6 +42,7 @@ from app.llm.assemble import (
 )
 from app.llm.conditions import (
     GOAL_TYPE_WORD,
+    accumulated_conditions,
     carried_amount_sources,
     check_amount_units,
     drop_carried_conditions,
@@ -376,10 +377,12 @@ class ChatAgent:
                 raise CalcError(_GOAL_NAME_NOT_SAID_ERROR)
             said = without_goal_name(said, name)
             changes = changes.model_copy(update={"goal_custom_name": None})
-        # history가 있으면 이어받은 값이 생길 수 있다. 계산 전에 거른다(assemble에서만 거르면
-        # calc_run_id는 누적 값으로 계산된 채 condition_changes만 달라진다). 이름을 바꾸면 이름을 뺀 발화로 거른다
+        # history·누적 조건이 있으면 이어받은 값이 생길 수 있다. 계산 전에 거른다(assemble에서만 거르면
+        # calc_run_id는 누적 값으로 계산된 채 condition_changes만 달라진다). 이름을 바꾸면 이름을 뺀 발화로 거른다.
+        # 앞 턴의 조건은 이번 인자가 아니라 비교 기준(baseline)으로 넘긴다(#418, D-103)
+        baseline = accumulated_conditions(turn.req.accumulated_changes)
         dropped: list[str] = []
-        if said and (turn.req.history or name is not None):
+        if said and (turn.req.history or baseline.changed() or name is not None):
             filtered = drop_carried_conditions(said, changes, turn.req.history)
             dropped = sorted(changes.changed().keys() - filtered.changed().keys())
             if dropped:
@@ -389,7 +392,8 @@ class ChatAgent:
             changes = changes.model_copy(update={"goal_custom_name": name})
         # 계획에 저장된 종목(ETF 0%여도 있음, #297). 모르면(#297 전 Spring) 가정하지 않고 키를 Spring에 넘긴다.
         # Spring은 계획과 같은 종목이면 바꾸지 않은 것으로 본다(internal-calc C2-2, #294)
-        planned = stored_plan_product(turn.req)
+        # 누적으로 종목을 바꿨으면 그 종목이 비교 기준이다(#418)
+        planned = baseline.etf_product_code or stored_plan_product(turn.req)
         if changes.etf_product_code is not None and changes.etf_product_code == planned:
             # 계획과 같은 종목은 바꾸지 않은 것이다(D-097)
             changes = changes.model_copy(update={"etf_product_code": None})
@@ -404,7 +408,9 @@ class ChatAgent:
             raise CalcError("목표 금액의 단위(원·만원·억원)가 발화와 맞지 않습니다. 정확한 금액을 다시 물으세요.")
         # 질문을 접수한 때의 계획 버전이 있으면 그 기준으로 비교한다(#396). 없으면 지금까지처럼 지금 계획 기준이다
         base_id = turn.req.base_plan_version_id
-        base_kwargs = {} if base_id is None else {"base_plan_version_id": base_id}
+        base_kwargs: dict[str, Any] = {} if base_id is None else {"base_plan_version_id": base_id}
+        if baseline.changed():
+            base_kwargs["baseline_changes"] = baseline
         result = await self._calc.recalculate(turn.req.member_id, turn.req.baseline_scenario, changes, **base_kwargs)
         turn.calculated.append(changes.changed())
         if changes.etf_product_code is not None and _changed_product(result) is None:
