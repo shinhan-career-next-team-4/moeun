@@ -53,6 +53,8 @@ export function ResultPage() {
   // 대안 카드(#258, A-1). 받은 시점의 revision이 지금과 같을 때만 적용할 수 있다
   const [alternatives, setAlternatives] = useState<{
     revision: number;
+    /** 이 응답을 받은 시점의 계산 결과 번호. 지금 계산 결과와 다르면 옛 응답이다 */
+    calcRunId: number | null;
     hasAlternatives: boolean;
     values: AlternativeValuesByKey;
     /** 적용이 422로 거절됐다. 다시 받을 때까지 대안 적용을 막는다 */
@@ -193,16 +195,21 @@ export function ResultPage() {
   // 대안은 계획이 바뀔 때마다(적용·되돌리기·입력 수정) 다시 받는다. 기한 카드에 적은 기간도 함께 보낸다(A-1-3)
   // revision이 바뀐 순간의 응답은 옛 계산 기준일 수 있어, 새 계산 결과(calcRunId)가 들어올 때도 다시 받는다
   const calcRunId = view?.calcRunId ?? null;
+  // 지금 계획·계산 결과 기준으로 받은 응답인지. 아니면 새 응답이 올 때까지 빈 카드를 먼저 보여 준다
+  const alternativesFresh =
+    alternatives !== null && alternatives.revision === revision && alternatives.calcRunId === calcRunId;
   useEffect(() => {
     if (revision === null) return;
     let active = true;
     const fetchedAt = revision;
+    const fetchedCalcRunId = calcRunId;
     requestAlternatives({ request: (method, path, body) => api.request(method, path, body) }).then((result) => {
       if (!active) return;
       if (result.ok) {
         setAlternativesFailed(false);
         setAlternatives({
           revision: fetchedAt,
+          calcRunId: fetchedCalcRunId,
           hasAlternatives: result.response.hasAlternatives,
           values: toAlternativeValues(result.response),
           blocked: false,
@@ -331,11 +338,11 @@ export function ResultPage() {
                 {chartScenario && <ProjectionChart data={projection} scenario={chartScenario} startMonth={result.calcStartMonth} />}
                 {/* 대안 영역(#67). 기준 시나리오가 미달일 때만 보인다(FR-ALT-01) */}
                 <AlternativeSection
-                  isAchieved={(baseline?.isAchieved ?? false) || alternatives?.hasAlternatives === false}
-                  values={alternatives?.values}
+                  isAchieved={(baseline?.isAchieved ?? false) || (alternativesFresh && alternatives?.hasAlternatives === false)}
+                  values={alternativesFresh ? alternatives?.values : undefined}
                   onCompare={prefillComparison}
                   onApply={openAlternativeConfirm}
-                  applyEnabled={alternatives !== null && !alternatives.blocked && alternatives.revision === revision}
+                  applyEnabled={alternatives !== null && !alternatives.blocked && alternativesFresh}
                   loadFailed={alternativesFailed}
                 />
                 {/* 비교 영역(#65). 조건을 바꿔 현재 조건과 나란히 본다 */}

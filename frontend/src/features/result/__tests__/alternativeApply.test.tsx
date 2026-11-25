@@ -180,6 +180,36 @@ describe("결과 화면 대안 카드 (#258, A-1, D-096)", () => {
     expect(await card("월 저축액을 바꾸면")).toBeTruthy();
   });
 
+  it("적용 직후 새 대안을 기다리는 동안에도 빈 대안 카드를 먼저 보여 준다", async () => {
+    let calls = 0;
+    let release: (() => void) | null = null;
+    const server = stubServer({
+      alternatives: () => {
+        calls += 1;
+        // 첫 응답은 '대안 없음', 이후 응답은 풀어 줄 때까지 늦춘다
+        if (calls === 1) return noneMock.responses[0].body;
+        return new Promise<unknown>((resolve) => {
+          release = () => resolve(firstMock.responses[0].body);
+        });
+      },
+      plan: (read) => {
+        const body = planMock.responses[0].body;
+        return read === 1 ? body : { ...body, revision: 13, calcRunId: 553 };
+      },
+    });
+    renderResult();
+    await waitFor(() => expect(server.alternativeCalls().length).toBe(1));
+
+    await act(async () => {
+      planStore.acceptRevision(13);
+      await planStore.loadPlan({ fresh: true });
+    });
+
+    const section = await screen.findByRole("region", { name: "대안" });
+    expect(within(section).getAllByText("아직 계산된 값이 없어요").length).toBe(3);
+    expect(release).not.toBeNull();
+  });
+
   it("대안 API가 실패하면 불러오지 못했다고 안내하고 적용 버튼을 끈다(A-1-2)", async () => {
     stubServer({ alternatives: () => problem(500, "INTERNAL_ERROR") });
     renderResult();
