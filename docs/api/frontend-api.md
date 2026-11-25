@@ -1601,6 +1601,8 @@ config ──▶ (auth, plan, calc, chat: 보안 필터 등록·예외 처리. �
 | `get-comparison.200-asymmetric-exceeded.json` (`/1035`) | F-4 | 200 | 현재 초과에서 목표 상향 비대칭 비교(D-092), `current.status=ALREADY_EXCEEDED`, `diff.byScenario=[]`, `messageId: 1035` |
 | `get-comparison.200-changed-exceeded.json` (`/1036`) | F-4 | 200 | 바꾼 조건 초과 비대칭 비교(D-092), `changed.status=ALREADY_EXCEEDED`, `diff.byScenario=[]`, `messageId: 1036` |
 | `get-comparison.200-goal-name.json` (`/1037`) | F-4 | 200 | **[v4, #345]** 목표 이름만 바꾼 비교. `changedKeys: ["goalCustomName"]`, 최상위 `goalCustomName: "가게 보증금"`, 양쪽 조건·결과가 같고 `diff`는 0(`display`는 "변화 없음"), `messageId: 1037` |
+| `get-comparison.200-two-changed.json` (`/1038`) | F-4 | 200 | **[#417]** 조건 2개(월 저축액 30만→40만원, 저축 비중 50:50→70:30) 변경. GOOD·AVG `MISS_TO_ACHIEVE`, BAD `STAYS_MISSED`, `messageId: 1038` |
+| `get-comparison.200-decrease.json` (`/1039`) | F-4 | 200 | **[#417]** 월 저축액 30만→20만원. 세 시나리오 모두 자산 감소·`STAYS_MISSED`, `messageId: 1039` |
 | `get-comparison.400.json` | F-4 | 400 | `MALFORMED_REQUEST` |
 | `get-comparison.404.json` | F-4 | 404 | `NOT_FOUND` |
 | `get-comparison.500.json` | F-4 | 500 | `INTERNAL_ERROR`(재계산 실패) |

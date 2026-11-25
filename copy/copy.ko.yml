@@ -236,6 +236,12 @@ comparison:
   same: "변화 없어요"
   increased: "늘렸어요"
   decreased: "줄였어요"
+  # 대화 결과 카드는 바뀐 조건만 행으로 보인다(#417)
+  othersUnchanged: "나머지 조건은 그대로예요"
+  allUnchanged: "조건이 그대로예요"
+  # 시나리오 증가 줄 "▲ 약 N만원 증가 · 목표보다 +M만원"의 목표 대비 앞말(#417)
+  aboveGoal: "목표보다"
+  toGoal: "목표까지"
 
 # 로그인·입력·계획·되돌리기·결과 화면(C12a-7-1, J-13)
 common:

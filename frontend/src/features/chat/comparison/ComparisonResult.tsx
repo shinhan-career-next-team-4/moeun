@@ -1,6 +1,5 @@
 import type { ChatMessage } from "../types";
 import {
-  ACHIEVEMENT_CHANGE_LABELS,
   APPLY_LABEL,
   COLLAPSED_LABEL,
   CONDITION_LABELS,
@@ -9,14 +8,15 @@ import {
   GOAL_LABEL,
   GOAL_NAME_LABEL,
   LOAD_FAILED,
+  UNCHANGED_COPY,
 } from "./copy";
 import { isApplyActive } from "./controller";
+import { achievementNote, changedConditionKeys, isAchievedAfter, resultLine } from "./summary";
 import {
   ETF_KEY,
   GOAL_KEY,
   GOAL_NAME_KEY,
   conditionDisplayKey,
-  conditionKeysOf,
   type Comparison,
   type ComparisonSideKey,
   type Direction,
@@ -57,10 +57,20 @@ function labelOf(key: string): string {
   return CONDITION_LABELS[key];
 }
 
-/** 실제로 바뀐 항목만 카드 행 순서대로 잇는다(#284). 목표 이름은 맨 앞 행이다(#345). */
-function titleOf(data: Comparison): string {
-  const changed = conditionKeysOf(data.changedKeys).filter((key) => data.changedKeys.has(key));
-  const labels = [...(data.changedGoalName !== null ? [GOAL_NAME_LABEL] : []), ...changed.map(labelOf)];
+/**
+ * 카드 조건 행: 비교 기준과 다른 조건만(#417). 목표 금액은 바꿨을 때 맨 앞이다(D-090).
+ * 비교 기준은 지금 F-4의 current 조건이 기본이고, 대화 조건 누적(D-103)에서는 직전 누적 계획을 넘긴다.
+ */
+function rowKeysOf(data: Comparison, baseline: Readonly<Record<string, unknown>>): string[] {
+  return [
+    ...(data.changedKeys.has(GOAL_KEY) ? [GOAL_KEY] : []),
+    ...changedConditionKeys(baseline, data.conditions.changed, data.changedKeys),
+  ];
+}
+
+/** 바뀐 항목을 카드 행 순서대로 잇는다(#284). 목표 이름은 맨 앞 행이다(#345). */
+function titleOf(data: Comparison, rowKeys: string[]): string {
+  const labels = [...(data.changedGoalName !== null ? [GOAL_NAME_LABEL] : []), ...rowKeys.map(labelOf)];
   return DIRECTION_COPY.title.replace("{conditions}", labels.join("·"));
 }
 
@@ -88,16 +98,26 @@ function GoalNameRow({ current, changed }: { current: string | null; changed: st
 }
 
 /**
- * 결과 값의 변화. 값 칸(testId)에는 서버 display 문자열만 둔다. text가 없으면(목표가 바뀐 목표 대비: 서버에 차이 값이
- * 없다) 방향만 보인다.
+ * 시나리오 한 줄 "▲ 약 N만원 증가 · 목표보다 +M만원"(#417). 자산 차이 칸에는 서버 display 문자열만 두고,
+ * 목표 대비는 바꾼 쪽 display의 금액이다.
  */
-function ResultChange({ testId, direction, text }: { testId: string; direction: Direction; text?: string }) {
+function ResultLine({ data, scenario, achievementChange, direction }: { data: Comparison; scenario: string; achievementChange: string; direction: Direction }) {
   const tone = RESULT_TONE[direction];
+  const assetDelta = data.display[`diff.${scenario}.afterTaxAssetDelta`];
+  const line = resultLine({
+    direction,
+    assetDelta,
+    gapToGoal: data.display[`changed.${scenario}.gapToGoal`],
+    achieved: isAchievedAfter(achievementChange),
+  });
   return (
-    <span data-testid={`${testId}-tone`} data-direction={direction} className={`inline-flex items-baseline gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold ${tone.className}`}>
-      <span aria-hidden="true">{tone.mark} </span>
-      {text !== undefined && <span data-testid={testId}>{text}</span>}
-      <span className="sr-only">{tone.spoken}</span>
+    <span data-testid="chat-comparison-result-line" className={`basis-full text-xs font-semibold ${tone.className}`}>
+      <span data-testid="chat-comparison-delta-tone" data-direction={direction} className={tone.className}>
+        <span aria-hidden="true">{line.mark} </span>
+        <span data-testid="chat-comparison-delta">{assetDelta}</span>
+        <span className="sr-only"> {tone.spoken}</span>
+      </span>
+      <span data-testid="chat-comparison-gap"> · {line.goal}</span>
     </span>
   );
 }
@@ -157,58 +177,55 @@ function ExceededSides({ data, exceeded }: { data: Comparison; exceeded: Compari
   );
 }
 
-function Details({ data, currentGoalName }: { data: Comparison; currentGoalName: string | null }) {
+function Details({
+  data,
+  currentGoalName,
+  baselineConditions,
+}: {
+  data: Comparison;
+  currentGoalName: string | null;
+  baselineConditions: Readonly<Record<string, unknown>>;
+}) {
   const note = goalNote(data);
-  const goalChanged = data.changedKeys.has(GOAL_KEY);
+  const rowKeys = rowKeysOf(data, baselineConditions);
+  const hasRows = rowKeys.length > 0 || data.changedGoalName !== null;
   return (
     <>
-      <p data-testid="chat-comparison-title" className="mb-1 text-sm font-bold text-text">
-        {titleOf(data)}
-      </p>
+      {hasRows && (
+        <p data-testid="chat-comparison-title" className="mb-1 text-sm font-bold text-text">
+          {titleOf(data, rowKeys)}
+        </p>
+      )}
       {data.changedGoalName !== null && <GoalNameRow current={currentGoalName} changed={data.changedGoalName} />}
-      {conditionKeysOf(data.changedKeys).map((key) => {
-        const changed = data.changedKeys.has(key);
+      {rowKeys.map((key) => (
+        <div key={key} data-testid="chat-comparison-condition" data-key={key} data-changed="true" className={CHANGED_ROW}>
+          <span data-testid="chat-comparison-label" className={LABEL_CELL}>{labelOf(key)}</span>
+          <div className={VALUES}>
+            <span data-testid="chat-comparison-current" className={CURRENT_CELL}>{data.display[conditionDisplayKey("current", key)]}</span>
+            <span aria-hidden="true">→</span>
+            <span data-testid="chat-comparison-changed" className={CHANGED_CELL}>{data.display[conditionDisplayKey("changed", key)]}</span>
+            <ConditionChange direction={data.conditionDirections[key]} />
+          </div>
+        </div>
+      ))}
+      <p data-testid="chat-comparison-unchanged" className="px-1 py-1 text-xs text-text-muted">
+        {hasRows ? UNCHANGED_COPY.others : UNCHANGED_COPY.all}
+      </p>
+      {data.scenarios.map(({ scenario, achievementChange, assetDirection }) => {
+        const achievement = achievementNote(achievementChange);
         return (
-          <div
-            key={key}
-            data-testid="chat-comparison-condition"
-            data-key={key}
-            data-changed={changed ? "true" : "false"}
-            className={changed ? CHANGED_ROW : ROW}
-          >
-            <span data-testid="chat-comparison-label" className={LABEL_CELL}>{labelOf(key)}</span>
+          <div key={scenario} data-testid="chat-comparison-scenario" data-scenario={scenario} className={ROW}>
+            <span className={`${LABEL_CELL} font-semibold text-text`}>{COPY[`scenario.${scenario}` as keyof typeof COPY] ?? scenario}</span>
             <div className={VALUES}>
-              <span data-testid="chat-comparison-current" className={CURRENT_CELL}>{data.display[conditionDisplayKey("current", key)]}</span>
+              <span data-testid="chat-comparison-current" className={CURRENT_CELL}>{data.display[`current.${scenario}.afterTaxAsset`]}</span>
               <span aria-hidden="true">→</span>
-              <span data-testid="chat-comparison-changed" className={CHANGED_CELL}>{data.display[conditionDisplayKey("changed", key)]}</span>
-              {changed && <ConditionChange direction={data.conditionDirections[key]} />}
+              <span data-testid="chat-comparison-changed" className={CHANGED_CELL}>{data.display[`changed.${scenario}.afterTaxAsset`]}</span>
+              <ResultLine data={data} scenario={scenario} achievementChange={achievementChange} direction={assetDirection} />
+              {achievement !== null && <span data-testid="chat-comparison-achievement" className="text-xs text-text-muted">{achievement}</span>}
             </div>
           </div>
         );
       })}
-      {data.scenarios.map(({ scenario, achievementChange, assetDirection, gapDirection }) => (
-        <div key={scenario} data-testid="chat-comparison-scenario" data-scenario={scenario} className={ROW}>
-          <span className={`${LABEL_CELL} font-semibold text-text`}>{COPY[`scenario.${scenario}` as keyof typeof COPY] ?? scenario}</span>
-          <div className={VALUES}>
-            <span data-testid="chat-comparison-current" className={CURRENT_CELL}>{data.display[`current.${scenario}.afterTaxAsset`]}</span>
-            <span aria-hidden="true">→</span>
-            <span data-testid="chat-comparison-changed" className={CHANGED_CELL}>{data.display[`changed.${scenario}.afterTaxAsset`]}</span>
-            <ResultChange
-              testId="chat-comparison-delta"
-              direction={assetDirection}
-              text={data.display[`diff.${scenario}.afterTaxAssetDelta`]}
-            />
-            <span data-testid="chat-comparison-gap" className="basis-full text-xs text-text-muted">{data.display[`changed.${scenario}.gapToGoal`]}</span>
-            {/* 목표 대비 차이는 서버 값(#285). 키가 없으면 목표가 그대로일 때만 같은 값인 예상 자산 차이를 쓰고, 아니면 방향만 */}
-            <ResultChange
-              testId="chat-comparison-gap-delta"
-              direction={gapDirection}
-              text={data.display[`diff.${scenario}.gapToGoalDelta`] ?? (goalChanged ? undefined : data.display[`diff.${scenario}.afterTaxAssetDelta`])}
-            />
-            <span data-testid="chat-comparison-achievement" className="text-xs text-text-muted">{ACHIEVEMENT_CHANGE_LABELS[achievementChange] ?? ""}</span>
-          </div>
-        </div>
-      ))}
       {data.exceeded !== null && <ExceededSides data={data} exceeded={data.exceeded} />}
       {note !== null && <p data-testid="chat-comparison-goal-note" className="mt-1 text-xs leading-relaxed text-text-muted">{note}</p>}
       {nameOnly(data) && <p data-testid="chat-comparison-goal-name-note" className="mt-1 text-xs leading-relaxed text-text-muted">{COPY["chat.goalNameOnlyNote"]}</p>}
@@ -224,11 +241,14 @@ export function ComparisonResult({
   comparison,
   message,
   currentGoalName = null,
+  baselineConditions,
 }: {
   comparison: ComparisonState;
   message: ChatMessage;
   /** 지금 계획의 목표 이름. 목표 이름을 바꾼 비교(#345)의 왼쪽 칸이다. */
   currentGoalName?: string | null;
+  /** 바뀐 조건을 고를 비교 기준 조건 원값(#417). 없으면 내 계획(F-4 conditions.current)이다. */
+  baselineConditions?: Readonly<Record<string, unknown>>;
 }) {
   if (message.messageType !== "RECALC_RESULT" || message.status !== "COMPLETED") return null;
   const { snapshot, latestId } = comparison;
@@ -257,7 +277,7 @@ export function ComparisonResult({
   if (entry?.kind !== "ready") return null;
   return (
     <div data-testid="chat-comparison" data-message-id={message.id} data-collapsed="false" className="flex flex-col gap-1 rounded-xl border border-border bg-surface p-3 text-sm shadow-sm">
-      <Details data={entry.data} currentGoalName={currentGoalName} />
+      <Details data={entry.data} currentGoalName={currentGoalName} baselineConditions={baselineConditions ?? entry.data.conditions.current} />
       <ApplyButton comparison={comparison} messageId={message.id} active={isApplyActive(snapshot, latestId, message.id)} />
     </div>
   );

@@ -39,7 +39,7 @@ VITE_API_MODE=mock VITE_MOCK_FILES=get-plan.200.json npm run dev
 
 대안 영역은 미달일 때만 보이므로(FR-ALT-01) 기본 `get-plan.seq-full-flow.json`의 세 번째 응답(세 구간 모두 달성)에서는 카드가 숨는다. 위처럼 `get-plan.200.json`(세 구간 모두 미달)을 고르면 바로 보인다.
 3. 고른 파일의 i번째 호출에 i번째 응답을 돌려주고, 배열 끝을 넘으면 마지막 응답을 반복한다. `status`·`headers`는 그대로 반영한다(4xx·5xx는 실제 `fetch`와 같은 오류 경로로).
-4. F-4 목은 `messageId`가 달라 경로만으로 구분된다: 정상 `1031`, 적용 불가 `1027`, ETF 0% `1033`. F-4 오류 목(400·404·500)은 `useMock`으로 고른다.
+4. F-4 목은 `messageId`가 달라 경로만으로 구분된다: 정상 `1031`, 적용 불가 `1027`, ETF 0% `1033`. F-4 오류 목(400·404·500)은 `useMock`으로 고른다. 조건 2개 변경(`get-comparison.200-two-changed`)·자산 감소(`get-comparison.200-decrease`) 카드는 `VITE_MOCK_FILES`로 고른다(#417).
 
 ## 시퀀스 파일
 
