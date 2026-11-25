@@ -4,9 +4,11 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.moeun.backend.auth.DemoReset;
 import com.moeun.backend.auth.MemberLoggedIn;
 import com.moeun.backend.auth.MemberLoggedOut;
 import com.moeun.backend.chat.domain.ChatMessageRepository;
+import com.moeun.backend.plan.PlanEraser;
 
 /**
  * 로그인·로그아웃 때 그 회원의 이전 대화를 지운다(Q-041 권장안 A, #46).
@@ -17,9 +19,11 @@ import com.moeun.backend.chat.domain.ChatMessageRepository;
 public class ChatHistoryEraser {
 
     private final ChatMessageRepository messages;
+    private final PlanEraser plans;
 
-    ChatHistoryEraser(ChatMessageRepository messages) {
+    ChatHistoryEraser(ChatMessageRepository messages, PlanEraser plans) {
         this.messages = messages;
+        this.plans = plans;
     }
 
     @EventListener
@@ -32,5 +36,16 @@ public class ChatHistoryEraser {
     @Transactional
     public void onLoggedOut(MemberLoggedOut event) {
         messages.deleteAllOf(event.memberId());
+    }
+
+    /**
+     * 데모 초기화. 대화를 먼저 지우고 계획을 지운다. 대화(chat_message)가 calc_run을 참조하기 때문이다.
+     * plan 모듈은 다른 모듈에 의존하지 않으므로 이 순서는 의존 방향이 맞는 chat이 맡는다.
+     */
+    @EventListener
+    @Transactional
+    public void onDemoReset(DemoReset event) {
+        messages.deleteAllOf(event.memberId());
+        plans.deleteAllOf(event.memberId());
     }
 }

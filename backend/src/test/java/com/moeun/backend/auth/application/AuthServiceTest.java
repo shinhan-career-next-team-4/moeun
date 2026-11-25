@@ -1,7 +1,10 @@
 package com.moeun.backend.auth.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -13,6 +16,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.moeun.backend.auth.DemoReset;
 import com.moeun.backend.auth.domain.Member;
 import com.moeun.backend.auth.domain.MemberRepository;
 
@@ -37,7 +41,8 @@ class AuthServiceTest {
 
     private final MemberRepository repository = mock(MemberRepository.class);
     private final RecordingEncoder encoder = new RecordingEncoder();
-    private final AuthService service = new AuthService(repository, encoder, mock(ApplicationEventPublisher.class));
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
+    private final AuthService service = new AuthService(repository, encoder, events, "demo01:pw, demo02:pw2");
 
     @Test
     void unknownIdStillComparesAgainstDummyHash() {
@@ -55,5 +60,21 @@ class AuthServiceTest {
         assertThat(service.authenticate("demo01", "pw")).isPresent();
         assertThat(service.authenticate("demo01", "wrong")).isEmpty();
         assertThat(encoder.matchedHashes).containsExactly(hash, hash);
+    }
+
+    @Test
+    void demoResetPublishesForDemoAccount() {
+        when(repository.findById(7L)).thenReturn(Optional.of(new Member("demo02", "hash")));
+
+        assertThat(service.demoReset(7L)).isTrue();
+        verify(events).publishEvent(new DemoReset(7L));
+    }
+
+    @Test
+    void demoResetRefusesNonDemoAccountAndDeletesNothing() {
+        when(repository.findById(8L)).thenReturn(Optional.of(new Member("someone", "hash")));
+
+        assertThat(service.demoReset(8L)).isFalse();
+        verify(events, never()).publishEvent(any(DemoReset.class));
     }
 }

@@ -272,6 +272,13 @@ auth:
   signupFailed: "회원가입하지 못했어요. 잠시 후 다시 시도해 주세요"
   toSignupPrompt: "아직 계정이 없나요?"
   toLoginPrompt: "이미 계정이 있나요?"
+# 데모 계정 초기화(#데모). 계획과 대화를 모두 지우고 입력 화면부터 다시 시작한다
+demo:
+  reset: "데모 초기화"
+  resetConfirm: "계획과 대화가 모두 지워져요. 초기화할까요?"
+  resetYes: "초기화"
+  resetCancel: "취소"
+  resetFailed: "초기화하지 못했어요. 다시 시도해 주세요"
 input:
   saveFailed: "입력을 저장하지 못했어요. 다시 시도해 주세요"
   invalidAmountFormat: "금액은 숫자로 입력해 주세요"

@@ -33,4 +33,5 @@ paths:
 | `plan.PlanChanged {memberId, action(INPUT/APPLY/UNDO), beforeVersionId, afterVersionId, revision}` | plan: 저장·적용·되돌리기 커밋 | calc: 새 버전의 `calc_run(PLAN)` 기록 / plan: 로그 `plan.changed` | calc가 plan에 의존하므로 plan → calc 직접 호출은 순환이 된다. 기록이 늦어도 결과 화면은 최신 기록이 없으면 다시 계산해서 기록한다(ERD Q1-c) |
 | `chat` 내부 `ChatAnswerRequested {assistantMessageId, memberId}` | chat: 질문 저장(USER + ASSISTANT `PENDING`) | chat: ai-server `POST /chat` 호출 후 `COMPLETED`/`FAILED`로 갱신 | FR-AI-01 비동기 응답. 재기동 시 `PENDING` 메시지 복구 |
 | `auth.MemberLoggedIn {memberId}` | auth: 로그인·회원가입 성공(쿠키 발급 전, D-107) | chat: 그 회원의 chat_message 일괄 삭제(동기) | Q-041 권장안 A. 로그인 직후 F-2 복원이 삭제보다 먼저 도는 경쟁을 없애려고 응답 전에 끝낸다 |
+| `auth.DemoReset {memberId}` | auth: 데모 계정의 초기화 요청(`POST /api/auth/demo-reset`) | chat: 그 회원의 chat_message를 지우고 plan의 `PlanEraser`로 계획(plan, plan_version, calc_run)을 지운다(동기, 대화 먼저) | 데모 중 처음부터 다시 시작. plan은 다른 모듈에 의존하지 않으므로 순서는 chat이 맡는다 |
 | `auth.MemberLoggedOut {memberId}` | auth: 로그아웃(쿠키 삭제 전) | chat: 그 회원의 chat_message 일괄 삭제(동기) | Q-041 권장안 A. citation은 FK CASCADE, calc_run(CHAT)·계획은 남긴다(D-057) |
