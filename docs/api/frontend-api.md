@@ -23,6 +23,7 @@
 | F-3 | `POST /api/chat/explanations` | `202 {}` | `chat`(B) | 예 | C12b-3a |
 | F-4 | `GET /api/chat/messages/{messageId}/comparison` | `200` (`messageId`·`applicable`·`changedKeys` 포함) | `chat`(B) | 예 | C12b-6 |
 | F-5 | `POST /api/chat/messages/{messageId}/apply` | `200 {revision}` | `chat`(B) → `plan`(A) 공개 서비스 | 예 | C12b-7 |
+| F-6 | `DELETE /api/chat/condition-changes` | `200 {accumulatedKeys: []}` | `chat`(B) | 예 | 3절 F-6 (#418) |
 | R-1 | `GET /api/etf-products` | `200 {products}` | `refdata.web`(A) | 예 | 절 4 (#220) |
 
 - 대화 기록 삭제용 프론트 엔드포인트는 없다. `auth.MemberLoggedIn`/`MemberLoggedOut`을 chat이 동기 `@EventListener`로 받아 지운다(C12b-8).
@@ -1089,7 +1090,9 @@ record PlanUndoResult(long planVersionId, long revision) {}
 4. 커밋 뒤 리스너가 ai-server `POST /chat`(mode=`QUESTION`) 호출 → `COMPLETED`/`FAILED`(#41, C12b-11-2).
 
 - 계획이 없어도 받는다(NFR-USA-01). 리스너는 `planContext: null`로 부르고 **`baselineScenario`는 `"AVG"`로 채운다**. 왜: `ChatRequest.baseline_scenario`가 필수라 비우면 ai-server 422 → `FAILED`. 계획이 있으면 `plan.baseline_scenario`.
-- `history`: 같은 회원의 `COMPLETED` 메시지 최근 20개. `role`은 ai-server 형식(소문자 `user`/`assistant`)으로 Spring이 바꾼다(프론트 영향 없음).
+- `history`: 같은 회원의 `COMPLETED` 메시지 **[#418] 최근 10개**. `role`은 ai-server 형식(소문자 `user`/`assistant`)으로 Spring이 바꾼다(프론트 영향 없음). **[#418]** 이전 결과 금액은 기록으로 넘기지 않는다: `RECALC_RESULT`·`EXPLANATION` 글은 문구표 `chat.historyResultOmitted` 안내 문장으로 바꿔 보낸다.
+- **[#418, D-103] `accumulatedChanges`**: 질문을 접수한 계획 버전에 쌓인 변경 목록 `[{field, before, after}]`(바꾼 순서, `field`는 camelCase 조건 키, `before`는 계획에 값이 없었으면 `null`). ai-server는 이를 접어 `/internal/calc`의 `baselineConditionChanges`로 넘긴다. 답이 `RECALC_RESULT`면 Spring이 그 비교 기준(`chat_message.baseline_condition_changes`)을 남기고 이번 변경을 목록에 덧붙인다(같은 값을 다시 말한 조건은 넣지 않는다). `CLARIFY`(계산 엔진 422 포함)·그 밖의 답은 목록을 건드리지 않는다. 항목마다 그 변경을 계산한 `messageId`도 싣는다(#419).
+- **[#419] 대화로 되돌리기**: ai-server 답에 `revert: {scope, condition}`이 있으면 Spring은 목록에 덧붙이지 않고 그 범위를 지운다. `last`는 가장 최근 메시지가 남긴 변경 전부, `condition`은 그 조건(camelCase)의 변경 전부, `all`은 목록 전부다. 되돌린 뒤 남은 조건이 있으면 답은 내 계획 대비 남은 조건을 계산한 `RECALC_RESULT`(비교 기준 없음)이고, 없으면 계산 없는 `ANSWER`다. 목록이 비었거나 바꾼 적 없는 조건을 지목하면 ai-server가 문구표 `chat.nothingToRevert`·`chat.conditionNotChanged`로 답하고 `revert`를 싣지 않는다(상태 그대로).
 - 초과 계획에서도 평소대로 받는다. 대화창 표시는 Q-051이었고 3절 머리말 보충 D-063으로 정해졌다(프론트가 문구표 `chat.alreadyExceeded` 한 줄, F-1은 평소대로 받는다).
 
 오류:
@@ -1167,6 +1170,7 @@ record PlanUndoResult(long planVersionId, long revision) {}
 - 본문 = `/internal/calc` 성공 응답(C2-3~C2-6)에서 `calcRunId`를 빼고 `messageId`·`applicable`·`changedKeys`를 더한 것. 목 파일에는 internal-calc 부록 A-1 값을 줄임 없이 넣는다.
 - **`changedKeys`**: 저장된 `condition_changes`의 키 목록(camelCase). 계산이 아니라 저장값의 키를 그대로 꺼낸 것. 프론트는 카드에서 "무엇을 바꿨나"를 강조하는 데만 쓴다. **[v3] 순서는 보장하지 않는다. 프론트는 집합으로 쓴다**(포함 여부만 본다). 화면에 행을 그리는 순서는 프론트가 `conditions`의 고정 4키 순서(internal-calc C2-2 표)로 정한다. 왜: `condition_changes`는 `jsonb`라 PostgreSQL이 키 순서를 보존하지 않는다. 순서를 약속하면 정렬 코드가 생기고, 집합이면 코드가 0줄이다.
 - `messageId` 에코는 유지(목 파일 식별용).
+- **[#418, D-103] `accumulatedKeys`**: 대화 중 쌓여 이 계산의 changed 쪽에 얹힌 조건 키(비교 기준 변경 + 이번 변경, camelCase, 순서 없음). 쌓인 조건이 없으면 빈 배열이다. 대화 조건 누적에서는 **`conditions.current`·`current.*`가 직전 누적 계획**(기준 계획 + 앞선 변경)이고 diff는 그 대비다. 프론트는 카드 맨 위에 "라벨 값"을 쉼표로 이어 `comparison.accumulated`("… 적용 중")로 보인다. 값은 `display.conditions.changed.<키>` 그대로이고, 숫자 조건·`goalAmount`·`etfProductCode` 중 그 display가 있는 키만 보인다. 키가 없는 옛 응답은 빈 배열로 본다.
 - **[v4, #345] `goalCustomName`**(선택): 대화로 목표 이름을 바꾼 비교면 `changedKeys`에 `"goalCustomName"`이 들어가고(혼자 또는 `goalAmount` 등과 함께), 최상위에 바꿀 이름(trim, 1~100자)이 온다. 바꾸지 않았으면 키가 없다. 이름은 계산에 쓰지 않아 `conditions`·`display`에 키가 없고, 이름만 바꾼 비교는 양쪽 숫자가 같다(`diff`는 0, "변화 없음"). 프론트는 카드 맨 앞에 "목표 이름" 행(지금 이름 → 바꿀 이름)을 강조해 보이고, 지금 이름은 계획(조건 바와 같은 규칙: CUSTOM이면 `plan.goalCustomName`, 아니면 문구표 `goal.<goalType>`)에서 읽는다. 이름만 바꾼 비교에는 `chat.goalNameOnlyNote` 안내를 더한다. `changedKeys`에 있는데 이름이 없거나 비었으면 카드 대신 불러오기 실패로 본다. F-5로 적용하면 계획은 `goalType:"CUSTOM"` + 그 이름이 된다(#341 조건 바 이름 수정과 같은 규칙, D-081).
 - `display` 포함, `monthlyPoints`(그래프) 제외(R-6, Q-039 3번 권장과 같음).
 
@@ -1217,6 +1221,8 @@ record PlanUndoResult(long planVersionId, long revision) {}
 ### C12b-7. F-5 대화 비교 결과 적용 `POST /api/chat/messages/{messageId}/apply`
 
 확인창 없이 바로 적용한다(D-016, D-022).
+
+**[#418, D-103]** 저장하는 조건은 그 메시지의 비교 기준(`baseline_condition_changes`, 쌓인 조건)과 이번 변경(`condition_changes`)을 합친 최종 값이다(같은 키는 이번 변경). 적용이 성공하면 그 회원의 변경 목록을 비운다. 다음 질문은 새 계획을 기준으로 계산한다.
 
 요청:
 ```json
@@ -1601,6 +1607,10 @@ config ──▶ (auth, plan, calc, chat: 보안 필터 등록·예외 처리. �
 | `get-comparison.200-asymmetric-exceeded.json` (`/1035`) | F-4 | 200 | 현재 초과에서 목표 상향 비대칭 비교(D-092), `current.status=ALREADY_EXCEEDED`, `diff.byScenario=[]`, `messageId: 1035` |
 | `get-comparison.200-changed-exceeded.json` (`/1036`) | F-4 | 200 | 바꾼 조건 초과 비대칭 비교(D-092), `changed.status=ALREADY_EXCEEDED`, `diff.byScenario=[]`, `messageId: 1036` |
 | `get-comparison.200-goal-name.json` (`/1037`) | F-4 | 200 | **[v4, #345]** 목표 이름만 바꾼 비교. `changedKeys: ["goalCustomName"]`, 최상위 `goalCustomName: "가게 보증금"`, 양쪽 조건·결과가 같고 `diff`는 0(`display`는 "변화 없음"), `messageId: 1037` |
+| `get-comparison.200-two-changed.json` (`/1038`) | F-4 | 200 | **[#417]** 조건 2개(월 저축액 30만→40만원, 저축 비중 50:50→70:30) 변경. GOOD·AVG `MISS_TO_ACHIEVE`, BAD `STAYS_MISSED`, `messageId: 1038` |
+| `get-comparison.200-decrease.json` (`/1039`) | F-4 | 200 | **[#417]** 월 저축액 30만→20만원. 세 시나리오 모두 자산 감소·`STAYS_MISSED`, `messageId: 1039` |
+| `get-comparison.200-accumulated.json` (`/1040`) | F-4 | 200 | **[#418]** 쌓인 조건 비교. 비중 30:70 → 월 150만원 뒤 월 200만원으로 바꾼 세 번째 변경. `conditions.current`는 비중 30·월 150만원(직전 누적 계획), `accumulatedKeys: ["savingsRatioPct", "monthlySavingAmount"]`, `messageId: 1040` |
+| `delete-condition-changes.200.json` (기본) | F-6 | 200 | **[#418]** `{ "accumulatedKeys": [] }` |
 | `get-comparison.400.json` | F-4 | 400 | `MALFORMED_REQUEST` |
 | `get-comparison.404.json` | F-4 | 404 | `NOT_FOUND` |
 | `get-comparison.500.json` | F-4 | 500 | `INTERNAL_ERROR`(재계산 실패) |
@@ -1664,6 +1674,13 @@ public record PlanApplyResult(long planVersionId, Long previousVersionId, long r
 - 위험 메모(제공자): Spring은 ai-server가 보고한 `conditionChanges`가 실제 `/internal/calc`에 보낸 값과 같은지 검증하지 못한다(`calc_run`에 변경값 미저장, ADR-002). 다르면 F-4 카드가 AI 문장과 어긋난다(카드와 적용은 서로 일치하므로 계획 데이터는 안전). **ai-server 테스트(#23)에서 "보고값 = 보낸 값"을 고정**한다.
 
 ---
+
+### F-6 대화 조건 누적 비우기 `DELETE /api/chat/condition-changes` (#418, D-103)
+
+- 대화 세션이 끝났을 때(대화창을 닫을 때) 그 회원의 변경 목록을 비운다. 다음 질문은 내 계획을 기준으로 계산한다.
+- 본문 없음. 응답 `200 application/json {"accumulatedKeys": []}`(비운 뒤 상태). 이미 비어 있어도 같다(멱등).
+- 오류: `401 UNAUTHENTICATED`(래퍼가 로그인으로 보낸다). 프론트는 그 밖의 실패를 화면에 알리지 않는다(다음 질문에 목록이 남아 있을 뿐이다).
+- 변경 목록은 F-5 적용이 성공해도 비워지고(쌓인 조건이 새 계획이 된다), 로그인·로그아웃 때 대화와 함께 지워진다.
 
 ## 4. 기준 데이터 절 (#220)
 

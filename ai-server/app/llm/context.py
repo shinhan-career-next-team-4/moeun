@@ -21,6 +21,9 @@ from app.schemas import ChatMode, ChatRequest, ChatResponse, PlanContext
 # agent.py에서 옮기기 전과 같은 로거 이름을 쓴다. 운영 로그에 찍히는 이름이 바뀌지 않게 한다(#199)
 log = logging.getLogger("app.llm.agent")
 
+# 모델에 넣는 대화 원문은 최근 10개(5번 주고받은 분량)까지다(#418). 앞선 조건은 변경 목록이 대신 전한다
+HISTORY_LIMIT = 10
+
 
 def _reject(req: ChatRequest, code: ErrorCode) -> AgentError:
     # 거절 사유와 calcRunId. planContext 본문은 요청 추적 로그(chat request)에 이미 남는다(#316)
@@ -91,8 +94,14 @@ def build_messages(req: ChatRequest) -> list[BetaMessageParam]:
     plan_input = plan_model_input(req.plan_context) if req.plan_context else None
     context = json.dumps(plan_input, ensure_ascii=False)
     body = req.text if req.mode is ChatMode.QUESTION else EXPLAIN_INSTRUCTION
+    # 이 대화에서 앞서 바꾼 조건(#418, D-103). 다음 계산의 비교 기준이라 순서대로 모두 넣는다
+    accumulated = ""
+    if req.accumulated_changes:
+        entries = [c.model_dump(by_alias=True) for c in req.accumulated_changes]
+        accumulated = f"<accumulated_changes>{json.dumps(entries, ensure_ascii=False)}</accumulated_changes>\n"
     current = (
         f"<plan_context>{context}</plan_context>\n"
+        f"{accumulated}"
         f"<baseline_scenario>{req.baseline_scenario.value}</baseline_scenario>\n"
         f"<request>{body}</request>"
     )
@@ -100,7 +109,8 @@ def build_messages(req: ChatRequest) -> list[BetaMessageParam]:
     copy = load_copy()
     notes = (copy.get("tax.note"), copy.get("tax.noteEtfTaxFree"))
     turns: list[tuple[Literal["user", "assistant"], str]] = []
-    for role, content in [*((h.role, h.content) for h in req.history), ("user", current)]:
+    recent = req.history[-HISTORY_LIMIT:]
+    for role, content in [*((h.role, h.content) for h in recent), ("user", current)]:
         if role == "assistant":
             # 코드가 붙인 세금 단서는 모델 입력에 다시 넣지 않는다(D-067, D-073)
             for note in notes:

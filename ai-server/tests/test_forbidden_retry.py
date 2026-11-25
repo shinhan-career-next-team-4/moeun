@@ -607,7 +607,7 @@ async def test_ac3_retry_call_sets_tool_choice_none() -> None:
     # 앞 messages의 tool_use 블록이 유효하도록 도구 정의는 그대로 보낸다. 호출 시점에 기록한 도구 정의로
     # 재시도와 금지 표현을 낸 직전 답 라운드를 직접 비교하고, 그 라운드도 첫 라운드와 같은지 본다(B4)
     tools = claude.tool_snapshots
-    assert [t["name"] for t in tools[1]] == ["recalculate", "search_documents"], tools[1]
+    assert [t["name"] for t in tools[1]] == ["recalculate", "revert_conditions", "search_documents"], tools[1]
     assert tools[2] == tools[1]
     assert tools[1] == tools[0]
 

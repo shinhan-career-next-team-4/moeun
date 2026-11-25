@@ -29,6 +29,8 @@ import com.moeun.backend.config.copy.CopyBook;
 public class Formatter {
 
     private static final long TEN_THOUSAND = 10_000L;
+    /** 1억은 만원 단위로 10,000. */
+    private static final long EOK_IN_TEN_THOUSANDS = 10_000L;
     private static final int MONTHS_PER_YEAR = 12;
     private static final int TOTAL_RATIO_PCT = 100;
     private static final String UNDER_TEN_THOUSAND = "1만원 미만";
@@ -94,7 +96,7 @@ public class Formatter {
         if (won % TEN_THOUSAND != 0) {
             throw new IllegalArgumentException("exact amount must be in ten-thousand won");
         }
-        return group(won / TEN_THOUSAND) + "만원";
+        return manwonText(won / TEN_THOUSAND, "원");
     }
 
     public String formatPeriod(int months) {
@@ -143,7 +145,7 @@ public class Formatter {
         if (tenThousands == 0) {
             return UNDER_TEN_THOUSAND;
         }
-        return "약 " + group(tenThousands) + "만원";
+        return "약 " + manwonText(tenThousands, "원");
     }
 
     /** {@link #unsignedAmount}와 같은 반올림에 "약" 없이 {@code N만 원}으로 쓴다. 0만 원으로 반올림되면 {@code 1만 원 미만}이다. */
@@ -151,7 +153,21 @@ public class Formatter {
         long tenThousands = BigDecimal.valueOf(won)
                 .divide(BigDecimal.valueOf(TEN_THOUSAND), 0, RoundingMode.HALF_UP)
                 .longValueExact();
-        return tenThousands == 0 ? BADGE_UNDER_TEN_THOUSAND : group(tenThousands) + "만 원";
+        return tenThousands == 0 ? BADGE_UNDER_TEN_THOUSAND : manwonText(tenThousands, " 원");
+    }
+
+    /**
+     * 만원 수를 글자로. 1억(10,000만원) 이상은 {@code 1억 3,569만원}, 딱 떨어지면 {@code 1억원}으로 쓴다(#421).
+     *
+     * @param won 끝에 붙일 단위. 일반은 {@code 원}, 배지는 {@code " 원"}
+     */
+    private static String manwonText(long tenThousands, String won) {
+        if (tenThousands < EOK_IN_TEN_THOUSANDS) {
+            return group(tenThousands) + "만" + won;
+        }
+        long eok = tenThousands / EOK_IN_TEN_THOUSANDS;
+        long rest = tenThousands % EOK_IN_TEN_THOUSANDS;
+        return rest == 0 ? eok + "억" + won : eok + "억 " + group(rest) + "만" + won;
     }
 
     /** 천 단위 쉼표. 서버 로케일이 달라도 같은 글자가 나오게 구분자를 고정한다(PR-04). */

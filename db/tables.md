@@ -20,7 +20,7 @@ DB에는 코드로 다시 만들 수 없는 것만 둔다. 각 필드의 "저장
 | 계산 기록 | `calc_run` |
 | 기준 데이터 | `data_version`, `savings_avg_rate`, `etf_monthly`, `etf_product_version`, `calc_param` (`sp500_monthly`는 #138 전 구조, 보정용) |
 | RAG 자료 | `source_org`, `rag_document`, `rag_chunk`, `chunk_embedding` |
-| AI 대화 | `chat_message`, `chat_message_citation` |
+| AI 대화 | `chat_message`, `chat_message_citation`, `chat_condition_change` |
 
 ---
 
@@ -157,8 +157,23 @@ AI 출력은 다시 생성하면 같은 문장이 나오지 않으므로 원본�
 | `calc_run_id` | 참조: 설명·재계산이 어떤 계산 기록에 대한 것인지(FR-AI-02/07) |
 | `baseline_scenario` | 원본: 설명 당시의 기준 시나리오. `plan.baseline_scenario`는 나중에 바뀔 수 있다 |
 | `condition_changes` | 원본: 사용자가 말로 바꾼 조건. RECALC_RESULT에서는 재계산에 쓴 값이며 이 값이 없으면 결과를 다시 만들 수 없다(FR-AI-06/07) |
+| `baseline_condition_changes` | 원본: RECALC_RESULT의 비교 기준. 그때까지 대화에서 쌓인 조건의 최종 값이다(#418, D-103). 이 값이 없으면 "직전 누적 계획 대비" 비교(F-4)를 다시 만들 수 없다. 쌓인 조건 없이 계산했으면 NULL |
 | `retry_of_message_id` | 원본: '설명 다시 요청'의 원본 메시지(FR-AI-05) |
 | `created_at` | 원본: 대화 순서와 시각 |
+
+## 13-1. `chat_condition_change` — 대화 조건 누적의 변경 목록 (#418, D-103)
+대화에서 바꾼 조건은 적용하지 않아도 다음 질문의 비교 기준이 된다. 최종 값이 아니라 **변경 목록**(조건·이전 값·바꾼 값·순서)으로 남긴다. 내 계획으로 적용하거나(F-5) 대화 세션이 끝나면(F-6 대화창 닫기, 로그인·로그아웃의 대화 삭제) 지운다. 대화로 되돌리면(#419) 그 범위(직전 질문의 변경·한 조건·전부)만 지운다.
+
+| 필드 | 저장 이유 |
+|---|---|
+| `id` | 원본: 바꾼 순서. 같은 조건을 두 번 바꾸면 두 행이 순서대로 남는다 |
+| `member_id` | 소유: 회원별 목록. 비우기의 기준 |
+| `message_id` | 참조: 그 변경을 계산한 RECALC_RESULT. 대화가 지워지면 함께 지워진다(CASCADE) |
+| `plan_version_id` | 원본: 그 질문을 접수한 계획 버전. 계획이 바뀌면(입력 수정·적용·되돌리기) 이전 버전의 목록은 읽지 않는다 |
+| `field` | 원본: 바꾼 조건(camelCase 키) |
+| `before_value` | 원본: 바꾸기 전 값(쌓인 값, 없으면 그때 계획 값). 계획에 값이 없었으면 NULL |
+| `after_value` | 원본: 사용자가 말해 계산한 값 |
+| `created_at` | 원본: 바꾼 시각 |
 
 ## 14. `chat_message_citation` — 설명 근거 출처 (FR-AI-03)
 | 필드 | 저장 이유 |

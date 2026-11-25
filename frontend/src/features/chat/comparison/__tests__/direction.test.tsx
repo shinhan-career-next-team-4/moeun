@@ -85,41 +85,28 @@ describe("결과의 변화 방향(예상 자산·목표 대비)", () => {
     }
   });
 
-  it("목표 대비 차이 값은 서버 display의 diff.<S>.gapToGoalDelta 그대로다(목표가 그대로면 자산 차이와 같은 문자열, #285)", async () => {
+  it("목표 대비는 증가 줄 한 줄의 뒤에 붙고, 금액은 바꾼 쪽 서버 display의 금액이다(#417)", async () => {
     const b = body();
     await mountWith(b);
     for (const row of scenarioRows(ID)) {
       const scenario = row.getAttribute("data-scenario");
-      expect(text(row, "chat-comparison-gap-delta")).toBe(b.display[`diff.${scenario}.gapToGoalDelta`]);
-      expect(text(row, "chat-comparison-gap-delta")).toBe(b.display[`diff.${scenario}.afterTaxAssetDelta`]);
-      expect(tone(row, "chat-comparison-gap-delta")?.getAttribute("data-direction")).toBe("up");
+      const amount = b.display[`changed.${scenario}.gapToGoal`].replace(" 달성", "").replace("+약 ", "+");
+      expect(text(row, "chat-comparison-gap")).toBe(` · 목표보다 ${amount}`);
+      expect(row.querySelectorAll('[data-testid="chat-comparison-result-line"]')).toHaveLength(1);
+      expect(row.querySelector('[data-testid="chat-comparison-gap-delta"]')).toBeNull();
     }
   });
 
-  it("목표 금액을 바꾼 비교도 서버의 목표 대비 차이 값을 보이고, 방향은 양쪽 목표 대비의 크기로 정한다(#285)", async () => {
+  it("목표 금액을 바꾼 비교는 바꾼 목표 기준으로 '목표보다'·'목표까지'를 고른다(#417)", async () => {
     const b = body(() => {}, "get-comparison.200-goal-changed.json");
     await mountWith(b);
     const rows = scenarioRows(ID);
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
       const scenario = row.getAttribute("data-scenario");
-      const gap = (side: "current" | "changed") =>
-        (b[side].scenarios as { scenario: string; gapToGoal: number }[]).find((s) => s.scenario === scenario)?.gapToGoal ?? 0;
-      const expected = gap("changed") > gap("current") ? "up" : gap("changed") < gap("current") ? "down" : "same";
-      expect(text(row, "chat-comparison-gap-delta")).toBe(b.display[`diff.${scenario}.gapToGoalDelta`]);
-      expect(text(row, "chat-comparison-gap-delta")).not.toBe(b.display[`diff.${scenario}.afterTaxAssetDelta`]);
-      expect(tone(row, "chat-comparison-gap-delta")?.getAttribute("data-direction")).toBe(expected);
-    }
-  });
-
-  it("(예외) 목표를 바꿨는데 서버에 목표 대비 차이 키가 없으면 값 없이 방향만 보인다", async () => {
-    const b = body((x) => {
-      for (const key of Object.keys(x.display)) if (key.endsWith(".gapToGoalDelta")) delete x.display[key];
-    }, "get-comparison.200-goal-changed.json");
-    await mountWith(b);
-    for (const row of scenarioRows(ID)) {
-      expect(text(row, "chat-comparison-gap-delta")).toBeUndefined();
-      expect(tone(row, "chat-comparison-gap-delta")?.getAttribute("data-direction")).toBeTruthy();
+      const change = b.diff.byScenario.find((item: { scenario: string }) => item.scenario === scenario)?.achievementChange;
+      const achieved = change === "STAYS_ACHIEVED" || change === "MISS_TO_ACHIEVE";
+      expect(text(row, "chat-comparison-gap")).toContain(achieved ? "목표보다" : "목표까지");
     }
   });
 });
@@ -172,7 +159,12 @@ describe("바뀐 조건의 늘림·줄임", () => {
 
 describe("카드 제목", () => {
   it("실제로 바뀐 항목만 카드 행 순서대로 나열한다", async () => {
-    await mountWith(body((b) => (b.changedKeys = ["targetPeriodMonths", "monthlySavingAmount"])));
+    await mountWith(
+      body((b) => {
+        b.changedKeys = ["targetPeriodMonths", "monthlySavingAmount"];
+        b.conditions.changed.targetPeriodMonths = 48;
+      }),
+    );
     expect(title()).toBe("월 저축액·목표 기간을 바꾼 결과");
   });
 

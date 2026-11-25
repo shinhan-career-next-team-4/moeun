@@ -20,6 +20,13 @@ function percent(value: number, max: number): number {
   return Math.min(100, Math.max(0, (value / max) * 100));
 }
 
+/** 목표 위치가 이 값(%) 이상이면 글자를 막대 오른쪽 끝에 맞춰 카드 밖으로 나가지 않게 한다(#425). */
+const LABEL_EDGE_PCT = 80;
+
+function labelStyle(goalPct: number): { left?: string; right?: string } {
+  return goalPct >= LABEL_EDGE_PCT ? { right: "0" } : { left: `${goalPct}%` };
+}
+
 /**
  * 결과 요약의 목표 대비 가로 막대(와이어프레임 03, FR-RES-02).
  * 숫자 문자열은 서버 display만 쓰고, 화면은 막대 길이와 표시 위치(기하)만 정한다(NFR-INT-01).
@@ -31,8 +38,10 @@ export function GoalBar({ afterTaxAsset, goalAmount, goalAmountText, isAchieved 
   const fillPct = percent(afterTaxAsset, max);
   const goalPct = percent(goalAmount, max);
 
+  const labelAlign = goalPct >= LABEL_EDGE_PCT ? "right" : "center";
+
   return (
-    <div className="mt-4 flex flex-col gap-1.5" role="img" aria-label="목표 대비 예상 자산">
+    <div className="mt-2 flex w-full flex-col gap-1.5" role="img" aria-label="목표 대비 예상 자산">
       <div className="relative h-3 w-full rounded-full bg-surface-muted">
         <div
           data-testid="goal-bar-fill"
@@ -50,8 +59,10 @@ export function GoalBar({ afterTaxAsset, goalAmount, goalAmountText, isAchieved 
         <span className="absolute left-0">{COPY["result.goalBarZero"]}</span>
         <span
           data-testid="goal-bar-label"
-          className="absolute -translate-x-1/2 whitespace-nowrap font-medium text-text"
-          style={{ left: `${goalPct}%` }}
+          className={`absolute whitespace-nowrap font-medium text-text ${
+            labelAlign === "center" ? "-translate-x-1/2" : ""
+          }`}
+          style={labelStyle(goalPct)}
         >
           {COPY["result.goalBarLabel"].replace("{goalAmount}", goalAmountText)}
         </span>

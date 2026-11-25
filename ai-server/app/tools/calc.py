@@ -54,6 +54,7 @@ class CalcClient:
         changes: ConditionChanges,
         *,
         base_plan_version_id: int | None = None,
+        baseline_changes: ConditionChanges | None = None,
     ) -> dict[str, Any]:
         body: dict[str, Any] = {
             "memberId": member_id,
@@ -63,6 +64,9 @@ class CalcClient:
         if base_plan_version_id is not None:
             # 질문을 접수한 때의 계획 버전(#396). 키가 없으면 Spring은 지금 계획 기준으로 비교한다
             body["basePlanVersionId"] = base_plan_version_id
+        if baseline_changes is not None and baseline_changes.changed():
+            # 대화에서 앞서 바꾼 조건(#418, D-103). Spring은 기준 계획에 이것을 얹은 계획과 비교한다
+            body["baselineConditionChanges"] = baseline_changes.model_dump(by_alias=True, exclude_none=True)
         try:
             resp = await self._http.post(
                 "/internal/calc",

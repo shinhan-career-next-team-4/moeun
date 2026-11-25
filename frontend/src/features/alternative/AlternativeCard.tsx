@@ -58,7 +58,7 @@ export function AlternativeCard({
     Object.values(values).some((value) => typeof value === "string" && value.length > 0);
 
   return (
-    <li className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
+    <li className="flex flex-col gap-3 rounded-xl border border-border bg-surface-subtle p-4">
       <h3 className="text-sm font-bold text-text">{COPY[`alt.card.${alternativeKey}`]}</h3>
       {hasValues ? (
         <dl className="flex flex-col gap-1.5">
@@ -66,22 +66,18 @@ export function AlternativeCard({
           <Row label={COPY["alt.rowChange"]} value={values.change} />
           <Row label={COPY["alt.rowAvgAsset"]} value={values.avgAfterTaxAsset} tone={values.achieved ? "good" : "normal"} />
           <Row label={COPY["alt.rowGapToGoal"]} value={values.gapToGoal} tone={values.achieved ? "good" : "normal"} />
-          <Row
-            label={COPY["alt.rowBad"]}
-            value={values.badAfterTaxAsset}
-            tone="warn"
-            suffix={values.volatilityWarning ? COPY["alt.volatilityWarning"] : undefined}
-          />
+          {/* '나빴던 때' 줄은 뺐다(#423). 변동 경고(W-10)는 서버가 알려 준 카드에만 한 줄로 남긴다 */}
+          {values.volatilityWarning && <p className="pt-1 text-right text-xs font-medium text-danger">{COPY["alt.volatilityWarning"]}</p>}
         </dl>
       ) : unreachable ? (
         <p className="text-sm leading-relaxed text-danger">{unreachableMessage(alternativeKey, values?.unreachableLimit)}</p>
       ) : (
         <p className="text-xs text-text-muted">{COPY["alt.valuePending"]}</p>
       )}
-      <div className="mt-auto flex gap-2 pt-1">
+      <div className="mt-auto flex flex-wrap gap-2 pt-1">
         <Button
           variant="secondary"
-          className="h-9 flex-1 px-2"
+          className="h-9 min-w-fit flex-1 whitespace-nowrap px-2"
           disabled={!hasValues || !onCompare}
           onClick={() => values && onCompare?.(values)}
         >
@@ -90,7 +86,7 @@ export function AlternativeCard({
         {/* 적용은 확인창(FR-PLAN-01)을 거쳐 P-6 ALTERNATIVE로 한다(#258) */}
         <Button
           variant="secondary"
-          className="h-9 flex-1 px-2"
+          className="h-9 min-w-fit flex-1 whitespace-nowrap px-2"
           disabled={!hasValues || !onApply || !applyEnabled}
           onClick={() => values && onApply?.(values)}
         >

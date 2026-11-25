@@ -224,7 +224,7 @@ describe("AC-8 새 RECALC_RESULT가 폴링으로 도착하면 (H-11b, C12b-6)", 
     const { store } = makeStore();
     await mountChat(api, store);
     // 처음에는 1031이 최신이라 상세가 펼쳐져 있다
-    expect(conditionRows(1031)).toHaveLength(4);
+    expect(conditionRows(1031)).toHaveLength(1); // 바뀐 조건만(#417)
     expect(scenarioRows(1031).length).toBeGreaterThan(0);
     const display = body1031.display as Record<string, string>;
     const detailValues = Object.values(display).filter((value) => value.trim().length >= 2);
@@ -255,7 +255,7 @@ describe("AC-8 새 RECALC_RESULT가 폴링으로 도착하면 (H-11b, C12b-6)", 
     f4New.resolve(comparison("get-comparison.200.json", { messageId: 1033, applicable: true }));
     await flush();
     await flush();
-    expect(conditionRows(1033)).toHaveLength(4);
+    expect(conditionRows(1033)).toHaveLength(1); // 바뀐 조건만(#417)
     expect(buttonOf(1033).disabled).toBe(false);
     expectCollapsedDetail();
     expect(api.f4Calls()).toEqual([f4Path(1031), f4Path(1033)]);

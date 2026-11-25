@@ -66,8 +66,13 @@ class AiChatClient {
         if (changes != null && !changes.isNull() && !changes.isObject()) {
             throw new AiServerException("conditionChanges가 객체가 아님");
         }
+        JsonNode revert = node.get("revert");
+        if (revert != null && !revert.isNull() && !revert.isObject()) {
+            throw new AiServerException("revert가 객체가 아님");
+        }
         return new AiChatAnswer(messageType, content, text(node, "baselineScenario"), longValue(node, "calcRunId"),
-                changes == null || changes.isNull() ? null : changes, citationChunkIds(node.get("citationChunkIds")));
+                changes == null || changes.isNull() ? null : changes, citationChunkIds(node.get("citationChunkIds")),
+                revert == null || revert.isNull() ? null : revert);
     }
 
     private static String text(JsonNode node, String field) {

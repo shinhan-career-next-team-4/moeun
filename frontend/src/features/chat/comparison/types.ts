@@ -9,8 +9,6 @@ export interface ComparisonScenario {
   achievementChange: string;
   /** 예상 자산(세후)의 변화 방향. diff.byScenario[].afterTaxAssetDelta의 부호다. */
   assetDirection: Direction;
-  /** 목표 대비의 변화 방향. 목표 금액이 그대로면 자산 방향과 같다. */
-  gapDirection: Direction;
 }
 
 export interface Comparison {
@@ -27,6 +25,10 @@ export interface Comparison {
   conditionDirections: Readonly<Record<string, Direction>>;
   /** 바꿀 목표 이름(최상위 goalCustomName, #345). 이름을 바꾸지 않은 비교면 null. */
   changedGoalName: string | null;
+  /** 양쪽 조건 원값(conditions.current·changed). 바뀐 조건 행을 고를 때 크기·코드만 비교한다(#417). */
+  conditions: Readonly<Record<ComparisonSideKey, Readonly<Record<string, unknown>>>>;
+  /** 대화 중 쌓여 지금 계산에 얹힌 조건(#418, D-103). changed 쪽 값이 그 조건이다. 없으면 빈 배열. */
+  accumulatedKeys: readonly string[];
 }
 
 export type ComparisonSideKey = "current" | "changed";
@@ -46,15 +48,6 @@ export const ETF_KEY = "etfProductCode";
 export const GOAL_NAME_KEY = "goalCustomName";
 export const ETF_NAME_FIELD = "etfProductName";
 
-/** 카드 조건 행 순서. 목표 금액을 바꾼 비교면 맨 앞에, 종목을 바꾼 비교면 맨 뒤에 그 행을 둔다. */
-export function conditionKeysOf(changedKeys: ReadonlySet<string>): string[] {
-  return [
-    ...(changedKeys.has(GOAL_KEY) ? [GOAL_KEY] : []),
-    ...CONDITION_KEYS,
-    ...(changedKeys.has(ETF_KEY) ? [ETF_KEY] : []),
-  ];
-}
-
 /** 조건 행의 display 키. 종목은 코드가 아니라 화면 이름을 보인다. */
 export function conditionDisplayKey(side: ComparisonSideKey, key: string): string {
   return `conditions.${side}.${key === ETF_KEY ? ETF_NAME_FIELD : key}`;
@@ -66,13 +59,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 function directionOf(before: unknown, after: unknown): Direction | null {
   if (typeof before !== "number" || typeof after !== "number") return null;
   return after > before ? "up" : after < before ? "down" : "same";
-}
-
-/** 시나리오의 목표 대비(raw gapToGoal). 없으면 undefined. */
-function gapOf(side: unknown, scenario: string): unknown {
-  if (!isRecord(side) || !Array.isArray(side.scenarios)) return undefined;
-  const found = side.scenarios.find((item) => isRecord(item) && item.scenario === scenario);
-  return isRecord(found) ? found.gapToGoal : undefined;
 }
 
 const SCENARIO_CODES: readonly string[] = ["GOOD", "AVG", "BAD"];
@@ -108,7 +94,7 @@ export function parseComparison(body: unknown): Comparison | null {
     if (!keys.every(shown)) return null;
     const assetDirection = directionOf(0, item.afterTaxAssetDelta);
     if (assetDirection === null) return null;
-    scenarios.push({ scenario, achievementChange: item.achievementChange, assetDirection, gapDirection: assetDirection });
+    scenarios.push({ scenario, achievementChange: item.achievementChange, assetDirection });
   }
   const allowedKeys: readonly string[] = [GOAL_NAME_KEY, GOAL_KEY, ...CONDITION_KEYS, ETF_KEY];
   if (!Array.isArray(changedKeys) || !changedKeys.every((key) => allowedKeys.includes(key))) return null;
@@ -116,12 +102,6 @@ export function parseComparison(body: unknown): Comparison | null {
   const changedGoalName = typeof body.goalCustomName === "string" ? body.goalCustomName.trim() : "";
   if (changedKeys.includes(GOAL_NAME_KEY) && changedGoalName === "") return null;
   if (changedKeys.includes(ETF_KEY) && !(shown(conditionDisplayKey("current", ETF_KEY)) && shown(conditionDisplayKey("changed", ETF_KEY)))) return null;
-  if (changedKeys.includes(GOAL_KEY)) {
-    // 목표가 바뀌면 목표 대비는 자산과 따로 움직인다. 양쪽 raw 목표 대비의 크기로만 방향을 정한다(차이 값은 서버에 없다)
-    for (const item of scenarios) {
-      item.gapDirection = directionOf(gapOf(body.current, item.scenario), gapOf(body.changed, item.scenario)) ?? item.assetDirection;
-    }
-  }
   const conditionDirections: Record<string, Direction> = {};
   // 목표 금액 raw는 결과 쪽(current·changed.goalAmount)에도 있다. conditions에 없으면 거기서 읽는다
   const sideConditions = { current: conditions.current, changed: conditions.changed };
@@ -154,5 +134,12 @@ export function parseComparison(body: unknown): Comparison | null {
     baselineScenario,
     conditionDirections,
     changedGoalName: changedKeys.includes(GOAL_NAME_KEY) ? changedGoalName : null,
+    conditions: { current: { ...conditions.current }, changed: { ...conditions.changed } },
+    // 숫자 조건·목표 금액·종목만 화면에 보인다. 허용 밖 키나 display가 없는 키는 버린다
+    accumulatedKeys: Array.isArray(body.accumulatedKeys)
+      ? [GOAL_KEY, ...CONDITION_KEYS, ETF_KEY].filter(
+          (key) => (body.accumulatedKeys as unknown[]).includes(key) && shown(conditionDisplayKey("changed", key)),
+        )
+      : [],
   };
 }

@@ -42,6 +42,7 @@ from app.llm.assemble import (
 )
 from app.llm.conditions import (
     GOAL_TYPE_WORD,
+    accumulated_conditions,
     carried_amount_sources,
     check_amount_units,
     drop_carried_conditions,
@@ -55,6 +56,7 @@ from app.llm.etf import search_etf_codes, stored_plan_product
 from app.llm.judge import LlmStockJudge
 from app.llm.plan import plan_etf_name
 from app.llm.prompts import SYSTEM_PROMPT
+from app.llm.revert import camel_of, resolve_revert, split_entries
 from app.llm.tools import FINAL_FORMAT, TOOLS, Calculator, DocumentSearch, FinalAnswer
 from app.schemas import (
     ChatMode,
@@ -62,6 +64,7 @@ from app.schemas import (
     ChatResponse,
     ConditionChanges,
     DocType,
+    RevertAction,
 )
 from app.tools.calc import CalcError, CalcFailed, CalcRejected, SpringRejectCode
 
@@ -192,6 +195,7 @@ class ChatAgent:
         self._max_rounds = max_rounds
         self._tools: dict[str, ToolHandler] = {
             "recalculate": self._recalculate,
+            "revert_conditions": self._revert_conditions,
             "search_documents": self._search_documents,
         }
 
@@ -247,7 +251,7 @@ class ChatAgent:
                     if turn.fixed_copy_key is not None:   # 모델을 더 부르지 않는다
                         return ChatResponse(
                             message_type="ANSWER",
-                            content=load_copy().get(turn.fixed_copy_key),
+                            content=_fixed_copy_text(turn),
                             baseline_scenario=req.baseline_scenario,
                         )
                     messages.append(BetaUserMessageParam(role="user", content=results))   # 결과는 한 메시지에 모두
@@ -361,6 +365,9 @@ class ChatAgent:
         return {"type": "tool_result", "tool_use_id": block.id, "content": f"Error: {e.code}", "is_error": True}
 
     async def _recalculate(self, turn: Turn, args: dict[str, Any]) -> str:
+        if turn.reverting:
+            raise CalcError(_ONE_KIND_ERROR)
+        turn.recalculating = True
         if turn.validation_failed:
             raise CalcError("허용 범위 오류를 이미 받았습니다. 값을 고쳐 다시 계산하지 말고 사용자에게 되물으세요.")
         changes = ConditionChanges.model_validate(args)
@@ -376,10 +383,12 @@ class ChatAgent:
                 raise CalcError(_GOAL_NAME_NOT_SAID_ERROR)
             said = without_goal_name(said, name)
             changes = changes.model_copy(update={"goal_custom_name": None})
-        # history가 있으면 이어받은 값이 생길 수 있다. 계산 전에 거른다(assemble에서만 거르면
-        # calc_run_id는 누적 값으로 계산된 채 condition_changes만 달라진다). 이름을 바꾸면 이름을 뺀 발화로 거른다
+        # history·누적 조건이 있으면 이어받은 값이 생길 수 있다. 계산 전에 거른다(assemble에서만 거르면
+        # calc_run_id는 누적 값으로 계산된 채 condition_changes만 달라진다). 이름을 바꾸면 이름을 뺀 발화로 거른다.
+        # 앞 턴의 조건은 이번 인자가 아니라 비교 기준(baseline)으로 넘긴다(#418, D-103)
+        baseline = accumulated_conditions(turn.req.accumulated_changes)
         dropped: list[str] = []
-        if said and (turn.req.history or name is not None):
+        if said and (turn.req.history or baseline.changed() or name is not None):
             filtered = drop_carried_conditions(said, changes, turn.req.history)
             dropped = sorted(changes.changed().keys() - filtered.changed().keys())
             if dropped:
@@ -389,7 +398,8 @@ class ChatAgent:
             changes = changes.model_copy(update={"goal_custom_name": name})
         # 계획에 저장된 종목(ETF 0%여도 있음, #297). 모르면(#297 전 Spring) 가정하지 않고 키를 Spring에 넘긴다.
         # Spring은 계획과 같은 종목이면 바꾸지 않은 것으로 본다(internal-calc C2-2, #294)
-        planned = stored_plan_product(turn.req)
+        # 누적으로 종목을 바꿨으면 그 종목이 비교 기준이다(#418)
+        planned = baseline.etf_product_code or stored_plan_product(turn.req)
         if changes.etf_product_code is not None and changes.etf_product_code == planned:
             # 계획과 같은 종목은 바꾸지 않은 것이다(D-097)
             changes = changes.model_copy(update={"etf_product_code": None})
@@ -404,7 +414,9 @@ class ChatAgent:
             raise CalcError("목표 금액의 단위(원·만원·억원)가 발화와 맞지 않습니다. 정확한 금액을 다시 물으세요.")
         # 질문을 접수한 때의 계획 버전이 있으면 그 기준으로 비교한다(#396). 없으면 지금까지처럼 지금 계획 기준이다
         base_id = turn.req.base_plan_version_id
-        base_kwargs = {} if base_id is None else {"base_plan_version_id": base_id}
+        base_kwargs: dict[str, Any] = {} if base_id is None else {"base_plan_version_id": base_id}
+        if baseline.changed():
+            base_kwargs["baseline_changes"] = baseline
         result = await self._calc.recalculate(turn.req.member_id, turn.req.baseline_scenario, changes, **base_kwargs)
         turn.calculated.append(changes.changed())
         if changes.etf_product_code is not None and _changed_product(result) is None:
@@ -443,6 +455,57 @@ class ChatAgent:
             result = {**result, "goalNameNote": GOAL_NAME_ONLY_NOTE}
         return json.dumps(result, ensure_ascii=False)
 
+    async def _revert_conditions(self, turn: Turn, args: dict[str, Any]) -> str:
+        """이 대화에서 쌓은 조건을 되돌린다(#419). 목록에서 되돌릴 항목을 빼고 남은 조건을 내 계획 대비로 다시 계산한다.
+        남은 조건이 없으면 계산하지 않고 내 계획(planContext)으로 답하게 한다. 목록 변경은 응답의 revert로 Spring이 한다."""
+        if turn.recalculating:
+            raise CalcError(_ONE_KIND_ERROR)
+        turn.reverting = True
+        entries = turn.req.accumulated_changes
+        scope, condition = resolve_revert(turn.req.text or "", str(args.get("scope")), args.get("condition"))
+        if not entries:
+            turn.fixed_copy_key = "chat.nothingToRevert"   # 상태를 바꾸지 않고 고정 문장으로 끝낸다
+            return "Error: 되돌릴 조건이 없습니다."
+        field: str | None = None
+        if scope == "condition":
+            if condition not in ConditionChanges.model_fields:
+                raise CalcError("되돌릴 조건(condition)을 고르세요.")
+            field = camel_of(condition)
+            if field not in {e.field for e in entries}:
+                turn.fixed_copy_key = "chat.conditionNotChanged"
+                turn.fixed_copy_values = {"condition": load_copy().get(f"condition.{field}")}
+                return "Error: 바꾼 적 없는 조건입니다."
+        reverted, remaining = split_entries(entries, scope, field)
+        reverted_fields = list(dict.fromkeys(e.field for e in reverted))
+        remaining_fields = list(dict.fromkeys(e.field for e in remaining))
+        payload: dict[str, Any] = {
+            "reverted": [{"field": f} for f in reverted_fields],
+            "remaining": [{"field": f} for f in remaining_fields],
+        }
+        left = accumulated_conditions(remaining)
+        # 되돌린 범위는 결과가 확정됐을 때만 남긴다. 남은 조건의 계산이 422·409로 끝나면 Spring이 목록을 지우지 않는다
+        action = RevertAction(scope=scope, condition=field)
+        if not left.changed():
+            turn.revert = action
+            payload["note"] = REVERT_ALL_NOTE
+            return json.dumps(payload, ensure_ascii=False)
+        base_id = turn.req.base_plan_version_id
+        base_kwargs: dict[str, Any] = {} if base_id is None else {"base_plan_version_id": base_id}
+        # 남은 조건을 내 계획 대비로 다시 계산한다. 되돌린 조건은 계획 값으로 돌아가므로 비교 기준을 싣지 않는다
+        result = await self._calc.recalculate(turn.req.member_id, turn.req.baseline_scenario, left, **base_kwargs)
+        turn.calc_run_id = result["calcRunId"]
+        turn.condition_changes = left.changed()
+        turn.revert = action
+        display = result.get("display")
+        if isinstance(display, dict):
+            turn.number_evidence.extend(v for v in display.values() if isinstance(v, str))
+            # 되돌린 뒤 값과 남은 값은 계산 응답의 changed 쪽 display 그대로다(같은 조건을 두 번 바꾼 경우도 맞다)
+            payload["reverted"] = [_with_value(f, display) for f in reverted_fields]
+            payload["remaining"] = [_with_value(f, display) for f in remaining_fields]
+        payload["calc"] = result
+        payload["note"] = REVERT_NOTE
+        return json.dumps(payload, ensure_ascii=False)
+
     async def _search_documents(self, turn: Turn, args: dict[str, Any]) -> str:
         doc_type = None if args["doc_type"] == "ANY" else DocType(args["doc_type"])
         etf_codes = search_etf_codes(turn.req, doc_type, args.get("etf_codes"))
@@ -461,6 +524,30 @@ class ChatAgent:
         payload = [c.model_dump(by_alias=False, exclude={"distance"}) for c in chunks]
         return json.dumps(payload, ensure_ascii=False)
 
+
+
+REVERT_NOTE = (
+    "reverted의 조건을 되돌리고 remaining의 조건만 남겨 내 계획 대비로 다시 계산했습니다. 답에 되돌린 조건과 그대로 남은 "
+    "조건을 함께 밝히세요. 각 조건의 지금 값은 value 문자열을 그대로 인용하세요."
+)
+_ONE_KIND_ERROR = (
+    "되돌리기와 조건 변경은 한 번에 하나만 합니다. 먼저 한 것의 결과로 답하고, 나머지는 다음 질문으로 안내하세요."
+)
+
+
+def _with_value(field: str, display: dict[str, Any]) -> dict[str, Any]:
+    """조건과 그 지금 값(계산 응답 changed 쪽 display). 값이 없으면 조건만 둔다."""
+    value = display.get(calc_condition_key(CHANGED_SIDE, field))
+    return {"field": field, "value": value} if isinstance(value, str) else {"field": field}
+REVERT_ALL_NOTE = (
+    "모든 변경을 되돌려 내 계획으로 돌아갔습니다. 계산하지 않았으니 결과는 <plan_context>의 display를 인용하고 "
+    "message_type은 ANSWER로 답하세요."
+)
+
+
+def _fixed_copy_text(turn: Turn) -> str:
+    """고정 문장. {자리}가 있으면 채운다(#419의 바꾼 적 없는 조건 이름)."""
+    return load_copy().get(turn.fixed_copy_key or "", **turn.fixed_copy_values)
 
 def _changed_product(result: dict[str, Any]) -> object:
     """계산 응답 conditions.changed.etfProductCode(C2-3). Spring이 종목을 바꾸지 않은 것으로 봤으면 없다."""

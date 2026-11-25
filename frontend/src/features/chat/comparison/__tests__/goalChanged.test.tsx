@@ -3,7 +3,7 @@
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { copy, doneMsg, page, userMsg } from "../../__tests__/helpers";
-import { CONDITION_KEYS, buttonOf, card, comparison, conditionRows, failedNotice, makeApi, makeStore, mountChat } from "./helpers";
+import { buttonOf, card, comparison, conditionRows, failedNotice, makeApi, makeStore, mountChat } from "./helpers";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -32,7 +32,7 @@ describe("목표 금액을 바꾼 비교(D-090)", () => {
     expect(failedNotice(ID)).toBeNull();
     expect(card(ID)).not.toBeNull();
     const rows = conditionRows(ID);
-    expect(rows.map((row) => row.getAttribute("data-key"))).toEqual(["goalAmount", ...CONDITION_KEYS]);
+    expect(rows.map((row) => row.getAttribute("data-key"))).toEqual(["goalAmount"]); // 바뀐 조건만(#417)
     const goal = rows[0];
     expect(goal.getAttribute("data-changed")).toBe("true");
     expect(goal.textContent).toContain(copy["condition.goalAmount"]);
@@ -60,7 +60,7 @@ describe("목표 금액을 바꾼 비교(D-090)", () => {
       "F4 1031": [comparison("get-comparison.200.json")],
     });
     await mountChat(api, makeStore().store);
-    expect(conditionRows(1031).map((row) => row.getAttribute("data-key"))).toEqual(CONDITION_KEYS);
+    expect(conditionRows(1031).map((row) => row.getAttribute("data-key"))).toEqual(["monthlySavingAmount"]);
     expect(card(1031)?.querySelector('[data-testid="chat-comparison-goal-note"]')).toBeNull();
   });
 

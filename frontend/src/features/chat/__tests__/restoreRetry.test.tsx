@@ -75,7 +75,7 @@ describe("최초 복원 실패 뒤, 재시도 전에 F-1이 성공하는 경우"
     expect(ids()).toEqual([1029, 1032, 1033]);
     expect(screen.queryAllByTestId("chat-pending")).toHaveLength(0);
     expect(screen.queryByTestId("chat-polling-failed")).toBeNull();
-    expect(sendButton().disabled).toBe(true); // 글이 비어 있어서
+    expect(sendButton().disabled).toBe(false); // 단추는 늘 눌러 볼 수 있다(빈 글이면 보내지 않고 안내, #423)
     fireEvent.change(input(), { target: { value: "다음" } });
     expect(sendButton().disabled).toBe(false); // answerPending=false로 풀림
   });

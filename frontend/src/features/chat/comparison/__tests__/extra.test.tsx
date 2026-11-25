@@ -51,6 +51,7 @@ describe("AC-8 연속 비교는 각자 자기 응답 값만 보인다", () => {
   it("1031·1033의 display·changedKeys가 다르면 1033 카드는 1033 값만 보인다", async () => {
     const body1031 = comparison("get-comparison.200.json", { messageId: 1031, changedKeys: ["monthlySavingAmount"] });
     const body1033 = comparison("get-comparison.200.json", { messageId: 1033, changedKeys: ["targetPeriodMonths"] });
+    body1033.conditions.changed = { ...body1033.conditions.current, targetPeriodMonths: 48 };
     for (const key of Object.keys(body1031.display)) {
       body1031.display[key] = `[1031 ${key}]`;
       body1033.display[key] = `[1033 ${key}]`;
@@ -66,7 +67,7 @@ describe("AC-8 연속 비교는 각자 자기 응답 값만 보인다", () => {
     await flush();
     await flush();
     const text = cardOf(1033).textContent ?? "";
-    expect(text).toContain("[1033 conditions.current.monthlySavingAmount]");
+    expect(text).toContain("[1033 conditions.current.targetPeriodMonths]");
     expect(text).not.toContain("[1031 ");
     const changed = conditionRows(1033).filter((row) => row.getAttribute("data-changed") === "true");
     expect(changed.map((row) => row.getAttribute("data-key"))).toEqual(["targetPeriodMonths"]);

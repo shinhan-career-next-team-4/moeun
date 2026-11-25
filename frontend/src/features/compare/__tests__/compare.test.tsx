@@ -137,10 +137,16 @@ describe("비교 영역 (#65, FR-CMP-01~03)", () => {
     expect(onCompare).toHaveBeenCalledWith({ targetPeriodMonths: 48 });
   });
 
-  it("조건을 고르지 않으면 비교하기를 누를 수 없다", () => {
-    renderSection();
+  it("조건을 고르지 않아도 비교하기는 눌러 볼 수 있고, 비교하지 않고 고르라는 안내를 보인다(#423)", () => {
+    const onCompare = vi.fn();
+    renderSection({ onCompare });
 
-    expect((screen.getByRole("button", { name: "비교하기" }) as HTMLButtonElement).disabled).toBe(true);
+    const button = screen.getByRole("button", { name: "비교하기" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    fireEvent.click(button);
+
+    expect(onCompare).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toContain("바꿀 조건을 먼저 골라 주세요");
   });
 
   it("비교하지 못했으면 안내를 보여 준다", () => {

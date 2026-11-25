@@ -42,6 +42,7 @@ erDiagram
     calc_run ||--o{ chat_message : "설명·재계산 대상"
     chat_message ||--o{ chat_message : "다시 요청(retry_of)"
     chat_message ||--o{ chat_message_citation : "출처"
+    chat_message ||--o{ chat_condition_change : "누적 변경"
     source_org ||--o{ rag_document : "발행 기관"
     rag_document ||--|{ rag_chunk : "본문 청크"
     rag_chunk ||--o{ chunk_embedding : "모델별 임베딩"
@@ -156,7 +157,18 @@ erDiagram
         bigint calc_run_id FK
         varchar baseline_scenario
         jsonb condition_changes
+        jsonb baseline_condition_changes
         bigint retry_of_message_id FK
+        timestamptz created_at
+    }
+    chat_condition_change {
+        bigint id PK
+        bigint member_id FK
+        bigint message_id FK
+        bigint plan_version_id
+        varchar field
+        jsonb before_value
+        jsonb after_value
         timestamptz created_at
     }
     chat_message_citation {

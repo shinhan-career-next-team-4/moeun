@@ -186,6 +186,15 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleA
     // 비교 카드(F-4)는 답이 온 뒤에 따로 그려져 높이가 늘어난다. 맨 아래에 있던 사용자는 카드 아래(적용 버튼)까지 보이게 다시 내린다(#390)
   }, [chat.messages, comparison.snapshot, visible]);
 
+  // 대화창을 닫으면 대화 세션이 끝난 것으로 보고 쌓인 조건(변경 목록)을 비운다(#418, D-103).
+  // 열린 채로 화면을 떠나도(언마운트) 같다. 처음부터 닫혀 있던 창은 부르지 않는다.
+  // 실패해도 대화창은 그대로 두고, 다음 질문 때 서버의 목록이 그대로 쓰인다
+  const api = deps.api;
+  useEffect(() => {
+    if (!visible) return;
+    return () => void api.request("DELETE", "/api/chat/condition-changes").catch(() => {});
+  }, [visible, api]);
+
   // 대기(PENDING)로 본 어시스턴트 메시지가 끝났을 때만 알린다. 새로고침으로 복원된 지난 답변은 대기를 거치지 않는다.
   useEffect(() => {
     const pending = pendingAssistantIdsRef.current;
@@ -207,7 +216,19 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleA
   const trimmed = text.trim();
   // 폴링이 실패로 멈추면 서버 값(answerPending)은 낡은 채로 남는다. 질문을 다시 보내 재개할 수 있어야 한다(서버가 409로 막으면 거기서 처리).
   const answerBlocking = chat.answerPending && !chat.pollingFailed;
-  const sendable = trimmed.length >= 1 && trimmed.length <= MAX_LENGTH && !sending && !answerBlocking;
+
+  // 단추는 늘 눌러 볼 수 있다. 빈 질문·너무 긴 질문이면 보내지 않고 이유를 알려 준다(#423)
+  function submitFromButton() {
+    if (trimmed.length < 1) {
+      setInputError(COPY.emptyQuestion);
+      return;
+    }
+    if (trimmed.length > MAX_LENGTH) {
+      setInputError(COPY.tooLongQuestion);
+      return;
+    }
+    void send();
+  }
 
   // example이 있으면 예시 버튼 문장을 그대로 보내고 입력창에 써 둔 글은 지우지 않는다.
   // 반환값은 질문이 접수됐을 때의 어시스턴트 메시지 id다(ETF 버튼이 그 답이 오면 적용하려고 쓴다)
@@ -339,8 +360,8 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleA
           <button
             type="button"
             data-testid="chat-send"
-            disabled={!sendable}
-            onClick={() => void send()}
+            disabled={sending || answerBlocking}
+            onClick={() => submitFromButton()}
             className="h-11 shrink-0 rounded-lg bg-primary px-4 text-sm font-semibold text-white hover:bg-primary-strong disabled:cursor-not-allowed disabled:bg-border disabled:text-text-muted"
           >
             {COPY.send}

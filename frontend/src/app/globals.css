@@ -2,20 +2,34 @@
 
 /* 디자인 토큰(NFR-UI-01). 데스크톱 라이트 모드 기준. 모든 화면이 이 토큰만 쓴다. */
 @theme {
-  --color-primary: #1f5f8b;
-  --color-primary-strong: #164a6e;
-  --color-primary-soft: #e6f0f7;
-  --color-surface: #ffffff;
-  --color-surface-muted: #f4f6f8;
-  --color-page: #f7f8fa;
-  --color-border: #d5dbe1;
-  --color-text: #1b232b;
-  --color-text-muted: #5f6b77;
-  --color-danger: #c62828;
-  --color-success: #2e7d32;
-  --color-success-soft: #e8f5e9;
+  --color-primary: #141e61;             /* 버튼, 토글, 라디오, 진행 막대, 링크, 내 말풍선 */
+  --color-primary-strong: #0f044c;      /* 버튼 hover, 강조 글자 */
+  --color-primary-soft: #eaeef3;        /* 선택 상태에만 사용 */
+  --color-surface: #ffffff;             /* 흰 카드, 입력칸 */
+  --color-surface-muted: #eef1f6;       /* AI 말풍선, 안내 상자 */
+  --color-surface-subtle: #f6f8fb;      /* 대안 카드, 조건 비교 영역, 가정 보기 줄 */
+  --color-page: #eaeef3;                /* 전체 화면 배경 */
+  --color-border: #d0d0d8;              /* 787A91 35%를 흰 바탕에 얹은 값 */
+  --color-text: #0f044c;                /* 제목, 본문 */
+  --color-text-muted: #787a91;          /* 흰 바탕의 보조 글자, placeholder */
+  --color-text-muted-on-soft: #4a5285;  /* 회색 바탕 위의 보조 글자 */
+  --color-danger: #d93025;              /* 마이너스, 미달, 오류 */
+  --color-danger-soft: #fdecea;         /* 미달 배지, 오류 상자 */
+  --color-success: #2b8a3e;             /* 플러스, 달성 */
+  --color-success-soft: #e6f4ea;
+  --color-chip: #e6eaf0;                /* 내 계획 조건 칩, 데모 계정 상자 */
+  --color-chart-bar: #787a91;           /* 그래프 평균 막대 */
+  --color-chart-range: #d0d0d8;         /* 좋았던 때~나빴던 때 범위 */
+  --color-table-head: #dddee3;          /* 비교표 머리줄, 탭 바탕, 로딩 막대 */
   --color-warning: #c2410c;
   --color-warning-soft: #fff1e6;
+  /* 글자 크기별 줄 높이를 일정한 비율(약 1.5)로 맞춰 위아래 간격이 고르게 보이게 한다(#425) */
+  --text-xs--line-height: 1.5;
+  --text-sm--line-height: 1.5;
+  --text-base--line-height: 1.5;
+  --text-lg--line-height: 1.45;
+  --text-xl--line-height: 1.4;
+  --text-2xl--line-height: 1.35;
   --font-sans: system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 }
 

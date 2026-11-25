@@ -23,6 +23,21 @@ export const DIRECTION_COPY = {
   decreased: "줄였어요",
 } as const;
 
+/** 바뀐 조건만 행으로 보일 때의 안내(#417). */
+export const UNCHANGED_COPY = {
+  others: "나머지 조건은 그대로예요",
+  all: "조건이 그대로예요",
+} as const;
+
+/** 시나리오 증가 줄의 목표 대비 앞말(#417). 바꾼 쪽이 달성이면 achieved다. */
+export const RESULT_LINE_COPY = {
+  achieved: "목표보다",
+  missed: "목표까지",
+} as const;
+
+/** 결과 카드 상단의 쌓인 조건(#418, D-103). */
+export const ACCUMULATED_COPY = "{conditions} 적용 중";
+
 export const ACHIEVEMENT_CHANGE_LABELS: Record<string, string> = {
   STAYS_ACHIEVED: "계속 달성해요",
   STAYS_MISSED: "계속 미달이에요",

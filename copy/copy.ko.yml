@@ -26,6 +26,11 @@ tax:
 
 # 대화창 안내(/internal/calc C3-2, planContext 경로, 프론트 대화창 첫 줄)
 chat:
+  # 대화로 되돌리기(#419). 바꾼 조건이 없거나 바꾼 적 없는 조건을 지목하면 상태를 바꾸지 않고 이 문장으로 답한다
+  nothingToRevert: "아직 바꾼 조건이 없어요"
+  conditionNotChanged: "{condition} 조건은 바꾼 적이 없어요. 그대로예요"
+  # ai-server에 보내는 대화 기록에서 계산 결과·설명 글 대신 넣는 안내(#418). 이전 결과 금액을 기록으로 넘기지 않는다
+  historyResultOmitted: "(이전 계산 결과는 생략했어요. 지금 조건의 숫자는 계산 엔진에서 새로 받아요)"
   # 대화로 못 바꾸는 조건 안내(D-056, D-090). 범위 밖 안내(outOfScope)와 다른 키다
   unchangeableCondition: "목표 종류·기존 납입액은 여기서 바꿀 수 없어요. 보유 자산은 입력 수정에서 바꿀 수 있어요."
   noPlan: "먼저 목표와 조건을 입력해 계획을 만들어 주세요"
@@ -41,6 +46,8 @@ chat:
   failed: "답변을 만들지 못했어요. 잠시 후 다시 질문해 주세요"
   pollingFailed: "답변을 불러오지 못하고 있어요. 잠시 후 다시 시도해 주세요"
   sendFailed: "메시지를 보내지 못했어요. 다시 시도해 주세요"
+  emptyQuestion: "궁금한 점을 입력해 주세요"
+  tooLongQuestion: "질문은 2,000자 이하로 입력해 주세요"
   # 결과 화면 우측 대화 패널(#224). 버튼·안내 글자
   panelTitle: "AI 설명 · 대화"
   panelNotice: "숫자는 계산 엔진이 만들고, AI는 설명만 해요. 계산 결과가 먼저 보이고 설명은 뒤이어 도착해요."
@@ -114,14 +121,15 @@ alt:
 # 비교 영역(FR-CMP-01~03, 와이어프레임 03 W-13·W-23·W-25). 표의 숫자는 비교 응답 display 문자열만 쓴다
 compare:
   title: "조건을 바꿔 비교해 보세요"
+  pickFirst: "바꿀 조건을 먼저 골라 주세요"
   # 계약 CP-07은 한 번에 여러 조건을 바꿀 수 있다(와이어프레임의 '하나를 바꾸면'은 Q-088 결정 대기)
   notice: "조건을 바꾸면 현재 조건과 나란히 보여줘요. 적용하기 전까지 내 계획은 바뀌지 않아요."
-  ratioTitle: "① 적금 : ETF 비중 직접 입력"
+  ratioTitle: "적금 : ETF 비중 직접 입력"
   ratioHelp: "합계는 100%가 되어야 해요 · 0~100 정수 · 개별 종목은 선택할 수 없어요"
   ratioSavings: "적금"
   ratioEtf: "ETF"
   ratioSumError: "적금과 ETF를 합쳐 100이 되게 적어 주세요"
-  conditionTitle: "② 바꿀 조건 고르기"
+  conditionTitle: "바꿀 조건 고르기"
   conditionHelp: "한 번에 여러 개를 바꿀 수 있어요"
   currentValue: "현재 {value}"
   submit: "비교하기"
@@ -236,6 +244,14 @@ comparison:
   same: "변화 없어요"
   increased: "늘렸어요"
   decreased: "줄였어요"
+  # 대화 결과 카드는 바뀐 조건만 행으로 보인다(#417)
+  othersUnchanged: "나머지 조건은 그대로예요"
+  allUnchanged: "조건이 그대로예요"
+  # 시나리오 증가 줄 "▲ 약 N만원 증가 · 목표보다 +M만원"의 목표 대비 앞말(#417)
+  aboveGoal: "목표보다"
+  toGoal: "목표까지"
+  # 대화 중 쌓인 조건(#418, D-103). conditions는 "라벨 값"을 쉼표로 이은 것이다
+  accumulated: "{conditions} 적용 중"
 
 # 로그인·입력·계획·되돌리기·결과 화면(C12a-7-1, J-13)
 common:

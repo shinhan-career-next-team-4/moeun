@@ -158,7 +158,8 @@ class ChatComparisonApiTest extends ChatComparisonTestSupport {
     }
 
     @Test
-    @DisplayName("응답 모양: 8개 키(messageId·applicable·changedKeys·conditions·current·changed·diff·display)만 있고 "
+    @DisplayName("응답 모양: 9개 키(messageId·applicable·changedKeys·accumulatedKeys·conditions·current·changed·"
+            + "diff·display)만 있고 "
             + "calcRunId·monthlyPoints는 없다")
     void responseShape() throws Exception {
         savePlan(memberId, null, 300_000L);
@@ -167,7 +168,10 @@ class ChatComparisonApiTest extends ChatComparisonTestSupport {
         JsonNode response = okBody(recalc.messageId());
 
         assertThat(keys(response)).containsExactlyInAnyOrder("messageId", "applicable", "changedKeys", "conditions",
-                "current", "changed", "diff", "display");
+                "current", "changed", "diff", "display", "accumulatedKeys");
+        // 쌓인 조건 없이 계산한 비교는 이번 변경만 쌓인 조건이다(#418)
+        assertThat(response.get("accumulatedKeys")).extracting(JsonNode::asString)
+                .containsExactly("monthlySavingAmount");
         assertThat(keys(response.get("conditions"))).containsExactlyInAnyOrder("current", "changed");
         assertThat(keys(response.get("conditions").get("current"))).isEqualTo(CONDITION_KEYS);
         assertThat(keys(response.get("conditions").get("changed"))).isEqualTo(CONDITION_KEYS);

@@ -102,7 +102,7 @@ class ChatAnswerListenerTest extends ChatIntegrationTestSupport {
     // ---------- AC-12 ----------
 
     @Test
-    void historyHasRecent20CompletedMessagesInOrder() throws Exception {
+    void historyHasRecent10CompletedMessagesInOrder() throws Exception {
         long calcRun = insertCalcRun(memberId, "PLAN");
         List<String[]> completed = new ArrayList<>();
         for (int i = 1; i <= 22; i++) {
@@ -110,7 +110,8 @@ class ChatAnswerListenerTest extends ChatIntegrationTestSupport {
         }
         insertMessage(memberId, "ASSISTANT", "FAILURE", "FAILED", "실패한 답");
         insertExplanation(memberId, "COMPLETED", "m23", calcRun, "AVG", Instant.now());
-        completed.add(new String[] {"assistant", "m23"});
+        // 설명 글은 이전 결과 금액이 들어 있어 안내 문장으로 바꿔 보낸다(#418)
+        completed.add(new String[] {"assistant", copy.get("chat.historyResultOmitted")});
         completed.add(insertTurn(24));
         completed.add(insertTurn(25));
         insertExplanation(memberId, "PENDING", null, calcRun, "AVG", Instant.now());
@@ -119,17 +120,18 @@ class ChatAnswerListenerTest extends ChatIntegrationTestSupport {
         askAndGetAssistantId(cookie, "새 질문");
         JsonNode history = awaitAiRequests(1).get(0).get("history");
 
-        List<String[]> expected = completed.subList(completed.size() - 20, completed.size());
-        assertThat(history.size()).isEqualTo(20);
-        for (int i = 0; i < 20; i++) {
+        // 대화 원문은 최근 10개만 보낸다(#418)
+        List<String[]> expected = completed.subList(completed.size() - 10, completed.size());
+        assertThat(history.size()).isEqualTo(10);
+        for (int i = 0; i < 10; i++) {
             assertThat(history.get(i).get("role").asString()).isEqualTo(expected.get(i)[0]);
             assertThat(history.get(i).get("content").asString()).isEqualTo(expected.get(i)[1]);
         }
     }
 
     @ParameterizedTest(name = "{displayName} › {0}")
-    @ValueSource(ints = {2, 20, 21})
-    void historyKeepsCompletedMessagesUpTo20(int existing) throws Exception {
+    @ValueSource(ints = {2, 10, 11})
+    void historyKeepsCompletedMessagesUpTo10(int existing) throws Exception {
         List<String[]> completed = new ArrayList<>();
         for (int i = 1; i <= existing; i++) {
             completed.add(insertTurn(i));
@@ -138,7 +140,7 @@ class ChatAnswerListenerTest extends ChatIntegrationTestSupport {
         askAndGetAssistantId(cookie, "이어지는 질문");
         JsonNode history = awaitAiRequests(1).get(0).get("history");
 
-        List<String[]> expected = completed.subList(Math.max(0, existing - 20), existing);
+        List<String[]> expected = completed.subList(Math.max(0, existing - 10), existing);
         assertThat(history).isNotNull();
         assertThat(history.size()).isEqualTo(expected.size());
         for (int i = 0; i < expected.size(); i++) {
@@ -175,6 +177,8 @@ class ChatAnswerListenerTest extends ChatIntegrationTestSupport {
         assertThat(request.get("baselineScenario").asString()).isEqualTo("BAD");
         assertThat(request.get("planContext")).isEqualTo(planContext);
         assertThat(request.get("planContext").get("result").get("baselineScenario").asString()).isEqualTo("BAD");
+        // ai-server는 accumulatedChanges에 null을 받지 않는다(목록이거나 키 없음, #418)
+        assertThat(request.has("accumulatedChanges")).isFalse();
         verify(planContextPort).findForCalcRun(memberId, calcRun, Scenario.BAD);
         verify(planContextPort, never()).findForCurrentPlan(anyLong());
 

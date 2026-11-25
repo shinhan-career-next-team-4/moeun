@@ -33,7 +33,11 @@ function problem(status: number, code: string): Response {
 }
 
 function stubServer(
-  options: { alternatives?: (body: { targetPeriodMonths?: number }) => unknown; apply?: () => Response } = {},
+  options: {
+    alternatives?: (body: { targetPeriodMonths?: number }) => unknown;
+    apply?: () => Response;
+    plan?: (read: number) => unknown;
+  } = {},
 ) {
   const calls: Call[] = [];
   let planReads = 0;
@@ -46,6 +50,7 @@ function stubServer(
       calls.push({ method, path: url.pathname, body });
       if (method === "GET" && url.pathname === "/api/plan") {
         planReads += 1;
+        if (options.plan) return jsonResponse(200, options.plan(planReads));
         return jsonResponse(200, (planReads === 1 ? planMock : afterApplyMock).responses[0].body);
       }
       if (method === "POST" && url.pathname === "/api/alternatives") {
@@ -139,7 +144,12 @@ describe("결과 화면 대안 카드 (#258, A-1, D-096)", () => {
   });
 
   it("대안을 받은 뒤 내 계획이 바뀌면 다시 불러와 새 revision 기준으로 다시 켠다", async () => {
-    const server = stubServer();
+    const server = stubServer({
+      plan: (read) => {
+        const body = planMock.responses[0].body;
+        return read === 1 ? body : { ...body, revision: 13, calcRunId: 553 };
+      },
+    });
     renderResult();
     const monthlyCard = await card("월 저축액을 바꾸면");
     const apply = () => within(monthlyCard).getByRole("button", { name: "내 계획으로 적용" }) as HTMLButtonElement;
@@ -148,10 +158,68 @@ describe("결과 화면 대안 카드 (#258, A-1, D-096)", () => {
 
     act(() => planStore.acceptRevision(13));
 
+    // 계획 화면이 새 revision을 따라잡기 전에는 보내지 않고, 적용도 막아 둔다
     expect(apply().disabled).toBe(true);
+    expect(server.alternativeCalls().length).toBe(before);
+    await act(async () => {
+      await planStore.loadPlan({ fresh: true });
+    });
     await waitFor(() => expect(server.alternativeCalls().length).toBe(before + 1));
     await waitFor(() => expect(apply().disabled).toBe(false));
   });
+  it("달성 상태에서 미달 목표로 적용하면 대안을 한 번만 다시 받아 카드를 보여 준다", async () => {
+    let calls = 0;
+    const server = stubServer({
+      alternatives: () => (++calls <= 1 ? noneMock : firstMock).responses[0].body,
+      // 새 목표도 미달이라 계산 결과만 새것(calcRunId)이 된다
+      plan: (read) => {
+        const body = planMock.responses[0].body;
+        return read === 1 ? body : { ...body, revision: 13, calcRunId: 553 };
+      },
+    });
+    renderResult();
+    await waitFor(() => expect(server.alternativeCalls().length).toBe(1));
+    expect(screen.queryByRole("region", { name: "대안" })).toBeNull();
+
+    await act(async () => {
+      planStore.acceptRevision(13);
+      await planStore.loadPlan({ fresh: true });
+    });
+
+    expect(await card("월 저축액을 바꾸면")).toBeTruthy();
+    expect(server.alternativeCalls().length).toBe(2);
+  });
+
+  it("적용 직후 새 대안을 기다리는 동안에도 빈 대안 카드를 먼저 보여 준다", async () => {
+    let calls = 0;
+    let release: (() => void) | null = null;
+    const server = stubServer({
+      alternatives: () => {
+        calls += 1;
+        // 첫 응답은 '대안 없음', 이후 응답은 풀어 줄 때까지 늦춘다
+        if (calls === 1) return noneMock.responses[0].body;
+        return new Promise<unknown>((resolve) => {
+          release = () => resolve(firstMock.responses[0].body);
+        });
+      },
+      plan: (read) => {
+        const body = planMock.responses[0].body;
+        return read === 1 ? body : { ...body, revision: 13, calcRunId: 553 };
+      },
+    });
+    renderResult();
+    await waitFor(() => expect(server.alternativeCalls().length).toBe(1));
+
+    await act(async () => {
+      planStore.acceptRevision(13);
+      await planStore.loadPlan({ fresh: true });
+    });
+
+    const section = await screen.findByRole("region", { name: "대안" });
+    expect(within(section).getAllByText("아직 계산된 값이 없어요").length).toBe(3);
+    expect(release).not.toBeNull();
+  });
+
   it("대안 API가 실패하면 불러오지 못했다고 안내하고 적용 버튼을 끈다(A-1-2)", async () => {
     stubServer({ alternatives: () => problem(500, "INTERNAL_ERROR") });
     renderResult();

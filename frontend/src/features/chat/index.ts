@@ -1,7 +1,7 @@
 import type { PlanStore } from "../../api/planStore";
 
 export interface ChatDeps {
-  api: { request<T = unknown>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> };
+  api: { request<T = unknown>(method: "GET" | "POST" | "DELETE", path: string, body?: unknown): Promise<T> };
   polling: { register(stop: () => void): () => void };
   planStore: Pick<PlanStore, "getState" | "subscribe" | "loadPlan">;
 }
