@@ -177,6 +177,8 @@ class ChatAnswerListenerTest extends ChatIntegrationTestSupport {
         assertThat(request.get("baselineScenario").asString()).isEqualTo("BAD");
         assertThat(request.get("planContext")).isEqualTo(planContext);
         assertThat(request.get("planContext").get("result").get("baselineScenario").asString()).isEqualTo("BAD");
+        // ai-server는 accumulatedChanges에 null을 받지 않는다(목록이거나 키 없음, #418)
+        assertThat(request.has("accumulatedChanges")).isFalse();
         verify(planContextPort).findForCalcRun(memberId, calcRun, Scenario.BAD);
         verify(planContextPort, never()).findForCurrentPlan(anyLong());
 
