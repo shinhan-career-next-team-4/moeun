@@ -64,7 +64,7 @@ export function PlanConditionBar({
     return (
         <section
             aria-label="내 계획 조건"
-            className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-surface px-6 py-4 text-text shadow-sm">
+            className="flex flex-col gap-3 text-text">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
                 <span className="sr-only">내 계획 조건</span>
                 <dl className="grid min-w-0 flex-1 grid-cols-2 gap-y-4 sm:grid-cols-3 lg:flex lg:items-stretch">
