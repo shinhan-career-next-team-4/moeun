@@ -3,7 +3,6 @@ package com.moeun.backend.chat.infrastructure;
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
 import org.springframework.jdbc.core.RowMapper;
@@ -12,7 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import com.moeun.backend.chat.domain.ChatMessage;
 import com.moeun.backend.chat.domain.ChatMessageRepository;
-import com.moeun.backend.chat.domain.HistoryMessage;
+import com.moeun.backend.chat.domain.HistoryRow;
 import com.moeun.backend.chat.domain.MessageRow;
 import com.moeun.backend.chat.domain.MessageStatus;
 import com.moeun.backend.chat.domain.MessageTransition;
@@ -142,11 +141,12 @@ class JdbcChatMessageRepository implements ChatMessageRepository {
     /** F-4: 그 회원의 COMPLETED RECALC_RESULT 한 행. 없는·남의·다른 종류·COMPLETED가 아닌 행은 모두 빈 값이다. */
     @Override
     public Optional<RecalcResultRow> findCompletedRecalcResult(long id, long memberId) {
-        return jdbc.sql("SELECT id, calc_run_id, condition_changes::text AS condition_changes FROM chat_message "
+        return jdbc.sql("SELECT id, calc_run_id, condition_changes::text AS condition_changes, "
+                        + "baseline_condition_changes::text AS baseline_condition_changes FROM chat_message "
                         + "WHERE id = ? AND member_id = ? AND message_type = 'RECALC_RESULT' AND status = 'COMPLETED'")
                 .params(id, memberId)
                 .query((rs, row) -> new RecalcResultRow(rs.getLong("id"), rs.getLong("calc_run_id"),
-                        rs.getString("condition_changes")))
+                        rs.getString("condition_changes"), rs.getString("baseline_condition_changes")))
                 .optional();
     }
 
@@ -170,23 +170,25 @@ class JdbcChatMessageRepository implements ChatMessageRepository {
 
     /** beforeId보다 앞선 COMPLETED 메시지 중 최근 limit개를 오래된 것부터. */
     @Override
-    public List<HistoryMessage> findCompletedBefore(long memberId, long beforeId, int limit) {
-        return jdbc.sql("SELECT role, content FROM (SELECT id, role, content FROM chat_message "
-                        + "WHERE member_id = ? AND status = 'COMPLETED' AND id < ? ORDER BY id DESC LIMIT ?) recent "
-                        + "ORDER BY id")
+    public List<HistoryRow> findCompletedBefore(long memberId, long beforeId, int limit) {
+        return jdbc.sql("SELECT role, message_type, content FROM (SELECT id, role, message_type, content "
+                        + "FROM chat_message WHERE member_id = ? AND status = 'COMPLETED' AND id < ? "
+                        + "ORDER BY id DESC LIMIT ?) recent ORDER BY id")
                 .params(memberId, beforeId, limit)
-                .query((rs, row) -> new HistoryMessage(rs.getString("role").toLowerCase(Locale.ROOT),
-                        rs.getString("content")))
+                .query((rs, row) -> new HistoryRow(Role.valueOf(rs.getString("role")),
+                        MessageType.valueOf(rs.getString("message_type")), rs.getString("content")))
                 .list();
     }
 
     @Override
     public int apply(MessageTransition transition) {
         return jdbc.sql("UPDATE chat_message SET status = ?, message_type = ?, content = ?, calc_run_id = ?, "
-                        + "baseline_scenario = ?, condition_changes = CAST(? AS jsonb) "
+                        + "baseline_scenario = ?, condition_changes = CAST(? AS jsonb), "
+                        + "baseline_condition_changes = CAST(? AS jsonb) "
                         + "WHERE id = ? AND member_id = ? AND status = ?")
                 .params(transition.status().name(), transition.type().name(), transition.content(),
                         transition.calcRunId(), transition.baselineScenario(), transition.conditionChangesJson(),
+                        transition.baselineConditionChangesJson(),
                         transition.id(), transition.memberId(), transition.from().name())
                 .update();
     }

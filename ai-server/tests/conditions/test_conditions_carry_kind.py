@@ -66,9 +66,10 @@ def test_condition_only_answer_to_role_question_uses_pending_value():
 
 
 def test_no_accumulate_rule_is_kept():
-    """(예외) 앞 턴에서 계산해 본 값은 여전히 이어받지 않는다 (D-041)"""
+    """(예외) 앞 턴에서 계산해 본 값은 도구 인자로 다시 넣지 않는다. 쌓는 일은 서버의 변경 목록이 한다(D-103)"""
     rule = bullet("history의 앞선 턴에 나온 값은 다시 넣지 않습니다")
-    assert "쌓지 않습니다" in rule
+    assert "이번 발화" in rule
+    assert "서버가" in bullet("이 대화에서 앞서 바꿔 본 조건은")
     # 조건 고르기 답의 예외를 누적 금지 불릿 안에 직접 적어 두 규칙이 글자로 충돌하지 않게 한다(리뷰 중간 1)
     assert "조건 고르기 답 규칙" in rule
 

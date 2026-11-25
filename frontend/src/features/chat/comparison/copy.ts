@@ -35,6 +35,9 @@ export const RESULT_LINE_COPY = {
   missed: "목표까지",
 } as const;
 
+/** 결과 카드 상단의 쌓인 조건(#418, D-103). */
+export const ACCUMULATED_COPY = "{conditions} 적용 중";
+
 export const ACHIEVEMENT_CHANGE_LABELS: Record<string, string> = {
   STAYS_ACHIEVED: "계속 달성해요",
   STAYS_MISSED: "계속 미달이에요",

@@ -1,5 +1,6 @@
 import type { ChatMessage } from "../types";
 import {
+  ACCUMULATED_COPY,
   APPLY_LABEL,
   COLLAPSED_LABEL,
   CONDITION_LABELS,
@@ -149,6 +150,19 @@ function ApplyButton({ comparison, messageId, active }: { comparison: Comparison
   );
 }
 
+/** 대화 중 쌓인 조건(#418, D-103). 조건마다 "라벨 값"을 쉼표로 이어 "… 적용 중"으로 보인다. 값은 changed display 그대로다. */
+function AccumulatedNote({ data }: { data: Comparison }) {
+  if (data.accumulatedKeys.length === 0) return null;
+  const conditions = data.accumulatedKeys
+    .map((key) => `${labelOf(key)} ${data.display[conditionDisplayKey("changed", key)]}`)
+    .join(", ");
+  return (
+    <p data-testid="chat-comparison-accumulated" className="mb-1 rounded-lg bg-surface-muted px-2 py-1 text-xs font-semibold text-text">
+      {ACCUMULATED_COPY.replace("{conditions}", conditions)}
+    </p>
+  );
+}
+
 function goalNote(data: Comparison): string | null {
   if (!data.changedKeys.has(GOAL_KEY)) return null;
   return COPY["chat.goalAmountChangedNote"]
@@ -191,6 +205,7 @@ function Details({
   const hasRows = rowKeys.length > 0 || data.changedGoalName !== null;
   return (
     <>
+      <AccumulatedNote data={data} />
       {hasRows && (
         <p data-testid="chat-comparison-title" className="mb-1 text-sm font-bold text-text">
           {titleOf(data, rowKeys)}

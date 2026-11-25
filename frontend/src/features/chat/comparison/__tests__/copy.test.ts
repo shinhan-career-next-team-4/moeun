@@ -50,4 +50,9 @@ describe("비교 카드 문구 상수는 copy/copy.ko.yml과 같다", () => {
     expect(RESULT_LINE_COPY.achieved).toBe(copy["comparison.aboveGoal"]);
     expect(RESULT_LINE_COPY.missed).toBe(copy["comparison.toGoal"]);
   });
+
+  it("쌓인 조건 문구(#418)", async () => {
+    const { ACCUMULATED_COPY } = await loadCopy();
+    expect(ACCUMULATED_COPY).toBe(copy["comparison.accumulated"]);
+  });
 });

@@ -43,12 +43,15 @@ public class ChatComparisonService {
         RecalcResultRow row = messages.findCompletedRecalcResult(messageId, memberId)
                 .orElseThrow(ComparisonNotFoundException::new);
         Map<String, JsonNode> changes = StoredConditionChanges.parse(json, row);
-        ChatComparisonView view = comparisons.recompute(memberId, row.calcRunId(), changes)
+        // 비교 기준은 그 계산 때 쌓여 있던 조건이다(#418, D-103). 없으면 기록의 계획 버전과 비교한다
+        Map<String, JsonNode> baseline = StoredConditionChanges.parseBaseline(json, row);
+        ChatComparisonView view = comparisons.recompute(memberId, row.calcRunId(), changes, baseline)
                 .orElseThrow(() -> new IllegalStateException(
                         "RECALC_RESULT " + messageId + " does not point to the member's calc_run(CHAT)"));
         boolean applicable = isApplicable(memberId, messageId, view);
         return new ChatComparison(messageId, applicable, List.copyOf(changes.keySet()), view,
-                ChatComparison.goalCustomNameOf(changes));
+                ChatComparison.goalCustomNameOf(changes),
+                List.copyOf(StoredConditionChanges.merged(json, row).keySet()));
     }
 
     /** ① 그 회원의 COMPLETED RECALC_RESULT 중 id가 가장 크고 ② 그 기록의 계획 버전이 지금의 현재 계획 버전일 때만 true. */

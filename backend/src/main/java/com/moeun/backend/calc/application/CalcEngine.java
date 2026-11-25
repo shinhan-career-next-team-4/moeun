@@ -50,7 +50,16 @@ public class CalcEngine {
      * 기본금리 데이터 버전은 데이터 버전(calc_run 기록)에 남긴다. 결과 화면·planContext는 이 진입점을 쓴다.
      */
     public CalcResult calculate(ConditionResolver.ResolvedConditions resolved, CalcParams params, EtfSeries sp500) {
-        return calculate(resolved.input(), params, sp500, DefaultRate.from(resolved));
+        return calculate(resolved.input(), params, sp500, DefaultRate.from(resolved), null);
+    }
+
+    /**
+     * 부트스트랩 경로 수를 줄여 빠르게 계산한다. 목표 달성 여부를 많이 시험하는 탐색(대안 추천)의 판정에만 쓰고,
+     * 화면에 보이는 값과 저장하는 값은 {@link #calculate}로 정확히 계산한다. 경로 수가 설정값보다 크면 설정값을 쓴다.
+     */
+    public CalcResult calculateForSearch(ConditionResolver.ResolvedConditions resolved, CalcParams params,
+            EtfSeries sp500, int searchPathCount) {
+        return calculate(resolved.input(), params, sp500, DefaultRate.from(resolved), searchPathCount);
     }
 
     /**
@@ -83,10 +92,11 @@ public class CalcEngine {
      * @throws IllegalStateException ETF 계산에 필요한 종가가 모자랄 때
      */
     public CalcResult calculate(CalcInput input, CalcParams params, EtfSeries sp500) {
-        return calculate(input, params, sp500, DefaultRate.NONE);
+        return calculate(input, params, sp500, DefaultRate.NONE, null);
     }
 
-    private CalcResult calculate(CalcInput input, CalcParams params, EtfSeries sp500, DefaultRate defaultRate) {
+    private CalcResult calculate(CalcInput input, CalcParams params, EtfSeries sp500, DefaultRate defaultRate,
+            Integer pathCountLimit) {
         rejectOutOfScope(input);
         int targetPeriodMonths = input.targetPeriodMonths();
         YearMonth targetMonth = input.calcStartMonth().plusMonths(targetPeriodMonths);
@@ -99,7 +109,8 @@ public class CalcEngine {
         SavingsCalculator savings = new SavingsCalculator(savingsDeposit, input.savingsRatePct(), taxRatePct);
 
         List<ScenarioResult> scenarios = input.hasEtf()
-                ? calculateEtfScenarios(input, params, sp500, savings, monthlySaving.subtract(savingsDeposit))
+                ? calculateEtfScenarios(input, params, sp500, savings, monthlySaving.subtract(savingsDeposit),
+                        pathCountLimit)
                 : List.of(calculateSavingsOnly(input, savings));
         EtfSeries usedSp500 = input.hasEtf() ? sp500 : null;
         // 이미 목표 이상이어도 계산한다(#370). 상태만 ALREADY_EXCEEDED로 남겨 화면이 안내를 함께 보이게 한다(같으면 초과, CF-03)
@@ -121,11 +132,13 @@ public class CalcEngine {
     }
 
     private static List<ScenarioResult> calculateEtfScenarios(CalcInput input, CalcParams params, EtfSeries sp500,
-            SavingsCalculator savings, BigDecimal etfDeposit) {
+            SavingsCalculator savings, BigDecimal etfDeposit, Integer pathCountLimit) {
         requireSp500(sp500);
+        int configuredPathCount = params.getValue(CalcParamKey.BOOTSTRAP_PATH_COUNT).intValueExact();
+        int pathCount = pathCountLimit == null ? configuredPathCount : Math.min(configuredPathCount, pathCountLimit);
         List<BigDecimal> observedReturns = MonthlyReturns.fromCloses(sp500.monthlyCloses(), observationMonths(params));
         BootstrapScenarios bootstrap = new BootstrapScenarios(observedReturns,
-                params.getValue(CalcParamKey.BOOTSTRAP_PATH_COUNT).intValueExact(),
+                pathCount,
                 params.getValue(CalcParamKey.BOOTSTRAP_SEED).longValueExact(),
                 toFraction(params.getValue(CalcParamKey.SCENARIO_LOW_PERCENTILE)),
                 toFraction(params.getValue(CalcParamKey.SCENARIO_HIGH_PERCENTILE)));

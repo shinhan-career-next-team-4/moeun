@@ -26,6 +26,8 @@ tax:
 
 # 대화창 안내(/internal/calc C3-2, planContext 경로, 프론트 대화창 첫 줄)
 chat:
+  # ai-server에 보내는 대화 기록에서 계산 결과·설명 글 대신 넣는 안내(#418). 이전 결과 금액을 기록으로 넘기지 않는다
+  historyResultOmitted: "(이전 계산 결과는 생략했어요. 지금 조건의 숫자는 계산 엔진에서 새로 받아요)"
   # 대화로 못 바꾸는 조건 안내(D-056, D-090). 범위 밖 안내(outOfScope)와 다른 키다
   unchangeableCondition: "목표 종류·기존 납입액은 여기서 바꿀 수 없어요. 보유 자산은 입력 수정에서 바꿀 수 있어요."
   noPlan: "먼저 목표와 조건을 입력해 계획을 만들어 주세요"
@@ -245,6 +247,8 @@ comparison:
   # 시나리오 증가 줄 "▲ 약 N만원 증가 · 목표보다 +M만원"의 목표 대비 앞말(#417)
   aboveGoal: "목표보다"
   toGoal: "목표까지"
+  # 대화 중 쌓인 조건(#418, D-103). conditions는 "라벨 값"을 쉼표로 이은 것이다
+  accumulated: "{conditions} 적용 중"
 
 # 로그인·입력·계획·되돌리기·결과 화면(C12a-7-1, J-13)
 common:

@@ -47,6 +47,15 @@ class ConditionChanges(ApiModel):
         return self.model_dump(exclude_none=True, by_alias=False)
 
 
+class ConditionChangeEntry(ApiModel):
+    """대화 조건 누적(#418, D-103)의 변경 목록 한 항목. Spring이 순서대로 저장해 넘긴다.
+    field는 camelCase 조건 키(conditionChanges와 같은 7개), before는 바꾸기 전 값(계획에 값이 없었으면 null)이다."""
+
+    field: str
+    before: StrictInt | StrictFloat | StrictStr | None = None
+    after: StrictInt | StrictFloat | StrictStr
+
+
 class HistoryItem(ApiModel):
     role: Literal["user", "assistant"]
     content: str
@@ -103,6 +112,8 @@ class ChatRequest(ApiModel):
     # 답을 기다리는 사이 계획이 바뀌어도 어긋나지 않는다
     base_plan_version_id: int | None = None
     history: list[HistoryItem] = Field(default_factory=list, max_length=20)
+    # QUESTION: 이 대화에서 앞서 바꾼 조건의 변경 목록(#418, D-103). 다음 계산의 비교 기준이 된다
+    accumulated_changes: list[ConditionChangeEntry] = Field(default_factory=list)
 
 
 MessageType = Literal["ANSWER", "EXPLANATION", "RECALC_RESULT", "CLARIFY", "OUT_OF_SCOPE"]
