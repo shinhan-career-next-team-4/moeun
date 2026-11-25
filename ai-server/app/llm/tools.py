@@ -70,6 +70,28 @@ TOOLS: list[BetaToolParam] = [
         },
     },
     {
+        "name": "revert_conditions",
+        "description": (
+            "이 대화에서 바꿔 본 조건(<accumulated_changes>)을 되돌린다. "
+            "scope=last는 직전 질문의 변경, all은 전부(내 계획으로), "
+            "condition은 condition에 고른 조건 하나의 변경 전부다. "
+            "되묻지 않고 가장 그럴듯한 범위로 바로 부른다. 남은 조건의 계산 결과는 서버가 다시 만든다."
+        ),
+        "strict": True,
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "scope": {"type": "string", "enum": ["last", "all", "condition"]},
+                "condition": {
+                    "anyOf": [{"type": "string", "enum": list(_CONDITION_FIELDS)}, {"type": "null"}],
+                    "description": "scope=condition일 때 되돌릴 조건. 그 밖에는 null",
+                },
+            },
+            "required": ["scope", "condition"],
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "search_documents",
         "description": "미리 모아 둔 금융 교육자료(EDU)와 운용사 공시(DISCLOSURE)에서 관련 내용을 찾는다.",
         "strict": True,

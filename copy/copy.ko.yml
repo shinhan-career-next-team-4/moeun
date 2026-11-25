@@ -26,6 +26,9 @@ tax:
 
 # 대화창 안내(/internal/calc C3-2, planContext 경로, 프론트 대화창 첫 줄)
 chat:
+  # 대화로 되돌리기(#419). 바꾼 조건이 없거나 바꾼 적 없는 조건을 지목하면 상태를 바꾸지 않고 이 문장으로 답한다
+  nothingToRevert: "아직 바꾼 조건이 없어요"
+  conditionNotChanged: "{condition} 조건은 바꾼 적이 없어요. 그대로예요"
   # ai-server에 보내는 대화 기록에서 계산 결과·설명 글 대신 넣는 안내(#418). 이전 결과 금액을 기록으로 넘기지 않는다
   historyResultOmitted: "(이전 계산 결과는 생략했어요. 지금 조건의 숫자는 계산 엔진에서 새로 받아요)"
   # 대화로 못 바꾸는 조건 안내(D-056, D-090). 범위 밖 안내(outOfScope)와 다른 키다

@@ -353,9 +353,10 @@ async def test_condition_changes_keys_stay_snake_case_for_all_five_keys():
 
 
 def test_chat_response_has_no_new_fields():
-    """ChatResponse에 새 필드를 만들지 않는다 (C12b-14)"""
+    """ChatResponse에 계약 밖 필드를 만들지 않는다 (C12b-14). revert는 #419 대화로 되돌리기의 범위다"""
     assert set(ChatResponse.model_fields) == {
         "message_type", "content", "baseline_scenario", "calc_run_id", "condition_changes", "citation_chunk_ids",
+        "revert",
     }
 
 
