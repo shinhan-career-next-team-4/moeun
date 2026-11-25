@@ -112,6 +112,7 @@ chat ──▶ calc ──▶ plan
 |---|---|---|---|---|---|---|
 | P-1 | `POST /api/auth/login` | 로그인, 쿠키 발급, 이전 대화 삭제 | `200 {}` | `auth.web`(A) | 아니오(`@SkipRenewal`, 핸들러가 발급) | Must |
 | P-2 | `POST /api/auth/logout` | 로그아웃, 쿠키 만료, 이전 대화 삭제 | `200 {}` | `auth.web`(A) | 아니오(`@SkipRenewal`) | Must |
+| P-7 | `POST /api/auth/signup` | 회원가입, 쿠키 발급(가입 즉시 로그인, D-107) | `200 {}` | `auth.web`(A) | 아니오(`@SkipRenewal`, 핸들러가 발급) | Should(#459) |
 | P-3 | `PUT /api/plan` | 입력 저장(새 목표 세우기·입력 수정): 검증 → 저장 → 계산 → 결과, **한 트랜잭션** | `200 PlanView` | `calc.web`(A) | 예 | Must |
 | P-4 | `GET /api/plan` | 현재 계획·결과 조회 | `200 PlanView` | `calc.web`(A) | 예 | Must |
 | P-5 | `POST /api/plan/undo` | 되돌리기(직전 1단계) | `200 {revision}` | `plan.web`(A) | 예 | Must |
@@ -139,7 +140,7 @@ chat ──▶ calc ──▶ plan
 | `Max-Age` | `1800`. 로그아웃·401 때 `0` | FR-AUTH-02 |
 
 - 토큰은 쿠키 `moeun_at`에서만 읽는 `BearerTokenResolver`(#16). `Authorization` 헤더는 받지 않는다.
-- 리졸버는 **`POST /api/auth/login`에서 `null`을 돌려준다**. 왜: 리소스 서버 필터는 `permitAll` 경로에서도 토큰을 검증해 실패하면 401을 낸다. 깨진 쿠키가 남은 브라우저가 로그인을 못 하게 된다.
+- 리졸버는 **`POST /api/auth/login`·`POST /api/auth/signup`에서 `null`을 돌려준다**. 왜: 리소스 서버 필터는 `permitAll` 경로에서도 토큰을 검증해 실패하면 401을 낸다. 깨진 쿠키가 남은 브라우저가 로그인을 못 하게 된다.
 - **JWT 서명 키는 설정값(환경 변수)으로 고정한다.** 왜: 기동마다 새로 만들면 재시작마다 모든 쿠키가 깨진다.
 - 401 엔트리 포인트는 C3-1 본문과 함께 `moeun_at` 만료 쿠키(`Max-Age=0`, 같은 속성)를 내린다. 왜: 깨진 쿠키가 남지 않는다.
 - `/internal/**`은 다른 필터 체인(API 키), 쿠키를 보지 않는다.
@@ -184,7 +185,7 @@ Set-Cookie: moeun_at=<JWT>; Max-Age=1800; Path=/; Secure; HttpOnly; SameSite=Lax
 
 - 본문이 `{}`인 이유: auth는 의존이 `{}`라 계획 유무를 모른다. 프론트는 성공 뒤 `loadPlan()`(P-4)으로 진입을 가른다(#51, C12a-11-2).
 - 요청 본문은 단순 record. Jackson의 문자열 강제 변환을 허용한다. `400 MALFORMED_REQUEST`는 **JSON 파싱 실패·본문이 객체가 아님**일 때만. 왜: 로그인에서 400/422를 엄격히 가를 이익이 없다.
-- 회원가입 없음. 데모 계정은 시드(#16).
+- 데모 계정은 시드(#16). 회원가입으로 만든 계정도 같은 방식으로 로그인한다(P-7, D-107).
 
 서버 동작: (1) 빈 값 검사(trim 하지 않음) → (2) `member` 조회 + 해시 비교, 실패면 `401 INVALID_CREDENTIALS`(아이디 없음·비밀번호 틀림 구분 없음) → (3) `auth.MemberLoggedIn{memberId}` 발행 → chat 동기 리스너가 이전 대화 삭제(쿠키 전) → (4) JWT 발급, `Set-Cookie`, `200 {}` → (5) 로그 `auth.login`.
 - 이미 로그인한 상태의 재로그인도 같은 동작. 삭제 실패면 로그인도 `500`. 시도 횟수 제한 없음.
@@ -209,6 +210,27 @@ FR-AUTH-03, D-051, D-052, NFR-INT-03. 요청 본문 없음(또는 `{}`).
 | 200 | — | 공유 상태 비우기·폴링 중지 → 로그인 화면 |
 | 401 | `UNAUTHENTICATED` | 같음(이미 로그아웃된 것과 같다) |
 | 500·400·405·415 | 해당 코드 | `auth.logoutFailed` 토스트, 화면 유지 |
+
+
+### C12a-4b. P-7 회원가입 `POST /api/auth/signup`
+
+FR-AUTH-04, D-107, NFR-SEC-01, D-051, D-078.
+
+요청 `{ "loginId": "saver01", "password": "pass-1234" }` → 응답은 P-1과 같다(`200 {}` + `Set-Cookie: moeun_at=...`, 같은 속성).
+
+- 아이디는 영문·숫자 4~20자(`[A-Za-z0-9]{4,20}`), 비밀번호는 8~64자(코드 포인트 기준, trim 하지 않음). 비밀번호 확인 칸은 화면에서만 검사하고 보내지 않는다.
+- 가입에 성공하면 바로 로그인 상태다. 프론트는 로그인 성공과 같이 다른 탭에 알리고(D-078) `loadPlan()`으로 진입을 가른다(새 계정은 `409 NO_PLAN` → 빈 입력 화면).
+
+서버 동작: (1) 빈 값 검사(`REQUIRED`) → (2) 형식 검사(`INVALID_FORMAT`, 걸린 필드를 `loginId`, `password` 순서로 모두) → (3) 아이디 중복이면 `409` → (4) BCrypt 해시로 `member` 저장 + `auth.MemberLoggedIn{memberId}` 발행(한 트랜잭션) → (5) JWT 발급, `Set-Cookie`, `200 {}` → (6) 로그 `auth.signup`.
+- 같은 아이디로 동시에 가입하면 늦은 쪽은 `uq_member_login_id` 위반이고 `409`로 답한다.
+- 깨진 쿠키가 남아 있어도 가입할 수 있다(리졸버가 읽지 않는다, P-1과 같음).
+
+| HTTP | `code` | 언제 | `errors` | 프론트 동작(#460) |
+|---|---|---|---|---|
+| 400 | `MALFORMED_REQUEST` | JSON 파싱 실패, 본문이 객체 아님 | `[]` | 화면 위 오류 안내, 입력 유지 |
+| 422 | `VALIDATION_FAILED` | 값 없음·빈 문자열(`REQUIRED`), 형식 위반(`INVALID_FORMAT`) | `[{field, reason}]` | 해당 칸 아래 안내 |
+| 409 | `DUPLICATE_LOGIN_ID` | 이미 있는 아이디 | `[]` | 아이디 칸 아래 "이미 사용 중인 아이디입니다" |
+| 500 | `INTERNAL_ERROR` | DB 오류 | `[]` | 화면 위 오류 안내, 입력 유지 |
 
 ---
 

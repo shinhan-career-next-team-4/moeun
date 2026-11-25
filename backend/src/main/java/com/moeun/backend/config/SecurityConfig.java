@@ -58,7 +58,7 @@ public class SecurityConfig {
                         .requestMatchers("/docs/**", "/webjars/swagger-ui/**").permitAll()   // TODO 운영에서 차단
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/actuator/health/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/signup").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(o -> o
                         .jwt(Customizer.withDefaults())
