@@ -214,7 +214,9 @@ public class ChatAnswerListener {
         MessageType type = MessageType.valueOf(answer.messageType());
         String turnJson = conditionChangesJson(answer.conditionChanges());
         // 되돌리기 답(#419)은 목록에 덧붙이지 않고 그 범위를 지운다. 남은 조건은 내 계획 대비라 비교 기준도 남기지 않는다
-        boolean reverts = answer.revert() != null && snapshot.basePlanVersionId() != null;
+        // 목록을 지우는 것은 되돌린 결과를 보여 준 답(ANSWER·RECALC_RESULT)일 때만이다
+        boolean reverts = answer.revert() != null && snapshot.basePlanVersionId() != null
+                && (type == MessageType.ANSWER || type == MessageType.RECALC_RESULT);
         boolean accumulates = !reverts && type == MessageType.RECALC_RESULT && snapshot.basePlanVersionId() != null
                 && turnJson != null;
         Map<String, JsonNode> baseline = AccumulatedConditions.fold(json, snapshot.accumulated());

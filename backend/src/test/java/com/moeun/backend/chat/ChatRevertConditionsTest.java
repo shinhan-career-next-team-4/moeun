@@ -142,6 +142,18 @@ class ChatRevertConditionsTest extends ChatAccumulationTestSupport {
     }
 
     @Test
+    @DisplayName("(예외) 되돌리기 범위가 실린 답이라도 되묻기(CLARIFY)면 목록을 지우지 않는다")
+    void clarifyWithRevertKeepsList() throws Exception {
+        twoChanges();
+
+        askWithAnswer("원래대로", JSON.writeValueAsString(Map.of("messageType", "CLARIFY",
+                "content", "어느 조건을 되돌릴까요?", "baselineScenario", "AVG", "citationChunkIds", List.of(),
+                "revert", Map.of("scope", "all"))));
+
+        assertThat(fields(nextRequest())).containsExactly("savingsRatioPct", "monthlySavingAmount");
+    }
+
+    @Test
     @DisplayName("(예외) 목록이 빈 상태의 되돌리기 답은 아무것도 바꾸지 않는다")
     void revertOnEmptyListIsNoOp() throws Exception {
         revertTurn("취소", Map.of("scope", "last"), Map.of());
