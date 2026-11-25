@@ -23,6 +23,13 @@
   --color-table-head: #dddee3;          /* 비교표 머리줄, 탭 바탕, 로딩 막대 */
   --color-warning: #c2410c;
   --color-warning-soft: #fff1e6;
+  /* 글자 크기별 줄 높이를 일정한 비율(약 1.5)로 맞춰 위아래 간격이 고르게 보이게 한다(#425) */
+  --text-xs--line-height: 1.5;
+  --text-sm--line-height: 1.5;
+  --text-base--line-height: 1.5;
+  --text-lg--line-height: 1.45;
+  --text-xl--line-height: 1.4;
+  --text-2xl--line-height: 1.35;
   --font-sans: system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 }
 

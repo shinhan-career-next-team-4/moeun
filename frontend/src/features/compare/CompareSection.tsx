@@ -250,7 +250,7 @@ export function CompareSection({
           {COPY["compare.reset"]}
         </Button>
         <Button
-          variant="ghost"
+          variant="secondary"
           disabled={!canApply}
           onClick={() => {
             if (canApply && comparedChanges) onApply?.(comparedChanges);
