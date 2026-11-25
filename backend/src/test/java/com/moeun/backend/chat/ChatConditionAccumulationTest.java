@@ -9,20 +9,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.TestPropertySource;
 
-import com.moeun.backend.calc.application.CompareConditionsUseCase;
-import com.moeun.backend.calc.application.ConditionChanges;
-import com.moeun.backend.plan.PlanSaveService;
 import com.moeun.backend.plan.PlanView;
 
 import tools.jackson.databind.JsonNode;
@@ -30,80 +23,8 @@ import tools.jackson.databind.JsonNode;
 /**
  * 대화 조건 누적(#418, D-103). 대화에서 바꾼 조건은 적용하지 않아도 다음 질문의 비교 기준이 된다. 누적 상태는 최종 값이 아니라
  * 변경 목록(조건·이전 값·바꾼 값·순서)으로 저장하고, 내 계획으로 적용하거나 대화 세션을 끝내면 비운다.
- * ai-server는 스텁이다. 스텁은 /internal/calc를 부르지 못하므로 같은 계산을 테스트가 먼저 해서 그 calcRunId로 답하게 한다.
  */
-@TestPropertySource(properties = "MOEUN_SP500_FILE=classpath:refdata/test-sp500-2016-10-to-2026-10.csv")
-class ChatConditionAccumulationTest extends ChatIntegrationTestSupport {
-
-    @Autowired
-    PlanSaveService planSaveService;
-
-    @Autowired
-    CompareConditionsUseCase compareConditions;
-
-    @BeforeEach
-    void saveDemoPlan() {
-        Long revision = planSaveService.findCurrent(memberId).map(PlanView::revision).orElse(null);
-        // 목표 2,000만원, 36개월, 보유 500만원, 월 30만원, 기본금리, 비중 5:5
-        planSaveService.save(memberId, valid().goalAmount(20_000_000L).targetPeriodMonths(36).heldAssets(5_000_000L)
-                .monthlySavingAmount(300_000L).savingsRatioPct(50).build(), revision);
-    }
-
-    private long planVersion() {
-        return planSaveService.findCurrent(memberId).orElseThrow().currentVersionId();
-    }
-
-    /**
-     * ai-server가 하는 일을 흉내 낸 한 턴: 지금까지 쌓인 조건(baseline)을 비교 기준으로 이번 변경을 계산하고, 그 calcRunId와
-     * 이번 변경(snake_case)으로 RECALC_RESULT를 답한다. 돌려주는 값은 ai-server가 받은 요청 본문이다.
-     */
-    private JsonNode recalcTurn(String text, Map<String, Object> baseline, Map<String, Object> turn) throws Exception {
-        CompareConditionsUseCase.ComparisonResult result = compareConditions.compare(memberId,
-                baseline.isEmpty() ? null : conversion(baseline), conversion(turn).override(),
-                conversion(turn).etfProductCode(), planVersion());
-        Map<String, Object> snake = new LinkedHashMap<>();
-        turn.forEach((key, value) -> snake.put(snake(key), value));
-        AI.respond(200, JSON.writeValueAsString(Map.of("messageType", "RECALC_RESULT", "content", "계산했어요",
-                "baselineScenario", "AVG", "calcRunId", result.calcRunId(), "conditionChanges", snake,
-                "citationChunkIds", List.of())));
-        int before = AI.requests().size();
-        long id = askAndGetAssistantId(cookie, text);
-        awaitStatus(id, "COMPLETED");
-        return awaitAiRequests(before + 1).get(before);
-    }
-
-    private JsonNode askWithAnswer(String text, String answerJson) throws Exception {
-        AI.respond(200, answerJson);
-        int before = AI.requests().size();
-        long id = askAndGetAssistantId(cookie, text);
-        awaitStatus(id, "COMPLETED");
-        return awaitAiRequests(before + 1).get(before);
-    }
-
-    private static ConditionChanges.Conversion conversion(Map<String, Object> changes) {
-        Map<String, JsonNode> nodes = new LinkedHashMap<>();
-        changes.forEach((key, value) -> nodes.put(key, JSON.valueToTree(value)));
-        return ConditionChanges.convert(nodes);
-    }
-
-    private static String snake(String camel) {
-        return camel.replaceAll("([A-Z])", "_$1").toLowerCase();
-    }
-
-    private static List<String> fields(JsonNode request) {
-        List<String> result = new ArrayList<>();
-        request.path("accumulatedChanges").forEach(entry -> result.add(entry.get("field").asString()));
-        return result;
-    }
-
-    private long latestRecalcId() {
-        return jdbc.sql("SELECT max(id) FROM chat_message WHERE member_id = ? AND message_type = 'RECALC_RESULT'")
-                .param(memberId).query(Long.class).single();
-    }
-
-    private static final String CLARIFY = """
-            {"messageType":"CLARIFY","content":"허용 범위를 벗어났어요. 다시 알려 주세요","baselineScenario":"AVG",
-             "calcRunId":null,"conditionChanges":null,"citationChunkIds":[]}""";
+class ChatConditionAccumulationTest extends ChatAccumulationTestSupport {
 
     @Test
     @DisplayName("비중을 30:70으로 바꾼 뒤 다음 질문의 ai-server 요청에 그 변경(이전 값 50 → 30)이 실린다")
