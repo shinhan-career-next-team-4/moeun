@@ -42,4 +42,12 @@ describe("비교 카드 문구 상수는 copy/copy.ko.yml과 같다", () => {
     expect(APPLY_LABEL).toBe(copy["comparison.applyButton"]);
     expect(COLLAPSED_LABEL).toBe(copy["comparison.previousResult"]);
   });
+
+  it("바뀐 조건만 보일 때의 안내와 증가 줄 문구(#417)", async () => {
+    const { UNCHANGED_COPY, RESULT_LINE_COPY } = await loadCopy();
+    expect(UNCHANGED_COPY.others).toBe(copy["comparison.othersUnchanged"]);
+    expect(UNCHANGED_COPY.all).toBe(copy["comparison.allUnchanged"]);
+    expect(RESULT_LINE_COPY.achieved).toBe(copy["comparison.aboveGoal"]);
+    expect(RESULT_LINE_COPY.missed).toBe(copy["comparison.toGoal"]);
+  });
 });
