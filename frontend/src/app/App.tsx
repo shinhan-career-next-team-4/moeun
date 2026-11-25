@@ -1,21 +1,27 @@
 import { useState } from "react";
 import { Link, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { api } from "../api";
+import { api, planStore } from "../api";
 import { ApiError } from "../api/errors";
-import { forgetDisplayName, LoginPage, readDisplayName } from "../features/auth";
+import { forgetDisplayName, LoginPage, readDisplayName, SignupPage } from "../features/auth";
 import { PlanInputPage } from "../features/input";
 import { ProjectionDemoPage } from "../features/projection";
 import { ResultPage } from "../features/result";
 import { COPY } from "../shared/copy/copy";
 import { Button } from "../shared/ui";
-import { INPUT_PATH, LOGIN_PATH, PROJECTION_DEMO_PATH, RESULT_PATH } from "./routes";
+import { DemoResetDialog } from "./DemoResetDialog";
+import { INPUT_PATH, LOGIN_PATH, PROJECTION_DEMO_PATH, RESULT_PATH, SIGNUP_PATH } from "./routes";
 
 function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [logoutError, setLogoutError] = useState<string | null>(null);
-  const isLogin = location.pathname === LOGIN_PATH;
-  const displayName = isLogin ? null : readDisplayName();
+  // 데모 초기화는 확인을 한 번 더 받는다. 계획과 대화가 모두 지워지고 되돌릴 수 없다
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  // 로그인·회원가입 화면은 아직 로그인 전이라 이름·로그아웃을 보이지 않는다.
+  const isAuthPage = location.pathname === LOGIN_PATH || location.pathname === SIGNUP_PATH;
+  const displayName = isAuthPage ? null : readDisplayName();
 
   async function handleLogout() {
     setLogoutError(null);
@@ -26,6 +32,31 @@ function Layout() {
     } catch (caught) {
       if (caught instanceof ApiError && caught.code === "UNAUTHENTICATED") return;
       setLogoutError(COPY["auth.logoutFailed"]);
+    }
+  }
+
+  function closeResetDialog() {
+    setConfirmingReset(false);
+    setResetError(null);
+  }
+
+  async function handleDemoReset() {
+    if (resetting) return;
+    setResetting(true);
+    setResetError(null);
+    try {
+      await api.request("POST", "/api/auth/demo-reset");
+      closeResetDialog();
+      planStore.clear();
+      navigate(INPUT_PATH, { replace: true });
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.code === "UNAUTHENTICATED") {
+        closeResetDialog();
+        return;
+      }
+      setResetError(COPY["demo.resetFailed"]);
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -43,9 +74,18 @@ function Layout() {
               .
             </span>
           </Link>
-          {!isLogin && (
+          {!isAuthPage && (
             <div className="flex items-center gap-3 md:absolute md:left-[87.5%] md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2">
-              {displayName && <span className="text-sm text-text-muted">{displayName} 님</span>}
+              {displayName && (
+                // 숨은 동작: 아이디를 세 번 연달아 누르면 데모 초기화 확인이 뜬다(브라우저의 연속 클릭 수 detail 사용)
+                <span
+                  className="select-none text-sm text-text-muted"
+                  onClick={(event) => {
+                    if (event.detail === 3) setConfirmingReset(true);
+                  }}>
+                  {displayName} 님
+                </span>
+              )}
               <Button variant="ghost" className="h-9 px-3" onClick={handleLogout}>
                 로그아웃
               </Button>
@@ -53,6 +93,9 @@ function Layout() {
           )}
         </div>
       </header>
+      {confirmingReset && (
+        <DemoResetDialog resetting={resetting} error={resetError} onCancel={closeResetDialog} onConfirm={handleDemoReset} />
+      )}
       <main>
         {logoutError && (
           <p role="alert" className="mx-auto max-w-5xl px-6 pt-4 text-sm text-danger">
@@ -71,6 +114,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route path={INPUT_PATH} element={<PlanInputPage />} />
         <Route path={LOGIN_PATH} element={<LoginPage />} />
+        <Route path={SIGNUP_PATH} element={<SignupPage />} />
         <Route path={RESULT_PATH} element={<ResultPage />} />
         {/* 예상 자산 그래프 데모(#298): mock 데이터라 개발 환경에서만 연다 */}
         {import.meta.env.DEV && <Route path={PROJECTION_DEMO_PATH} element={<ProjectionDemoPage />} />}

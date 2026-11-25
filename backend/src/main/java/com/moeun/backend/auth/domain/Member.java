@@ -7,7 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-/** 데모 계정. 회원가입은 없고 설정으로만 만든다(FR-AUTH-01). 비밀번호는 BCrypt 해시만 저장한다(NFR-SEC-01). */
+/** 계정. 데모 계정은 설정으로 만들고(FR-AUTH-01), 나머지는 회원가입으로 만든다(FR-AUTH-04, D-107). 비밀번호는 BCrypt 해시만 저장한다(NFR-SEC-01). */
 @Entity
 @Table(name = "member")
 public class Member {

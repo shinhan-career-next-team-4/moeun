@@ -139,6 +139,24 @@ class AuthApiTest {
     }
 
     @Test
+    void demoResetByDemoAccountPublishesEvent() throws Exception {
+        long memberId = memberRepository.findByLoginId("demo01").orElseThrow().getId();
+
+        mockMvc.perform(post("/api/auth/demo-reset").cookie(loginCookie()))
+                .andExpect(status().isOk())
+                .andExpect(content().json("{}"));
+
+        assertThat(events.stream(DemoReset.class)).extracting(DemoReset::memberId).contains(memberId);
+    }
+
+    @Test
+    void demoResetWithoutLoginIs401() throws Exception {
+        mockMvc.perform(post("/api/auth/demo-reset")).andExpect(status().isUnauthorized());
+
+        assertThat(events.stream(DemoReset.class)).isEmpty();
+    }
+
+    @Test
     void failedLoginPublishesNothing() throws Exception {
         login("demo01", "wrong").andExpect(status().isUnauthorized());
 

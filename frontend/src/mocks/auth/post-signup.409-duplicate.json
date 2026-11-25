@@ -1,0 +1,18 @@
+{
+  "responses": [
+    {
+      "status": 409,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "이미 사용 중인 아이디예요",
+        "status": 409,
+        "instance": "/api/auth/signup",
+        "code": "DUPLICATE_LOGIN_ID",
+        "errors": []
+      }
+    }
+  ]
+}

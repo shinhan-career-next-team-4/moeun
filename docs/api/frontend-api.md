@@ -3,7 +3,7 @@
 > 최종본 (2026-11-16, moeun #12). 요구사항 FR-AI-01·FR-AI-07·FR-PLAN-03·FR-PLAN-04·FR-AUTH-01·FR-AUTH-03·FR-INP-10·FR-INP-11·FR-DATA-03(절 4), 결정 D-046·D-054·D-062·D-063·D-064·D-066·D-068·D-069·D-070·D-074·D-075·D-076.
 > 기획 repo project-workspace `docs/design/contracts/`의 최종본 두 개를 그대로 옮겼다. 절 2는 `frontend-api-plan.md`(#12-a), 절 3은 `frontend-api-chat.md`(#12-b)다. 협상 기록·후속 작업 표·코드 차이 표(본문 괄호의 `X-n`·`Y-n`·`H-n`·`J-n`)는 원문에 있다.
 > 오류 본문 형식 C3-1과 `/internal/calc`는 [`internal-calc.md`](internal-calc.md), planContext(C1a-x)는 기획 repo `plan-context.md`다.
-> 이 문서가 구현 기준이고 `frontend/src/mocks/`의 목 JSON 69개(대화 38 + 로그인·계획 30 + 기준 데이터 1)와 같은 값이다. 각 절 머리말의 "최종본 보충"이 본문보다 우선한다.
+> 이 문서가 구현 기준이고 `frontend/src/mocks/`의 목 JSON 93개(대화 45 + 로그인·회원가입·계획 41 + 기준 데이터 1 + 대안 6, #460 기준)와 같은 값이다. 각 절 머리말의 "최종본 보충"이 본문보다 우선한다.
 
 ## 1. 한눈에 보기
 
@@ -112,6 +112,7 @@ chat ──▶ calc ──▶ plan
 |---|---|---|---|---|---|---|
 | P-1 | `POST /api/auth/login` | 로그인, 쿠키 발급, 이전 대화 삭제 | `200 {}` | `auth.web`(A) | 아니오(`@SkipRenewal`, 핸들러가 발급) | Must |
 | P-2 | `POST /api/auth/logout` | 로그아웃, 쿠키 만료, 이전 대화 삭제 | `200 {}` | `auth.web`(A) | 아니오(`@SkipRenewal`) | Must |
+| P-7 | `POST /api/auth/signup` | 회원가입, 쿠키 발급(가입 즉시 로그인, D-107) | `200 {}` | `auth.web`(A) | 아니오(`@SkipRenewal`, 핸들러가 발급) | Should(#459) |
 | P-3 | `PUT /api/plan` | 입력 저장(새 목표 세우기·입력 수정): 검증 → 저장 → 계산 → 결과, **한 트랜잭션** | `200 PlanView` | `calc.web`(A) | 예 | Must |
 | P-4 | `GET /api/plan` | 현재 계획·결과 조회 | `200 PlanView` | `calc.web`(A) | 예 | Must |
 | P-5 | `POST /api/plan/undo` | 되돌리기(직전 1단계) | `200 {revision}` | `plan.web`(A) | 예 | Must |
@@ -139,7 +140,7 @@ chat ──▶ calc ──▶ plan
 | `Max-Age` | `1800`. 로그아웃·401 때 `0` | FR-AUTH-02 |
 
 - 토큰은 쿠키 `moeun_at`에서만 읽는 `BearerTokenResolver`(#16). `Authorization` 헤더는 받지 않는다.
-- 리졸버는 **`POST /api/auth/login`에서 `null`을 돌려준다**. 왜: 리소스 서버 필터는 `permitAll` 경로에서도 토큰을 검증해 실패하면 401을 낸다. 깨진 쿠키가 남은 브라우저가 로그인을 못 하게 된다.
+- 리졸버는 **`POST /api/auth/login`·`POST /api/auth/signup`에서 `null`을 돌려준다**. 왜: 리소스 서버 필터는 `permitAll` 경로에서도 토큰을 검증해 실패하면 401을 낸다. 깨진 쿠키가 남은 브라우저가 로그인을 못 하게 된다.
 - **JWT 서명 키는 설정값(환경 변수)으로 고정한다.** 왜: 기동마다 새로 만들면 재시작마다 모든 쿠키가 깨진다.
 - 401 엔트리 포인트는 C3-1 본문과 함께 `moeun_at` 만료 쿠키(`Max-Age=0`, 같은 속성)를 내린다. 왜: 깨진 쿠키가 남지 않는다.
 - `/internal/**`은 다른 필터 체인(API 키), 쿠키를 보지 않는다.
@@ -184,7 +185,7 @@ Set-Cookie: moeun_at=<JWT>; Max-Age=1800; Path=/; Secure; HttpOnly; SameSite=Lax
 
 - 본문이 `{}`인 이유: auth는 의존이 `{}`라 계획 유무를 모른다. 프론트는 성공 뒤 `loadPlan()`(P-4)으로 진입을 가른다(#51, C12a-11-2).
 - 요청 본문은 단순 record. Jackson의 문자열 강제 변환을 허용한다. `400 MALFORMED_REQUEST`는 **JSON 파싱 실패·본문이 객체가 아님**일 때만. 왜: 로그인에서 400/422를 엄격히 가를 이익이 없다.
-- 회원가입 없음. 데모 계정은 시드(#16).
+- 데모 계정은 시드(#16). 회원가입으로 만든 계정도 같은 방식으로 로그인한다(P-7, D-107).
 
 서버 동작: (1) 빈 값 검사(trim 하지 않음) → (2) `member` 조회 + 해시 비교, 실패면 `401 INVALID_CREDENTIALS`(아이디 없음·비밀번호 틀림 구분 없음) → (3) `auth.MemberLoggedIn{memberId}` 발행 → chat 동기 리스너가 이전 대화 삭제(쿠키 전) → (4) JWT 발급, `Set-Cookie`, `200 {}` → (5) 로그 `auth.login`.
 - 이미 로그인한 상태의 재로그인도 같은 동작. 삭제 실패면 로그인도 `500`. 시도 횟수 제한 없음.
@@ -209,6 +210,27 @@ FR-AUTH-03, D-051, D-052, NFR-INT-03. 요청 본문 없음(또는 `{}`).
 | 200 | — | 공유 상태 비우기·폴링 중지 → 로그인 화면 |
 | 401 | `UNAUTHENTICATED` | 같음(이미 로그아웃된 것과 같다) |
 | 500·400·405·415 | 해당 코드 | `auth.logoutFailed` 토스트, 화면 유지 |
+
+
+### C12a-4b. P-7 회원가입 `POST /api/auth/signup`
+
+FR-AUTH-04, D-107, NFR-SEC-01, D-051, D-078.
+
+요청 `{ "loginId": "saver01", "password": "pass-1234" }` → 응답은 P-1과 같다(`200 {}` + `Set-Cookie: moeun_at=...`, 같은 속성).
+
+- 아이디는 영문·숫자 4~20자(`[A-Za-z0-9]{4,20}`), 비밀번호는 8~64자(코드 포인트 기준, trim 하지 않음)이고 UTF-8로 72바이트 이하다(BCrypt 제한. 한글은 24자까지). 비밀번호 확인 칸은 화면에서만 검사하고 보내지 않는다.
+- 가입에 성공하면 바로 로그인 상태다. 프론트는 로그인 성공과 같이 다른 탭에 알리고(D-078) `loadPlan()`으로 진입을 가른다(새 계정은 `409 NO_PLAN` → 빈 입력 화면).
+
+서버 동작: (1) 빈 값 검사(`REQUIRED`) → (2) 형식 검사(`INVALID_FORMAT`, 걸린 필드를 `loginId`, `password` 순서로 모두) → (3) 아이디 중복이면 `409` → (4) BCrypt 해시로 `member` 저장 + `auth.MemberLoggedIn{memberId}` 발행(한 트랜잭션) → (5) JWT 발급, `Set-Cookie`, `200 {}` → (6) 로그 `auth.signup`.
+- 같은 아이디로 동시에 가입하면 늦은 쪽은 `uq_member_login_id` 위반이고 `409`로 답한다.
+- 깨진 쿠키가 남아 있어도 가입할 수 있다(리졸버가 읽지 않는다, P-1과 같음).
+
+| HTTP | `code` | 언제 | `errors` | 프론트 동작(#460) |
+|---|---|---|---|---|
+| 400 | `MALFORMED_REQUEST` | JSON 파싱 실패, 본문이 객체 아님 | `[]` | 화면 위 오류 안내, 입력 유지 |
+| 422 | `VALIDATION_FAILED` | 값 없음·빈 문자열(`REQUIRED`), 형식 위반(`INVALID_FORMAT`) | `[{field, reason}]` | 해당 칸 아래 안내 |
+| 409 | `DUPLICATE_LOGIN_ID` | 이미 있는 아이디 | `[]` | 아이디 칸 아래 "이미 사용 중인 아이디입니다" |
+| 500 | `INTERNAL_ERROR` | DB 오류 | `[]` | 화면 위 오류 안내, 입력 유지 |
 
 ---
 
@@ -914,6 +936,10 @@ record PlanUndoResult(long planVersionId, long revision) {}
 | `auth/post-login.500.json` | P-1 | 500 | `INTERNAL_ERROR` |
 | `auth/post-logout.200.json` (기본) | P-2 | 200 | `{}` |
 | `auth/post-logout.401.json` | P-2 | 401 | `UNAUTHENTICATED` |
+| `auth/post-signup.200.json` (기본) | P-7 | 200 | `{}` + 쿠키 설명 헤더(P-1과 같은 값) [#460] |
+| `auth/post-signup.409-duplicate.json` | P-7 | 409 | `DUPLICATE_LOGIN_ID`, `errors: []` [#460] |
+| `auth/post-signup.422.json` | P-7 | 422 | `loginId` INVALID_FORMAT [#460] |
+| `auth/post-signup.500.json` | P-7 | 500 | `INTERNAL_ERROR` [#460] |
 | `plan/get-plan.seq-full-flow.json` (기본) | P-4 | 401 → 409 → 200 → 200 | 위 순서 1·3·6·8 |
 | **`plan/get-plan.seq-exceeded-toggle.json`** [v3] | P-4 | 200 → 200 → 200 | `useMock` 전용. `rev 12 CALCULATED / 540`(A-1) → `rev 13 ALREADY_EXCEEDED / 542`(`get-plan.200-exceeded` 본문에서 `revision`·`calcRunId`만 바꿈) → `rev 14 CALCULATED / 554`. D-072 "미달 → 초과 → 풀림"과 #54 "초과면 F-3 안 부름" 시험용(F-5 `{13}`·P-5 `{14}` 목과 함께) |
 | `plan/get-plan.200.json` | P-4 | 200 | A-1 계획, `rev 12`, `540`, 3구간 모두 미달 |
@@ -946,6 +972,7 @@ record PlanUndoResult(long planVersionId, long revision) {}
 | `plan/post-plan-apply.422-field-not-changeable.json` | P-6 | 422 | ALTERNATIVE에 `goalAmount` → `NOT_CHANGEABLE` |
 | `plan/post-plan-apply.500.json` | P-6 | 500 | `INTERNAL_ERROR` |
 
+- **[#460] 총 41개**(auth 10, plan 31). 회원가입(P-7) 목 4개를 더했다. 가입 400 `MALFORMED_REQUEST` 목은 두지 않았다(화면은 500과 같은 화면 위 안내).
 - **[v4] 총 31개**(auth 6, plan 25). P-6 목은 없다(#68). 공통 401은 대화 절의 `chat/common.401-unauthenticated.json`을 재사용한다.
 - **[개수 정정]** 최종본 본문은 "29개(plan 23)"로 적었지만 위 표는 30행이었다. `put-plan.422-custom-name`(D-074)이 개수 문장에 반영되지 않은 것으로 보여 표를 기준으로 했고, v4에서 `plan/get-plan.200-ratio83.json`을 더해 31개다. 대화 목 35개와 합쳐 66개다.
 - 9번 뒤의 GET은 마지막 응답(`rev 14`)을 반복한다. C12a-6-7 규칙 1로 무시되어 화면은 `rev 15`를 유지한다.
