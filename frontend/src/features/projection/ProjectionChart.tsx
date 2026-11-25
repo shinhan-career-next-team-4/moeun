@@ -41,7 +41,7 @@ export function ProjectionChart({ data, scenario, defaultUnit = "monthly", start
   const maxValue = Math.max(0, ...SCENARIOS.flatMap((key) => (data[key] ?? []).map((point) => point.total)));
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-5 shadow-sm">
+    <div className="soft-card flex flex-col gap-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ul aria-label={COPY["projection.legendLabel"]} className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted">
           {LAYERS.map((layer) => (

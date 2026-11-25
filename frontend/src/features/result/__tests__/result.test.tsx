@@ -336,7 +336,7 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
         expect(screen.queryByLabelText('대안')).toBeNull()
     })
     // 상단 배지(#224): 서버가 준 gapBadge 문자열을 그대로 쓰고, 색은 isAchieved로 정한다(프론트가 재계산하지 않는다)
-    it('결과 요약 배지는 서버 gapBadge를 그대로 보여 주고 미달은 주황, 달성은 초록이다', async () => {
+    it('결과 요약 배지는 서버 gapBadge를 그대로 보여 주고 미달은 빨강(danger), 달성은 초록이다', async () => {
         vi.stubGlobal(
             'fetch',
             vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)),
@@ -345,7 +345,7 @@ describe('ResultPage (#49·#50, C12a-7)', () => {
 
         const missed = await screen.findByTestId('result-gap-badge')
         expect(missed.textContent).toBe('미달 · 목표 −288만 원')
-        expect(missed.className).toContain('text-warning')
+        expect(missed.className).toContain('text-danger')
         cleanup()
 
         const achieved = structuredClone(planMock.responses[0].body) as {

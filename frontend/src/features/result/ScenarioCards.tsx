@@ -49,8 +49,8 @@ export function ScenarioCards({ scenarios, display, scenarioMethod, productName,
                 type="button"
                 aria-pressed={isSelected}
                 onClick={() => onSelect(item.scenario)}
-                className={`flex flex-col gap-2 rounded-xl border p-5 text-left shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-                  isSelected ? "border-primary bg-primary-soft ring-1 ring-primary" : "border-border bg-surface hover:bg-surface-muted"
+                className={`flex flex-col gap-2 p-5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+                  isSelected ? "soft-well border border-primary/40" : "soft-card hover:bg-surface-subtle"
                 }`}
               >
                 <span className="text-sm font-semibold text-text-muted">{COPY[`scenario.${item.scenario}`]}</span>
@@ -64,7 +64,7 @@ export function ScenarioCards({ scenarios, display, scenarioMethod, productName,
           return (
             <article
               key={item.scenario}
-              className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5 shadow-sm"
+              className="soft-card flex flex-col gap-2 p-5"
             >
               <h3 className="text-sm font-semibold text-text-muted">{COPY[`scenario.${item.scenario}`]}</h3>
               <p className="text-xl font-bold text-text">{asset}</p>

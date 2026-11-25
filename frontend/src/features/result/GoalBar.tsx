@@ -33,7 +33,7 @@ export function GoalBar({ afterTaxAsset, goalAmount, goalAmountText, isAchieved 
 
   return (
     <div className="mt-4 flex flex-col gap-1.5" role="img" aria-label="목표 대비 예상 자산">
-      <div className="relative h-3 w-full rounded-full bg-surface-muted">
+      <div className="soft-well relative h-3 w-full rounded-full">
         <div
           data-testid="goal-bar-fill"
           className={`h-3 rounded-full ${isAchieved ? "bg-success" : "bg-primary"}`}

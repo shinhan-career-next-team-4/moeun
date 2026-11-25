@@ -285,7 +285,7 @@ export function ResultPage() {
             {isExceeded && (
               <section
                 aria-label="목표 초과 안내"
-                className="rounded-xl border border-primary bg-primary-soft p-6 text-sm text-primary-strong"
+                className="soft-well border border-primary/30 p-6 text-sm text-primary-strong"
               >
                 <p className="font-semibold">{exceededMessage}</p>
               </section>
@@ -293,7 +293,7 @@ export function ResultPage() {
             {result.scenarios.length > 0 && (
               <>
                 {baselineResultScenario && baseline && (
-                  <section aria-label="결과 요약" className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+                  <section aria-label="결과 요약" className="soft-card p-6">
                     <p className="text-sm font-medium text-text-muted">
                       {COPY[`scenario.${baselineResultScenario}`]} · {display["targetMonth"]} 기준
                     </p>
@@ -301,7 +301,7 @@ export function ResultPage() {
                     <p
                       data-testid="result-gap-badge"
                       className={`mt-2 inline-block rounded-full px-3 py-1 text-sm font-semibold ${
-                        baseline.isAchieved ? "bg-success-soft text-success" : "bg-warning-soft text-warning"
+                        baseline.isAchieved ? "bg-success-soft text-success" : "bg-danger-soft text-danger"
                       }`}
                     >
                       {display[`${baselineResultScenario}.gapBadge`] ?? display[`${baselineResultScenario}.gapToGoal`]}

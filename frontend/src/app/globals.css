@@ -1,22 +1,62 @@
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 @import "tailwindcss";
 
-/* 디자인 토큰(NFR-UI-01). 데스크톱 라이트 모드 기준. 모든 화면이 이 토큰만 쓴다. */
+/* 디자인 토큰(NFR-UI-01). 데스크톱 라이트 모드 기준. 모든 화면이 이 토큰만 쓴다.
+ * 소프트 UI(#411): 연한 청회색 바탕 위에 카드가 떠 있고(이중 그림자), 선택·입력 영역은 눌린 듯(안쪽 그림자) 보인다. */
 @theme {
-  --color-primary: #1f5f8b;
-  --color-primary-strong: #164a6e;
-  --color-primary-soft: #e6f0f7;
-  --color-surface: #ffffff;
-  --color-surface-muted: #f4f6f8;
-  --color-page: #f7f8fa;
-  --color-border: #d5dbe1;
-  --color-text: #1b232b;
-  --color-text-muted: #5f6b77;
-  --color-danger: #c62828;
-  --color-success: #2e7d32;
-  --color-success-soft: #e8f5e9;
+  --color-primary: #141e61;          /* 버튼, 토글, 라디오, 진행 막대, 링크, 내 말풍선 */
+  --color-primary-strong: #0f044c;   /* 버튼 hover, 강조 글자 */
+  --color-primary-soft: #eaeef3;     /* 선택 상태에만 */
+  --color-surface: #ffffff;          /* 흰 카드, 입력칸 */
+  --color-surface-muted: #eef1f6;    /* AI 말풍선, 안내 상자, 칩 */
+  --color-surface-subtle: #f6f8fb;   /* 대안 카드, 조건 비교 영역, 눌린 영역 */
+  --color-page: #eaeef3;             /* 전체 화면 배경 */
+  --color-border: #d0d0d8;           /* 카드 옅은 테두리, 구분선, 표 머리줄(옅게) */
+  --color-text: #0f044c;             /* 제목, 본문 */
+  --color-text-muted: #787a91;       /* 흰 바탕의 보조 글자, placeholder */
+  --color-text-muted-on-soft: #4a5285; /* 회색 바탕 위의 보조 글자 */
+  --color-danger: #d93025;           /* 마이너스, 미달, 오류 */
+  --color-danger-soft: #fdecea;      /* 미달 배지, 오류 상자 */
+  --color-success: #2b8a3e;          /* 플러스, 달성 */
+  --color-success-soft: #e6f4ea;
   --color-warning: #c2410c;
   --color-warning-soft: #fff1e6;
-  --font-sans: system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --color-chart-bar: #787a91;        /* 그래프 평균 막대 */
+  --font-sans: "Pretendard Variable", Pretendard, system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  /* 소프트 UI 그림자: 오른쪽 아래 어두운 그림자 + 왼쪽 위 밝은 빛 */
+  --shadow-soft: 10px 10px 26px rgb(120 122 145 / 0.2), -8px -8px 22px rgb(255 255 255 / 0.95);
+  --shadow-soft-sm: 6px 6px 16px rgb(120 122 145 / 0.18), -5px -5px 14px rgb(255 255 255 / 0.95);
+  --shadow-soft-inset: inset 5px 5px 12px rgb(120 122 145 / 0.2), inset -5px -5px 12px rgb(255 255 255 / 0.95);
+}
+
+/* 떠 있는 카드. 옅은 테두리를 함께 둬 밝은 카드끼리도 경계가 읽힌다(접근성) */
+.soft-card {
+  background: var(--color-surface);
+  border: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+  border-radius: 1.5rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.soft-card-sm {
+  background: var(--color-surface);
+  border: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+  border-radius: 1.25rem;
+  box-shadow: var(--shadow-soft-sm);
+}
+
+/* 눌린 안쪽 영역: 선택된 카드, 막대 바탕 */
+.soft-well {
+  background: var(--color-surface-subtle);
+  border-radius: 1.25rem;
+  box-shadow: var(--shadow-soft-inset);
+}
+
+/* 눌러서 쓰는 알약(칩·보조 단추) */
+.soft-pill {
+  background: var(--color-surface);
+  border: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+  border-radius: 9999px;
+  box-shadow: var(--shadow-soft-sm);
 }
 
 body {

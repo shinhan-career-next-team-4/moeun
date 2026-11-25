@@ -3,8 +3,8 @@ import type { ComponentPropsWithRef } from "react";
 type Variant = "primary" | "secondary" | "ghost";
 
 const VARIANT_CLASS: Record<Variant, string> = {
-  primary: "bg-primary text-white hover:bg-primary-strong disabled:bg-border disabled:text-text-muted",
-  secondary: "border border-border bg-surface text-text hover:bg-surface-muted disabled:text-text-muted",
+  primary: "rounded-xl bg-primary text-white shadow-[0_6px_14px_rgb(20_30_97/0.28)] hover:bg-primary-strong disabled:bg-border disabled:text-text-muted",
+  secondary: "soft-pill text-text hover:bg-surface-subtle disabled:text-text-muted",
   ghost: "text-primary hover:bg-surface-muted disabled:text-text-muted",
 };
 

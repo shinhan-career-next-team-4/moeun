@@ -256,7 +256,7 @@ export function ComparisonResult({
   }
   if (entry?.kind !== "ready") return null;
   return (
-    <div data-testid="chat-comparison" data-message-id={message.id} data-collapsed="false" className="flex flex-col gap-1 rounded-xl border border-border bg-surface p-3 text-sm shadow-sm">
+    <div data-testid="chat-comparison" data-message-id={message.id} data-collapsed="false" className="soft-card-sm flex flex-col gap-1 p-4 text-sm">
       <Details data={entry.data} currentGoalName={currentGoalName} />
       <ApplyButton comparison={comparison} messageId={message.id} active={isApplyActive(snapshot, latestId, message.id)} />
     </div>
