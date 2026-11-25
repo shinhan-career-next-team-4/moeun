@@ -16,9 +16,10 @@ import tools.jackson.databind.JsonNode;
  * @param changedKeys 저장된 condition_changes의 키 목록(camelCase). 순서는 보장하지 않는다
  * @param view 그 메시지의 calc_run(CHAT) 기준으로 다시 계산한 비교
  * @param goalCustomName 적용하면 바뀔 목표 이름(#345). 이름을 바꾸지 않은 비교면 null
+ * @param accumulatedKeys 대화 중 쌓여 이 계산의 changed 쪽에 얹힌 조건 키(비교 기준 + 이번 변경, #418). 순서는 보장하지 않는다
  */
 public record ChatComparison(long messageId, boolean applicable, List<String> changedKeys, ChatComparisonView view,
-        String goalCustomName) {
+        String goalCustomName, List<String> accumulatedKeys) {
 
     /** 저장된 바꾼 조건에서 목표 이름을 꺼낸다. 적용과 같게 앞뒤 공백을 뗀다. */
     static String goalCustomNameOf(Map<String, JsonNode> changes) {

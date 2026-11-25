@@ -27,6 +27,16 @@ public record ChatMessage(long id, long memberId, MessageType type, MessageStatu
      */
     public MessageTransition complete(MessageType answerType, String content, Long answerCalcRunId,
             String answerBaselineScenario, String conditionChangesJson) {
+        return complete(answerType, content, answerCalcRunId, answerBaselineScenario, conditionChangesJson, null);
+    }
+
+    /**
+     * 대화 조건 누적(#418, D-103)의 비교 기준과 함께 완료한다. 비교 기준은 다시 계산한 비교(RECALC_RESULT)에만 남는다.
+     *
+     * @param baselineConditionChangesJson 그 계산의 비교 기준(그때까지 쌓인 조건의 최종 값). 없으면 null
+     */
+    public MessageTransition complete(MessageType answerType, String content, Long answerCalcRunId,
+            String answerBaselineScenario, String conditionChangesJson, String baselineConditionChangesJson) {
         requirePending();
         if (!answerType.isAnswer()) {
             throw new IllegalArgumentException("답의 종류가 아니다: " + answerType);
@@ -34,8 +44,9 @@ public record ChatMessage(long id, long memberId, MessageType type, MessageStatu
         Long newCalcRunId = answerType == MessageType.OUT_OF_SCOPE ? null
                 : answerCalcRunId != null ? answerCalcRunId : calcRunId;
         String newBaseline = answerBaselineScenario != null ? answerBaselineScenario : baselineScenario;
+        String newBaselineChanges = answerType == MessageType.RECALC_RESULT ? baselineConditionChangesJson : null;
         return new MessageTransition(id, memberId, status, MessageStatus.COMPLETED, answerType, content, newCalcRunId,
-                newBaseline, conditionChangesJson);
+                newBaseline, conditionChangesJson, newBaselineChanges);
     }
 
     /**
@@ -46,7 +57,7 @@ public record ChatMessage(long id, long memberId, MessageType type, MessageStatu
     public MessageTransition fail(String failedContent) {
         requirePending();
         return new MessageTransition(id, memberId, status, MessageStatus.FAILED, MessageType.FAILURE, failedContent,
-                calcRunId, baselineScenario, null);
+                calcRunId, baselineScenario, null, null);
     }
 
     private void requirePending() {
