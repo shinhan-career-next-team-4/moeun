@@ -191,6 +191,8 @@ export function ResultPage() {
   }
 
   // 대안은 계획이 바뀔 때마다(적용·되돌리기·입력 수정) 다시 받는다. 기한 카드에 적은 기간도 함께 보낸다(A-1-3)
+  // revision이 바뀐 순간의 응답은 옛 계산 기준일 수 있어, 새 계산 결과(calcRunId)가 들어올 때도 다시 받는다
+  const calcRunId = view?.calcRunId ?? null;
   useEffect(() => {
     if (revision === null) return;
     let active = true;
@@ -217,7 +219,7 @@ export function ResultPage() {
     return () => {
       active = false;
     };
-  }, [revision]);
+  }, [revision, calcRunId]);
 
   useEffect(() => {
     if (planStore.getState().view === null) {
