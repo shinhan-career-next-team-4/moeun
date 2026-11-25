@@ -30,7 +30,7 @@
 |---|---|---|
 | `member.display_name` | 삭제. SRS가 요구하지 않음 | FR-AUTH-01 |
 | `member.last_login_at` | 로그 `auth.login {memberId, at}` | FR-AUTH-01 |
-| `member.is_active`, `created_at` | 삭제. 데모 계정은 미리 발급하며 비활성화 요구가 없음. 계정을 막으려면 행을 지움 | FR-AUTH-01 |
+| `member.is_active`, `created_at` | 삭제. 데모 계정은 미리 발급하고 나머지는 회원가입으로 만들며(D-107) 비활성화 요구가 없음. 계정을 막으려면 행을 지움 | FR-AUTH-01 |
 | `plan_version.version_no` | `id` 순서로 대체 | FR-PLAN-04 |
 | `plan_version.goal_is_custom` | `goal_type_code == GoalType.CUSTOM` | FR-INP-02 |
 | `plan_version.has_deadline` | `target_period_months != null` | FR-INP-04 |

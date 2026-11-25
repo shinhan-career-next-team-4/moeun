@@ -116,6 +116,32 @@ class SignupApiTest {
         assertThat(memberRepository.findByLoginId("saver04")).isEmpty();
     }
 
+    /** BCrypt는 72바이트를 넘으면 해시하지 않는다. 한글 25자(75바이트)는 64자 안이어도 형식 위반이다. */
+    @Test
+    void passwordOver72Utf8BytesIs422InvalidFormat() throws Exception {
+        signup("saver07", "가".repeat(25))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.errors.length()").value(1))
+                .andExpect(jsonPath("$.errors[0].field").value("password"))
+                .andExpect(jsonPath("$.errors[0].reason").value("INVALID_FORMAT"));
+        assertThat(memberRepository.findByLoginId("saver07")).isEmpty();
+    }
+
+    @Test
+    void passwordOf72Utf8BytesIsAccepted() throws Exception {
+        signup("saver08", "가".repeat(24)).andExpect(status().isOk());
+    }
+
+    @Test
+    void missingFieldIs422Required() throws Exception {
+        mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"pass-1234\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.errors.length()").value(1))
+                .andExpect(jsonPath("$.errors[0].field").value("loginId"))
+                .andExpect(jsonPath("$.errors[0].reason").value("REQUIRED"));
+    }
+
     @Test
     void boundaryLengthsAreAccepted() throws Exception {
         signup("abcd", "p".repeat(8)).andExpect(status().isOk());

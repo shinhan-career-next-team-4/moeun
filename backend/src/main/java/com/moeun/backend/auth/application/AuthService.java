@@ -1,5 +1,6 @@
 package com.moeun.backend.auth.application;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -21,9 +22,11 @@ public class AuthService {
 
     /** 회원가입 아이디: 영문·숫자 4~20자(D-107). */
     private static final Pattern LOGIN_ID = Pattern.compile("[A-Za-z0-9]{4,20}");
-    /** 회원가입 비밀번호 길이(D-107). 상한은 BCrypt 72바이트 제한 안에 든다. */
+    /** 회원가입 비밀번호 길이(D-107, 코드 포인트). */
     private static final int MIN_PASSWORD = 8;
     private static final int MAX_PASSWORD = 64;
+    /** BCrypt는 72바이트를 넘는 비밀번호를 해시하지 않는다. 한글 같은 다바이트 문자는 64자 안이어도 넘을 수 있다. */
+    private static final int MAX_PASSWORD_BYTES = 72;
 
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
@@ -55,7 +58,8 @@ public class AuthService {
             fields.add("loginId");
         }
         int length = password.codePointCount(0, password.length());
-        if (length < MIN_PASSWORD || length > MAX_PASSWORD) {
+        if (length < MIN_PASSWORD || length > MAX_PASSWORD
+                || password.getBytes(StandardCharsets.UTF_8).length > MAX_PASSWORD_BYTES) {
             fields.add("password");
         }
         return fields;
