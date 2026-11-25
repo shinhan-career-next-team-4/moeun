@@ -106,7 +106,7 @@ export function ResultLayout({ bar, children }: ResultLayoutProps) {
 
   return (
     <div className="flex flex-col lg:h-[calc(100dvh-3.5rem)]">
-      <div className="flex shrink-0 items-center gap-3 px-6 pt-4 pb-1">
+      <div className="flex shrink-0 items-center gap-3 border-b border-border bg-surface px-6 py-3">
         <div className="min-w-0 flex-1">{bar}</div>
         {!open && (
           <button
