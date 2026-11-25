@@ -47,7 +47,7 @@ describe("PlanInputPage (#48, C12a-5)", () => {
     expect(await screen.findByText("어떤 목돈을 모으고 싶으세요?")).toBeTruthy();
     expect(screen.getByRole("radio", { name: "직접 입력" })).toBeTruthy();
     expect(screen.queryByLabelText(/목표 이름/)).toBeNull();
-    expect((screen.getByLabelText(/지금 이 목표에 쓸 수 있는 돈/) as HTMLInputElement).value).toBe("0");
+    expect((screen.getByLabelText(/보유 금액/) as HTMLInputElement).value).toBe("0");
     expect((screen.getByLabelText(/목표 금액/) as HTMLInputElement).value).toBe("");
 
     fireEvent.click(screen.getByRole("radio", { name: "내 집 마련" }));
@@ -90,7 +90,7 @@ describe("PlanInputPage (#48, C12a-5)", () => {
       await openEmptyForm();
 
       fireEvent.change(screen.getByLabelText(/목표 금액/), { target: { value: "3000" } });
-      fireEvent.change(screen.getByLabelText(/지금 이 목표에 쓸 수 있는 돈/), { target: { value: "600" } });
+      fireEvent.change(screen.getByLabelText(/보유 금액/), { target: { value: "600" } });
       fireEvent.change(screen.getByLabelText("년"), { target: { value: "3" } });
       fireEvent.click(screen.getByRole("radio", { name: "잘 모르겠어요" }));
 
@@ -102,7 +102,7 @@ describe("PlanInputPage (#48, C12a-5)", () => {
       await openEmptyForm();
 
       fireEvent.change(screen.getByLabelText(/목표 금액/), { target: { value: "3000" } });
-      fireEvent.change(screen.getByLabelText(/지금 이 목표에 쓸 수 있는 돈/), { target: { value: "600" } });
+      fireEvent.change(screen.getByLabelText(/보유 금액/), { target: { value: "600" } });
       fireEvent.change(screen.getByLabelText(/월 저축 가능 금액/), { target: { value: "60" } });
       fireEvent.click(screen.getByRole("radio", { name: "아직 없어요" }));
 
@@ -115,7 +115,7 @@ describe("PlanInputPage (#48, C12a-5)", () => {
       await openEmptyForm();
 
       fireEvent.change(screen.getByLabelText(/목표 금액/), { target: { value: "3000" } });
-      fireEvent.change(screen.getByLabelText(/지금 이 목표에 쓸 수 있는 돈/), { target: { value: "600" } });
+      fireEvent.change(screen.getByLabelText(/보유 금액/), { target: { value: "600" } });
       fireEvent.change(screen.getByLabelText("년"), { target: { value: "3" } });
       fireEvent.click(screen.getByRole("radio", { name: "잘 모르겠어요" }));
       fireEvent.change(screen.getByLabelText(/월 저축 가능 금액/), { target: { value: "80" } });
@@ -130,7 +130,7 @@ describe("PlanInputPage (#48, C12a-5)", () => {
       await openEmptyForm();
 
       fireEvent.change(screen.getByLabelText(/목표 금액/), { target: { value: "100000" } });
-      fireEvent.change(screen.getByLabelText(/지금 이 목표에 쓸 수 있는 돈/), { target: { value: "0" } });
+      fireEvent.change(screen.getByLabelText(/보유 금액/), { target: { value: "0" } });
       fireEvent.change(screen.getByLabelText(/월 저축 가능 금액/), { target: { value: "10" } });
       fireEvent.click(screen.getByRole("radio", { name: "아직 없어요" }));
 
@@ -142,7 +142,7 @@ describe("PlanInputPage (#48, C12a-5)", () => {
       await openEmptyForm();
 
       fireEvent.change(screen.getByLabelText(/목표 금액/), { target: { value: "100000" } });
-      fireEvent.change(screen.getByLabelText(/지금 이 목표에 쓸 수 있는 돈/), { target: { value: "0" } });
+      fireEvent.change(screen.getByLabelText(/보유 금액/), { target: { value: "0" } });
       fireEvent.change(screen.getByLabelText("개월"), { target: { value: "1" } });
       fireEvent.click(screen.getByRole("radio", { name: "잘 모르겠어요" }));
 
@@ -166,7 +166,7 @@ describe("PlanInputPage (#48, C12a-5)", () => {
       await openEmptyForm();
 
       fireEvent.change(screen.getByLabelText(/목표 금액/), { target: { value: "3000" } });
-      fireEvent.change(screen.getByLabelText(/지금 이 목표에 쓸 수 있는 돈/), { target: { value: "600" } });
+      fireEvent.change(screen.getByLabelText(/보유 금액/), { target: { value: "600" } });
       fireEvent.change(screen.getByLabelText("년"), { target: { value: "3" } });
       fireEvent.click(screen.getByRole("radio", { name: "잘 모르겠어요" }));
       expect((screen.getByLabelText(/월 저축 가능 금액/) as HTMLInputElement).value).toBe("67");
@@ -186,7 +186,7 @@ describe("PlanInputPage (#48, C12a-5)", () => {
 
       fireEvent.click(screen.getByRole("radio", { name: "내 집 마련" }));
       fireEvent.change(screen.getByLabelText(/목표 금액/), { target: { value: "3000" } });
-      fireEvent.change(screen.getByLabelText(/지금 이 목표에 쓸 수 있는 돈/), { target: { value: "600" } });
+      fireEvent.change(screen.getByLabelText(/보유 금액/), { target: { value: "600" } });
       fireEvent.change(screen.getByLabelText("년"), { target: { value: "3" } });
       fireEvent.click(screen.getByRole("radio", { name: "잘 모르겠어요" }));
       fireEvent.click(screen.getByRole("button", { name: "결과 보기" }));
@@ -221,7 +221,7 @@ describe("PlanInputPage (#48, C12a-5)", () => {
     renderInput();
     await screen.findByText("어떤 목돈을 모으고 싶으세요?");
 
-    fireEvent.change(screen.getByLabelText(/지금 이 목표에 쓸 수 있는 돈/), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText(/보유 금액/), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "결과 보기" }));
 
     const alerts = await screen.findAllByText("값을 입력해 주세요");
@@ -260,7 +260,7 @@ describe("PlanInputPage (#48, C12a-5)", () => {
     fireEvent.click(screen.getByRole("radio", { name: "내 집 마련" }));
     fireEvent.change(screen.getByLabelText(/목표 금액/), { target: { value: "2000" } });
     fireEvent.change(screen.getByLabelText("년"), { target: { value: "3" } });
-    fireEvent.change(screen.getByLabelText(/지금 이 목표에 쓸 수 있는 돈/), { target: { value: "500" } });
+    fireEvent.change(screen.getByLabelText(/보유 금액/), { target: { value: "500" } });
     fireEvent.change(screen.getByLabelText(/월 저축 가능 금액/), { target: { value: "34.5" } });
     fireEvent.click(screen.getByRole("button", { name: "결과 보기" }));
 
@@ -433,7 +433,7 @@ describe("PlanInputPage (#48, C12a-5)", () => {
     expect((screen.getByLabelText(/목표 금액/) as HTMLInputElement).value).toBe("2000");
     expect((screen.getByLabelText("년") as HTMLInputElement).value).toBe("3");
     expect((screen.getByLabelText("개월") as HTMLInputElement).value).toBe("0");
-    expect((screen.getByLabelText(/지금 이 목표에 쓸 수 있는 돈/) as HTMLInputElement).value).toBe("500");
+    expect((screen.getByLabelText(/보유 금액/) as HTMLInputElement).value).toBe("500");
     expect((screen.getByLabelText(/월 저축 가능 금액/) as HTMLInputElement).value).toBe("30");
     expect((screen.getByLabelText(/적금 금리/) as HTMLInputElement).value).toBe("");
     expect(screen.getByText(/보유 자산이 2026년 11월 기준이 맞는지 다시 확인해 주세요/)).toBeTruthy();

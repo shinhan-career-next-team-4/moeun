@@ -309,7 +309,7 @@ export function PlanInputPage() {
 
           <UnitInput
             id="heldAssets"
-            label="지금 이 목표에 쓸 수 있는 돈"
+            label="보유 금액"
             unit="만원"
             inputMode="decimal"
             required
