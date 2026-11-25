@@ -178,102 +178,104 @@ export function CompareSection({
   }
 
   return (
-    <section aria-label="조건 변경 비교" className="flex flex-col gap-4 rounded-xl border border-border bg-surface-subtle p-5">
+    <section aria-label="조건 변경 비교" className="flex flex-col gap-3">
       <div>
         <h2 className="text-base font-semibold text-text">{COPY["compare.title"]}</h2>
         <p className="mt-1 text-xs leading-relaxed text-text-muted">{COPY["compare.notice"]}</p>
       </div>
 
-      <fieldset className="flex flex-col gap-3">
-        <legend className="text-sm font-semibold text-text">{COPY["compare.conditionTitle"]}</legend>
-        <div className="flex flex-wrap gap-2">
-          {[...PICKABLE.map(({ key, labelKey }) => ({ key: key as ConditionKey, labelKey })), {
-            key: "savingsRatioPct" as ConditionKey,
-            labelKey: "condition.savingsRatioPct",
-          }].map(({ key, labelKey }) => (
-            <label
-              key={key}
-              className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm ${
-                picked.includes(key) ? "border-primary bg-primary-soft text-primary-strong" : "border-border text-text"
-              }`}
-            >
-              <input
-                type="checkbox"
-                className="h-4 w-4"
-                checked={picked.includes(key)}
-                onChange={() => toggle(key)}
+      <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface-subtle p-5">
+        <fieldset className="flex flex-col gap-3">
+          <legend className="text-sm font-semibold text-text">{COPY["compare.conditionTitle"]}</legend>
+          <div className="flex flex-wrap gap-2">
+            {[...PICKABLE.map(({ key, labelKey }) => ({ key: key as ConditionKey, labelKey })), {
+              key: "savingsRatioPct" as ConditionKey,
+              labelKey: "condition.savingsRatioPct",
+            }].map(({ key, labelKey }) => (
+              <label
+                key={key}
+                className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm ${
+                  picked.includes(key) ? "border-primary bg-primary-soft text-primary-strong" : "border-border text-text"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={picked.includes(key)}
+                  onChange={() => toggle(key)}
+                />
+                {copy[labelKey]}
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-text-muted">{COPY["compare.conditionHelp"]}</p>
+        </fieldset>
+
+        {picked.length > 0 && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {PICKABLE.filter(({ key }) => picked.includes(key)).map(({ key, labelKey, unit }) => (
+              <UnitInput
+                key={key}
+                id={`compare-${key}`}
+                label={copy[labelKey]}
+                unit={unit}
+                inputMode={key === "savingsRateInputPct" ? "decimal" : "numeric"}
+                value={inputs[key] ?? ""}
+                onChange={(next) => setInputs((prev) => ({ ...prev, [key]: next }))}
+                help={
+                  currentDisplay[`conditions.${key}`] || currentDisplay[key]
+                    ? COPY["compare.currentValue"].replace(
+                        "{value}",
+                        currentDisplay[`conditions.${key}`] ?? currentDisplay[key],
+                      )
+                    : undefined
+                }
               />
-              {copy[labelKey]}
-            </label>
-          ))}
-        </div>
-        <p className="text-xs text-text-muted">{COPY["compare.conditionHelp"]}</p>
-      </fieldset>
+            ))}
+          </div>
+        )}
 
-      {picked.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {PICKABLE.filter(({ key }) => picked.includes(key)).map(({ key, labelKey, unit }) => (
-            <UnitInput
-              key={key}
-              id={`compare-${key}`}
-              label={copy[labelKey]}
-              unit={unit}
-              inputMode={key === "savingsRateInputPct" ? "decimal" : "numeric"}
-              value={inputs[key] ?? ""}
-              onChange={(next) => setInputs((prev) => ({ ...prev, [key]: next }))}
-              help={
-                currentDisplay[`conditions.${key}`] || currentDisplay[key]
-                  ? COPY["compare.currentValue"].replace(
-                      "{value}",
-                      currentDisplay[`conditions.${key}`] ?? currentDisplay[key],
-                    )
-                  : undefined
-              }
-            />
-          ))}
-        </div>
-      )}
+        {useRatio && <RatioInputs value={ratio} onChange={setRatio} />}
 
-      {useRatio && <RatioInputs value={ratio} onChange={setRatio} />}
-
-      {inputError && (
-        <p role="alert" className="text-sm text-danger">
-          {inputError}
-        </p>
-      )}
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={compare} loading={loading}>
-          {COPY["compare.submit"]}
-        </Button>
-        <Button variant="secondary" onClick={reset}>
-          {COPY["compare.reset"]}
-        </Button>
-        <Button
-          variant="secondary"
-          disabled={!canApply}
-          onClick={() => {
-            if (canApply && comparedChanges) onApply?.(comparedChanges);
-          }}
-        >
-          {COPY["compare.apply"]}
-        </Button>
-      </div>
-
-      {error && (
-        <p role="status" className="text-sm text-text-muted">
-          {error}
-        </p>
-      )}
-
-      {comparison &&
-        (comparison.applicable ? (
-          <CompareTable view={comparison} />
-        ) : (
-          <p role="status" className="text-sm text-text-muted">
-            {COPY["compare.notApplicable"]}
+        {inputError && (
+          <p role="alert" className="text-sm text-danger">
+            {inputError}
           </p>
-        ))}
+        )}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={compare} loading={loading}>
+            {COPY["compare.submit"]}
+          </Button>
+          <Button variant="secondary" onClick={reset}>
+            {COPY["compare.reset"]}
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={!canApply}
+            onClick={() => {
+              if (canApply && comparedChanges) onApply?.(comparedChanges);
+            }}
+          >
+            {COPY["compare.apply"]}
+          </Button>
+        </div>
+
+        {error && (
+          <p role="status" className="text-sm text-text-muted">
+            {error}
+          </p>
+        )}
+
+        {comparison &&
+          (comparison.applicable ? (
+            <CompareTable view={comparison} />
+          ) : (
+            <p role="status" className="text-sm text-text-muted">
+              {COPY["compare.notApplicable"]}
+            </p>
+          ))}
+      </div>
     </section>
   );
 }
