@@ -293,20 +293,20 @@ export function ResultPage() {
             {result.scenarios.length > 0 && (
               <>
                 {baselineResultScenario && baseline && (
-                  <section aria-label="결과 요약" className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+                  <section aria-label="결과 요약" className="flex flex-col items-start gap-2 rounded-xl border border-border bg-surface p-6 shadow-sm">
                     <p className="text-sm font-medium text-text-muted">
                       {COPY[`scenario.${baselineResultScenario}`]} · {display["targetMonth"]} 기준
                     </p>
-                    <p className="mt-1 text-2xl font-bold text-text">{display[`${baselineResultScenario}.afterTaxAsset`]}</p>
+                    <p className="text-2xl font-bold text-text">{display[`${baselineResultScenario}.afterTaxAsset`]}</p>
                     <p
                       data-testid="result-gap-badge"
-                      className={`mt-2 inline-block rounded-full px-3 py-1 text-sm font-semibold ${
+                      className={`inline-block rounded-full px-3 py-1 text-sm font-semibold ${
                         baseline.isAchieved ? "bg-success-soft text-success" : "bg-danger-soft text-danger"
                       }`}
                     >
                       {display[`${baselineResultScenario}.gapBadge`] ?? display[`${baselineResultScenario}.gapToGoal`]}
                     </p>
-                    {principalAndGain && <p className="mt-2 text-sm text-text-muted">{principalAndGain}</p>}
+                    {principalAndGain && <p className="text-sm text-text-muted">{principalAndGain}</p>}
                     {/* 목표 대비 가로 막대(#146). 라벨은 서버 display 문자열을 그대로 쓴다 */}
                     <GoalBar
                       afterTaxAsset={baseline.afterTaxAsset}
