@@ -20,7 +20,8 @@ import { Disclaimer } from "./Disclaimer";
 import { GoalBar } from "./GoalBar";
 import { PlanConditionBar } from "./PlanConditionBar";
 import { ResultLayout } from "./ResultLayout";
-import { EtfRiskNotice } from "./EtfRiskNotice";
+// 결과 화면에서 숨김(#404). 다시 보이려면 이 import와 아래 JSX의 주석을 푼다
+// import { EtfRiskNotice } from "./EtfRiskNotice";
 import { ScenarioCards } from "./ScenarioCards";
 import type { ResultPlanView } from "./types";
 
@@ -324,7 +325,7 @@ export function ResultPage() {
                   onSelect={chartScenario ? setPickedScenario : undefined}
                 />
                 {/* ETF 원금 미보장 문구와 운용사 공시(#374, D-104). ETF 0%면 종목 코드가 없어 그리지 않는다 */}
-                <EtfRiskNotice etfProductCode={result.assumptions.etfProductCode} />
+                {/* <EtfRiskNotice etfProductCode={result.assumptions.etfProductCode} /> */}
                 {chartScenario && <ProjectionChart data={projection} scenario={chartScenario} startMonth={result.calcStartMonth} />}
                 {/* 대안 영역(#67). 기준 시나리오가 미달일 때만 보인다(FR-ALT-01) */}
                 <AlternativeSection
