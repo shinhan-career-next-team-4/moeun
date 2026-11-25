@@ -249,10 +249,25 @@ describe("SignupPage (#460, FR-AUTH-04)", () => {
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 
+    it("비밀번호가 UTF-8 72바이트를 넘으면(BCrypt 한도, \"가\" 25자 = 75바이트) 형식 오류로 보내지 않는다", async () => {
+      const fetchSpy = vi.fn();
+      vi.stubGlobal("fetch", fetchSpy);
+      renderAt(SIGNUP_PATH);
+
+      const password = "가".repeat(25);
+      fill("saver01", password, password);
+      fireEvent.click(submitButton());
+
+      expect(await screen.findByText(COPY["auth.passwordInvalidFormat"])).toBeTruthy();
+      expect(passwordInput().getAttribute("aria-invalid")).toBe("true");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
     it.each([
       ["abcd", "p".repeat(8)],
       ["A".repeat(20), "p".repeat(64)],
-    ])("경계값 아이디 %j·비밀번호(8자·64자)는 보낸다", async (loginId, password) => {
+      ["saver01", "가".repeat(24)],
+    ])("경계값 아이디 %j·비밀번호(8자·64자·72바이트)는 보낸다", async (loginId, password) => {
       const fetchSpy = vi
         .fn()
         .mockResolvedValueOnce(jsonResponse(200, {}))

@@ -289,15 +289,16 @@ describe("AC-3·AC-20 로그인·로그아웃 성공 처리", () => {
     expect(authSync.notifyAuthChanged).toHaveBeenCalledWith("login");
   });
 
-  it("회원가입 실패(409·422·500)는 성공 알림을 보내지 않는다(#460)", async () => {
-    const authSync = { notifyAuthChanged: vi.fn() };
-    const h = makeHarness({ mode: "mock", authSync, pathname: SIGNUP_PATH });
-    for (const file of ["post-signup.409-duplicate.json", "post-signup.422.json", "post-signup.500.json"]) {
+  it.each(["post-signup.409-duplicate.json", "post-signup.422.json", "post-signup.500.json"])(
+    "회원가입 실패(%s)는 성공 알림을 보내지 않는다(#460)",
+    async (file) => {
+      const authSync = { notifyAuthChanged: vi.fn() };
+      const h = makeHarness({ mode: "mock", authSync, pathname: SIGNUP_PATH });
       useMock(file);
       await caught(h.client.request("POST", "/api/auth/signup", {}));
-    }
-    expect(authSync.notifyAuthChanged).not.toHaveBeenCalled();
-  });
+      expect(authSync.notifyAuthChanged).not.toHaveBeenCalled();
+    },
+  );
 
   it("로그인 실패(401 INVALID_CREDENTIALS)·로그아웃 401은 성공 알림을 보내지 않는다", async () => {
     const authSync = { notifyAuthChanged: vi.fn() };
