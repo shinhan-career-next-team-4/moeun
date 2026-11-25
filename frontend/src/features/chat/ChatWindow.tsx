@@ -183,7 +183,8 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleA
     if (visible && !wasVisibleRef.current) stickToBottomRef.current = true;
     wasVisibleRef.current = visible;
     if (visible && stickToBottomRef.current) box.scrollTop = box.scrollHeight;
-  }, [chat.messages, visible]);
+    // 비교 카드(F-4)는 답이 온 뒤에 따로 그려져 높이가 늘어난다. 맨 아래에 있던 사용자는 카드 아래(적용 버튼)까지 보이게 다시 내린다(#390)
+  }, [chat.messages, comparison.snapshot, visible]);
 
   // 대기(PENDING)로 본 어시스턴트 메시지가 끝났을 때만 알린다. 새로고침으로 복원된 지난 답변은 대기를 거치지 않는다.
   useEffect(() => {
