@@ -15,7 +15,7 @@ export interface LayerStyle {
  * 원금은 조용한 회색, 이자(초록/청록)와 수익(파랑)만 눈에 띄게 한다.
  */
 export const LAYERS: readonly LayerStyle[] = [
-  { key: "principal", color: "#94a3b8", fillOpacity: 0.28, labelKey: "projection.principal" },
+  { key: "principal", color: "#787a91", fillOpacity: 0.28, labelKey: "projection.principal" },
   { key: "savingsInterest", color: "#0d9488", fillOpacity: 0.38, labelKey: "projection.savingsInterest" },
   { key: "etfGain", color: "#2563eb", fillOpacity: 0.38, labelKey: "projection.etfGain" },
 ];

@@ -11,9 +11,9 @@ import { useElementWidth } from "./useElementWidth";
 
 /** 폭을 잴 수 없을 때(테스트 등) 쓰는 기본 폭(px). */
 const FALLBACK_WIDTH = 640;
-const GRID_COLOR = "#e8ecf0";
-const AXIS_COLOR = "#5f6b77";
-const GUIDE_COLOR = "#64748b";
+const GRID_COLOR = "#e4e6ec";
+const AXIS_COLOR = "#787a91";
+const GUIDE_COLOR = "#787a91";
 /** 가로축 라벨 하나에 필요한 가로 자리(px). 이보다 좁으면 라벨을 솎아 서로 겹치지 않게 한다. */
 const X_LABEL_GAP = 36;
 
