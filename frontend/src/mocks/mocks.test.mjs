@@ -37,6 +37,8 @@ const CHAT_FILES = [
   "get-comparison.200-asymmetric-exceeded.json",
   "get-comparison.200-changed-exceeded.json",
   "get-comparison.200-goal-name.json",
+  "get-comparison.200-two-changed.json",
+  "get-comparison.200-decrease.json",
   "get-comparison.400.json",
   "get-comparison.404.json",
   "get-comparison.500.json",
@@ -130,14 +132,14 @@ function allFiles() {
 
 // ---------------------------------------------------------------- 파일 목록
 
-test("목 파일 개수: chat 40, auth 6, plan 31, refdata 1, alternative 6", () => {
+test("목 파일 개수: chat 43, auth 6, plan 31, refdata 1, alternative 6", () => {
   for (const [dir, names] of Object.entries(DIRS)) {
     const actual = fs.existsSync(path.join(here, dir))
       ? fs.readdirSync(path.join(here, dir)).filter((f) => f.endsWith(".json")).sort()
       : [];
     assert.deepEqual(actual, [...names].sort(), `${dir}/ 파일 목록이 계약 표와 다르다`);
   }
-  assert.equal(CHAT_FILES.length, 41);
+  assert.equal(CHAT_FILES.length, 43);
   assert.equal(AUTH_FILES.length + PLAN_FILES.length, 37);
   assert.equal(REFDATA_FILES.length, 1);
   assert.equal(ALTERNATIVE_FILES.length, 6);

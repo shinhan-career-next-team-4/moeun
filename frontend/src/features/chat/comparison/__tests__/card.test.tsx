@@ -37,6 +37,9 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+/** 증가 줄에 붙는 목표 대비 금액: 서버 문자열에서 달성·미달 말과 "약"을 뺀 것(#417). */
+const gapAmount = (display: string) => display.replace(/ (달성|미달)$/, "").replace(/^([+-]?)약 /, "$1");
+
 const recalc = (id: number) => doneMsg(id, "RECALC_RESULT", "월 저축액을 약 50만원으로 바꾸면 평균일 때 달성해요");
 
 /**
@@ -190,8 +193,9 @@ async function mountWith(f4: unknown, id = 1031) {
 }
 
 describe("AC-11 카드 문구는 문구표 키로, 행 순서는 conditions 고정 4키 순서 (C12b-6, C2-2)", () => {
-  it("조건 4행이 monthlySavingAmount·savingsRatioPct·savingsRateInputPct·targetPeriodMonths 순서로, 라벨은 condition.<키>, 값은 display 그대로다", async () => {
-    const body = comparison("get-comparison.200.json", { changedKeys: ["targetPeriodMonths", "monthlySavingAmount"] });
+  it("바뀐 조건 행은 monthlySavingAmount·savingsRatioPct·savingsRateInputPct·targetPeriodMonths 순서로, 라벨은 condition.<키>, 값은 display 그대로다(#417)", async () => {
+    const body = comparison("get-comparison.200.json", { changedKeys: ["targetPeriodMonths", "savingsRateInputPct", "savingsRatioPct", "monthlySavingAmount"] });
+    body.conditions.changed = { monthlySavingAmount: 500000, savingsRatioPct: 70, savingsRateInputPct: 4.5, targetPeriodMonths: 48 };
     // 응답 객체의 키 순서를 뒤집어도 행 순서는 고정 4키 순서다
     for (const side of ["current", "changed"] as const) {
       body.conditions[side] = Object.fromEntries(Object.entries(body.conditions[side]).reverse());
@@ -208,90 +212,24 @@ describe("AC-11 카드 문구는 문구표 키로, 행 순서는 conditions 고�
     }
   });
 
-  it("changedKeys(순서 없음)에 든 행만 강조된다(집합 비교)", async () => {
+  it("값이 바뀐 조건만 강조 행으로 보인다(changedKeys 순서와 무관, #417)", async () => {
     const body = comparison("get-comparison.200.json", { changedKeys: ["targetPeriodMonths", "monthlySavingAmount"] });
+    body.conditions.changed.targetPeriodMonths = 48;
     await mountWith(body);
     const changed = Object.fromEntries(conditionRows(1031).map((row) => [row.getAttribute("data-key"), row.getAttribute("data-changed")]));
-    expect(changed).toEqual({
-      monthlySavingAmount: "true",
-      savingsRatioPct: "false",
-      savingsRateInputPct: "false",
-      targetPeriodMonths: "true",
-    });
+    expect(changed).toEqual({ monthlySavingAmount: "true", targetPeriodMonths: "true" });
+    expect(cardOf(1031).querySelector('[data-testid="chat-comparison-unchanged"]')?.textContent).toBe(copy["comparison.othersUnchanged"]);
   });
 
-  it("changedKeys가 저축 비중·적금 금리(순서 없음)이면 그 두 행만 강조되고, 강조는 평소 화면에 드러난다", async () => {
-    await mountWith(comparison("get-comparison.200.json", { changedKeys: ["savingsRateInputPct", "savingsRatioPct"] }));
-    const rowList = conditionRows(1031);
-    expect(rowList.map((row) => row.getAttribute("data-key"))).toEqual(CONDITION_KEYS);
-    const changed = Object.fromEntries(rowList.map((row) => [row.getAttribute("data-key"), row.getAttribute("data-changed")]));
-    expect(changed).toEqual({
-      monthlySavingAmount: "false",
-      savingsRatioPct: "true",
-      savingsRateInputPct: "true",
-      targetPeriodMonths: "false",
-    });
-
-    // 실제 모습도 그 두 행만 다르다
-    const look = Object.fromEntries(rowList.map((row) => [row.getAttribute("data-key"), presentation(row)]));
-    expect(look.savingsRatioPct).toBe(look.savingsRateInputPct);
-    expect(look.monthlySavingAmount).toBe(look.targetPeriodMonths);
-    expect(look.savingsRatioPct, "저축 비중·적금 금리가 바뀌었는데 강조 모습이 없다").not.toBe(look.monthlySavingAmount);
-
-    const rows = Object.fromEntries(rowList.map((row) => [row.getAttribute("data-key"), row]));
-    vi.useRealTimers(); // Tailwind 컴파일은 실제 파일 읽기를 쓴다
-    for (const changedKey of ["savingsRatioPct", "savingsRateInputPct"]) {
-      for (const plainKey of ["monthlySavingAmount", "targetPeriodMonths"]) {
-        const reasons = await everydayDifference(rows[changedKey], rows[plainKey]);
-        expect(reasons, `${changedKey}(바뀜)와 ${plainKey}(안 바뀜)의 차이가 평소 화면에 드러나지 않는다`).not.toEqual([]);
-      }
-    }
-    expect(await visibleDifference(rows.savingsRatioPct, rows.savingsRateInputPct)).toEqual([]);
-    expect(await visibleDifference(rows.monthlySavingAmount, rows.targetPeriodMonths)).toEqual([]);
+  it("(예외) changedKeys가 비고 값도 같으면 조건 행이 없다(#417)", async () => {
+    const body = comparison("get-comparison.200.json", { changedKeys: [] });
+    body.conditions.changed = { ...body.conditions.current };
+    await mountWith(body);
+    expect(conditionRows(1031)).toHaveLength(0);
+    expect(cardOf(1031).querySelector('[data-testid="chat-comparison-unchanged"]')?.textContent).toBe(copy["comparison.allUnchanged"]);
   });
 
-  it("changedKeys가 빈 배열이면 강조된 행이 없다", async () => {
-    await mountWith(comparison("get-comparison.200.json", { changedKeys: [] }));
-    expect(conditionRows(1031)).toHaveLength(4);
-    expect(conditionRows(1031).filter((row) => row.getAttribute("data-changed") === "true")).toHaveLength(0);
-  });
-
-  it("강조는 사용자에게 보이는 차이다: data-* 표식과 글자를 뺀 행 마크업이 바뀐 행과 안 바뀐 행 사이에 다르고, changedKeys가 비면 4행이 모두 같다", async () => {
-    await mountWith(comparison("get-comparison.200.json", { changedKeys: ["targetPeriodMonths", "monthlySavingAmount"] }));
-    const highlighted = Object.fromEntries(conditionRows(1031).map((row) => [row.getAttribute("data-key"), presentation(row)]));
-    expect(Object.keys(highlighted)).toEqual(CONDITION_KEYS);
-    expect(highlighted.monthlySavingAmount).toBe(highlighted.targetPeriodMonths);
-    expect(highlighted.savingsRatioPct).toBe(highlighted.savingsRateInputPct);
-    expect(highlighted.monthlySavingAmount, "바뀐 행과 안 바뀐 행의 모습(class·style·요소)이 같다").not.toBe(highlighted.savingsRatioPct);
-
-    cleanup();
-    await mountWith(comparison("get-comparison.200.json", { changedKeys: [] }));
-    const plain = conditionRows(1031).map(presentation);
-    expect(plain).toHaveLength(4);
-    expect(new Set(plain).size).toBe(1);
-    expect(plain[0]).toBe(highlighted.savingsRatioPct);
-  });
-
-  it("강조에는 스타일 정의가 있다: 바뀐 행과 안 바뀐 행의 차이가 프로젝트 Tailwind가 CSS를 만드는 class·inline style·강조 요소(strong·b·mark·em) 중 하나다(정의 없는 class만 다르면 실패)", async () => {
-    await mountWith(comparison("get-comparison.200.json", { changedKeys: ["targetPeriodMonths", "monthlySavingAmount"] }));
-    const rows = Object.fromEntries(conditionRows(1031).map((row) => [row.getAttribute("data-key"), row]));
-    expect(Object.keys(rows)).toEqual(CONDITION_KEYS);
-    vi.useRealTimers(); // Tailwind 컴파일은 실제 파일 읽기를 쓴다
-    for (const changedKey of ["monthlySavingAmount", "targetPeriodMonths"]) {
-      for (const plainKey of ["savingsRatioPct", "savingsRateInputPct"]) {
-        const reasons = await visibleDifference(rows[changedKey], rows[plainKey]);
-        expect(reasons, `${changedKey}(바뀜)와 ${plainKey}(안 바뀜)의 차이에 스타일 정의가 없다`).not.toEqual([]);
-      }
-    }
-    // 같은 쪽끼리는 스타일 차이가 없다
-    expect(await visibleDifference(rows.monthlySavingAmount, rows.targetPeriodMonths)).toEqual([]);
-    expect(await visibleDifference(rows.savingsRatioPct, rows.savingsRateInputPct)).toEqual([]);
-  });
-
-  it("강조에는 평소 화면에 적용되는 스타일 정의가 있다: hover:·dark:·print:·md: 같은 변형으로만 생기는 class 차이는 강조로 보지 않는다(P-50)", async () => {
-    await mountWith(comparison("get-comparison.200.json", { changedKeys: ["targetPeriodMonths", "monthlySavingAmount"] }));
-    const rows = Object.fromEntries(conditionRows(1031).map((row) => [row.getAttribute("data-key"), row]));
-    expect(Object.keys(rows)).toEqual(CONDITION_KEYS);
+  it("바뀐 조건 행에는 평소 화면에 드러나는 강조가 있다: 변형 class·이미 적용된 값의 반복은 강조로 보지 않는다(P-50)", async () => {
     vi.useRealTimers(); // Tailwind 컴파일은 실제 파일 읽기를 쓴다
 
     // 판정 도구 확인: 조건 없는 class는 인정, 변형 class·정의 없는 class는 Tailwind가 CSS를 만들어도/못 만들어도 불인정
@@ -300,19 +238,6 @@ describe("AC-11 카드 문구는 문구표 키로, 행 순서는 conditions 고�
     for (const token of ["hover:font-bold", "print:font-bold", "md:bg-primary-soft", "data-[changed=true]:font-bold", "is-changed"]) {
       expect(await counts(token), `${token} 불인정`).toBe(false);
     }
-
-    for (const changedKey of ["monthlySavingAmount", "targetPeriodMonths"]) {
-      for (const plainKey of ["savingsRatioPct", "savingsRateInputPct"]) {
-        const reasons = await everydayDifference(rows[changedKey], rows[plainKey]);
-        expect(reasons, `${changedKey}(바뀜)와 ${plainKey}(안 바뀜)의 차이가 평소 화면에 드러나지 않는다(변형 class뿐)`).not.toEqual([]);
-      }
-    }
-  });
-
-  it("강조 차이는 이미 적용된 값을 반복하는 class로는 인정하지 않는다: preflight·안 바뀐 행의 class·요소 기본 display와 같은 값만 더하는 class(box-border 등)만 다르면 실패(P-50)", async () => {
-    vi.useRealTimers(); // Tailwind 컴파일은 실제 파일 읽기를 쓴다
-
-    // 판정 도구 확인: 같은 구조의 두 행(문서에 붙임)에서 한쪽에만 class를 더해 본다
     const sandbox = document.createElement("div");
     document.body.appendChild(sandbox);
     const pair = (extra: string, base = "flex gap-2") => {
@@ -331,23 +256,29 @@ describe("AC-11 카드 문구는 문구표 키로, 행 순서는 conditions 고�
     // 실제로 모습을 바꾸는 class는 인정한다
     expect(await everydayDifference(...pair("font-bold"))).toEqual(["class font-bold"]);
     expect(await everydayDifference(...pair("bg-primary-soft"))).toEqual(["class bg-primary-soft"]);
-    sandbox.remove();
 
     vi.useFakeTimers();
-    await mountWith(comparison("get-comparison.200.json", { changedKeys: ["targetPeriodMonths", "monthlySavingAmount"] }));
-    const rows = Object.fromEntries(conditionRows(1031).map((row) => [row.getAttribute("data-key"), row]));
-    expect(Object.keys(rows)).toEqual(CONDITION_KEYS);
+    const body = comparison("get-comparison.200.json", { changedKeys: ["targetPeriodMonths", "monthlySavingAmount"] });
+    body.conditions.changed.targetPeriodMonths = 48;
+    await mountWith(body);
+    const rows = conditionRows(1031);
+    expect(rows).toHaveLength(2);
     vi.useRealTimers();
-
-    for (const changedKey of ["monthlySavingAmount", "targetPeriodMonths"]) {
-      for (const plainKey of ["savingsRatioPct", "savingsRateInputPct"]) {
-        const reasons = await everydayDifference(rows[changedKey], rows[plainKey]);
-        expect(reasons, `${changedKey}(바뀜)와 ${plainKey}(안 바뀜)의 차이가 이미 적용된 값의 반복뿐이다`).not.toEqual([]);
-      }
+    // 같은 행에서 강조 class만 뺀 행(레이아웃 class만 남김)과 비교한다
+    for (const row of rows) {
+      const plain = row.cloneNode(true) as HTMLElement;
+      plain.className = "grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-x-2 gap-y-0.5 px-1 py-1.5";
+      sandbox.append(plain);
+      const reasons = await everydayDifference(row, plain);
+      expect(reasons, `${row.getAttribute("data-key")} 행의 강조가 평소 화면에 드러나지 않는다`).not.toEqual([]);
     }
+    // 바뀐 행끼리는 모습이 같다
+    expect(presentation(rows[0])).toBe(presentation(rows[1]));
+    expect(await visibleDifference(rows[0], rows[1])).toEqual([]);
+    sandbox.remove();
   });
 
-  it("시나리오마다 diff.byScenario[].achievementChange를 문구표 achievementChange.<값>으로 그린다(4값)", async () => {
+  it("시나리오의 달성 상태가 바뀔 때만 문구표 achievementChange.<값>을 그린다(#417)", async () => {
     const body = comparison("get-comparison.200.json");
     body.diff.byScenario[0].achievementChange = "STAYS_ACHIEVED";
     body.diff.byScenario[1].achievementChange = "ACHIEVE_TO_MISS";
@@ -355,9 +286,10 @@ describe("AC-11 카드 문구는 문구표 키로, 행 순서는 conditions 고�
     await mountWith(body);
     const rows = scenarioRows(1031);
     const byScenario = Object.fromEntries(rows.map((row) => [row.getAttribute("data-scenario"), row.textContent ?? ""]));
-    expect(byScenario.GOOD).toContain(copy["achievementChange.STAYS_ACHIEVED"]);
+    // 달성 상태가 그대로면(계속 달성·계속 미달) 문구가 없다(#417)
+    expect(byScenario.GOOD).not.toContain(copy["achievementChange.STAYS_ACHIEVED"]);
     expect(byScenario.AVG).toContain(copy["achievementChange.ACHIEVE_TO_MISS"]);
-    expect(byScenario.BAD).toContain(copy["achievementChange.STAYS_MISSED"]);
+    expect(byScenario.BAD).not.toContain(copy["achievementChange.STAYS_MISSED"]);
 
     cleanup();
     await mountWith(comparison("get-comparison.200.json"));
@@ -376,7 +308,7 @@ describe("AC-12 시나리오 개수 (C12b-6, ETF 0%)", () => {
     await mountWith(comparison("get-comparison.200-etf0.json"), 1033);
     expect(card(1033)).not.toBeNull();
     expect(scenarioRows(1033).map((row) => row.getAttribute("data-scenario"))).toEqual(["AVG"]);
-    expect(conditionRows(1033)).toHaveLength(4);
+    expect(conditionRows(1033)).toHaveLength(1); // 바뀐 월 저축액만(#417)
     expect(buttonOf(1033).disabled).toBe(false);
   });
 
@@ -453,7 +385,7 @@ describe("AC-13 F-4 오류 (C12b-6 오류 표)", () => {
     expect(reloaded.api.f4Calls()).toEqual(["/api/chat/messages/1031/comparison"]);
     expect(failedNotice(1031)).toBeNull();
     expect(cardOf(1031).getAttribute("data-collapsed")).toBe("false");
-    expect(conditionRows(1031)).toHaveLength(4);
+    expect(conditionRows(1031)).toHaveLength(1); // 바뀐 월 저축액만(#417)
     expect(buttonOf(1031).disabled).toBe(false);
   });
 
@@ -628,9 +560,10 @@ describe("AC-24 카드의 숫자 항목과 F-4 응답 전 자리 (사용자 결�
     for (const row of rows) {
       const s = row.getAttribute("data-scenario")!;
       const text = row.textContent ?? "";
-      for (const key of [`current.${s}.afterTaxAsset`, `changed.${s}.afterTaxAsset`, `diff.${s}.afterTaxAssetDelta`, `changed.${s}.gapToGoal`]) {
+      for (const key of [`current.${s}.afterTaxAsset`, `changed.${s}.afterTaxAsset`, `diff.${s}.afterTaxAssetDelta`]) {
         expect(text, `${s} 행에 display["${key}"]가 없다`).toContain(body.display[key]);
       }
+      expect(text, `${s} 행에 목표 대비 금액이 없다`).toContain(gapAmount(body.display[`changed.${s}.gapToGoal`]));
     }
   });
 
@@ -644,7 +577,7 @@ describe("AC-24 카드의 숫자 항목과 F-4 응답 전 자리 (사용자 결�
     await mountWith(body);
 
     const rows = conditionRows(1031);
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(1);
     for (const row of rows) {
       const key = row.getAttribute("data-key")!;
       expect(cellText(row, "chat-comparison-label"), `${key} 라벨 칸`).toBe(copy[`condition.${key}`]);
@@ -661,8 +594,10 @@ describe("AC-24 카드의 숫자 항목과 F-4 응답 전 자리 (사용자 결�
       expect(cellText(row, "chat-comparison-current"), `${s} 현재 세후 자산 칸`).toBe(`[current.${s}.afterTaxAsset]`);
       expect(cellText(row, "chat-comparison-changed"), `${s} 바꾼 조건 세후 자산 칸`).toBe(`[changed.${s}.afterTaxAsset]`);
       expect(cellText(row, "chat-comparison-delta"), `${s} 자산 차이 칸`).toBe(`[diff.${s}.afterTaxAssetDelta]`);
-      expect(cellText(row, "chat-comparison-gap"), `${s} 목표 대비 칸`).toBe(`[changed.${s}.gapToGoal]`);
-      expect(cellText(row, "chat-comparison-achievement"), `${s} 달성 변화 칸`).toBe(copy[`achievementChange.${achievement[s]}`]);
+      const achieved = achievement[s] === "STAYS_ACHIEVED" || achievement[s] === "MISS_TO_ACHIEVE";
+      expect(cellText(row, "chat-comparison-gap"), `${s} 목표 대비 칸`).toBe(`· ${achieved ? "목표보다" : "목표까지"} [changed.${s}.gapToGoal]`);
+      const changesState = achievement[s] === "ACHIEVE_TO_MISS" || achievement[s] === "MISS_TO_ACHIEVE";
+      expect(cellText(row, "chat-comparison-achievement"), `${s} 달성 변화 칸`).toBe(changesState ? copy[`achievementChange.${achievement[s]}`] : null);
     }
   });
 
@@ -742,8 +677,9 @@ describe("AC-24 카드의 숫자 항목과 F-4 응답 전 자리 (사용자 결�
     await mountWith(body, 1033);
     const [row] = scenarioRows(1033);
     expect(row?.getAttribute("data-scenario")).toBe("AVG");
-    for (const key of ["current.AVG.afterTaxAsset", "changed.AVG.afterTaxAsset", "diff.AVG.afterTaxAssetDelta", "changed.AVG.gapToGoal"]) {
+    for (const key of ["current.AVG.afterTaxAsset", "changed.AVG.afterTaxAsset", "diff.AVG.afterTaxAssetDelta"]) {
       expect(row?.textContent ?? "").toContain(body.display[key]);
     }
+    expect(row?.textContent ?? "").toContain(gapAmount(body.display["changed.AVG.gapToGoal"]));
   });
 });

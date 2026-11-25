@@ -5,7 +5,6 @@ import { cleanup, fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { copy, doneMsg, flush, page, userMsg } from "../../__tests__/helpers";
 import {
-  CONDITION_KEYS,
   buttonOf,
   card,
   cardOf,
@@ -66,7 +65,7 @@ describe("목표 이름만 바꾼 비교(#345)", () => {
     await mount(body);
     expect(failedNotice(ID)).toBeNull();
     const rows = conditionRows(ID);
-    expect(rows.map((row) => row.getAttribute("data-key"))).toEqual(["goalCustomName", ...CONDITION_KEYS]);
+    expect(rows.map((row) => row.getAttribute("data-key"))).toEqual(["goalCustomName"]); // 바뀐 조건만(#417)
     const nameRow = rows[0];
     expect(nameRow.getAttribute("data-changed")).toBe("true");
     expect(cellText(nameRow, "chat-comparison-label")).toBe(copy["condition.goalCustomName"]);
@@ -139,7 +138,7 @@ describe("목표 이름과 목표 금액을 함께 바꾼 비교(#345)", () => {
     const body = nameAndAmount();
     await mount(body);
     const rows = conditionRows(ID);
-    expect(rows.map((row) => row.getAttribute("data-key"))).toEqual(["goalCustomName", "goalAmount", ...CONDITION_KEYS]);
+    expect(rows.map((row) => row.getAttribute("data-key"))).toEqual(["goalCustomName", "goalAmount"]);
     expect(rows[0].getAttribute("data-changed")).toBe("true");
     expect(rows[1].getAttribute("data-changed")).toBe("true");
     expect(cellText(rows[0], "chat-comparison-changed")).toBe(NEW_NAME);
@@ -159,7 +158,7 @@ describe("목표 이름과 목표 금액을 함께 바꾼 비교(#345)", () => {
 describe("이름을 바꾸지 않은 비교", () => {
   it("목표 이름 행과 이름 안내가 없다", async () => {
     await mount(comparison("get-comparison.200.json", { messageId: ID }));
-    expect(conditionRows(ID).map((row) => row.getAttribute("data-key"))).toEqual(CONDITION_KEYS);
+    expect(conditionRows(ID).map((row) => row.getAttribute("data-key"))).toEqual(["monthlySavingAmount"]);
     expect(nameOnlyNote()).toBeNull();
   });
 });

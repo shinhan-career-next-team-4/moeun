@@ -67,6 +67,12 @@ const rows = () => Array.from(document.querySelectorAll<HTMLElement>('[data-test
 const rowKeys = () => rows().map((row) => row.getAttribute("data-key"));
 const scenarioRows = () => Array.from(document.querySelectorAll<HTMLElement>('[data-testid="chat-comparison-scenario"]'));
 const byTestId = (root: ParentNode, id: string) => Array.from(root.querySelectorAll<HTMLElement>(`[data-testid="${id}"]`));
+/** 화면에 보이는 글자. 화면 낭독기 전용(sr-only) 문구는 뺀다. */
+function visibleText(el: HTMLElement): string {
+  const copyEl = el.cloneNode(true) as HTMLElement;
+  copyEl.querySelectorAll(".sr-only").forEach((node) => node.remove());
+  return copyEl.textContent ?? "";
+}
 const text = (id: string) => document.querySelector(`[data-testid="${id}"]`)?.textContent ?? null;
 
 describe("바뀐 조건 고르기(changedConditionKeys)", () => {
@@ -156,7 +162,7 @@ describe("대화 결과 카드(#417)", () => {
     const avg = scenarioRows()[1];
     const lines = byTestId(avg, "chat-comparison-result-line");
     expect(lines).toHaveLength(1);
-    expect(lines[0].textContent).toContain("▲ 약 789만원 증가 · 목표보다 +501만원");
+    expect(visibleText(lines[0])).toBe("▲ 약 789만원 증가 · 목표보다 +501만원");
     expect(avg.textContent?.split(b.display["diff.AVG.afterTaxAssetDelta"]).length).toBe(2);
     expect(byTestId(avg, "chat-comparison-gap-delta")).toHaveLength(0);
   });
@@ -165,7 +171,7 @@ describe("대화 결과 카드(#417)", () => {
     await renderCard(decreased());
     const line = byTestId(scenarioRows()[0], "chat-comparison-result-line");
     expect(line).toHaveLength(1);
-    expect(line[0].textContent).toContain("▼ 약 47만원 감소 · 목표까지 -311만원");
+    expect(visibleText(line[0])).toBe("▼ 약 47만원 감소 · 목표까지 -311만원");
   });
 
   it("미달에서 달성으로 바뀌면 그 문구를 보인다", async () => {
