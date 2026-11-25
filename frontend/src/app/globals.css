@@ -91,7 +91,7 @@ body {
 
 .undo-sparkle {
   position: relative;
-  animation: undo-sparkle 1.4s ease-out 1;
+  animation: undo-sparkle 1.5s ease-out 2;
 }
 
 .undo-sparkle::before,
@@ -101,7 +101,7 @@ body {
   color: #f5b301;
   font-size: 0.8rem;
   pointer-events: none;
-  animation: undo-sparkle-star 1.2s ease-out 1 both;
+  animation: undo-sparkle-star 1.3s ease-out 2 both;
 }
 
 .undo-sparkle::before {
@@ -118,7 +118,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .undo-sparkle {
-    animation: undo-sparkle-tint 1.4s ease-out 1;
+    animation: undo-sparkle-tint 3s ease-out 1;
   }
 
   .undo-sparkle::before,

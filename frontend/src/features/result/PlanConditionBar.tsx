@@ -1,9 +1,13 @@
 // import { Link } from "react-router-dom";
 // import { INPUT_PATH } from "../../app/routes";
+import { useEffect, useState } from 'react'
 import { COPY } from '../../shared/copy/copy'
 import { GoalNameEditor } from './GoalNameEditor'
 import type { ResultPlanView } from './types'
 import { UndoPlanButton } from './UndoPlanButton'
+
+/** 되돌리기 버튼이 반짝이는 시간(ms). globals.css의 undo-sparkle 애니메이션 길이(1.5초 × 2회)보다 조금 길게 잡는다 */
+const SPARKLE_MS = 3200
 
 interface PlanConditionBarProps {
     view: ResultPlanView
@@ -17,6 +21,20 @@ export function PlanConditionBar({
     onFeedback = () => {},
 }: PlanConditionBarProps) {
     const { result, display } = view
+    // 계획이 바뀌면(적용 등) 되돌리기 버튼이 한동안 반짝인다(#360). 버튼은 처음 바뀐 뒤에야 나타나므로 변화는 늘 그려지는
+    // 이 바에서 감지한다. 처음 그려질 때(저장된 계획을 불러온 것)는 반짝이지 않는다
+    const revision = view.revision
+    const [seenRevision, setSeenRevision] = useState(revision)
+    const [sparkling, setSparkling] = useState(false)
+    if (revision !== seenRevision) {
+        setSeenRevision(revision)
+        if (seenRevision !== null && revision > seenRevision) setSparkling(true)
+    }
+    useEffect(() => {
+        if (!sparkling) return
+        const timer = window.setTimeout(() => setSparkling(false), SPARKLE_MS)
+        return () => window.clearTimeout(timer)
+    }, [sparkling])
     const items = [
         <GoalNameEditor key="goal-name" view={view} onFeedback={onFeedback} />,
         `목표 ${display['goalAmount']}`,
@@ -45,7 +63,10 @@ export function PlanConditionBar({
                 <div className="ml-auto flex items-center gap-1">
                     {/* 되돌릴 직전 계획이 있을 때만 보인다(D-095) */}
                     {view.undoAvailable && (
-                        <UndoPlanButton onFeedback={onFeedback} />
+                        <UndoPlanButton
+                            onFeedback={onFeedback}
+                            sparkling={sparkling}
+                        />
                     )}
                     {/* <Link to={INPUT_PATH} className="rounded-lg px-3 py-1.5 font-semibold text-primary hover:bg-surface-muted">
             입력 수정
