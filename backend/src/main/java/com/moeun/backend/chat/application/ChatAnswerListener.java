@@ -213,7 +213,11 @@ public class ChatAnswerListener {
         ChatMessage message = snapshot.message();
         MessageType type = MessageType.valueOf(answer.messageType());
         String turnJson = conditionChangesJson(answer.conditionChanges());
-        boolean accumulates = type == MessageType.RECALC_RESULT && snapshot.basePlanVersionId() != null
+        // 되돌리기 답(#419)은 목록에 덧붙이지 않고 그 범위를 지운다. 남은 조건은 내 계획 대비라 비교 기준도 남기지 않는다
+        // 목록을 지우는 것은 되돌린 결과를 보여 준 답(ANSWER·RECALC_RESULT)일 때만이다
+        boolean reverts = answer.revert() != null && snapshot.basePlanVersionId() != null
+                && (type == MessageType.ANSWER || type == MessageType.RECALC_RESULT);
+        boolean accumulates = !reverts && type == MessageType.RECALC_RESULT && snapshot.basePlanVersionId() != null
                 && turnJson != null;
         Map<String, JsonNode> baseline = AccumulatedConditions.fold(json, snapshot.accumulated());
         String baselineJson = accumulates && !baseline.isEmpty() ? json.writeValueAsString(baseline) : null;
@@ -227,12 +231,40 @@ public class ChatAnswerListener {
             if (accumulates) {
                 appendChanges(snapshot, baseline, turnJson);
             }
+            if (reverts) {
+                revertChanges(snapshot, answer.revert());
+            }
             return true;
         });
         if (Boolean.TRUE.equals(saved)) {
             LOG.info("chat.answer.completed messageId={} type={}", message.id(), answer.messageType());
         } else {
             LOG.info("chat.answer.discarded messageId={} memberId={}", message.id(), message.memberId());
+        }
+    }
+
+    /**
+     * 대화로 되돌리기(#419). last는 가장 최근 메시지(직전 질문)의 변경 전부, condition은 그 조건의 변경 전부, all은 목록 전부를
+     * 지운다. ai-server가 받은 목록(snapshot)과 같은 목록에서 고른다. 모르는 범위는 무시한다(목록을 지키는 쪽).
+     */
+    private void revertChanges(Snapshot snapshot, JsonNode revert) {
+        long memberId = snapshot.message().memberId();
+        String scope = revert.path("scope").asString("");
+        switch (scope) {
+            case "all" -> conditionChanges.deleteAllOf(memberId);
+            case "condition" -> {
+                String field = revert.path("condition").asString("");
+                if (!field.isEmpty()) {
+                    conditionChanges.deleteField(memberId, snapshot.basePlanVersionId(), field);
+                }
+            }
+            case "last" -> {
+                Long lastMessageId = AccumulatedConditions.lastMessageId(snapshot.accumulated());
+                if (lastMessageId != null) {
+                    conditionChanges.deleteOfMessage(memberId, lastMessageId);
+                }
+            }
+            default -> LOG.warn("chat.revert.unknownScope messageId={} scope={}", snapshot.message().id(), scope);
         }
     }
 

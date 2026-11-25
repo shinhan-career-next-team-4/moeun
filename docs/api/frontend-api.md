@@ -1091,7 +1091,8 @@ record PlanUndoResult(long planVersionId, long revision) {}
 
 - 계획이 없어도 받는다(NFR-USA-01). 리스너는 `planContext: null`로 부르고 **`baselineScenario`는 `"AVG"`로 채운다**. 왜: `ChatRequest.baseline_scenario`가 필수라 비우면 ai-server 422 → `FAILED`. 계획이 있으면 `plan.baseline_scenario`.
 - `history`: 같은 회원의 `COMPLETED` 메시지 **[#418] 최근 10개**. `role`은 ai-server 형식(소문자 `user`/`assistant`)으로 Spring이 바꾼다(프론트 영향 없음). **[#418]** 이전 결과 금액은 기록으로 넘기지 않는다: `RECALC_RESULT`·`EXPLANATION` 글은 문구표 `chat.historyResultOmitted` 안내 문장으로 바꿔 보낸다.
-- **[#418, D-103] `accumulatedChanges`**: 질문을 접수한 계획 버전에 쌓인 변경 목록 `[{field, before, after}]`(바꾼 순서, `field`는 camelCase 조건 키, `before`는 계획에 값이 없었으면 `null`). ai-server는 이를 접어 `/internal/calc`의 `baselineConditionChanges`로 넘긴다. 답이 `RECALC_RESULT`면 Spring이 그 비교 기준(`chat_message.baseline_condition_changes`)을 남기고 이번 변경을 목록에 덧붙인다(같은 값을 다시 말한 조건은 넣지 않는다). `CLARIFY`(계산 엔진 422 포함)·그 밖의 답은 목록을 건드리지 않는다.
+- **[#418, D-103] `accumulatedChanges`**: 질문을 접수한 계획 버전에 쌓인 변경 목록 `[{field, before, after}]`(바꾼 순서, `field`는 camelCase 조건 키, `before`는 계획에 값이 없었으면 `null`). ai-server는 이를 접어 `/internal/calc`의 `baselineConditionChanges`로 넘긴다. 답이 `RECALC_RESULT`면 Spring이 그 비교 기준(`chat_message.baseline_condition_changes`)을 남기고 이번 변경을 목록에 덧붙인다(같은 값을 다시 말한 조건은 넣지 않는다). `CLARIFY`(계산 엔진 422 포함)·그 밖의 답은 목록을 건드리지 않는다. 항목마다 그 변경을 계산한 `messageId`도 싣는다(#419).
+- **[#419] 대화로 되돌리기**: ai-server 답에 `revert: {scope, condition}`이 있으면 Spring은 목록에 덧붙이지 않고 그 범위를 지운다. `last`는 가장 최근 메시지가 남긴 변경 전부, `condition`은 그 조건(camelCase)의 변경 전부, `all`은 목록 전부다. 되돌린 뒤 남은 조건이 있으면 답은 내 계획 대비 남은 조건을 계산한 `RECALC_RESULT`(비교 기준 없음)이고, 없으면 계산 없는 `ANSWER`다. 목록이 비었거나 바꾼 적 없는 조건을 지목하면 ai-server가 문구표 `chat.nothingToRevert`·`chat.conditionNotChanged`로 답하고 `revert`를 싣지 않는다(상태 그대로).
 - 초과 계획에서도 평소대로 받는다. 대화창 표시는 Q-051이었고 3절 머리말 보충 D-063으로 정해졌다(프론트가 문구표 `chat.alreadyExceeded` 한 줄, F-1은 평소대로 받는다).
 
 오류:
