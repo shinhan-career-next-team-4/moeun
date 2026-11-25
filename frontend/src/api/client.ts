@@ -1,6 +1,6 @@
 // 화면이 Spring(또는 목)과 통신하는 유일한 통로. 화면 코드는 fetch를 직접 부르지 않는다.
 // 같은 사이트 전제(SameSite=Lax 쿠키): 절대 URL 없이 상대 경로 /api/...만 쓰고 credentials: "include"로 쿠키를 싣는다.
-import { LOGIN_PATH } from "../app/routes";
+import { LOGIN_PATH, SIGNUP_PATH } from "../app/routes";
 import type { AuthChangeKind } from "./authSync";
 import { ApiError, type ProblemBody } from "./errors";
 
@@ -84,7 +84,9 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     if (error.code === "UNAUTHENTICATED") {
       planStore.clear();
       polling.stopAll();
-      if (getPathname() !== LOGIN_PATH) navigate(LOGIN_PATH);
+      // 로그인·회원가입 화면에서는 이동하지 않는다(입력 중인 양식을 지키려고, #460).
+      const pathname = getPathname();
+      if (pathname !== LOGIN_PATH && pathname !== SIGNUP_PATH) navigate(LOGIN_PATH);
     }
     throw error;
   }
@@ -93,7 +95,8 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     const target = pathOf(path);
     try {
       const result = await execute(method, path, body);
-      if (method === "POST" && target === "/api/auth/login") {
+      // 회원가입(P-7) 성공도 로그인과 같은 쿠키를 받으므로 로그인으로 알린다(D-078, #460).
+      if (method === "POST" && (target === "/api/auth/login" || target === "/api/auth/signup")) {
         authSync?.notifyAuthChanged("login");
       } else if (method === "POST" && target === "/api/auth/logout") {
         planStore.clear();
