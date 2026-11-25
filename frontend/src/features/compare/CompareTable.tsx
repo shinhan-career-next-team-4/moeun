@@ -44,8 +44,8 @@ function resultRows(view: ComparisonView): Row[] {
   };
   const achievementTone = (scenario: string): Row["tone"] => {
     const change = achievement(scenario);
-    if (change === "MISS_TO_ACHIEVE") return "good";
-    if (change === "ACHIEVE_TO_MISS") return "bad";
+    if (change === "MISS_TO_ACHIEVE" || change === "STAYS_ACHIEVED") return "good";
+    if (change === "ACHIEVE_TO_MISS" || change === "STAYS_MISSED") return "bad";
     return undefined;
   };
 

@@ -74,10 +74,10 @@ export function AlternativeCard({
       ) : (
         <p className="text-xs text-text-muted">{COPY["alt.valuePending"]}</p>
       )}
-      <div className="mt-auto flex gap-2 pt-1">
+      <div className="mt-auto flex flex-wrap gap-2 pt-1">
         <Button
           variant="secondary"
-          className="h-9 flex-1 px-2"
+          className="h-9 min-w-fit flex-1 whitespace-nowrap px-2"
           disabled={!hasValues || !onCompare}
           onClick={() => values && onCompare?.(values)}
         >
@@ -86,7 +86,7 @@ export function AlternativeCard({
         {/* 적용은 확인창(FR-PLAN-01)을 거쳐 P-6 ALTERNATIVE로 한다(#258) */}
         <Button
           variant="secondary"
-          className="h-9 flex-1 px-2"
+          className="h-9 min-w-fit flex-1 whitespace-nowrap px-2"
           disabled={!hasValues || !onApply || !applyEnabled}
           onClick={() => values && onApply?.(values)}
         >
