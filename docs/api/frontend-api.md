@@ -3,7 +3,7 @@
 > 최종본 (2026-11-16, moeun #12). 요구사항 FR-AI-01·FR-AI-07·FR-PLAN-03·FR-PLAN-04·FR-AUTH-01·FR-AUTH-03·FR-INP-10·FR-INP-11·FR-DATA-03(절 4), 결정 D-046·D-054·D-062·D-063·D-064·D-066·D-068·D-069·D-070·D-074·D-075·D-076.
 > 기획 repo project-workspace `docs/design/contracts/`의 최종본 두 개를 그대로 옮겼다. 절 2는 `frontend-api-plan.md`(#12-a), 절 3은 `frontend-api-chat.md`(#12-b)다. 협상 기록·후속 작업 표·코드 차이 표(본문 괄호의 `X-n`·`Y-n`·`H-n`·`J-n`)는 원문에 있다.
 > 오류 본문 형식 C3-1과 `/internal/calc`는 [`internal-calc.md`](internal-calc.md), planContext(C1a-x)는 기획 repo `plan-context.md`다.
-> 이 문서가 구현 기준이고 `frontend/src/mocks/`의 목 JSON 69개(대화 38 + 로그인·계획 30 + 기준 데이터 1)와 같은 값이다. 각 절 머리말의 "최종본 보충"이 본문보다 우선한다.
+> 이 문서가 구현 기준이고 `frontend/src/mocks/`의 목 JSON 93개(대화 45 + 로그인·회원가입·계획 41 + 기준 데이터 1 + 대안 6, #460 기준)와 같은 값이다. 각 절 머리말의 "최종본 보충"이 본문보다 우선한다.
 
 ## 1. 한눈에 보기
 
@@ -914,6 +914,10 @@ record PlanUndoResult(long planVersionId, long revision) {}
 | `auth/post-login.500.json` | P-1 | 500 | `INTERNAL_ERROR` |
 | `auth/post-logout.200.json` (기본) | P-2 | 200 | `{}` |
 | `auth/post-logout.401.json` | P-2 | 401 | `UNAUTHENTICATED` |
+| `auth/post-signup.200.json` (기본) | P-7 | 200 | `{}` + 쿠키 설명 헤더(P-1과 같은 값) [#460] |
+| `auth/post-signup.409-duplicate.json` | P-7 | 409 | `DUPLICATE_LOGIN_ID`, `errors: []` [#460] |
+| `auth/post-signup.422.json` | P-7 | 422 | `loginId` INVALID_FORMAT [#460] |
+| `auth/post-signup.500.json` | P-7 | 500 | `INTERNAL_ERROR` [#460] |
 | `plan/get-plan.seq-full-flow.json` (기본) | P-4 | 401 → 409 → 200 → 200 | 위 순서 1·3·6·8 |
 | **`plan/get-plan.seq-exceeded-toggle.json`** [v3] | P-4 | 200 → 200 → 200 | `useMock` 전용. `rev 12 CALCULATED / 540`(A-1) → `rev 13 ALREADY_EXCEEDED / 542`(`get-plan.200-exceeded` 본문에서 `revision`·`calcRunId`만 바꿈) → `rev 14 CALCULATED / 554`. D-072 "미달 → 초과 → 풀림"과 #54 "초과면 F-3 안 부름" 시험용(F-5 `{13}`·P-5 `{14}` 목과 함께) |
 | `plan/get-plan.200.json` | P-4 | 200 | A-1 계획, `rev 12`, `540`, 3구간 모두 미달 |
@@ -946,6 +950,7 @@ record PlanUndoResult(long planVersionId, long revision) {}
 | `plan/post-plan-apply.422-field-not-changeable.json` | P-6 | 422 | ALTERNATIVE에 `goalAmount` → `NOT_CHANGEABLE` |
 | `plan/post-plan-apply.500.json` | P-6 | 500 | `INTERNAL_ERROR` |
 
+- **[#460] 총 41개**(auth 10, plan 31). 회원가입(P-7) 목 4개를 더했다. 가입 400 `MALFORMED_REQUEST` 목은 두지 않았다(화면은 500과 같은 화면 위 안내).
 - **[v4] 총 31개**(auth 6, plan 25). P-6 목은 없다(#68). 공통 401은 대화 절의 `chat/common.401-unauthenticated.json`을 재사용한다.
 - **[개수 정정]** 최종본 본문은 "29개(plan 23)"로 적었지만 위 표는 30행이었다. `put-plan.422-custom-name`(D-074)이 개수 문장에 반영되지 않은 것으로 보여 표를 기준으로 했고, v4에서 `plan/get-plan.200-ratio83.json`을 더해 31개다. 대화 목 35개와 합쳐 66개다.
 - 9번 뒤의 GET은 마지막 응답(`rev 14`)을 반복한다. C12a-6-7 규칙 1로 무시되어 화면은 `rev 15`를 유지한다.

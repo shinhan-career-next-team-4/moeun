@@ -64,6 +64,10 @@ const AUTH_FILES = [
   "post-login.500.json",
   "post-logout.200.json",
   "post-logout.401.json",
+  "post-signup.200.json",
+  "post-signup.409-duplicate.json",
+  "post-signup.422.json",
+  "post-signup.500.json",
 ];
 
 // 계약 C12a-12 표는 36행이다(본문의 "29개"는 422-custom-name 추가 전 숫자, P-6 6개는 #68). 표를 기준으로 한다.
@@ -134,7 +138,7 @@ function allFiles() {
 
 // ---------------------------------------------------------------- 파일 목록
 
-test("목 파일 개수: chat 45, auth 6, plan 31, refdata 1, alternative 6", () => {
+test("목 파일 개수: chat 45, auth 10, plan 31, refdata 1, alternative 6", () => {
   for (const [dir, names] of Object.entries(DIRS)) {
     const actual = fs.existsSync(path.join(here, dir))
       ? fs.readdirSync(path.join(here, dir)).filter((f) => f.endsWith(".json")).sort()
@@ -142,7 +146,8 @@ test("목 파일 개수: chat 45, auth 6, plan 31, refdata 1, alternative 6", ()
     assert.deepEqual(actual, [...names].sort(), `${dir}/ 파일 목록이 계약 표와 다르다`);
   }
   assert.equal(CHAT_FILES.length, 45);
-  assert.equal(AUTH_FILES.length + PLAN_FILES.length, 37);
+  assert.equal(AUTH_FILES.length, 10);
+  assert.equal(PLAN_FILES.length, 31);
   assert.equal(REFDATA_FILES.length, 1);
   assert.equal(ALTERNATIVE_FILES.length, 6);
 });
@@ -258,6 +263,9 @@ const ERROR_CODES = {
   "auth/post-login.401-invalid.json": [401, "INVALID_CREDENTIALS"],
   "auth/post-login.422.json": [422, "VALIDATION_FAILED"],
   "auth/post-login.500.json": [500, "INTERNAL_ERROR"],
+  "auth/post-signup.409-duplicate.json": [409, "DUPLICATE_LOGIN_ID"],
+  "auth/post-signup.422.json": [422, "VALIDATION_FAILED"],
+  "auth/post-signup.500.json": [500, "INTERNAL_ERROR"],
   "plan/get-plan.409-no-plan.json": [409, "NO_PLAN"],
   "plan/get-plan.500.json": [500, "INTERNAL_ERROR"],
   "plan/put-plan.422-range.json": [422, "VALIDATION_FAILED"],
@@ -307,6 +315,7 @@ test("422 예시의 errors[]: min·max·unit은 있고 minDisplay·maxDisplay는
     { field: "text", reason: "OUT_OF_RANGE", min: 1, max: 2000, unit: "CHAR" },
   ]);
   assert.deepEqual(body("auth", "post-login.422.json").errors, [{ field: "password", reason: "REQUIRED" }]);
+  assert.deepEqual(body("auth", "post-signup.422.json").errors, [{ field: "loginId", reason: "INVALID_FORMAT" }]);
 });
 
 test("FIELD_NOT_CHANGEABLE의 reason은 internal-calc C3-1을 따라 NOT_CHANGEABLE이다", () => {
@@ -325,6 +334,18 @@ test("로그인·로그아웃 성공 본문은 {}이고 쿠키 설명 헤더가 
   const [logout] = load("auth", "post-logout.200.json").responses;
   assert.deepEqual(logout.body, {});
   assert.match(logout.headers["Set-Cookie"], /^moeun_at=; Max-Age=0; Path=\/; Secure; HttpOnly; SameSite=Lax$/);
+});
+
+test("회원가입(P-7) 성공 본문은 {}이고 로그인과 같은 쿠키 설명 헤더가 있다, 409·500의 errors는 [] (#460)", () => {
+  const [signup] = load("auth", "post-signup.200.json").responses;
+  assert.equal(signup.status, 200);
+  assert.deepEqual(signup.body, {});
+  assert.equal(signup.headers["Set-Cookie"], load("auth", "post-login.200.json").responses[0].headers["Set-Cookie"]);
+  for (const name of ["post-signup.409-duplicate.json", "post-signup.500.json"]) {
+    assert.deepEqual(body("auth", name).errors, [], name);
+    assert.equal(body("auth", name).instance, "/api/auth/signup", name);
+  }
+  assert.equal(body("auth", "post-signup.422.json").instance, "/api/auth/signup");
 });
 
 // ---------------------------------------------------------------- 계획(PlanView)

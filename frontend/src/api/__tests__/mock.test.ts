@@ -17,6 +17,7 @@ const KEY_BY_PREFIX: Record<string, Key> = {
   "delete-condition-changes": ["DELETE", "/api/chat/condition-changes"],
   "post-login": ["POST", "/api/auth/login"],
   "post-logout": ["POST", "/api/auth/logout"],
+  "post-signup": ["POST", "/api/auth/signup"],
   "get-plan": ["GET", "/api/plan"],
   "put-plan": ["PUT", "/api/plan"],
   "post-undo": ["POST", "/api/plan/undo"],
@@ -40,6 +41,7 @@ const DEFAULTS: Array<[Key, string]> = [
   [["DELETE", "/api/chat/condition-changes"], "delete-condition-changes.200.json"],
   [["POST", "/api/auth/login"], "post-login.200.json"],
   [["POST", "/api/auth/logout"], "post-logout.200.json"],
+  [["POST", "/api/auth/signup"], "post-signup.200.json"],
   [["GET", "/api/plan"], "get-plan.seq-full-flow.json"],
   [["PUT", "/api/plan"], "put-plan.seq-full-flow.json"],
   [["POST", "/api/plan/undo"], "post-undo.200.json"],
@@ -69,11 +71,11 @@ describe("AC-2·AC-11 기본 파일: 키마다 기본 파일이 하나 있고 �
   });
 });
 
-describe("AC-5·AC-11 useMock: 같은 키의 다른 파일을 고른다 (파일 88개 전부)", () => {
+describe("AC-5·AC-11 useMock: 같은 키의 다른 파일을 고른다 (파일 92개 전부)", () => {
   const files = allMockFiles().filter((f) => prefixOf(f) !== "common");
 
-  it("목 파일은 chat 45 + auth 6 + plan 31 + alternative 6 = 88개이고, 공통 파일 1개를 뺀 나머지가 위 접두어 표에 모두 속한다", () => {
-    expect(allMockFiles()).toHaveLength(88);
+  it("목 파일은 chat 45 + auth 10 + plan 31 + alternative 6 = 92개이고, 공통 파일 1개를 뺀 나머지가 위 접두어 표에 모두 속한다", () => {
+    expect(allMockFiles()).toHaveLength(92);
     expect(files.every((f) => prefixOf(f) in KEY_BY_PREFIX)).toBe(true);
   });
 
@@ -173,6 +175,7 @@ describe("AC-6 mockFetch는 실제 fetch처럼 status·headers를 그대로 반�
   it.each([
     ["post-messages.500.json", ["POST", "/api/chat/messages"] as Key, 500, "INTERNAL_ERROR"],
     ["post-login.401-invalid.json", ["POST", "/api/auth/login"] as Key, 401, "INVALID_CREDENTIALS"],
+    ["post-signup.409-duplicate.json", ["POST", "/api/auth/signup"] as Key, 409, "DUPLICATE_LOGIN_ID"],
     ["put-plan.409-plan-changed.json", ["PUT", "/api/plan"] as Key, 409, "PLAN_CHANGED"],
     ["put-plan.422-range.json", ["PUT", "/api/plan"] as Key, 422, undefined],
   ])("%s", async (file, key, status, code) => {

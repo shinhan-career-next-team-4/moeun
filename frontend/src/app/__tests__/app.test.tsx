@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import App from "../App";
-import { INPUT_PATH, LOGIN_PATH } from "../routes";
+import { INPUT_PATH, LOGIN_PATH, SIGNUP_PATH } from "../routes";
 
 afterEach(() => {
   cleanup();
@@ -18,7 +18,7 @@ const renderAt = (path: string) =>
   );
 
 describe("공통 레이아웃", () => {
-  it.each([INPUT_PATH, LOGIN_PATH, "/아직-없는-경로"])("%s 에서도 헤더(banner)와 본문 영역(main)이 보인다", (path) => {
+  it.each([INPUT_PATH, LOGIN_PATH, SIGNUP_PATH, "/아직-없는-경로"])("%s 에서도 헤더(banner)와 본문 영역(main)이 보인다", (path) => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     renderAt(path);
     const header = screen.getByRole("banner");
@@ -38,6 +38,16 @@ describe("공통 레이아웃", () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
     renderAt(LOGIN_PATH);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("회원가입 화면(/signup, #460)은 회원가입 양식을 보이고, 로그인 화면처럼 로그아웃 버튼이 없으며 API를 부르지 않는다", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    renderAt(SIGNUP_PATH);
+    expect(screen.getByRole("heading", { name: "회원가입" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "로그아웃" })).toBeNull();
     await new Promise((r) => setTimeout(r, 10));
     expect(fetchSpy).not.toHaveBeenCalled();
   });
