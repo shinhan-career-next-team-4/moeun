@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import App from "../App";
+import { forgetDisplayName, rememberDisplayName } from "../../features/auth";
 import { INPUT_PATH, LOGIN_PATH } from "../routes";
 
 afterEach(() => {
@@ -49,15 +50,30 @@ describe("공통 레이아웃", () => {
   });
 
   describe("데모 초기화", () => {
-    beforeEach(() => vi.stubEnv("VITE_SHOW_DEMO_RESET", "true"));
-    afterEach(() => vi.unstubAllEnvs());
+    beforeEach(() => rememberDisplayName("demo02"));
+    afterEach(() => forgetDisplayName());
 
-    it("기본으로는 버튼이 숨겨져 있다", () => {
-      vi.stubEnv("VITE_SHOW_DEMO_RESET", "");
+    /** 아이디를 연달아 세 번 누른 것처럼 click 이벤트의 연속 클릭 수(detail)를 1, 2, 3으로 보낸다. */
+    function clickIdTimes(times: number) {
+      const id = screen.getByText("demo02 님");
+      for (let count = 1; count <= times; count += 1) fireEvent.click(id, { detail: count });
+    }
+
+    it("화면에는 초기화 버튼이 없다", () => {
       vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
       renderAt(INPUT_PATH);
 
       expect(screen.queryByRole("button", { name: "데모 초기화" })).toBeNull();
+      expect(screen.queryByText("계획과 대화가 모두 지워져요. 초기화할까요?")).toBeNull();
+    });
+
+    it("아이디를 한두 번 누르는 것으로는 초기화 확인이 뜨지 않는다", () => {
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+      renderAt(INPUT_PATH);
+
+      clickIdTimes(2);
+
+      expect(screen.queryByText("계획과 대화가 모두 지워져요. 초기화할까요?")).toBeNull();
     });
 
     function stubFetch(resetResponse: Response) {
@@ -77,11 +93,11 @@ describe("공통 레이아웃", () => {
       return calls;
     }
 
-    it("눌러도 바로 지우지 않고 확인을 먼저 묻는다", () => {
+    it("아이디를 세 번 누르면 바로 지우지 않고 확인을 먼저 묻는다", () => {
       const calls = stubFetch(new Response("{}", { status: 200 }));
       renderAt(INPUT_PATH);
 
-      fireEvent.click(screen.getByRole("button", { name: "데모 초기화" }));
+      clickIdTimes(3);
 
       expect(screen.getByText("계획과 대화가 모두 지워져요. 초기화할까요?")).toBeTruthy();
       expect(calls).not.toContain("POST /api/auth/demo-reset");
@@ -91,11 +107,11 @@ describe("공통 레이아웃", () => {
       const calls = stubFetch(new Response("{}", { status: 200 }));
       renderAt(INPUT_PATH);
 
-      fireEvent.click(screen.getByRole("button", { name: "데모 초기화" }));
+      clickIdTimes(3);
       fireEvent.click(screen.getByRole("button", { name: "취소" }));
       expect(calls).not.toContain("POST /api/auth/demo-reset");
 
-      fireEvent.click(screen.getByRole("button", { name: "데모 초기화" }));
+      clickIdTimes(3);
       fireEvent.click(screen.getByRole("button", { name: "초기화" }));
       await waitFor(() => expect(calls).toContain("POST /api/auth/demo-reset"));
     });
@@ -109,7 +125,7 @@ describe("공통 레이아웃", () => {
       );
       renderAt(INPUT_PATH);
 
-      fireEvent.click(screen.getByRole("button", { name: "데모 초기화" }));
+      clickIdTimes(3);
       fireEvent.click(screen.getByRole("button", { name: "초기화" }));
 
       expect(await screen.findByText("초기화하지 못했어요. 다시 시도해 주세요")).toBeTruthy();

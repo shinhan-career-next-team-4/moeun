@@ -18,8 +18,6 @@ function Layout() {
   const [confirmingReset, setConfirmingReset] = useState(false);
   const isLogin = location.pathname === LOGIN_PATH;
   const displayName = isLogin ? null : readDisplayName();
-  // 데모 초기화 버튼은 기본으로 숨긴다. VITE_SHOW_DEMO_RESET=true일 때만 보인다
-  const showDemoReset = import.meta.env.VITE_SHOW_DEMO_RESET === "true";
 
   async function handleLogout() {
     setLogoutError(null);
@@ -63,8 +61,17 @@ function Layout() {
           </Link>
           {!isLogin && (
             <div className="flex items-center gap-3 md:absolute md:left-[87.5%] md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2">
-              {displayName && <span className="text-sm text-text-muted">{displayName} 님</span>}
-              {showDemoReset && confirmingReset ? (
+              {displayName && (
+                // 숨은 동작: 아이디를 세 번 연달아 누르면 데모 초기화 확인이 뜬다(브라우저의 연속 클릭 수 detail 사용)
+                <span
+                  className="select-none text-sm text-text-muted"
+                  onClick={(event) => {
+                    if (event.detail === 3) setConfirmingReset(true);
+                  }}>
+                  {displayName} 님
+                </span>
+              )}
+              {confirmingReset && (
                 <span role="group" aria-label={COPY["demo.reset"]} className="flex items-center gap-2 text-sm">
                   <span className="text-text-muted">{COPY["demo.resetConfirm"]}</span>
                   <Button variant="secondary" className="h-9 px-3" onClick={handleDemoReset}>
@@ -74,12 +81,6 @@ function Layout() {
                     {COPY["demo.resetCancel"]}
                   </Button>
                 </span>
-              ) : (
-                showDemoReset && (
-                  <Button variant="ghost" className="h-9 px-3" onClick={() => setConfirmingReset(true)}>
-                    {COPY["demo.reset"]}
-                  </Button>
-                )
               )}
               <Button variant="ghost" className="h-9 px-3" onClick={handleLogout}>
                 로그아웃
