@@ -318,40 +318,52 @@ export function ResultPage() {
                     />
                   </section>
                 )}
-                <ScenarioCards
-                  scenarios={result.scenarios}
-                  display={display}
-                  scenarioMethod={result.assumptions.scenarioMethod}
-                  productName={display["assumptions.etfProductName"]}
-                  selected={chartScenario ?? undefined}
-                  onSelect={chartScenario ? setPickedScenario : undefined}
-                />
-                {/* ETF 원금 미보장 문구와 운용사 공시(#374, D-104). ETF 0%면 종목 코드가 없어 그리지 않는다 */}
-                {/* <EtfRiskNotice etfProductCode={result.assumptions.etfProductCode} /> */}
-                {chartScenario && <ProjectionChart data={projection} scenario={chartScenario} startMonth={result.calcStartMonth} />}
+                <section aria-label="시나리오 비교" className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-6 shadow-sm">
+                  <ScenarioCards
+                    scenarios={result.scenarios}
+                    display={display}
+                    scenarioMethod={result.assumptions.scenarioMethod}
+                    productName={display["assumptions.etfProductName"]}
+                    selected={chartScenario ?? undefined}
+                    onSelect={chartScenario ? setPickedScenario : undefined}
+                  />
+                  {/* ETF 원금 미보장 문구와 운용사 공시(#374, D-104). ETF 0%면 종목 코드가 없어 그리지 않는다 */}
+                  {/* <EtfRiskNotice etfProductCode={result.assumptions.etfProductCode} /> */}
+                </section>
+                {chartScenario && (
+                  <section aria-label="월별 적금 추이" className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+                    <ProjectionChart data={projection} scenario={chartScenario} startMonth={result.calcStartMonth} />
+                  </section>
+                )}
                 {/* 대안 영역(#67). 기준 시나리오가 미달일 때만 보인다(FR-ALT-01) */}
-                <AlternativeSection
-                  isAchieved={(baseline?.isAchieved ?? false) || alternatives?.hasAlternatives === false}
-                  values={alternatives?.values}
-                  onCompare={prefillComparison}
-                  onApply={openAlternativeConfirm}
-                  applyEnabled={alternatives !== null && !alternatives.blocked && alternatives.revision === revision}
-                  loadFailed={alternativesFailed}
-                />
+                {!((baseline?.isAchieved ?? false) || alternatives?.hasAlternatives === false) && (
+                  <section aria-label="대안 제안" className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+                    <AlternativeSection
+                      isAchieved={false}
+                      values={alternatives?.values}
+                      onCompare={prefillComparison}
+                      onApply={openAlternativeConfirm}
+                      applyEnabled={alternatives !== null && !alternatives.blocked && alternatives.revision === revision}
+                      loadFailed={alternativesFailed}
+                    />
+                  </section>
+                )}
                 {/* 비교 영역(#65). 조건을 바꿔 현재 조건과 나란히 본다 */}
-                <CompareSection
-                  key={`${prefill?.seq ?? 0}-${resetSeq}`}
-                  initialChanges={prefill?.changes}
-                  currentDisplay={display}
-                  comparison={comparison}
-                  loading={comparing}
-                  error={compareError}
-                  onCompare={compare}
-                  onReset={resetComparison}
-                  comparedChanges={compared?.changes ?? null}
-                  applyEnabled={compared !== null && compared.revision === revision}
-                  onApply={openConfirm}
-                />
+                <section aria-label="조건 비교" className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+                  <CompareSection
+                    key={`${prefill?.seq ?? 0}-${resetSeq}`}
+                    initialChanges={prefill?.changes}
+                    currentDisplay={display}
+                    comparison={comparison}
+                    loading={comparing}
+                    error={compareError}
+                    onCompare={compare}
+                    onReset={resetComparison}
+                    comparedChanges={compared?.changes ?? null}
+                    applyEnabled={compared !== null && compared.revision === revision}
+                    onApply={openConfirm}
+                  />
+                </section>
               </>
             )}
 
