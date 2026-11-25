@@ -26,4 +26,9 @@ public interface PlanRepository extends JpaRepository<Plan, Long> {
         return insertIfAbsent(plan.getMemberId(), plan.getCurrentVersionId(), plan.getBaselineScenario().name(),
                 plan.getRevision()) == 1;
     }
+
+    /** 그 회원의 현재 계획 포인터를 지운다(데모 초기화). */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = "DELETE FROM plan WHERE member_id = :memberId", nativeQuery = true)
+    int deleteByMemberId(@Param("memberId") Long memberId);
 }

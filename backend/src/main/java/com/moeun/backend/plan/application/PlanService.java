@@ -24,6 +24,7 @@ import com.moeun.backend.plan.PlanApplyResult;
 import com.moeun.backend.plan.PlanApplyService;
 import com.moeun.backend.plan.PlanChanged;
 import com.moeun.backend.plan.PlanChangedException;
+import com.moeun.backend.plan.PlanEraser;
 import com.moeun.backend.plan.PlanInput;
 import com.moeun.backend.plan.PlanSaveResult;
 import com.moeun.backend.plan.PlanSaveService;
@@ -44,7 +45,7 @@ import tools.jackson.databind.JsonNode;
  */
 @Service
 @Transactional
-public class PlanService implements PlanSaveService, PlanApplyService, PlanUndoService {
+public class PlanService implements PlanSaveService, PlanApplyService, PlanUndoService, PlanEraser {
 
     private final PlanRepository planRepository;
     private final PlanVersionRepository versionRepository;
@@ -219,5 +220,11 @@ public class PlanService implements PlanSaveService, PlanApplyService, PlanUndoS
                 plan.getRevision(),
                 plan.canUndo(),
                 version.getCreatedAt());
+    }
+
+    @Override
+    public void deleteAllOf(long memberId) {
+        planRepository.deleteByMemberId(memberId);
+        versionRepository.deleteAllByMemberId(memberId);
     }
 }

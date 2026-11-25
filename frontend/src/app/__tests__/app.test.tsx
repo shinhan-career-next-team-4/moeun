@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import App from "../App";
 import { INPUT_PATH, LOGIN_PATH } from "../routes";
@@ -46,5 +46,73 @@ describe("공통 레이아웃", () => {
     renderAt(LOGIN_PATH);
     expect(screen.getAllByRole("banner")).toHaveLength(1);
     expect(screen.getAllByRole("main")).toHaveLength(1);
+  });
+
+  describe("데모 초기화", () => {
+    beforeEach(() => vi.stubEnv("VITE_SHOW_DEMO_RESET", "true"));
+    afterEach(() => vi.unstubAllEnvs());
+
+    it("기본으로는 버튼이 숨겨져 있다", () => {
+      vi.stubEnv("VITE_SHOW_DEMO_RESET", "");
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+      renderAt(INPUT_PATH);
+
+      expect(screen.queryByRole("button", { name: "데모 초기화" })).toBeNull();
+    });
+
+    function stubFetch(resetResponse: Response) {
+      const calls: string[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = new URL(String(input), "http://localhost");
+          calls.push(`${init?.method ?? "GET"} ${url.pathname}`);
+          if (url.pathname === "/api/auth/demo-reset") return resetResponse;
+          return new Response(JSON.stringify({ type: "about:blank", status: 409, code: "NO_PLAN", errors: [] }), {
+            status: 409,
+            headers: { "Content-Type": "application/problem+json" },
+          });
+        }),
+      );
+      return calls;
+    }
+
+    it("눌러도 바로 지우지 않고 확인을 먼저 묻는다", () => {
+      const calls = stubFetch(new Response("{}", { status: 200 }));
+      renderAt(INPUT_PATH);
+
+      fireEvent.click(screen.getByRole("button", { name: "데모 초기화" }));
+
+      expect(screen.getByText("계획과 대화가 모두 지워져요. 초기화할까요?")).toBeTruthy();
+      expect(calls).not.toContain("POST /api/auth/demo-reset");
+    });
+
+    it("확인하면 초기화 API를 부르고, 취소하면 부르지 않는다", async () => {
+      const calls = stubFetch(new Response("{}", { status: 200 }));
+      renderAt(INPUT_PATH);
+
+      fireEvent.click(screen.getByRole("button", { name: "데모 초기화" }));
+      fireEvent.click(screen.getByRole("button", { name: "취소" }));
+      expect(calls).not.toContain("POST /api/auth/demo-reset");
+
+      fireEvent.click(screen.getByRole("button", { name: "데모 초기화" }));
+      fireEvent.click(screen.getByRole("button", { name: "초기화" }));
+      await waitFor(() => expect(calls).toContain("POST /api/auth/demo-reset"));
+    });
+
+    it("초기화에 실패하면 안내가 보인다", async () => {
+      stubFetch(
+        new Response(JSON.stringify({ type: "about:blank", status: 500, code: "INTERNAL_ERROR", errors: [] }), {
+          status: 500,
+          headers: { "Content-Type": "application/problem+json" },
+        }),
+      );
+      renderAt(INPUT_PATH);
+
+      fireEvent.click(screen.getByRole("button", { name: "데모 초기화" }));
+      fireEvent.click(screen.getByRole("button", { name: "초기화" }));
+
+      expect(await screen.findByText("초기화하지 못했어요. 다시 시도해 주세요")).toBeTruthy();
+    });
   });
 });

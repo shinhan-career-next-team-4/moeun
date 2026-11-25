@@ -67,4 +67,19 @@ class AuthController {
                 .header(HttpHeaders.SET_COOKIE, tokenService.expiredCookie().toString())
                 .body(Map.of());
     }
+
+    /** 데모 계정의 계획과 대화를 지우고 처음 상태로 돌린다. 계정과 로그인은 그대로다. */
+    @PostMapping("/demo-reset")
+    ResponseEntity<?> demoReset(@AuthenticationPrincipal Jwt jwt) {
+        long memberId = Long.parseLong(jwt.getSubject());
+        if (!authService.demoReset(memberId)) {
+            ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN,
+                    "데모 계정만 초기화할 수 있어요.");
+            problem.setProperty("code", "DEMO_RESET_FORBIDDEN");
+            problem.setProperty("errors", List.of());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+        }
+        LOG.info("auth.demoReset memberId={}", memberId);
+        return ResponseEntity.ok(Map.of());
+    }
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { api } from "../api";
+import { api, planStore } from "../api";
 import { ApiError } from "../api/errors";
 import { forgetDisplayName, LoginPage, readDisplayName } from "../features/auth";
 import { PlanInputPage } from "../features/input";
@@ -14,8 +14,12 @@ function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [logoutError, setLogoutError] = useState<string | null>(null);
+  // 데모 초기화는 확인을 한 번 더 받는다. 계획과 대화가 모두 지워지고 되돌릴 수 없다
+  const [confirmingReset, setConfirmingReset] = useState(false);
   const isLogin = location.pathname === LOGIN_PATH;
   const displayName = isLogin ? null : readDisplayName();
+  // 데모 초기화 버튼은 기본으로 숨긴다. VITE_SHOW_DEMO_RESET=true일 때만 보인다
+  const showDemoReset = import.meta.env.VITE_SHOW_DEMO_RESET === "true";
 
   async function handleLogout() {
     setLogoutError(null);
@@ -26,6 +30,20 @@ function Layout() {
     } catch (caught) {
       if (caught instanceof ApiError && caught.code === "UNAUTHENTICATED") return;
       setLogoutError(COPY["auth.logoutFailed"]);
+    }
+  }
+
+  async function handleDemoReset() {
+    setLogoutError(null);
+    try {
+      await api.request("POST", "/api/auth/demo-reset");
+      setConfirmingReset(false);
+      planStore.clear();
+      navigate(INPUT_PATH, { replace: true });
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.code === "UNAUTHENTICATED") return;
+      setConfirmingReset(false);
+      setLogoutError(COPY["demo.resetFailed"]);
     }
   }
 
@@ -46,6 +64,23 @@ function Layout() {
           {!isLogin && (
             <div className="flex items-center gap-3 md:absolute md:left-[87.5%] md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2">
               {displayName && <span className="text-sm text-text-muted">{displayName} 님</span>}
+              {showDemoReset && confirmingReset ? (
+                <span role="group" aria-label={COPY["demo.reset"]} className="flex items-center gap-2 text-sm">
+                  <span className="text-text-muted">{COPY["demo.resetConfirm"]}</span>
+                  <Button variant="secondary" className="h-9 px-3" onClick={handleDemoReset}>
+                    {COPY["demo.resetYes"]}
+                  </Button>
+                  <Button variant="ghost" className="h-9 px-3" onClick={() => setConfirmingReset(false)}>
+                    {COPY["demo.resetCancel"]}
+                  </Button>
+                </span>
+              ) : (
+                showDemoReset && (
+                  <Button variant="ghost" className="h-9 px-3" onClick={() => setConfirmingReset(true)}>
+                    {COPY["demo.reset"]}
+                  </Button>
+                )
+              )}
               <Button variant="ghost" className="h-9 px-3" onClick={handleLogout}>
                 로그아웃
               </Button>
