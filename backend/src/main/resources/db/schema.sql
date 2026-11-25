@@ -254,6 +254,9 @@ CREATE TABLE IF NOT EXISTS chat_message_citation (
 -- =========================================================
 -- #418: 대화 조건 누적의 비교 기준. 기존 대화 행은 NULL(기준 계획과 비교)이다
 ALTER TABLE chat_message ADD COLUMN IF NOT EXISTS baseline_condition_changes JSONB;
+ALTER TABLE chat_message DROP CONSTRAINT IF EXISTS ck_cm_baseline_changes;
+ALTER TABLE chat_message ADD CONSTRAINT ck_cm_baseline_changes CHECK (baseline_condition_changes IS NULL
+    OR jsonb_typeof(baseline_condition_changes) = 'object');
 ALTER TABLE data_version ADD COLUMN IF NOT EXISTS product_code VARCHAR(20);
 DROP INDEX IF EXISTS uq_data_version_active;
 ALTER TABLE data_version DROP CONSTRAINT IF EXISTS ck_data_kind;
