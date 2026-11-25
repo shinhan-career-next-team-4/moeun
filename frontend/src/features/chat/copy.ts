@@ -5,6 +5,8 @@ export const COPY = {
   alreadyExceeded: "이미 가진 자산이 목표 금액을 넘었어요. 대화로 목표 금액을 더 높게 바꿔 볼 수 있어요.",
   pollingFailed: "답변을 불러오지 못하고 있어요. 잠시 후 다시 시도해 주세요",
   sendFailed: "메시지를 보내지 못했어요. 다시 시도해 주세요",
+  emptyQuestion: "궁금한 점을 입력해 주세요",
+  tooLongQuestion: "질문은 2,000자 이하로 입력해 주세요",
   panelTitle: "AI 설명 · 대화",
   panelNotice: "숫자는 계산 엔진이 만들고, AI는 설명만 해요. 계산 결과가 먼저 보이고 설명은 뒤이어 도착해요.",
   panelOpen: "AI 설명",

@@ -207,7 +207,19 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleA
   const trimmed = text.trim();
   // 폴링이 실패로 멈추면 서버 값(answerPending)은 낡은 채로 남는다. 질문을 다시 보내 재개할 수 있어야 한다(서버가 409로 막으면 거기서 처리).
   const answerBlocking = chat.answerPending && !chat.pollingFailed;
-  const sendable = trimmed.length >= 1 && trimmed.length <= MAX_LENGTH && !sending && !answerBlocking;
+
+  // 단추는 늘 눌러 볼 수 있다. 빈 질문·너무 긴 질문이면 보내지 않고 이유를 알려 준다(#423)
+  function submitFromButton() {
+    if (trimmed.length < 1) {
+      setInputError(COPY.emptyQuestion);
+      return;
+    }
+    if (trimmed.length > MAX_LENGTH) {
+      setInputError(COPY.tooLongQuestion);
+      return;
+    }
+    void send();
+  }
 
   // example이 있으면 예시 버튼 문장을 그대로 보내고 입력창에 써 둔 글은 지우지 않는다.
   // 반환값은 질문이 접수됐을 때의 어시스턴트 메시지 id다(ETF 버튼이 그 답이 오면 적용하려고 쓴다)
@@ -339,8 +351,8 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleA
           <button
             type="button"
             data-testid="chat-send"
-            disabled={!sendable}
-            onClick={() => void send()}
+            disabled={sending || answerBlocking}
+            onClick={() => submitFromButton()}
             className="h-11 shrink-0 rounded-lg bg-primary px-4 text-sm font-semibold text-white hover:bg-primary-strong disabled:cursor-not-allowed disabled:bg-border disabled:text-text-muted"
           >
             {COPY.send}

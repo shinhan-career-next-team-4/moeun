@@ -100,7 +100,9 @@ describe("대안 영역 (#67, FR-ALT-01·02)", () => {
     expect(screen.getByText("월 120만원 → 121만원")).toBeTruthy();
     expect(screen.getByText("약 5,017만원")).toBeTruthy();
     expect(screen.getByText("+약 17만원 달성")).toBeTruthy();
-    expect(screen.getByText("약 4,856만원 · 미달")).toBeTruthy();
+    // 나빴던 때 줄은 보이지 않는다(#423)
+    expect(screen.queryByText("약 4,856만원 · 미달")).toBeNull();
+    expect(screen.queryByText("나빴던 때")).toBeNull();
     // 값이 온 카드만 채워지고 나머지 둘은 빈 카드다
     expect(screen.getAllByText("아직 계산된 값이 없어요")).toHaveLength(2);
   });

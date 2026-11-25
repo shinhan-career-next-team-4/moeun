@@ -107,6 +107,7 @@ export const COPY = {
   "compare.conditionHelp": "한 번에 여러 개를 바꿀 수 있어요",
   "compare.currentValue": "현재 {value}",
   "compare.submit": "비교하기",
+  "compare.pickFirst": "바꿀 조건을 먼저 골라 주세요",
   "compare.reset": "원래대로",
   "compare.apply": "바꾼 조건을 내 계획으로 적용",
   "compare.confirmTitle": "바꾼 조건을 내 계획에 적용할까요?",
