@@ -41,7 +41,7 @@ export function GoalBar({ afterTaxAsset, goalAmount, goalAmountText, isAchieved 
   const labelAlign = goalPct >= LABEL_EDGE_PCT ? "right" : "center";
 
   return (
-    <div className="mt-4 flex flex-col gap-1.5" role="img" aria-label="목표 대비 예상 자산">
+    <div className="mt-2 flex w-full flex-col gap-1.5" role="img" aria-label="목표 대비 예상 자산">
       <div className="relative h-3 w-full rounded-full bg-surface-muted">
         <div
           data-testid="goal-bar-fill"
