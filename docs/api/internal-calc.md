@@ -49,6 +49,7 @@
 | `memberId` | integer | 예 | 계산할 회원. 그 회원의 **현재 계획**이 기준(C2-8) |
 | `conditionChanges` | object | 예 | 바꿀 조건만 담는다. 키가 없거나 값이 `null`이면 "바꾸지 않음" |
 | `basePlanVersionId` | integer | 아니오 | **[#396]** 비교의 기준으로 삼을 계획 버전. ai-server가 질문을 접수한 순간의 계획 버전을 실어 보내, 답을 기다리는 사이 계획이 바뀌어도(ETF 버튼의 즉시 적용 등) 질문한 때의 계획과 비교한다. 키가 없거나 `null`이면 지금 계획 기준이고, 내 버전이 아니면 지금 계획으로 대신한다. 정수가 아니면 400 |
+| `baselineConditionChanges` | object | 아니오 | **[#418, D-103]** 대화 조건 누적의 비교 기준. 앞선 대화에서 바꾼 조건(이번 질문 직전까지 누적한 최종 값)을 `conditionChanges`와 같은 7개 키·타입으로 담는다. **current = 기준 계획 + 이 값, changed = 기준 계획 + 이 값 + `conditionChanges`**(같은 키는 `conditionChanges`가 이긴다). diff·`achievementChange`·display는 모두 이 두 쪽을 엔진이 비교한 값이다. 키가 없거나 `null`·빈 객체면 지금처럼 기준 계획과 비교한다. 객체가 아니면 400. 허용 밖 키는 `422 FIELD_NOT_CHANGEABLE`, 범위·정수·종목 오류는 `422 VALIDATION_FAILED`이고 두 경우 모두 `field`는 `baselineConditionChanges.<키>`다(이번 변경의 오류 뒤에 담는다). 기록(`calc_run.plan_version_id`)은 기준 계획 버전 그대로다 |
 | `baselineScenario` | string | **아니오(무시)** | 지금 `CalcClient`가 보내므로 받기는 하지만 **Spring은 값을 보지 않는다.** `String`으로 받고 검사하지 않으며, 모르는 값이 와도 거절하지 않는다. 기준 시나리오는 `plan.baseline_scenario`에서 읽는다. 다음 계약 버전에서 뺀다 |
 
 - `baselineScenario`를 계획에서 읽는 이유: 원천이 한 곳이고 같은 `plan` 행이라 비용이 없다. 해커톤에서는 항상 AVG(FR-RES-09 Should)라 ai-server 동작은 바뀌지 않는다. ai-server는 지금 코드를 고치지 않아도 된다.

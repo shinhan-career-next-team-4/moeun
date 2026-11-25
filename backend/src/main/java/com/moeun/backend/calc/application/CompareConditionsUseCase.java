@@ -22,7 +22,8 @@ import com.moeun.backend.refdata.SavingsAvgRateData;
 
 /**
  * 대화 재계산 유스케이스(계약 internal-calc C2-2 검사 순서 7~9, C2-7, C2-8).
- * <p>{@link #compare}의 기준은 그 회원의 현재 계획이고, 이번 요청의 바꾼 조건만 얹는다(이전 변경은 쌓지 않음, D-041).
+ * <p>{@link #compare}의 기준은 그 회원의 현재 계획(또는 질문을 접수한 때의 버전)이다. 앞선 대화의 변경을 넘기면 그것을 얹은
+ * 계획이 기준이 된다(대화 조건 누적, D-103).
  * 시작월은 기준 계획의 값이다. current와 changed는 같은 기준 데이터·엔진 버전으로 계산하고 그 버전으로 calc_run(CHAT)
  * 한 행을 남긴다. display도 같은 트랜잭션 안에서 만들므로 어느 단계에서 실패해도 기록이 함께 롤백된다.
  * <p>계산 부분({@link #computeComparison})은 기록하지 않고, 저장된 대화 기록을 다시 계산하는 쪽(#78)도 같이 쓴다.
@@ -80,10 +81,23 @@ public class CompareConditionsUseCase {
     @Transactional
     public ComparisonResult compare(long memberId, ConditionOverride changes, String changedEtfProductCode,
             Long basePlanVersionId) {
-        PlanView plan = basePlanVersionId == null
+        return compare(memberId, null, changes, changedEtfProductCode, basePlanVersionId);
+    }
+
+    /**
+     * 대화 조건 누적(#418, D-103). current는 기준 계획에 앞선 대화의 변경({@code baseline})을 얹은 계획, changed는 거기에
+     * 이번 변경을 더 얹은 계획이다. 같은 조건은 이번 변경이 이긴다. 기록은 기준 계획 버전으로 남는다.
+     *
+     * @param baseline 검증을 통과한 비교 기준 변경. 없으면 null(기준 계획과 비교)
+     */
+    @Transactional
+    public ComparisonResult compare(long memberId, ConditionChanges.Conversion baseline, ConditionOverride changes,
+            String changedEtfProductCode, Long basePlanVersionId) {
+        PlanView saved = basePlanVersionId == null
                 ? planSaveService.findCurrent(memberId).orElseThrow(CalcRejectedException::noPlan)
                 : planSaveService.findVersion(memberId, basePlanVersionId)
                         .or(() -> planSaveService.findCurrent(memberId)).orElseThrow(CalcRejectedException::noPlan);
+        PlanView plan = BaselinePlan.of(saved, baseline);
         CalcParams params = referenceDataService.findActiveCalcParams()
                 .orElseThrow(() -> new IllegalStateException("active calc params are not loaded"));
         // 계획의 ETF 종목(#150)

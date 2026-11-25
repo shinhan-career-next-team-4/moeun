@@ -32,6 +32,7 @@ class InternalCalcController {
     private static final String MEMBER_ID = "memberId";
     private static final String CONDITION_CHANGES = "conditionChanges";
     private static final String BASE_PLAN_VERSION_ID = "basePlanVersionId";
+    private static final String BASELINE_CONDITION_CHANGES = "baselineConditionChanges";
 
     private final ConditionValidator conditionValidator;
     private final CompareConditionsUseCase compareConditionsUseCase;
@@ -57,17 +58,28 @@ class InternalCalcController {
             throw new MalformedInternalCalcRequestException();
         }
         Long basePlanVersionId = baseNode == null || baseNode.isNull() ? null : baseNode.longValue();
+        // 대화 조건 누적의 비교 기준(#418, D-103). 없거나 null이면 기준 계획과 비교하고, 있으면 객체여야 한다
+        JsonNode baselineNode = body.get(BASELINE_CONDITION_CHANGES);
+        if (baselineNode != null && !baselineNode.isNull() && !isObject(baselineNode)) {
+            throw new MalformedInternalCalcRequestException();
+        }
+        Map<String, JsonNode> baselineChanges = baselineNode == null || baselineNode.isNull()
+                ? Map.of() : ConditionChanges.withoutNulls(baselineNode);
         // 2. 값이 null인 키는 "바꾸지 않음"이라 먼저 지운다
         Map<String, JsonNode> changes = ConditionChanges.withoutNulls(body.get(CONDITION_CHANGES));
         // 3. 허용 밖 키가 하나라도 있으면 일부만 계산하지 않고 전체를 거절한다(사용자가 말한 것과 다른 비교를 막음)
-        List<FieldError> notChangeable = ConditionChanges.unchangeableKeys(changes).stream()
+        //    비교 기준의 키는 baselineConditionChanges.<키>로 알린다
+        List<FieldError> notChangeable = new ArrayList<>(ConditionChanges.unchangeableKeys(changes).stream()
                 .map(FieldError::notChangeable)
-                .toList();
+                .toList());
+        ConditionChanges.unchangeableKeys(baselineChanges).stream()
+                .map(key -> FieldError.notChangeable(BASELINE_CONDITION_CHANGES + "." + key))
+                .forEach(notChangeable::add);
         if (!notChangeable.isEmpty()) {
             throw CalcRejectedException.fieldNotChangeable(notChangeable);
         }
         // 4. 허용 키의 값은 JSON 숫자여야 한다(1e400처럼 유한한 수로 읽을 수 없는 값도 형식 오류). 종목 코드·목표 이름만 문자열이다
-        if (!ConditionChanges.allValuesWellTyped(changes)) {
+        if (!ConditionChanges.allValuesWellTyped(changes) || !ConditionChanges.allValuesWellTyped(baselineChanges)) {
             throw new MalformedInternalCalcRequestException();
         }
         // 5. 바꿀 값이 하나도 없으면
@@ -76,10 +88,26 @@ class InternalCalcController {
         }
         // 6. 범위·정수·소수 자릿수·이름 글자 수. 걸린 키를 모두, 요청에 적힌 순서로 담는다.
         //    목표 이름(#345)은 계산에 쓰지 않는다. 이름만 바꿔도 F-5가 기준 계획 버전을 찾게 계산하고 기록한다
-        ConditionChanges.Conversion conversion = validate(changes);
-        CompareConditionsUseCase.ComparisonResult result = compareConditionsUseCase.compare(memberId,
+        //    비교 기준도 같은 규칙으로 보고, 걸린 키는 baselineConditionChanges.<키>로 바꿔 이번 변경의 오류 뒤에 담는다
+        ConditionChanges.Conversion conversion = ConditionChanges.convert(changes);
+        List<FieldError> errors = new ArrayList<>(errorsOf(changes, conversion));
+        ConditionChanges.Conversion baseline = null;
+        if (!baselineChanges.isEmpty()) {
+            baseline = ConditionChanges.convert(baselineChanges);
+            errorsOf(baselineChanges, baseline).stream().map(InternalCalcController::asBaselineError)
+                    .forEach(errors::add);
+        }
+        if (!errors.isEmpty()) {
+            throw CalcRejectedException.validationFailed(errors);
+        }
+        CompareConditionsUseCase.ComparisonResult result = compareConditionsUseCase.compare(memberId, baseline,
                 conversion.override(), conversion.etfProductCode(), basePlanVersionId);
         return InternalCalcResponse.from(result);
+    }
+
+    private static FieldError asBaselineError(FieldError error) {
+        return new FieldError(BASELINE_CONDITION_CHANGES + "." + error.field(), error.reason(), error.min(),
+                error.max(), error.unit(), error.scale());
     }
 
     /**
@@ -87,8 +115,7 @@ class InternalCalcController {
      * OUT_OF_RANGE로 알린다. 적재하지 않은 종목 코드도 OUT_OF_RANGE(min·max 없음, D-097)다. 걸린 키를 모두, 요청에 적힌
      * 순서로 담는다.
      */
-    private ConditionChanges.Conversion validate(Map<String, JsonNode> changes) {
-        ConditionChanges.Conversion conversion = ConditionChanges.convert(changes);
+    private List<FieldError> errorsOf(Map<String, JsonNode> changes, ConditionChanges.Conversion conversion) {
         List<FieldError> errors = new ArrayList<>(conversion.notIntegerKeys().stream()
                 .map(FieldError::notInteger)
                 .toList());
@@ -102,12 +129,9 @@ class InternalCalcController {
         if (conversion.goalCustomName() != null) {
             errors.addAll(conditionValidator.validateGoalCustomName(ChangePath.CHAT, conversion.goalCustomName()));
         }
-        if (!errors.isEmpty()) {
-            List<String> requestOrder = new ArrayList<>(changes.keySet());
-            errors.sort(Comparator.comparingInt(error -> requestOrder.indexOf(error.field())));
-            throw CalcRejectedException.validationFailed(errors);
-        }
-        return conversion;
+        List<String> requestOrder = new ArrayList<>(changes.keySet());
+        errors.sort(Comparator.comparingInt(error -> requestOrder.indexOf(error.field())));
+        return errors;
     }
 
     private static boolean hasAnyValue(ConditionOverride override) {

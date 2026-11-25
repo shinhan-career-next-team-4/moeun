@@ -37,16 +37,20 @@ public class ChatComparisonRecomputer implements ChatComparisonQuery {
     @Override
     @Transactional(readOnly = true)
     public Optional<ChatComparisonView> recompute(long memberId, long calcRunId,
-            Map<String, JsonNode> conditionChanges) {
+            Map<String, JsonNode> conditionChanges, Map<String, JsonNode> baselineChanges) {
         Objects.requireNonNull(conditionChanges, "conditionChanges");
+        Objects.requireNonNull(baselineChanges, "baselineChanges");
         return replayer.findOwnedRun(memberId, calcRunId, RunType.CHAT).map(owned -> {
             ConditionChanges.Conversion changes = toConversion(conditionChanges);
+            // 비교 기준 변경(#418)을 기록의 계획 버전에 얹어 current로 삼는다. /internal/calc와 같은 방식이다
+            ConditionChanges.Conversion baseline = ConditionChanges.withoutNulls(baselineChanges).isEmpty()
+                    ? null : toConversion(baselineChanges);
             // calc_run에는 기준 시나리오가 없어 지금 계획의 기준 시나리오를 쓴다. 해커톤 범위에는 기준 시나리오를 바꾸는
             // 기능이 없어 /internal/calc 때와 같다. 그 기능이 생기면 대화 메시지에 저장한 값을 인자로 받아야 한다
             CalcRunReplayer.RecordedData data = replayer.loadRecordedData(owned.run());
             CompareConditionsUseCase.ComputedComparison computed = compareConditionsUseCase.computeComparison(
-                    owned.plan(), changes.override(), data.params(), data.sp500(), data.changedEtf(),
-                    changes.etfProductCode(), data.defaultRate());
+                    BaselinePlan.of(owned.plan(), baseline), changes.override(), data.params(), data.sp500(),
+                    data.changedEtf(), changes.etfProductCode(), data.defaultRate());
             return new ChatComparisonView(owned.run().getPlanVersionId(), computed.comparison(), computed.display());
         });
     }
