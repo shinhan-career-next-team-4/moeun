@@ -1,7 +1,13 @@
+import logging
 import re
 from collections.abc import Sequence
+from typing import Any
 
-from app.schemas import ConditionChanges, HistoryItem
+from pydantic import ValidationError
+
+from app.schemas import ConditionChangeEntry, ConditionChanges, HistoryItem
+
+log = logging.getLogger(__name__)
 
 # 이번 발화가 그 조건을 가리키는지 보는 느슨한 표현. 자연어를 해석하거나 계산하지 않고, 표현이 없을 때만 값을 뺀다.
 # "개월"의 월, "원래"의 원, "한 달"의 달처럼 다른 조건의 글자가 겹치지 않게 정규식으로 가린다(M-3)
@@ -197,10 +203,33 @@ def pointed_source(text: str, history: Sequence[HistoryItem]) -> str | None:
     return before.content if len(_candidate_krw_amounts(said_before)) == 1 else None
 
 
+def accumulated_conditions(entries: Sequence[ConditionChangeEntry]) -> ConditionChanges:
+    """변경 목록을 순서대로 접은 최종 조건(#418, D-103). 같은 조건은 뒤의 변경이 이긴다.
+
+    값을 계산하지 않고 고르기만 한다. 이 값이 /internal/calc의 비교 기준(baselineConditionChanges)이다.
+    모르는 키나 타입이 맞지 않는 값(정수 자리의 1500000.0 등)은 그 항목만 버린다. 대화 전체를 실패시키지 않는다.
+    """
+    aliases = {field.alias or name: name for name, field in ConditionChanges.model_fields.items()}
+    final: dict[str, Any] = {}
+    for entry in entries:
+        name = aliases.get(entry.field)
+        if name is None:
+            log.warning("accumulated change with unknown field dropped: %s", entry.field)
+            continue
+        try:
+            ConditionChanges.model_validate({name: entry.after})
+        except ValidationError:
+            log.warning("accumulated change with wrong type dropped: %s", entry.field)
+            continue
+        final[name] = entry.after
+    return ConditionChanges.model_validate(final)
+
+
 def drop_carried_conditions(
     text: str, changes: ConditionChanges, history: Sequence[HistoryItem] = ()
 ) -> ConditionChanges:
-    """history에서 이어받은 조건을 도구 인자에서 뺀다. 비교 기준은 항상 내 계획이다(FR-AI-06, D-041).
+    """history에서 이어받은 조건을 도구 인자에서 뺀다. 도구 인자는 이번 발화의 값만이다(FR-AI-06).
+    앞 턴의 조건은 Spring의 변경 목록이 쌓아 비교 기준으로 넘긴다(D-103, D-041 일부 변경).
 
     사용자가 말한 값을 지우는 쪽이 이어받은 값이 남는 쪽보다 나쁘므로, 모호하면 남긴다. 발화의 숫자가
     인식한 조건보다 많으면("50으로 하고 기간은 3년") 단위를 못 알아본 값이 있다고 보고 그대로 둔다.
