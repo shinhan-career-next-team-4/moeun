@@ -82,7 +82,7 @@ export function CompareTable({ view }: { view: ComparisonView }) {
   return (
     <table className="w-full table-fixed border-collapse text-sm">
       <thead>
-        <tr className="border-b border-border text-xs text-text-muted">
+        <tr className="border-b border-border bg-table-head text-xs text-text-muted-on-soft">
           <th scope="col" className="py-2 text-left font-medium">
             {COPY["compare.colItem"]}
           </th>

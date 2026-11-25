@@ -173,7 +173,7 @@ export function CompareSection({
   }
 
   return (
-    <section aria-label="조건 변경 비교" className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-5">
+    <section aria-label="조건 변경 비교" className="flex flex-col gap-4 rounded-xl border border-border bg-surface-subtle p-5">
       <div>
         <h2 className="text-base font-semibold text-text">{COPY["compare.title"]}</h2>
         <p className="mt-1 text-xs leading-relaxed text-text-muted">{COPY["compare.notice"]}</p>

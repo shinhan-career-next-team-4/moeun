@@ -301,7 +301,7 @@ export function ResultPage() {
                     <p
                       data-testid="result-gap-badge"
                       className={`mt-2 inline-block rounded-full px-3 py-1 text-sm font-semibold ${
-                        baseline.isAchieved ? "bg-success-soft text-success" : "bg-warning-soft text-warning"
+                        baseline.isAchieved ? "bg-success-soft text-success" : "bg-danger-soft text-danger"
                       }`}
                     >
                       {display[`${baselineResultScenario}.gapBadge`] ?? display[`${baselineResultScenario}.gapToGoal`]}

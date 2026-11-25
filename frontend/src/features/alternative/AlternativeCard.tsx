@@ -58,7 +58,7 @@ export function AlternativeCard({
     Object.values(values).some((value) => typeof value === "string" && value.length > 0);
 
   return (
-    <li className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
+    <li className="flex flex-col gap-3 rounded-xl border border-border bg-surface-subtle p-4">
       <h3 className="text-sm font-bold text-text">{COPY[`alt.card.${alternativeKey}`]}</h3>
       {hasValues ? (
         <dl className="flex flex-col gap-1.5">
