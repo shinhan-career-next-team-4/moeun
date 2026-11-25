@@ -1,0 +1,140 @@
+plugins {
+    id 'java'
+    id 'checkstyle'                                       // 네이버 컨벤션(스페이스 4칸 변경판)
+    id 'org.springframework.boot' version '4.1.2'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'com.epages.restdocs-api-spec' version '0.20.2'   // REST Docs 테스트 → OpenAPI 3
+}
+
+group = 'com.moeun'
+version = '0.0.1-SNAPSHOT'
+description = 'backend'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    set('springModulithVersion', '2.1.2')   // Boot 4.1 대응 안정판
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.modulith:spring-modulith-bom:${springModulithVersion}"
+    }
+}
+
+dependencies {
+    // Web / API
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // 인증: JWT 검증(Resource Server) + BCrypt
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
+
+    // DB
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // Spring Modulith: 모듈 경계 + 이벤트 발행 기록(event_publication)
+    implementation 'org.springframework.modulith:spring-modulith-starter-core'
+    implementation 'org.springframework.modulith:spring-modulith-starter-jdbc'
+    runtimeOnly 'org.springframework.modulith:spring-modulith-actuator'
+
+    // 운영
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // API 문서: REST Docs가 만든 openapi3.yaml을 Swagger UI 정적 파일로 보여준다(코드 스캔 없음)
+    implementation 'org.webjars:swagger-ui:5.35.0'
+    implementation 'org.webjars:webjars-locator-lite'   // /webjars/swagger-ui/** 버전 없는 경로
+
+    // 편의
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+
+    // 테스트
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
+    testImplementation 'org.springframework.modulith:spring-modulith-starter-test'
+    testImplementation 'org.springframework.modulith:spring-modulith-docs'
+    testImplementation 'com.tngtech.archunit:archunit:1.4.2'   // 모듈 내부 책임 검사(ARCHITECTURE.md). Modulith가 쓰는 판과 같다
+    testImplementation 'org.springframework.boot:spring-boot-starter-restdocs'
+    testImplementation 'org.springframework.restdocs:spring-restdocs-mockmvc'
+    testImplementation 'com.epages:restdocs-api-spec-mockmvc:0.20.2'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers-postgresql'   // pgvector 이미지 사용
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    // 문서를 읽는 테스트(ChatModuleRulesTest, ModuleDiagramTest)가 문서만 바뀌어도 다시 돌게 한다
+    inputs.files('ARCHITECTURE.md', 'docs/module-dependencies.puml')
+    useJUnitPlatform {
+        excludeTags 'report'   // 비교 리포트(#162)는 로컬 가격 파일로 calcReport에서만 돈다
+    }
+    environment 'JWT_SECRET', 'test-only-jwt-secret-not-for-any-real-env-000'   // 테스트 전용 서명 키
+    // 테스트는 개발자 로컬의 ETF 가격 파일(backend/data/seed, git 제외)을 읽지 않는다. 같은 입력 → 같은 결과
+    // S&P500은 테스트마다 MOEUN_SP500_FILE로 레포의 가짜 파일을 준다. 새 종목은 필요한 테스트만 따로 준다
+    environment 'MOEUN_ETF_069500_FILE', 'file:build/no-local-etf-069500.csv'
+    environment 'MOEUN_ETF_133690_FILE', 'file:build/no-local-etf-133690.csv'
+    environment 'LOG_DIR', layout.buildDirectory.dir('test-logs').get().asFile.path   // 테스트 로그 파일은 build 안에(#316)
+}
+
+// 세 종목·두 계산 방식 비교 리포트(#162). 개발자 로컬의 가격 파일(data/seed, git 제외)로
+// build/reports/calc/product-comparison.md를 만든다. 파일이 없는 종목은 "데이터 없음"으로 적는다
+tasks.register('calcReport', Test) {
+    description = '세 종목·두 계산 방식 비교 리포트를 만든다(#162)'
+    group = 'documentation'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'report'
+    }
+    workingDir = projectDir           // data/seed·build/reports 상대 경로의 기준(backend/)
+    outputs.upToDateWhen { false }   // 로컬 파일이 바뀌어도 Gradle은 모르므로 매번 다시 만든다
+}
+
+checkstyle {
+    toolVersion = '10.21.4'
+    configFile = file('config/checkstyle/naver-checkstyle-rules.xml')
+    configProperties = [suppressionFile: file('config/checkstyle/naver-checkstyle-suppressions.xml').path]
+    maxWarnings = 0                                       // 규칙 심각도가 warning이라 0으로 둬야 빌드가 실패한다
+}
+
+openapi3 {
+    servers = [{ url = 'http://localhost:8080' }]
+    title = 'moeun API'
+    description = 'REST Docs 테스트로 생성한 문서'
+    version = project.version
+    format = 'yaml'
+    outputDirectory = layout.buildDirectory.dir('api-spec').get().asFile.path
+}
+
+// 생성된 openapi3.yaml을 jar의 static/docs에 넣는다 → /docs/openapi3.yaml
+tasks.named('bootJar') {
+    dependsOn 'openapi3'
+    from(layout.buildDirectory.file('api-spec/openapi3.yaml')) {
+        into 'BOOT-INF/classes/static/docs'
+    }
+}

@@ -1,0 +1,70 @@
+### 환경 변수 / 비밀 정보 ###
+.env
+.env.*
+!.env.example
+*.env
+application-local.yml
+application-secret.yml
+application-secret.yaml
+*.pem
+*.key
+*.p12
+*.jks
+
+### Gradle ###
+HELP.md
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+### OS / 로그 ###
+.DS_Store
+Thumbs.db
+*.log
+logs/
+
+### Claude Code 개인 설정 ###
+.claude/settings.local.json
+CLAUDE.local.md
+
+### 기준 데이터(이용 조건 때문에 레포에 올리지 않음, seed/README.md) ###
+data/
+
+### Python ###
+__pycache__/
+
+# 로컬 개발용 데이터(ETF 월말 종가 등). 이용 조건 때문에 올리지 않는다(#55)
+data/

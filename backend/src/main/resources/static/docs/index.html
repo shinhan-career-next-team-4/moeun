@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>moeun API</title>
+  <link rel="stylesheet" href="/webjars/swagger-ui/swagger-ui.css">
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="/webjars/swagger-ui/swagger-ui-bundle.js"></script>
+<script>
+  // REST Docs 테스트가 만든 문서만 보여준다 (./gradlew bootJar 시 포함)
+  window.ui = SwaggerUIBundle({ url: "/docs/openapi3.yaml", dom_id: "#swagger-ui", persistAuthorization: true });
+</script>
+</body>
+</html>

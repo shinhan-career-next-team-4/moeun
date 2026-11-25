@@ -1,0 +1,18 @@
+{
+  "responses": [
+    {
+      "status": 401,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "아이디 또는 비밀번호가 맞지 않아요",
+        "status": 401,
+        "instance": "/api/auth/login",
+        "code": "INVALID_CREDENTIALS",
+        "errors": []
+      }
+    }
+  ]
+}

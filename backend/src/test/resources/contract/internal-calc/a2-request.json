@@ -1,0 +1,7 @@
+{
+  "memberId": 7,
+  "baselineScenario": "AVG",
+  "conditionChanges": {
+    "monthlySavingAmount": 12000000
+  }
+}

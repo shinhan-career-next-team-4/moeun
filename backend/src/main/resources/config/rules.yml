@@ -1,0 +1,23 @@
+# 입력 규칙 원본(CP-02, TBD-09). 입력 저장과 조건 변경 검증이 이 파일 하나를 쓴다. 수치는 계약 C12a-5-5.
+# 금액은 원 정수(scale 0)로 받는다. 만원 단위 강제(step)는 없다. 화면이 만원으로 입력·표시한다.
+# goalAmount·heldAssets 상한은 임시(R-4).
+moeun:
+  rules:
+    fields:
+      GOAL_CUSTOM_NAME:         { required: false, min: 1, max: 100, unit: CHAR }
+      GOAL_AMOUNT:              { required: true, min: 10000, max: 10000000000, unit: KRW, scale: 0 }
+      TARGET_PERIOD_MONTHS:     { required: true, min: 1, max: 360, unit: MONTH, scale: 0 }
+      HELD_ASSETS:              { required: true, min: 0, max: 10000000000, unit: KRW, scale: 0 }
+      MONTHLY_SAVING_AMOUNT:    { required: true, min: 10000, max: 10000000, unit: KRW, scale: 0 }
+      SAVINGS_RATE_INPUT_PCT:   { required: false, min: 0, max: 20, unit: PCT, scale: 2 }
+      SAVINGS_RATIO_PCT:        { required: false, min: 0, max: 100, unit: PCT, scale: 0 }
+    change-paths:                       # 경로별로 바꿀 수 있는 항목. max-fields 0 = 제한 없음
+      INPUT_EDIT:  { all-fields: true, max-fields: 0 }
+      ALTERNATIVE: { fields: [MONTHLY_SAVING_AMOUNT, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT], max-fields: 1 }
+      # CF12(D-090·D-092, D-040 대체): 1단계 목표 금액 추가(5필드), 보유 자산은 2단계. 목표 종류·기존 납입액 제외.
+      # #154: 결과 화면 종목 바꾸기(미리보기 → 확인 후 적용)도 COMPARE 경로다.
+      # 대화(CHAT)도 종목을 바꿔 비교(D-097, #157)·적용(F-5, #154)할 수 있다. 종목은 rules에 범위가 없고
+      # ConditionValidator가 적재된 종목인지 따로 본다.
+      COMPARE:     { fields: [GOAL_AMOUNT, MONTHLY_SAVING_AMOUNT, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT, ETF_PRODUCT_CODE], max-fields: 6 }
+      # #345: 대화로 목표 이름도 바꾼다. 이름은 계산 조건이 아니라 max-fields에 세지 않는다(ConditionValidator).
+      CHAT:        { fields: [GOAL_AMOUNT, MONTHLY_SAVING_AMOUNT, TARGET_PERIOD_MONTHS, SAVINGS_RATIO_PCT, SAVINGS_RATE_INPUT_PCT, ETF_PRODUCT_CODE, GOAL_CUSTOM_NAME], max-fields: 6 }

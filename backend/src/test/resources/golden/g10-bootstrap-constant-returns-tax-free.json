@@ -1,0 +1,272 @@
+{
+  "id": "G10",
+  "kind": "plan",
+  "title": "부트스트랩 전체(비과세 종목): G8과 같은 입력, ETF 매매차익 세율 0%(적금 이자 세율 15.4%는 그대로)",
+  "requirements": [
+    "FR-RES-03",
+    "CP-03",
+    "#150"
+  ],
+  "spec": "docs/calc-spec.md",
+  "input": {
+    "goalAmount": 1200000,
+    "targetPeriodMonths": 12,
+    "calcStartMonth": "2026-11",
+    "heldAssets": 0,
+    "monthlySavingAmount": 100000,
+    "savingsRatePct": "3",
+    "savingsRatioPct": 50,
+    "baselineScenario": "AVG",
+    "observedMonthlyReturns": {
+      "count": 120,
+      "everyValue": "0.01"
+    }
+  },
+  "params": {
+    "taxRatePct": "15.4",
+    "etfGainTaxRatePct": "0"
+  },
+  "handCalc": [
+    "G8과 같다. ETF 차익에만 세금이 없다",
+    "적금: 50,000 × 3% ÷ 12 = 125원/월, 만기 이자 125 × 78 = 9,750 → 세후 8,248.5 → 적금 608,248.5 (적금 이자 세율 15.4% 그대로)",
+    "ETF: 50,000 × 1.01 × (1.01^12 - 1) ÷ 0.01 = 640,466.40... → 세금 0 → ETF 640,466.40...",
+    "합계 1,248,714.90... → 1,248,715원. G8(1,242,483원)보다 ETF 세금 6,231.83...만큼 크다",
+    "목표 1,200,000원 대비 +48,715원 → 달성, 처음 목표 이상이 되는 점은 k=12(2027-11)",
+    "중간 점 k: 적금 50,000k + 125·k(k+1)/2 × (1 − 0.154), ETF 50,000 × 1.01 × (1.01^k − 1) ÷ 0.01, 합계를 원 단위 반올림"
+  ],
+  "expected": {
+    "status": "CALCULATED",
+    "targetMonth": "2027-11",
+    "scenarios": [
+      {
+        "scenario": "GOOD",
+        "afterTaxAsset": 1248715,
+        "principal": 1200000,
+        "afterTaxGain": 48715,
+        "gapToGoal": 48715,
+        "isAchieved": true,
+        "goalReachMonth": "2027-11",
+        "monthlyPoints": [
+          {
+            "month": "2026-11",
+            "principal": 0,
+            "afterTaxAsset": 0
+          },
+          {
+            "month": "2026-12",
+            "principal": 100000,
+            "afterTaxAsset": 100606
+          },
+          {
+            "month": "2027-01",
+            "principal": 200000,
+            "afterTaxAsset": 201822
+          },
+          {
+            "month": "2027-02",
+            "principal": 300000,
+            "afterTaxAsset": 303655
+          },
+          {
+            "month": "2027-03",
+            "principal": 400000,
+            "afterTaxAsset": 406108
+          },
+          {
+            "month": "2027-04",
+            "principal": 500000,
+            "afterTaxAsset": 509187
+          },
+          {
+            "month": "2027-05",
+            "principal": 600000,
+            "afterTaxAsset": 612898
+          },
+          {
+            "month": "2027-06",
+            "principal": 700000,
+            "afterTaxAsset": 717245
+          },
+          {
+            "month": "2027-07",
+            "principal": 800000,
+            "afterTaxAsset": 822233
+          },
+          {
+            "month": "2027-08",
+            "principal": 900000,
+            "afterTaxAsset": 927869
+          },
+          {
+            "month": "2027-09",
+            "principal": 1000000,
+            "afterTaxAsset": 1034158
+          },
+          {
+            "month": "2027-10",
+            "principal": 1100000,
+            "afterTaxAsset": 1141105
+          },
+          {
+            "month": "2027-11",
+            "principal": 1200000,
+            "afterTaxAsset": 1248715
+          }
+        ]
+      },
+      {
+        "scenario": "AVG",
+        "afterTaxAsset": 1248715,
+        "principal": 1200000,
+        "afterTaxGain": 48715,
+        "gapToGoal": 48715,
+        "isAchieved": true,
+        "goalReachMonth": "2027-11",
+        "monthlyPoints": [
+          {
+            "month": "2026-11",
+            "principal": 0,
+            "afterTaxAsset": 0
+          },
+          {
+            "month": "2026-12",
+            "principal": 100000,
+            "afterTaxAsset": 100606
+          },
+          {
+            "month": "2027-01",
+            "principal": 200000,
+            "afterTaxAsset": 201822
+          },
+          {
+            "month": "2027-02",
+            "principal": 300000,
+            "afterTaxAsset": 303655
+          },
+          {
+            "month": "2027-03",
+            "principal": 400000,
+            "afterTaxAsset": 406108
+          },
+          {
+            "month": "2027-04",
+            "principal": 500000,
+            "afterTaxAsset": 509187
+          },
+          {
+            "month": "2027-05",
+            "principal": 600000,
+            "afterTaxAsset": 612898
+          },
+          {
+            "month": "2027-06",
+            "principal": 700000,
+            "afterTaxAsset": 717245
+          },
+          {
+            "month": "2027-07",
+            "principal": 800000,
+            "afterTaxAsset": 822233
+          },
+          {
+            "month": "2027-08",
+            "principal": 900000,
+            "afterTaxAsset": 927869
+          },
+          {
+            "month": "2027-09",
+            "principal": 1000000,
+            "afterTaxAsset": 1034158
+          },
+          {
+            "month": "2027-10",
+            "principal": 1100000,
+            "afterTaxAsset": 1141105
+          },
+          {
+            "month": "2027-11",
+            "principal": 1200000,
+            "afterTaxAsset": 1248715
+          }
+        ]
+      },
+      {
+        "scenario": "BAD",
+        "afterTaxAsset": 1248715,
+        "principal": 1200000,
+        "afterTaxGain": 48715,
+        "gapToGoal": 48715,
+        "isAchieved": true,
+        "goalReachMonth": "2027-11",
+        "monthlyPoints": [
+          {
+            "month": "2026-11",
+            "principal": 0,
+            "afterTaxAsset": 0
+          },
+          {
+            "month": "2026-12",
+            "principal": 100000,
+            "afterTaxAsset": 100606
+          },
+          {
+            "month": "2027-01",
+            "principal": 200000,
+            "afterTaxAsset": 201822
+          },
+          {
+            "month": "2027-02",
+            "principal": 300000,
+            "afterTaxAsset": 303655
+          },
+          {
+            "month": "2027-03",
+            "principal": 400000,
+            "afterTaxAsset": 406108
+          },
+          {
+            "month": "2027-04",
+            "principal": 500000,
+            "afterTaxAsset": 509187
+          },
+          {
+            "month": "2027-05",
+            "principal": 600000,
+            "afterTaxAsset": 612898
+          },
+          {
+            "month": "2027-06",
+            "principal": 700000,
+            "afterTaxAsset": 717245
+          },
+          {
+            "month": "2027-07",
+            "principal": 800000,
+            "afterTaxAsset": 822233
+          },
+          {
+            "month": "2027-08",
+            "principal": 900000,
+            "afterTaxAsset": 927869
+          },
+          {
+            "month": "2027-09",
+            "principal": 1000000,
+            "afterTaxAsset": 1034158
+          },
+          {
+            "month": "2027-10",
+            "principal": 1100000,
+            "afterTaxAsset": 1141105
+          },
+          {
+            "month": "2027-11",
+            "principal": 1200000,
+            "afterTaxAsset": 1248715
+          }
+        ]
+      }
+    ]
+  },
+  "note": "엔진에는 observedMonthlyReturns(120개 모두 0.01)를 관측 수익률로 넣는다. 경로 수·시드와 관계없이 세 구간이 같은 값이어야 한다"
+}

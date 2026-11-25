@@ -1,0 +1,24 @@
+{
+  "responses": [
+    {
+      "status": 422,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "입력 범위를 벗어났어요",
+        "status": 422,
+        "detail": "text: REQUIRED",
+        "instance": "/api/chat/messages",
+        "code": "VALIDATION_FAILED",
+        "errors": [
+          {
+            "field": "text",
+            "reason": "REQUIRED"
+          }
+        ]
+      }
+    }
+  ]
+}

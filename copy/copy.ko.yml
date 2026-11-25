@@ -1,0 +1,357 @@
+# 문구표(CP-05). Spring·ai-server·프론트가 같은 파일을 읽는다. 고정 문구는 여기에만 둔다.
+#
+# 규칙
+# - 문체는 해요체. 면책(disclaimer)만 격식체 문장을 섞는다. 금지 표현은 개별 주식에 대한 추천뿐이다(CF-07, 테스트가 검사한다).
+# - 키는 중첩 YAML이고 로더가 '.'으로 이어 붙여 읽는다(excluded.EXCHANGE_RATE).
+#   같은 이름이 문장이면서 묶음일 수 없는 outOfScope와 outOfScope.tax만 따옴표 친 평탄 키로 쓴다.
+# - 값은 따옴표 친 문자열로 쓴다(따옴표 없는 true 같은 값은 두 로더가 다르게 읽는다).
+# - 자리 표시자는 {이름}이다. 이름은 영문자·숫자·밑줄만 쓴다. 값이 빠지면 로더가 실패한다. 없는 키·빈 값·중복 키도 로드 실패다.
+# - '임시'는 전문가·팀 확인 전 문장이다. 확정되면 이 표시를 지운다.
+# - 키 이름을 바꾸면 계약 표(C12a-7-1, H-15)와 #47~#54 본문을 함께 고친다.
+
+# 범위 밖 안내(일반)와 범위 밖 세금 질문 안내(D-073, 임시)
+"outOfScope": "이 질문은 모은에서 다루지 않아요. 목표 달성 시뮬레이션과 관련된 질문을 해 주세요."
+"outOfScope.tax": "상품별 세제 혜택, 개인 세금 계산, 절세 방법은 모은에서 다루지 않아요. 정확한 내용은 금융기관이나 세무 전문가에게 확인해 주세요."
+
+# 면책·고지(D-066). 결과 화면 면책(FR-RES-07)과 대화창 고지가 같은 키 하나다(임시)
+disclaimer: "본 결과는 입력하신 조건과 과거 데이터를 바탕으로 한 모의 계산이며, 실제 수령액이나 수익을 보장하지 않습니다. 특정 금융상품의 가입을 권유하지 않으며, 환율 변동은 반영하지 않았습니다. 투자 결정은 본인의 판단과 책임하에 이루어져야 합니다. AI 설명은 참고용이며 계산 결과가 기준이에요."
+
+# 세금 단서(D-067, 임시)
+tax:
+  # ETF 종목 매매차익이 비과세일 때 가정 보기 세율 옆에 붙인다(#150). Spring이 display에 넣는다
+  etfTaxFree: "국내 주식형 ETF 매매차익 비과세"
+  # 비과세 ETF 종목(국내 주식형)으로 계산했을 때 tax.note 대신 쓰는 안내(D-067, #150). 프론트·ai-server가 고른다
+  noteEtfTaxFree: "국내 주식형 ETF의 매매차익은 비과세로, 적금 이자는 일반 과세를 기준으로 가정했어요. 금융소득, 세법이 바뀌면 달라질 수 있어요. 정확한 세금은 금융기관이나 세무 전문가에게 확인해 주세요."
+  note: "세금은 일반 과세를 기준으로 가정했어요. 비과세·세금우대 상품, 금융소득, 세법이 바뀌면 달라질 수 있어요. 정확한 세금은 금융기관이나 세무 전문가에게 확인해 주세요."
+
+# 대화창 안내(/internal/calc C3-2, planContext 경로, 프론트 대화창 첫 줄)
+chat:
+  # 대화로 못 바꾸는 조건 안내(D-056, D-090). 범위 밖 안내(outOfScope)와 다른 키다
+  unchangeableCondition: "목표 종류·기존 납입액은 여기서 바꿀 수 없어요. 보유 자산은 입력 수정에서 바꿀 수 있어요."
+  noPlan: "먼저 목표와 조건을 입력해 계획을 만들어 주세요"
+  # 대화창용 초과 안내(D-072, D-092). 결과 화면용 result.alreadyExceeded와 합치지 않는다
+  alreadyExceeded: "이미 가진 자산이 목표 금액을 넘었어요. 대화로 목표 금액을 더 높게 바꿔 볼 수 있어요."
+  # 목표 금액 변경 비교 주의 문구·적용 시 초과 예고·비교 카드 초과 칸(D-090·D-092)
+  goalAmountChangedNote: "목표 금액이 {currentGoal}에서 {changedGoal}으로 바뀌어, 달성 여부는 각각 자기 목표 기준이에요."
+  changedAlreadyExceeded: "이 조건으로 적용하면 이미 목표를 넘은 상태가 돼요"
+  cardAlreadyExceeded: "가진 자산 {heldAssets}이 목표 금액 {goalAmount}을 이미 넘었어요"
+  # 목표 이름만 바꾼 비교 카드 안내(#345). 이름은 계산에 쓰지 않아 숫자가 양쪽 같다
+  goalNameOnlyNote: "목표 이름만 바꿔서 예상 결과는 그대로예요"
+  # AI 답변 실패 안내(FR-AI-04). FAILED 메시지의 content
+  failed: "답변을 만들지 못했어요. 잠시 후 다시 질문해 주세요"
+  pollingFailed: "답변을 불러오지 못하고 있어요. 잠시 후 다시 시도해 주세요"
+  sendFailed: "메시지를 보내지 못했어요. 다시 시도해 주세요"
+  # 결과 화면 우측 대화 패널(#224). 버튼·안내 글자
+  panelTitle: "AI 설명 · 대화"
+  panelNotice: "숫자는 계산 엔진이 만들고, AI는 설명만 해요. 계산 결과가 먼저 보이고 설명은 뒤이어 도착해요."
+  panelOpen: "AI 설명"
+  panelClose: "패널 접기"
+  panelUnread: "새 설명이 도착했어요"
+  emptyGuide: "바꿔 보고 싶은 조건을 말해 주세요. 예를 들어 이렇게 물어볼 수 있어요."
+  typing: "답변을 쓰는 중이에요"
+  inputPlaceholder: "궁금한 점을 입력해 주세요"
+  send: "보내기"
+  retryExplanation: "설명 다시 요청"
+  retryFailed: "다시 시도"
+  # 다른 ETF 종목으로 비교하는 버튼(#275, D-097). 지금 계획 종목은 빼고 보여 준다. 권하는 말은 쓰지 않는다(CP-06)
+  etfChipsLabel: "다른 종목으로 비교해 보기"
+  etfChipQuestion: "{name}로 바꾸면 어때요?"
+  # 대화 답의 출처 칩(#375). 스크린리더가 읽는 칩 이름(접혀 있어도 운용사를 모두 알린다)과, 첫 기관 뒤에 보이는 나머지 문서 수
+  citationsChipLabel: "출처 {n}건: {orgs}"
+  citationsMore: "+{n}"
+  # 질문 예시 버튼(D-064, D-090). 값·변화량 없이 조건만 고른다
+  exampleQuestion:
+    goalAmount: "목표 금액을 바꿔 보고 싶어요"
+    monthlySavingAmount: "월 저축액을 바꿔 보고 싶어요"
+    savingsRatioPct: "저축 비중을 바꿔 보고 싶어요"
+    savingsRateInputPct: "적금 금리를 바꿔 보고 싶어요"
+    targetPeriodMonths: "목표 기간을 바꿔 보고 싶어요"
+    # ETF 위험 설명 질문(PD-013). 개별 주식에 대한 추천 표현 없이 묻는다
+    etfRisk: "ETF에는 어떤 위험이 있어요?"
+
+# 대안 영역(FR-ALT-01~04, 와이어프레임 03 W-07·W-08). 카드 본문 값은 대안 산출 API(#66)가 주는 display 문자열만 쓴다
+alt:
+  title: "목표에 닿으려면 이렇게 바꿀 수 있어요"
+  # FR-ALT-02가 지정한 머리글. 대안 하나를 추천하지 않는다는 문장이다(CF-07은 개별 주식에 대한 추천만 금지한다)
+  header: "세 대안은 같은 기준(평균, 세후)으로 계산했어요. 순서는 우열이 아니며, 서비스는 하나를 추천하지 않아요."
+  # 카드 이름(D-039). '월 저축액을 늘리면'이 아니라 '바꾸면'으로 통일한다
+  card:
+    monthlySavingAmount: "월 저축액을 바꾸면"
+    targetPeriodMonths: "기한을 늘리면"
+    savingsRatioPct: "비중을 바꾸면"
+  rowChangedCondition: "바뀌는 조건"
+  rowChange: "변화"
+  rowAvgAsset: "예상 자산(평균)"
+  rowGapToGoal: "목표 대비"
+  rowBad: "나빴던 때"
+  # 허용 범위 안에서 목표를 달성하는 값이 없을 때(#343). 범위 숫자는 문구에 박지 않는다
+  unreachable:
+    monthlySavingAmount: "월 저축액을 {limit}으로 올려도 목표 달성이 어려워요"
+    # 서버가 상한 금액을 주지 않은 옛 응답용
+    monthlySavingAmountNoLimit: "월 저축액을 가능한 최대로 올려도 목표 달성이 어려워요"
+    targetPeriodMonths: "가능한 최대 기한으로도 목표 달성이 어려워요"
+    savingsRatioPct: "ETF 100%로 바꿔도 목표 달성이 어려워요"
+  # 기한 카드는 기간을 받기 전에는 빈 카드다(D-020·D-039)
+  periodPrompt: "원하는 기한을 적어 주면 그 기간까지의 그래프를 보여 드릴게요"
+  periodLabel: "원하는 기한(개월)"
+  periodSubmit: "확인"
+  # 기한을 적은 뒤. 그 기간까지의 그래프는 서버 재계산(#66)이 있어야 그릴 수 있다
+  periodSubmitted: "기한 {months}개월로 계산했어요"
+  # 비중 대안의 변동 경고(W-10). 판정은 서버가 하고 화면은 보여 주기만 한다
+  volatilityWarning: "⚠ 변동 커짐"
+  compare: "비교하기"
+  apply: "내 계획으로 적용"
+  # 적용 확인 흐름(FR-PLAN-01, D-046)이 붙기 전에는 누를 수 없다
+  # 나빴던 때 줄: changed.BAD.afterTaxAsset · changed.BAD.gapToGoal(D-096). 값은 display 그대로
+  badValue: "{asset} · {gap}"
+  # 기한 카드에 허용 범위 밖 기간을 적었을 때(A-1-2 422). 범위 숫자는 문구에 박지 않는다
+  periodInvalid: "적을 수 있는 기한을 벗어났어요. 기한을 다시 적어 주세요"
+  # 대안 값 출처(#66)가 아직 없을 때. 프론트가 숫자를 만들지 않는다(NFR-INT-01)
+  valuePending: "아직 계산된 값이 없어요"
+  # 대안 API(A-1)가 실패했을 때(A-1-2). 계획이 바뀌면 다시 불러온다
+  loadFailed: "대안 값을 불러오지 못했어요"
+
+# 비교 영역(FR-CMP-01~03, 와이어프레임 03 W-13·W-23·W-25). 표의 숫자는 비교 응답 display 문자열만 쓴다
+compare:
+  title: "조건을 바꿔 비교해 보세요"
+  # 계약 CP-07은 한 번에 여러 조건을 바꿀 수 있다(와이어프레임의 '하나를 바꾸면'은 Q-088 결정 대기)
+  notice: "조건을 바꾸면 현재 조건과 나란히 보여줘요. 적용하기 전까지 내 계획은 바뀌지 않아요."
+  ratioTitle: "① 적금 : ETF 비중 직접 입력"
+  ratioHelp: "합계는 100%가 되어야 해요 · 0~100 정수 · 개별 종목은 선택할 수 없어요"
+  ratioSavings: "적금"
+  ratioEtf: "ETF"
+  ratioSumError: "적금과 ETF를 합쳐 100이 되게 적어 주세요"
+  conditionTitle: "② 바꿀 조건 고르기"
+  conditionHelp: "한 번에 여러 개를 바꿀 수 있어요"
+  currentValue: "현재 {value}"
+  submit: "비교하기"
+  reset: "원래대로"
+  apply: "바꾼 조건을 내 계획으로 적용"
+  # 적용 확인창(FR-PLAN-01·02, #68, 계약 C12a-9-2). 값은 비교 응답 display 그대로 넣는다
+  confirmTitle: "바꾼 조건을 내 계획에 적용할까요?"
+  confirmNotice: "적용하면 결과 화면이 새 조건으로 바뀌어요. 바꾼 뒤에도 결과 화면의 '직전 계획으로 되돌리기'로 되돌릴 수 있어요."
+  confirmChange: "{current} → {changed}"
+  confirmCancel: "취소"
+  confirmApply: "적용하기"
+  noChanges: "바꿀 조건을 하나 이상 골라 주세요"
+  colItem: "항목"
+  colCurrent: "현재 조건"
+  colChanged: "바꾼 조건"
+  colChange: "변화"
+  rowAvgAsset: "세후 예상 자산(평균)"
+  rowGapToGoal: "목표 대비"
+  rowBad: "나빴던 때"
+  rowPrincipal: "총 납입 원금"
+  rowGoalReachMonth: "목표 도달 시점"
+  notApplicable: "지금 기준으로는 비교할 수 없는 값이에요"
+# 결과 화면 ETF 종목 비교(#156, C12a-9-3). 상품명 대신 화면 이름만 쓴다(CP-06)
+etfCompare:
+  sectionLabel: "ETF 종목 비교"
+  title: "다른 ETF 종목으로 비교"
+  notice: "종목을 누르면 바로 내 계획에 적용돼요. 되돌리기로 이전 종목으로 돌아갈 수 있어요"
+  pickLabel: "ETF 종목"
+  currentBadge: "지금 종목"
+  rowDelta: "지금 종목 대비"
+  choose: "누르면 바로 바꿔요"
+  loading: "종목별 결과를 계산하는 중이에요"
+  onlyOne: "지금은 비교할 다른 종목이 없어요"
+  planChanged: "내 계획이 바뀌었어요. 다시 비교해 주세요"
+  notAvailable: "그 종목은 아직 계산할 수 없어요"
+  listFailed: "종목 목록을 불러오지 못했어요. 다시 시도해 주세요"
+  retry: "다시 시도"
+
+# 표시 템플릿(Formatter #28이 읽는다). 금액·비중은 Formatter가 붙인다.
+# 금액 뒤에 붙는 짧은 라벨이다: "-약 288만원 미달", "약 789만원 증가"(계약 C2-6, D-055). 문장형으로 바꾸면 계약 fixture와 어긋난다
+template:
+  achieved: "달성"
+  missed: "미달"
+  # 결과 화면 배지(#224). 금액은 "약" 없이 "N만 원"으로 붙인다. {gap}은 부호가 붙은 금액이다
+  gapBadgeAchieved: "달성 · 목표 {gap}"
+  gapBadgeMissed: "미달 · 목표 {gap}"
+  increase: "증가"
+  decrease: "감소"
+  unchanged: "변화 없음"
+  ratio: "적금 {a} : ETF {b}"
+
+# 오류 title(/internal/calc 오류 코드 7개, 임시)
+error:
+  title:
+    VALIDATION_FAILED: "입력값을 확인해 주세요"
+    FIELD_NOT_CHANGEABLE: "대화로 바꿀 수 없는 항목이에요"
+    NO_PLAN: "아직 계획이 없어요"
+    ALREADY_EXCEEDED: "이미 목표 금액을 넘었어요"
+    MALFORMED_REQUEST: "요청 형식이 올바르지 않아요"
+    INVALID_INTERNAL_KEY: "내부 호출 인증에 실패했어요"
+    CALC_FAILED: "계산하지 못했어요"
+
+# 반영하지 않은 항목(planContext G-14). ExcludedItem enum의 모든 코드에 문장이 있어야 한다
+excluded:
+  ETF_TOTAL_EXPENSE: "ETF 총보수는 반영하지 않았어요"
+  EXCHANGE_RATE: "환율 변동은 반영하지 않았어요"
+  ETF_DISTRIBUTION: "ETF 분배금은 반영하지 않았어요"
+  HELD_ASSET_RETURN: "보유 자산의 수익은 반영하지 않았어요"
+  SAVINGS_REDEPOSIT: "적금 만기 후 재예치는 반영하지 않았어요"
+
+# 가정 보기의 비중 안내(CF-08 ②, D-088). 금액을 적지 않는다
+assumptions:
+  ratioAppliedToAll: "월 저축 가능 금액 전체를 아래 비중대로 나눠 계산했어요"
+
+# 3구간 산정 방식(G-14). ScenarioMethod enum의 모든 코드에 문장이 있어야 한다. TBD-01 전 임시
+scenarioMethod:
+  CAGR: "과거 데이터의 연평균 수익률을 기준으로 세 구간을 나눠 계산했어요"
+  ROLLING_DISTRIBUTION: "과거 10년 동안의 한 달 수익률을 무작위로 이어 붙여 1만 가지 경우를 계산하고, 그중 하위 10%·평균·상위 90%를 세 구간으로 보여 드려요"
+
+# 비교 카드(H-15, C12b-6). 키는 conditions의 camelCase 키와 같다
+condition:
+  # 목표 이름(#345). 계산 조건은 아니지만 비교 카드 행 라벨로 쓴다
+  goalCustomName: "목표 이름"
+  goalAmount: "목표 금액"
+  monthlySavingAmount: "월 저축액"
+  etfProductCode: "ETF 종목"
+  savingsRatioPct: "저축 비중"
+  savingsRateInputPct: "적금 금리"
+  targetPeriodMonths: "목표 기간"
+
+# diff.byScenario[].achievementChange 4값(internal-calc C2-5)
+achievementChange:
+  STAYS_ACHIEVED: "계속 달성해요"
+  STAYS_MISSED: "계속 미달이에요"
+  MISS_TO_ACHIEVE: "미달에서 달성으로 바뀌어요"
+  ACHIEVE_TO_MISS: "달성에서 미달로 바뀌어요"
+
+# 적용 토스트(F-5)와 비교 카드 실패(F-4)
+toast:
+  applyStaleComparison: "계획이 바뀌었거나 더 최근 비교가 있어요. 최신 비교를 다시 받아 적용해 주세요"
+  applyPlanChanged: "계획이 다른 곳에서 바뀌었어요"
+  applyNotApplicable: "지금 기준으로는 적용할 수 없는 값이에요"
+  applyFailed: "적용하지 못했어요"
+comparison:
+  loadFailed: "비교 결과를 불러오지 못했어요"
+  applyButton: "내 계획으로 적용"
+  previousResult: "이전 결과"
+  # 비교 카드의 바뀐 항목 제목과 변화 방향(#284). 색만으로 구분하지 않게 화면 낭독기 문구를 함께 둔다
+  title: "{conditions}을 바꾼 결과"
+  better: "좋아졌어요"
+  worse: "나빠졌어요"
+  same: "변화 없어요"
+  increased: "늘렸어요"
+  decreased: "줄였어요"
+
+# 로그인·입력·계획·되돌리기·결과 화면(C12a-7-1, J-13)
+common:
+  networkError: "네트워크 연결을 확인하고 다시 시도해 주세요"
+auth:
+  invalidCredentials: "아이디 또는 비밀번호가 맞지 않아요"
+  loginFailed: "로그인하지 못했어요. 잠시 후 다시 시도해 주세요"
+  logoutFailed: "로그아웃하지 못했어요. 다시 시도해 주세요"
+input:
+  saveFailed: "입력을 저장하지 못했어요. 다시 시도해 주세요"
+  invalidAmountFormat: "금액은 숫자로 입력해 주세요"
+  currentRatioLabel: "현재 비중"
+  # 지금 하고 있는 저축 토글(FR-INP-08, D-085·D-086). 납입액은 비중을 정하는 데만 쓰고 저장하지 않는다(D-043)
+  existingSavingToggle: "지금 하고 있는 저축이 있어요"
+  existingSavingBank: "적금 월 납입액"
+  existingSavingEtf: "ETF 월 납입액"
+  existingSavingHelp: "납입액은 적금과 ETF의 비중을 정하는 데만 쓰고 저장하지 않아요. 끄면 기본 비중으로 계산해요"
+  # 토글 ON인데 납입액 칸이 비었을 때(D-089 복원)
+  ratioKept: "납입액을 비워 두면 지금 비중을 그대로 써요"
+  # D-035
+  heldAssetsRecheck: "보유 자산이 {calcStartMonth} 기준이 맞는지 다시 확인해 주세요"
+  # D-084 입력 화면 추천 채움. 수익·이자를 뺀 대략값이라 '대략'을 꼭 밝힌다
+  periodKnownLabel: "목표 기간이 정해져 있나요?"
+  periodKnownYes: "정해져 있어요"
+  periodKnownNo: "아직 없어요"
+  savingKnownLabel: "매달 얼마씩 저축할 수 있는지 알고 있나요?"
+  savingKnownYes: "알아요"
+  savingKnownNo: "잘 모르겠어요"
+  suggestedMonthlySaving: "매달 대략 {amount} 이상이 필요해요. 금액을 고치거나 목표를 바꿔도 돼요"
+  suggestedPeriod: "대략 {period} 걸려요. 기간을 고치거나 목표를 바꿔도 돼요"
+  suggestPeriodTooLong: "지금 월 저축액으로는 30년 안에 모으기 어려워요. 월 저축액을 늘리거나 목표 금액을 줄여 보세요"
+  suggestSavingTooLarge: "매달 1,000만원이 넘게 필요해요. 기간을 늘리거나 목표 금액을 줄여 보세요"
+  suggestNeedsMoreInput: "목표 금액과 나머지 값을 채우면 대략 얼마가 필요한지 알려 드릴게요"
+plan:
+  changedElsewhere: "계획이 다른 곳에서 바뀌었어요. 다시 저장하면 입력한 값으로 바뀌어요"
+undo:
+  # 결과 화면 '내 계획 조건' 바의 상시 되돌리기(D-095, #263). 되돌릴 직전 계획이 있을 때만 보인다
+  planButton: "직전 계획으로 되돌리기"
+  nothingToUndo: "이미 되돌렸어요"
+  failed: "되돌리지 못했어요. 다시 시도해 주세요"
+result:
+  # 결과 요약의 목표 대비 가로 막대(와이어프레임 03). 금액은 서버 display 문자열이 들어간다
+  goalBarZero: "0"
+  goalBarLabel: "▲ 목표 {goalAmount}"
+  # W-03 와이어프레임: 세후 예상 자산 아래 원금·수익 분해 한 줄
+  principalAndGain: "원금 {principal} + 이자·수익 {gain}(세후)"
+  # W-06 와이어프레임: 3구간 머리글
+  scenarioHeading: "ETF가 포함된 결과는 시기에 따라 달라요"
+  # W-06 와이어프레임: 3구간 머리글 둘째 줄. 긴 설명은 '가정 보기'에 있으므로 여기서는 짧게 가리킨다
+  # 종목 이름은 화면이 display의 assumptions.etfProductName으로 조립한다(#156). 문구에 지수 이름을 박지 않는다
+  scenarioMethodProduct: "기준 종목 {product}"
+  scenarioMethodShort:
+    CAGR: "과거 데이터의 연평균 수익률로 세 구간을 나눠 계산 (가정 보기 참고)"
+    ROLLING_DISTRIBUTION: "과거 10년 수익률로 1만 가지 경우를 계산해 세 구간 (가정 보기 참고)"
+  # W-04 와이어프레임: 그래프 범례
+  chartLegendPrincipal: "누적 납입 원금"
+  monthDetailLabel: "월별 상세"
+  monthDetailClose: "닫기"
+  chartLegendGoal: "목표선"
+  loadFailed: "결과를 불러오지 못했어요. 다시 시도해 주세요"
+  # 결과 화면용 초과 안내(FR-RES-01, D-090·D-092). 대화창용 chat.alreadyExceeded와 합치지 않는다
+  alreadyExceeded: "가진 자산 {heldAssets}이 목표 금액 {goalAmount}을 이미 넘었어요. 대화로 목표 금액을 더 높게 바꿔 볼 수 있어요"
+  notReachedInPeriod: "목표 기간 안에는 목표 금액에 닿지 못해요"
+  # D-029
+  scenarioNotice: "세 가지 경우는 과거 데이터의 범위를 나눈 시나리오이고 미래를 예측한 값이 아니에요"
+  # D-104(#374): ETF가 섞인 계획의 3구간 아래 고정 블록. AI 본문에 반복하지 않는다(위험을 물으면 답한다, 기준표 Q2)
+  etfPrincipalRisk: "ETF는 원금을 보장하지 않으며 예금자보호 대상이 아니에요"
+  # 같은 블록의 공시 링크 머리말. 링크 글자는 문서 제목 그대로(D-028)
+  etfDisclosureLabel: "운용사 공시"
+  defaultSavingsRate: "적금 금리는 평균 금리를 기본값으로 사용했어요"
+scenario:
+  GOOD: "좋았던 때"
+  AVG: "평균"
+  BAD: "나빴던 때"
+
+# 422 안내 틀(자리에 단위 틀 결과가 들어간다)과 단위 틀(D-061)
+validation:
+  REQUIRED: "값을 입력해 주세요"
+  OUT_OF_RANGE: "{min}~{max} 사이로 입력해 주세요"
+  NOT_INTEGER: "정수로 입력해 주세요"
+  TOO_MANY_DECIMALS: "소수 {scale}자리까지 입력할 수 있어요"
+unit:
+  manwon: "{v}만원"
+  # 비중 422 문구. unit.pct를 쓰면 "연 100%"가 된다(C12a-5-6 (f))
+  ratioPct: "{v}%"
+  won: "{v}원"
+  month: "{y}년 {m}개월"
+  pct: "연 {v}%"
+  char: "{n}자"
+
+# 목표 종류 표시명(D-075, 임시). plan GoalType enum(#19)과 같은 코드 목록이다
+goal:
+  HOUSE: "내 집 마련"
+  CAR: "자동차"
+  WEDDING: "결혼"
+  EDUCATION: "교육"
+  TRAVEL: "여행"
+  EMERGENCY_FUND: "비상금"
+  CUSTOM: "직접 입력"
+
+# 예상 자산 누적 그래프(#298). 금액은 서버 값을 줄여서 보일 뿐 화면이 만들지 않는다
+projection:
+  axisYear: "{n}년"
+  periodMonths: "{m}개월"
+  periodYears: "{y}년"
+  periodYearsMonths: "{y}년 {m}개월"
+  principal: "원금"
+  savingsInterest: "적금 이자"
+  etfGain: "ETF 수익"
+  total: "합계"
+  legendEntry: "{label} {amount}"
+  legendLabel: "범례"
+  unitLabel: "그래프 단위"
+  unitMonthly: "월별"
+  unitYearly: "연별"
+  chartLabel: "예상 자산 누적 그래프"
+  notice: "예상치라서 실제 수익을 보장하지 않아요."
+  demoTitle: "예상 자산 그래프 데모"
+  demoNotice: "mock 데이터로 그린 화면이에요. 서버 연동 전 확인용이에요."

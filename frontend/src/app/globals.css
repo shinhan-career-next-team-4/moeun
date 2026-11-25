@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+/* 디자인 토큰(NFR-UI-01). 데스크톱 라이트 모드 기준. 모든 화면이 이 토큰만 쓴다. */
+@theme {
+  --color-primary: #1f5f8b;
+  --color-primary-strong: #164a6e;
+  --color-primary-soft: #e6f0f7;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f4f6f8;
+  --color-page: #f7f8fa;
+  --color-border: #d5dbe1;
+  --color-text: #1b232b;
+  --color-text-muted: #5f6b77;
+  --color-danger: #c62828;
+  --color-success: #2e7d32;
+  --color-success-soft: #e8f5e9;
+  --color-warning: #c2410c;
+  --color-warning-soft: #fff1e6;
+  --font-sans: system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+
+body {
+  background: var(--color-page);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+
+/* 예상 자산 누적 그래프(#298): 왼쪽에서 오른쪽으로 차오르듯 그린다. "동작 줄이기"를 켠 사람에게는 바로 보인다 */
+@keyframes projection-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.projection-reveal {
+  animation: projection-reveal 0.9s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .projection-reveal {
+    animation: none;
+  }
+}
+
+/* '직전 계획으로 되돌리기' 버튼(#360): 계획이 바뀌면 한 번 반짝인다. "동작 줄이기"에서는 배경색만 잠깐 강조한다 */
+@keyframes undo-sparkle {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgb(31 95 139 / 0.55);
+  }
+  30% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 6px rgb(31 95 139 / 0.18), 0 0 14px 4px rgb(255 214 102 / 0.75);
+  }
+  60% {
+    transform: scale(1.03);
+    box-shadow: 0 0 0 10px rgb(31 95 139 / 0), 0 0 10px 2px rgb(255 214 102 / 0.4);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgb(31 95 139 / 0);
+  }
+}
+
+@keyframes undo-sparkle-star {
+  0% {
+    opacity: 0;
+    transform: translate(0, 4px) scale(0.4) rotate(0deg);
+  }
+  35% {
+    opacity: 1;
+    transform: translate(2px, -6px) scale(1.1) rotate(40deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(4px, -14px) scale(0.6) rotate(90deg);
+  }
+}
+
+@keyframes undo-sparkle-tint {
+  from {
+    background-color: var(--color-primary-soft);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.undo-sparkle {
+  position: relative;
+  animation: undo-sparkle 1.5s ease-out 2;
+}
+
+.undo-sparkle::before,
+.undo-sparkle::after {
+  content: "✦";
+  position: absolute;
+  color: #f5b301;
+  font-size: 0.8rem;
+  pointer-events: none;
+  animation: undo-sparkle-star 1.3s ease-out 2 both;
+}
+
+.undo-sparkle::before {
+  top: -2px;
+  right: 4px;
+}
+
+.undo-sparkle::after {
+  bottom: -2px;
+  left: 6px;
+  font-size: 0.65rem;
+  animation-delay: 0.25s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .undo-sparkle {
+    animation: undo-sparkle-tint 3s ease-out 1;
+  }
+
+  .undo-sparkle::before,
+  .undo-sparkle::after {
+    display: none;
+  }
+}

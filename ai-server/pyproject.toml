@@ -1,0 +1,62 @@
+[project]
+name = "moeun-ai-server"
+version = "0.1.0"
+description = "모은 AI 서버: 대화 설명, 조건 변경 재계산(도구 호출), RAG 근거 검색"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.11",                 # serialize_by_alias
+    "pydantic-settings>=2.6",
+    "anthropic>=1.0",                 # 대화 생성 + 도구 호출
+    "openai>=1.50",                   # 임베딩 전용(text-embedding-3-small, 1536차원 = 스키마 vector(1536))
+    "httpx>=0.27",                    # Spring /internal/calc 호출
+    "psycopg[binary,pool]>=3.2",
+    "pgvector>=0.3",
+    "pymupdf>=1.24",                  # 공시 PDF 텍스트 추출(적재 CLI)
+    "pyyaml>=6.0",                    # 문구표 copy/copy.ko.yml 로더
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "respx>=0.21",
+    "ruff>=0.7",
+    "mypy>=1.13",
+    "types-pyyaml>=6.0.12.20261113",
+]
+
+[project.scripts]
+moeun-ingest = "app.ingest.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 125
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+# 잠긴 수용 테스트의 docstring 한 줄이 한글 폭 기준으로 125를 넘는다(#40). 테스트 수정이 막혀 있어 이 파일만 연다
+per-file-ignores = { "tests/test_citations.py" = ["E501"] }
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["app"]
+
+[[tool.mypy.overrides]]
+module = ["pgvector.*", "pymupdf.*"]
+ignore_missing_imports = true

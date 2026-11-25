@@ -1,0 +1,31 @@
+{
+  "responses": [
+    {
+      "status": 422,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "입력 범위를 벗어났어요",
+        "status": 422,
+        "detail": "monthlySavingAmount: OUT_OF_RANGE, targetPeriodMonths: REQUIRED",
+        "instance": "/api/plan",
+        "code": "VALIDATION_FAILED",
+        "errors": [
+          {
+            "field": "monthlySavingAmount",
+            "reason": "OUT_OF_RANGE",
+            "min": 10000,
+            "max": 10000000,
+            "unit": "KRW"
+          },
+          {
+            "field": "targetPeriodMonths",
+            "reason": "REQUIRED"
+          }
+        ]
+      }
+    }
+  ]
+}

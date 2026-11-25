@@ -1,0 +1,15 @@
+{
+  "responses": [
+    {
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "messages": [],
+        "hasPending": false,
+        "answerPending": false
+      }
+    }
+  ]
+}

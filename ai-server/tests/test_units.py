@@ -1,0 +1,76 @@
+import json
+from pathlib import Path
+
+import httpx
+import respx
+from fastapi.testclient import TestClient
+
+from app.api.deps import get_agent
+from app.ingest.chunker import split_chunks
+from app.main import app
+from app.rag.search import diversify_orgs
+from app.schemas import ChatRequest, ChatResponse, ConditionChanges, DocType, RetrievedChunk, Scenario
+from app.tools.calc import CalcClient
+
+REPO = Path(__file__).resolve().parents[2]
+SUCCESS_RESPONSE = REPO / "docs" / "api" / "examples" / "internal-calc" / "success-response.json"
+
+
+def test_chunker_respects_max_and_keeps_text():
+    text = "가" * 1900 + "\n\n" + "짧은 문단"
+    chunks = split_chunks(text, max_chars=800, overlap=100)
+    assert all(len(c) <= 800 for c in chunks)
+    assert chunks[-1] == "짧은 문단"
+
+
+def chunk(i, org):
+    return RetrievedChunk(chunk_id=i, content="", title="", source_url="", doc_type=DocType.DISCLOSURE,
+                          org_name=org, distance=i / 10)
+
+
+def test_diversify_brings_second_org():
+    rows = [chunk(1, "A"), chunk(2, "A"), chunk(3, "A"), chunk(4, "B")]
+    picked = diversify_orgs(rows, top_k=3)
+    assert [c.chunk_id for c in picked] == [1, 2, 4]
+
+
+@respx.mock
+async def test_calc_client_sends_camel_case_and_key():
+    # 200 응답은 부록 A-1 모양이어야 한다(#23: display·current·changed 검사). 이전에는 {"calcRunId": 3}만 돌려줬다
+    success = json.loads(SUCCESS_RESPONSE.read_text(encoding="utf-8"))
+    route = respx.post("http://spring/internal/calc").mock(return_value=httpx.Response(200, json=success))
+    async with httpx.AsyncClient(base_url="http://spring") as http:
+        body = await CalcClient(http, "k").recalculate(1, Scenario.AVG, ConditionChanges(monthly_saving_amount=1))
+    sent = route.calls.last.request
+    assert sent.headers["X-Internal-Api-Key"] == "k"
+    assert b'"conditionChanges":{"monthlySavingAmount":1}' in sent.content.replace(b" ", b"")
+    assert body["calcRunId"] == success["calcRunId"]
+
+
+def test_chat_requires_internal_key():
+    with TestClient(app) as client:
+        assert client.get("/health").json() == {"status": "UP"}
+        assert client.post("/chat", json={}).status_code == 401
+        assert client.post("/rag/search", json={"query": "q"}).status_code == 401
+
+
+def test_chat_uses_injected_agent_and_camel_case():
+    class StubAgent:
+        async def run(self, req: ChatRequest) -> ChatResponse:
+            return ChatResponse(message_type="ANSWER", content=req.text or "", baseline_scenario=req.baseline_scenario)
+
+    app.dependency_overrides[get_agent] = StubAgent
+    try:
+        with TestClient(app) as client:
+            r = client.post(
+                "/chat",
+                headers={"X-Internal-Api-Key": "local-internal-key"},
+                json={"memberId": 1, "messageId": 2, "mode": "QUESTION", "text": "안녕", "baselineScenario": "AVG"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+    assert r.status_code == 200
+    assert r.json() == {
+        "messageType": "ANSWER", "content": "안녕", "baselineScenario": "AVG",
+        "calcRunId": None, "conditionChanges": None, "citationChunkIds": [],
+    }

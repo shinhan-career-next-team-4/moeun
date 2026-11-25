@@ -1,0 +1,14 @@
+{
+  "type": "about:blank",
+  "title": "입력 범위를 벗어났어요",
+  "status": 422,
+  "detail": "etfProductCode: OUT_OF_RANGE",
+  "instance": "/internal/calc",
+  "code": "VALIDATION_FAILED",
+  "errors": [
+    {
+      "field": "etfProductCode",
+      "reason": "OUT_OF_RANGE"
+    }
+  ]
+}

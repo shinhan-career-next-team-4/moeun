@@ -1,0 +1,24 @@
+{
+  "responses": [
+    {
+      "status": 422,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "대화로 바꿀 수 없는 조건이에요",
+        "status": 422,
+        "detail": "goalType: NOT_CHANGEABLE",
+        "instance": "/api/chat/messages/1031/apply",
+        "code": "FIELD_NOT_CHANGEABLE",
+        "errors": [
+          {
+            "field": "goalType",
+            "reason": "NOT_CHANGEABLE"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,453 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+    cleanup,
+    fireEvent,
+    render,
+    screen,
+    waitFor,
+    within,
+} from '@testing-library/react'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { planStore } from '../../../api'
+import { INPUT_PATH, LOGIN_PATH, RESULT_PATH } from '../../../app/routes'
+import etf0Mock from '../../../mocks/plan/get-plan.200-etf0.json'
+import exceededMock from '../../../mocks/plan/get-plan.200-exceeded.json'
+import planMock from '../../../mocks/plan/get-plan.200.json'
+import { ResultPage } from '../ResultPage'
+
+function jsonResponse(
+    status: number,
+    body: unknown,
+    contentType = 'application/json',
+): Response {
+    return new Response(JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': contentType },
+    })
+}
+
+/** 서버 projection 모양을 만든다. 월마다 합이 맞는 값이면 되고, 화면은 이 값을 그대로 그린다 */
+function withProjection(body: unknown) {
+  const clone = structuredClone(body) as {
+    result: { scenarios: { scenario: string }[]; projection?: Record<string, unknown[]> };
+  };
+  const projection: Record<string, unknown[]> = {};
+  for (const { scenario } of clone.result.scenarios) {
+    projection[scenario] = Array.from({ length: 36 }, (_, i) => ({
+      month: i + 1,
+      principal: 1_000_000 * (i + 1),
+      savingsInterest: 1_000 * (i + 1),
+      etfGain: 2_000 * (i + 1),
+      profit: 3_000 * (i + 1),
+      total: 1_003_000 * (i + 1),
+    }));
+  }
+  clone.result.projection = projection;
+  return clone;
+}
+
+describe('ResultPage (#49·#50, C12a-7)', () => {
+    beforeEach(() => {
+        planStore.clear()
+    })
+
+    afterEach(() => {
+        cleanup()
+        vi.unstubAllGlobals()
+    })
+
+    function renderResult() {
+        return render(
+            <MemoryRouter initialEntries={[RESULT_PATH]}>
+                <Routes>
+                    <Route path={RESULT_PATH} element={<ResultPage />} />
+                    <Route path={INPUT_PATH} element={<div>입력화면</div>} />
+                    <Route path={LOGIN_PATH} element={<div>로그인화면</div>} />
+                </Routes>
+            </MemoryRouter>,
+        )
+    }
+
+    it('CALCULATED 응답이면 조건 바·결과 요약·3구간·그래프·면책을 표시한다', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi
+                .fn()
+                .mockResolvedValue(
+                    jsonResponse(200, planMock.responses[0].body),
+                ),
+        )
+        renderResult()
+
+    expect(await screen.findByLabelText("내 계획 조건")).toBeTruthy();
+    expect(screen.getByLabelText("결과 요약").textContent).toContain("약 1,712만원");
+    expect(screen.getByLabelText("세 가지 경우 비교")).toBeTruthy();
+    const scenarios = screen.getByLabelText("세 가지 경우 비교");
+    expect(scenarios.textContent).toContain("좋았던 때");
+    expect(scenarios.textContent).toContain("평균");
+    expect(scenarios.textContent).toContain("나빴던 때");
+    expect(screen.getByRole("img", { name: "목표 대비 예상 자산" })).toBeTruthy();
+        // 대화 패널에도 같은 고지가 있어서 페이지 면책(본문 문단)을 짚는다
+        const disclaimer = screen.getByTestId('result-disclaimer')
+        expect(disclaimer.textContent).toMatch(/실제 수령액이나 수익을 보장하지 않습니다/)
+  });
+
+  // 와이어프레임 03 반영(#136). 숫자는 모두 서버 display 문자열을 그대로 쓴다.
+  describe("와이어프레임 반영 (#136)", () => {
+    function withoutDisplayKeys(keys: string[]) {
+      const body = structuredClone(planMock.responses[0].body) as { display: Record<string, string> };
+      for (const key of keys) delete body.display[key];
+      return body;
+    }
+
+    it("(W-03) 요약 카드에 원금·이자 분해 한 줄이 display 문자열 그대로 보인다", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
+      renderResult();
+
+      const summary = await screen.findByLabelText("결과 요약");
+      expect(summary.textContent).toContain("원금 약 1,580만원 + 이자·수익 약 132만원(세후)");
+    });
+
+    it("(W-03 예외) principal·afterTaxGain display 키가 없으면 그 줄만 숨긴다", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(jsonResponse(200, withoutDisplayKeys(["AVG.principal", "AVG.afterTaxGain"]))),
+      );
+      renderResult();
+
+      const summary = await screen.findByLabelText("결과 요약");
+      expect(summary.textContent).toContain("약 1,712만원");
+      expect(summary.textContent).not.toContain("원금");
+    });
+
+    it("(#315) 서버 projection이 있으면 3구간 카드를 단추로 두고 영역 그래프를 그린다", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, withProjection(planMock.responses[0].body))));
+      renderResult();
+
+      expect(await screen.findByRole("group", { name: "예상 자산 누적 그래프" })).toBeTruthy();
+      // 기준 시나리오 카드가 눌린 상태다
+      const cards = screen.getByLabelText("세 가지 경우 비교");
+      expect(within(cards).getAllByRole("button", { pressed: true })).toHaveLength(1);
+      expect(screen.queryByLabelText("예상 자산 추이 그래프")).toBeNull();
+    });
+
+    it("(#315) 카드를 누르면 그 시나리오의 그래프로 바뀐다", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, withProjection(planMock.responses[0].body))));
+      renderResult();
+
+      await screen.findByRole("group", { name: "예상 자산 누적 그래프" });
+      const cards = screen.getByLabelText("세 가지 경우 비교");
+      const buttons = within(cards).getAllByRole("button");
+      fireEvent.click(buttons[0]);
+      expect(buttons[0].getAttribute("aria-pressed")).toBe("true");
+    });
+
+    it("(#315) projection이 없으면 그래프 없이 카드는 보기만 한다", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
+      renderResult();
+
+      await screen.findByLabelText("세 가지 경우 비교");
+      expect(screen.queryByRole("group", { name: "예상 자산 누적 그래프" })).toBeNull();
+      expect(within(screen.getByLabelText("세 가지 경우 비교")).queryAllByRole("button")).toHaveLength(0);
+    });
+
+    it("(W-06) 3구간 머리글과 구간 산정 설명이 보인다", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
+      renderResult();
+
+      expect(await screen.findByText("ETF가 포함된 결과는 시기에 따라 달라요")).toBeTruthy();
+      // assumptions.scenarioMethod = ROLLING_DISTRIBUTION에 대응하는 짧은 문구표 문장(종목 이름은 #156에서 앞에 붙는다)
+      expect(screen.getByText(/과거 10년 수익률로 1만 가지 경우를 계산해 세 구간/)).toBeTruthy();
+    });
+
+    it("(W-06 예외) scenarioMethod가 null이면 설명 줄만 숨긴다", async () => {
+      const body = structuredClone(planMock.responses[0].body) as {
+        result: { assumptions: { scenarioMethod: string | null } };
+      };
+      body.result.assumptions.scenarioMethod = null;
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, body)));
+      renderResult();
+
+      expect(await screen.findByText("ETF가 포함된 결과는 시기에 따라 달라요")).toBeTruthy();
+      expect(screen.queryByText(/과거 10년 수익률로 1만 가지 경우를 계산해 세 구간/)).toBeNull();
+    });
+
+    it("(#374, #404) ETF가 섞인 계획이어도 원금 미보장 문구와 운용사 공시는 결과 화면에서 숨긴다", async () => {
+      // 목(A1 예시)에는 종목 코드가 없다. 실제 서버는 ETF가 있으면 assumptions.etfProductCode를 준다(#150)
+      const body = structuredClone(planMock.responses[0].body) as {
+        result: { assumptions: { etfProductCode?: string | null } };
+      };
+      body.result.assumptions.etfProductCode = "SP500";
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, body)));
+      renderResult();
+
+      await screen.findByLabelText("세 가지 경우 비교");
+      expect(screen.queryByRole("note", { name: "운용사 공시" })).toBeNull();
+      expect(screen.queryByText(/원금을 보장하지 않으며/)).toBeNull();
+    });
+
+    it("(#374 예외) 적금 100% 계획이면 원금 미보장 문구와 공시 링크가 없다", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, etf0Mock.responses[0].body)));
+      renderResult();
+
+      await screen.findByLabelText("세 가지 경우 비교");
+      expect(screen.queryByRole("note", { name: "운용사 공시" })).toBeNull();
+      expect(screen.queryByText(/원금을 보장하지 않으며/)).toBeNull();
+    });
+
+    it("(W-19) 면책 문구에 다섯 가지가 모두 들어 있다", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)));
+      renderResult();
+
+      await screen.findByLabelText("내 계획 조건");
+      const text = document.body.textContent ?? "";
+      for (const phrase of [
+        "모의 계산",
+        "실제 수령액이나 수익을 보장하지 않습니다",
+        "특정 금융상품의 가입을 권유하지 않으며",
+        "환율 변동은 반영하지 않았습니다",
+        "본인의 판단과 책임",
+      ]) {
+        expect(text, phrase).toContain(phrase);
+      }
+    });
+  });
+
+    it('ALREADY_EXCEEDED면 초과 안내만 표시하고 요약·3구간·그래프를 숨긴다', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi
+                .fn()
+                .mockResolvedValue(
+                    jsonResponse(200, exceededMock.responses[0].body),
+                ),
+        )
+        renderResult()
+
+        const banner = await screen.findByLabelText('목표 초과 안내')
+        expect(banner.textContent).toContain(
+            '가진 자산 약 2,500만원이 목표 금액 약 2,000만원을 이미 넘었어요',
+        )
+        expect(screen.queryByLabelText('결과 요약')).toBeNull()
+        expect(screen.queryByLabelText('세 가지 경우 비교')).toBeNull()
+        expect(screen.queryByRole('group', { name: '예상 자산 누적 그래프' })).toBeNull()
+    })
+
+    it('(#374 예외) ALREADY_EXCEEDED인데 3구간이 없으면(#370 이전 서버) 원금 미보장 문구와 공시 링크가 없다', async () => {
+        const body = structuredClone(exceededMock.responses[0].body) as {
+            result: { scenarios: unknown[]; assumptions: { etfProductCode?: string | null } }
+        }
+        expect(body.result.scenarios).toHaveLength(0)
+        body.result.assumptions.etfProductCode = 'SP500'
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, body)))
+        renderResult()
+
+        await screen.findByLabelText('목표 초과 안내')
+        expect(screen.queryByRole('note', { name: '운용사 공시' })).toBeNull()
+        expect(screen.queryByText(/원금을 보장하지 않으며/)).toBeNull()
+    })
+
+    it('(#374, #370, #404) ALREADY_EXCEEDED여도 ETF가 섞인 3구간은 보이지만 원금 미보장 문구는 숨긴다', async () => {
+        const body = structuredClone(planMock.responses[0].body) as {
+            result: { status: string; assumptions: { etfProductCode?: string | null } }
+        }
+        body.result.status = 'ALREADY_EXCEEDED'
+        body.result.assumptions.etfProductCode = 'SP500'
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, body)))
+        renderResult()
+
+        await screen.findByLabelText('목표 초과 안내')
+        expect(screen.getByLabelText('세 가지 경우 비교')).toBeTruthy()
+        expect(screen.queryByRole('note', { name: '운용사 공시' })).toBeNull()
+    })
+
+    it('ETF 0%면 평균 1개 카드만 그린다', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi
+                .fn()
+                .mockResolvedValue(
+                    jsonResponse(200, etf0Mock.responses[0].body),
+                ),
+        )
+        renderResult()
+
+        await screen.findByLabelText('세 가지 경우 비교')
+        const scenarios = screen.getByLabelText('세 가지 경우 비교')
+        expect(scenarios.textContent).toContain('평균')
+        expect(scenarios.textContent).not.toContain('좋았던 때')
+        expect(scenarios.textContent).not.toContain('나빴던 때')
+    })
+
+    it('500 오류면 loadFailed와 다시 시도 버튼을 표시하고 재시도로 복구한다', async () => {
+        const fetchSpy = vi
+            .fn()
+            .mockResolvedValueOnce(
+                jsonResponse(
+                    500,
+                    { code: 'INTERNAL_ERROR', errors: [] },
+                    'application/problem+json',
+                ),
+            )
+            .mockResolvedValueOnce(
+                jsonResponse(200, planMock.responses[0].body),
+            )
+        vi.stubGlobal('fetch', fetchSpy)
+        renderResult()
+
+        expect((await screen.findByRole('alert')).textContent).toContain(
+            '결과를 불러오지 못했어요',
+        )
+        fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+
+        await waitFor(() => {
+            expect(screen.getByLabelText('결과 요약')).toBeTruthy()
+        })
+    })
+    // 대안 영역 연결(#67, FR-ALT-01)
+    it('기준 시나리오가 미달이면 대안 영역이 보이고 달성이면 보이지 않는다', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi
+                .fn()
+                .mockResolvedValue(
+                    jsonResponse(200, planMock.responses[0].body),
+                ),
+        )
+        renderResult()
+
+        expect(await screen.findByLabelText('대안')).toBeTruthy()
+        cleanup()
+
+        const achieved = structuredClone(planMock.responses[0].body) as {
+            result: { scenarios: { scenario: string; isAchieved: boolean }[] }
+        }
+        for (const scenario of achieved.result.scenarios)
+            scenario.isAchieved = true
+        planStore.clear()
+        vi.stubGlobal(
+            'fetch',
+            vi.fn().mockResolvedValue(jsonResponse(200, achieved)),
+        )
+        renderResult()
+
+        await screen.findByLabelText('결과 요약')
+        expect(screen.queryByLabelText('대안')).toBeNull()
+    })
+    // 상단 배지(#224): 서버가 준 gapBadge 문자열을 그대로 쓰고, 색은 isAchieved로 정한다(프론트가 재계산하지 않는다)
+    it('결과 요약 배지는 서버 gapBadge를 그대로 보여 주고 미달은 주황, 달성은 초록이다', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)),
+        )
+        renderResult()
+
+        const missed = await screen.findByTestId('result-gap-badge')
+        expect(missed.textContent).toBe('미달 · 목표 −288만 원')
+        expect(missed.className).toContain('text-warning')
+        cleanup()
+
+        const achieved = structuredClone(planMock.responses[0].body) as {
+            result: { scenarios: { scenario: string; isAchieved: boolean }[] }
+            display: Record<string, string>
+        }
+        for (const scenario of achieved.result.scenarios)
+            scenario.isAchieved = true
+        achieved.display['AVG.gapBadge'] = '달성 · 목표 +150만 원'
+        planStore.clear()
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, achieved)))
+        renderResult()
+
+        const badge = await screen.findByTestId('result-gap-badge')
+        expect(badge.textContent).toBe('달성 · 목표 +150만 원')
+        expect(badge.className).toContain('text-success')
+    })
+
+    // 비교 영역 연결(#65, FR-CMP-02)
+    it('결과 화면에 비교 영역이 있고 실서버 모드에서는 POST /api/compare로 비교한다(#68)', async () => {
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValue(jsonResponse(200, planMock.responses[0].body))
+        vi.stubGlobal('fetch', fetchMock)
+        renderResult()
+
+        expect(await screen.findByLabelText('조건 변경 비교')).toBeTruthy()
+        fireEvent.click(screen.getByRole('checkbox', { name: '월 저축액' }))
+        fireEvent.change(screen.getByRole('textbox', { name: '월 저축액' }), {
+            target: { value: '150' },
+        })
+        const compareSection = screen.getByLabelText('조건 변경 비교')
+        fireEvent.click(
+            within(compareSection).getByRole('button', { name: '비교하기' }),
+        )
+
+        await waitFor(() => {
+            const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/api/compare'))
+            expect(call?.[1]?.method).toBe('POST')
+            expect(JSON.parse(String(call?.[1]?.body))).toEqual({
+                conditionChanges: { monthlySavingAmount: 1500000 },
+            })
+        })
+    })
+    // 목표 대비 가로 막대 연결(#146)
+    it('결과 요약에는 목표 대비 가로 막대가 있고 초과 안내 화면에는 없다', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi
+                .fn()
+                .mockResolvedValue(
+                    jsonResponse(200, planMock.responses[0].body),
+                ),
+        )
+        renderResult()
+
+        const summary = await screen.findByLabelText('결과 요약')
+        expect(
+            screen.getByRole('img', { name: '목표 대비 예상 자산' }),
+        ).toBeTruthy()
+        expect(summary.textContent).toContain('▲ 목표')
+        cleanup()
+
+        planStore.clear()
+        vi.stubGlobal(
+            'fetch',
+            vi
+                .fn()
+                .mockResolvedValue(
+                    jsonResponse(200, exceededMock.responses[0].body),
+                ),
+        )
+        renderResult()
+
+        await screen.findByLabelText('목표 초과 안내')
+        expect(
+            screen.queryByRole('img', { name: '목표 대비 예상 자산' }),
+        ).toBeNull()
+    })
+
+    // 이미 목표를 넘어도 결과를 보여 준다(#370)
+    it("목표 초과 안내를 맨 위에 두고, 계산된 3구간 카드도 함께 보인다", async () => {
+        const body = structuredClone(planMock.responses[0].body) as {
+            result: { status: string }
+        }
+        body.result.status = "ALREADY_EXCEEDED"
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, body)))
+        renderResult()
+
+        const banner = await screen.findByLabelText("목표 초과 안내")
+        const cards = screen.getByLabelText("세 가지 경우 비교")
+        expect(banner.compareDocumentPosition(cards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+        expect(cards.textContent).toContain("좋았던 때")
+    })
+
+    // 결과 화면에서 숨긴 영역(#364): ETF 종목 비교 카드는 대화창 ETF 버튼으로 통합했고, 계산 가정은 보이지 않는다
+    it("ETF 종목 비교 카드와 '계산에 사용한 가정' 영역은 보이지 않는다", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, planMock.responses[0].body)))
+        renderResult()
+
+        await screen.findByLabelText("내 계획 조건")
+        expect(screen.queryByLabelText("ETF 종목 비교")).toBeNull()
+        expect(screen.queryByLabelText("계산 가정")).toBeNull()
+    })
+})

@@ -1,0 +1,148 @@
+spring:
+  application:
+    name: moeun-backend
+
+  # backend/.env가 있으면 환경변수로 읽는다(없으면 아래 기본값 사용). 실행 위치가 backend/여야 한다
+  config:
+    import:
+      - optional:file:.env[.properties]
+      - classpath:config/rules.yml         # 입력 규칙(CP-02). plan 모듈의 PlanRules가 읽는다
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/moeun}
+    username: ${DB_USERNAME:moeun}
+    password: ${DB_PASSWORD:moeun}
+    hikari:
+      maximum-pool-size: 10
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate               # 스키마는 db/schema.sql이 만든다. 엔티티와 불일치만 검사
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        default_batch_fetch_size: 100
+
+  # Flyway 도입 전까지: 기동 시 schema.sql 실행(IF NOT EXISTS라 재실행 안전)
+  sql:
+    init:
+      mode: ${SQL_INIT_MODE:always}
+      schema-locations: classpath:db/schema.sql
+      encoding: UTF-8
+
+  modulith:
+    events:
+      jdbc:
+        schema-initialization:
+          enabled: true                # event_publication 테이블 자동 생성
+      republish-outstanding-events-on-restart: true   # 재기동 시 미완료 이벤트 재처리(PENDING 대화 복구)
+
+  threads:
+    virtual:
+      enabled: true                    # ai-server 호출 대기를 가상 스레드로
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+  error:
+    include-stacktrace: never
+
+# 앱 설정 (@ConfigurationProperties로 바인딩)
+moeun:
+  jwt:
+    secret: ${JWT_SECRET:}                 # HS256, 32바이트 이상. 기본값 없음: 없으면 기동 실패(JwtProperties)
+    access-token-ttl: 30m              # NFR-SEC-02: 30분 비활동 만료(슬라이딩)
+    issuer: moeun
+    cookie-secure: ${JWT_COOKIE_SECURE:true}   # 기본 true. false는 local 프로필(문서 맨 아래)에서만
+  demo:
+    accounts: ${DEMO_ACCOUNTS:}         # "id:비밀번호,id:비밀번호". 비밀번호는 backend/.env에만 둔다(FR-AUTH-01)
+  ai-server:
+    base-url: ${AI_SERVER_URL:http://localhost:8000}
+    internal-api-key: ${INTERNAL_API_KEY:local-internal-key}   # Spring ↔ ai-server 내부 호출
+    connect-timeout: 2s
+    read-timeout: 30s                  # POST /chat 응답 대기. 넘으면 메시지를 FAILED로 바꾼다
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  refdata:
+    # 서버가 뜰 때 적재할 기준 데이터 CSV(src/main/resources/seed/README.md). 같은 version-label은 다시 넣지 않는다
+    # 파일 내용을 바꾸면 version-label도 새로 정한다(과거 계산 재현, NFR-INT-02)
+    seeds:
+      - kind: SAVINGS_RATE
+        version-label: kfb-2026-10
+        base-date: 2026-10-01
+        source: 은행연합회 적금 전월취급 평균금리(12개월 정액적립식 단리, 10개 은행 단순평균, 2026-11-18 조회)
+        file: classpath:seed/savings-avg-rate.csv
+      - kind: CALC_PARAM
+        version-label: v1
+        base-date: 2026-11-17
+        source: 팀 결정(calc-spec 9절, 임시값 포함)
+        file: classpath:seed/calc-param.csv
+      # ETF 종목(#138). 한 종목 = 데이터 파일 하나 + 이 설정 한 묶음. 종목을 늘릴 때 묶음만 더한다
+      # 가격 파일은 이용 조건 때문에 레포에 없다(TBD-08). 각자 만든 로컬 파일을 읽고, 없으면 그 종목만 건너뛴다
+      # 화면 이름은 상품명 대신 추종 지수로 쓴다(CP-06). 세율은 매매차익 세율(%)이며 국내 주식형 ETF는 비과세라 0
+      - kind: ETF_PRICE
+        product-code: SP500                # 대표 상품
+        display-name: S&P500 추종 ETF
+        gain-tax-rate-pct: 15.4
+        version-label: investing-2016-10-2026-10-r2
+        base-date: 2026-10-31
+        source: Investing.com S&P500 월말 종가(달러 지수)
+        file: ${MOEUN_SP500_FILE:file:data/seed/sp500-monthly.csv}
+        optional: true
+      - kind: ETF_PRICE
+        product-code: "069500"
+        display-name: 코스피200 추종 ETF
+        gain-tax-rate-pct: 0
+        version-label: investing-2016-10-2026-10-r2
+        base-date: 2026-10-31
+        source: Investing.com 069500 월말 종가(원)
+        file: ${MOEUN_ETF_069500_FILE:file:data/seed/etf-069500-monthly.csv}
+        optional: true
+      - kind: ETF_PRICE
+        product-code: "133690"
+        display-name: 나스닥100 추종 ETF
+        gain-tax-rate-pct: 15.4
+        version-label: investing-2016-10-2026-10-r2
+        base-date: 2026-10-31
+        source: Investing.com 133690 월말 종가(원)
+        file: ${MOEUN_ETF_133690_FILE:file:data/seed/etf-133690-monthly.csv}
+        optional: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,modulith
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  # 원인 추적용 로그 파일(#316). 날짜별로 나누고 보관 기간(기본 7일)이 지나면 지운다.
+  # LOG_RETENTION_DAYS는 1 이상으로 둔다. logback은 0이면 지우지 않는다(ai-server는 0이면 파일을 끈다)
+  file:
+    name: ${LOG_DIR:logs}/backend.log
+  logback:
+    rollingpolicy:
+      file-name-pattern: ${LOG_DIR:logs}/backend.%d{yyyy-MM-dd}.%i.log
+      max-history: ${LOG_RETENTION_DAYS:7}
+  pattern:
+    # 구조화된 필드(key-value)가 콘솔에 보이도록 %kvp를 붙인다. ai-server 실패 WARN의 messageId 등이 여기로 나온다(#123)
+    console: "%clr(%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}){faint} %clr(%5p) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m %kvp%n%wEx"
+    file: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p ${PID:- } --- [%15.15t] %-40.40logger{39} : %m %kvp%n%wEx"
+  level:
+    com.moeun: DEBUG
+    org.springframework.modulith: INFO
+
+---
+# local 프로필에서만 Secure 쿠키를 끈다(http 로컬 개발 탈출구, C12a-2-1)
+spring:
+  config:
+    activate:
+      on-profile: local
+moeun:
+  jwt:
+    cookie-secure: ${JWT_COOKIE_SECURE:false}

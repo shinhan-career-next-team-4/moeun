@@ -1,0 +1,78 @@
+import { COPY, type CopyMap } from "../../shared/copy/copy";
+import { taxNoteFor } from "../../shared/copy/taxNote";
+import type { Assumptions } from "./types";
+
+interface AssumptionsSectionProps {
+  assumptions: Assumptions;
+  display: Record<string, string>;
+  /** 계획에 저장된 비중(plan.savingsRatioPct). null이 아니면 비중 안내를 보여 준다(D-088) */
+  planSavingsRatioPct?: number | null;
+}
+
+/** 가정 보기(FR-RES-06, C12a-7). */
+export function AssumptionsSection({
+  assumptions,
+  display,
+  planSavingsRatioPct = null,
+}: AssumptionsSectionProps) {
+  const copyMap: CopyMap = COPY;
+  const methodText = assumptions.scenarioMethod ? copyMap[`scenarioMethod.${assumptions.scenarioMethod}`] : null;
+
+  return (
+    <section aria-label="계산 가정" className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-5 text-sm">
+      <h2 className="text-base font-semibold text-text">계산에 사용한 가정</h2>
+      <dl className="grid gap-2 text-text-muted sm:grid-cols-2">
+        <div>
+          <dt className="font-medium text-text">세율</dt>
+          <dd>{display["assumptions.taxRatePct"]}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-text">적금 금리</dt>
+          <dd>{display["conditions.savingsRateInputPct"]}</dd>
+        </div>
+        {display["assumptions.savingsRateBaseMonth"] && (
+          <div>
+            <dt className="font-medium text-text">평균 금리 기준 월</dt>
+            <dd>{display["assumptions.savingsRateBaseMonth"]}</dd>
+          </div>
+        )}
+        {/* 키 이름은 sp500BaseDate이지만 값은 계산에 쓴 ETF 종목 데이터의 기준일이다(#138, plan-context.md) */}
+        {display["assumptions.sp500BaseDate"] && (
+          <div>
+            <dt className="font-medium text-text">ETF 기준일</dt>
+            <dd>{display["assumptions.sp500BaseDate"]}</dd>
+          </div>
+        )}
+        {/* 종목 이름과 종목 세율은 ETF가 들어간 계산에만 있다(#150). 상품명 대신 화면 이름이다(CP-06) */}
+        {display["assumptions.etfProductName"] && (
+          <div>
+            <dt className="font-medium text-text">ETF 종목</dt>
+            <dd>{display["assumptions.etfProductName"]}</dd>
+          </div>
+        )}
+        {display["assumptions.etfGainTaxRatePct"] && (
+          <div>
+            <dt className="font-medium text-text">ETF 매매차익 세율</dt>
+            <dd>{display["assumptions.etfGainTaxRatePct"]}</dd>
+          </div>
+        )}
+      </dl>
+      {/* CF-08 ②, D-088: 사용자가 정한 비중이 있으면 금액 없는 고정 문장 + 현재 비중 */}
+      {planSavingsRatioPct !== null && (
+        <p className="text-xs leading-relaxed text-text-muted">
+          {COPY["assumptions.ratioAppliedToAll"]}{" "}
+          <strong className="text-text">{display["conditions.savingsRatioPct"]}</strong>
+        </p>
+      )}
+      <p className="text-xs leading-relaxed text-text-muted">{taxNoteFor(assumptions.etfGainTaxRatePct)}</p>
+      {methodText && <p className="text-xs text-text-muted">{methodText}</p>}
+      {assumptions.excludedItems.length > 0 && (
+        <ul className="list-disc space-y-1 pl-5 text-xs text-text-muted">
+          {assumptions.excludedItems.map((code) => (
+            <li key={code}>{copyMap[`excluded.${code}`] ?? code}</li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}

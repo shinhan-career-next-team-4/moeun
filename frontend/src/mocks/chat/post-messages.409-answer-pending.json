@@ -1,0 +1,18 @@
+{
+  "responses": [
+    {
+      "status": 409,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "앞 질문의 답을 기다리고 있어요",
+        "status": 409,
+        "instance": "/api/chat/messages",
+        "code": "ANSWER_PENDING",
+        "errors": []
+      }
+    }
+  ]
+}

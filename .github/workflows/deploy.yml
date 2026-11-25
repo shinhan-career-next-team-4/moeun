@@ -1,0 +1,110 @@
+# 운영 배포(#386): OIDC로 AWS 역할을 받아 → 두 이미지를 ECR에 push → SSM으로 EC2에서 deploy/deploy.sh 실행
+# GitHub에는 Secrets를 쓰지 않는다. Variables만 쓴다: AWS_DEPLOY_ROLE_ARN, EC2_INSTANCE_ID (docs/deploy.md)
+# 테스트는 여기서 돌리지 않는다. 배포 전 테스트 게이트는 #387
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    # frontend/만 바뀐 push로는 돌지 않는다(프론트는 Vercel이 배포한다)
+    # copy/, scripts/ingest/는 ai-server 이미지에 들어간다
+    paths:
+      - "backend/**"
+      - "ai-server/**"
+      - "copy/**"
+      - "scripts/ingest/**"
+      - "deploy/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # OIDC
+  contents: read
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-2
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - repository: moeun-backend
+            file: backend/Dockerfile
+          - repository: moeun-ai-server
+            file: ai-server/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .   # 두 이미지 모두 저장소 루트 컨텍스트(copy/ 문구표를 같이 넣는다)
+          file: ${{ matrix.file }}
+          platforms: linux/amd64   # EC2 t3.small(x86)
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/${{ matrix.repository }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.repository }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.repository }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: SSM으로 EC2에서 deploy.sh 실행
+        env:
+          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+          SHA: ${{ github.sha }}
+        run: |
+          # root로 실행된다. /opt/moeun/repo의 git safe.directory 설정은 docs/deploy.md
+          params=$(jq -n --arg sha "$SHA" '{
+            commands: [
+              "set -e",
+              "cd /opt/moeun/repo",
+              "git fetch --all",
+              ("git checkout " + $sha),
+              ("deploy/deploy.sh " + $sha)
+            ],
+            executionTimeout: ["1200"]
+          }')
+          command_id=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "moeun deploy $SHA" \
+            --parameters "$params" \
+            --query Command.CommandId --output text)
+          echo "SSM command: $command_id"
+
+          # aws ssm wait는 100초에서 끝나므로 직접 기다린다(최대 20분)
+          for _ in $(seq 1 240); do
+            sleep 5
+            status=$(aws ssm get-command-invocation --command-id "$command_id" --instance-id "$INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)
+            case "$status" in Pending|InProgress|Delayed) continue ;; *) break ;; esac
+          done
+
+          aws ssm get-command-invocation --command-id "$command_id" --instance-id "$INSTANCE_ID" \
+            --query StandardOutputContent --output text
+          aws ssm get-command-invocation --command-id "$command_id" --instance-id "$INSTANCE_ID" \
+            --query StandardErrorContent --output text >&2
+          echo "SSM status: $status"
+          [ "$status" = Success ]

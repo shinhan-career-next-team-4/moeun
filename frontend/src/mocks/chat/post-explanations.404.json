@@ -1,0 +1,18 @@
+{
+  "responses": [
+    {
+      "status": 404,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "찾을 수 없어요",
+        "status": 404,
+        "instance": "/api/chat/explanations",
+        "code": "NOT_FOUND",
+        "errors": []
+      }
+    }
+  ]
+}

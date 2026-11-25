@@ -1,0 +1,26 @@
+# 적재를 허락받은 자료 목록(FR-AI-10, NFR-INT-04). moeun-ingest는 이 목록에 없는 자료를 적재하지 않는다.
+# content_sha256은 추출한 본문의 sha256으로 승인한 개정본에 고정한다. 같은 URL의 새 개정본은 해시가 달라 다시 승인받아 이 목록을 고쳐야 적재된다.
+# 항목을 더하는 PR이 허락의 기록이다. 근거와 승인 상태는 docs/rag-sources.md.
+sources:
+  # 법정 공시(투자설명서). 운용사 사이트의 DB화 금지 고지가 있어 팀 승인 후 적재 대상(2026-11-17 팀 승인, Issue #39)
+  - url: https://www.samsungfund.com/upload/invest/2ETFE4-A.pdf
+    org: 삼성자산운용
+    org_type: ASSET_MANAGER
+    doc_type: DISCLOSURE
+    content_sha256: b455f2ec77d80dca18d938e305332d274bd772279d832713f5228c9647eb1302
+  - url: https://investments.miraeasset.com/tigeretf/upload/etf/20261008090949000003.pdf
+    org: 미래에셋자산운용
+    org_type: ASSET_MANAGER
+    doc_type: DISCLOSURE
+    content_sha256: aed2675d4f27aed3a1e0f2d27648d8a0594a76b46e35da2b28621b2fdbe1cbda
+  # 코스피200·나스닥100 추종 ETF 공시(Issue #181). 백엔드 ETF 종목(069500, 133690)의 설명 근거
+  - url: https://www.samsungfund.com/upload/invest/2ETF01-A.pdf
+    org: 삼성자산운용
+    org_type: ASSET_MANAGER
+    doc_type: DISCLOSURE
+    content_sha256: d4f18b830e73e79e91cb29992ffd41b220dd16cbc8808716e7e3c9dc408081e6
+  - url: https://investments.miraeasset.com/tigeretf/upload/etf/20260528095823000271.pdf
+    org: 미래에셋자산운용
+    org_type: ASSET_MANAGER
+    doc_type: DISCLOSURE
+    content_sha256: a82366c8be6d99a65f5f69ff4d64e2edcbe974b281eab3bcb6ca67943a6b7e98

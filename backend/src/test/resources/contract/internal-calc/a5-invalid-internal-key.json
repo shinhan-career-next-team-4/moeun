@@ -1,0 +1,7 @@
+{
+  "type": "about:blank",
+  "title": "내부 인증에 실패했어요",
+  "status": 401,
+  "code": "INVALID_INTERNAL_KEY",
+  "errors": []
+}

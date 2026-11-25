@@ -1,0 +1,10 @@
+{
+  "memberId": 7,
+  "messageId": 1033,
+  "mode": "EXPLAIN",
+  "text": null,
+  "baselineScenario": "AVG",
+  "calcRunId": 540,
+  "planContext": null,
+  "history": []
+}

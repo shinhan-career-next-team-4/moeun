@@ -1,0 +1,1164 @@
+{
+  "responses": [
+    {
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "revision": 12,
+        "calcRunId": 540,
+        "baselineResultScenario": "AVG",
+        "undoAvailable": false,
+        "plan": {
+          "goalType": "HOUSE",
+          "goalCustomName": null,
+          "goalAmount": 20000000,
+          "targetPeriodMonths": 36,
+          "heldAssets": 5000000,
+          "monthlySavingAmount": 300000,
+          "savingsRateInputPct": null,
+          "savingsRatioPct": null
+        },
+        "result": {
+          "status": "CALCULATED",
+          "goalAmount": 20000000,
+          "calcStartMonth": "2026-11",
+          "targetMonth": "2029-11",
+          "scenarios": [
+            {
+              "scenario": "GOOD",
+              "afterTaxAsset": 18450000,
+              "principal": 15800000,
+              "afterTaxGain": 2650000,
+              "gapToGoal": -1550000,
+              "isAchieved": false,
+              "goalReachMonth": null,
+              "monthlyPoints": [
+                {
+                  "month": "2026-11",
+                  "afterTaxAsset": 5000000
+                },
+                {
+                  "month": "2026-12",
+                  "afterTaxAsset": 5373611
+                },
+                {
+                  "month": "2027-01",
+                  "afterTaxAsset": 5747222
+                },
+                {
+                  "month": "2027-02",
+                  "afterTaxAsset": 6120833
+                },
+                {
+                  "month": "2027-03",
+                  "afterTaxAsset": 6494444
+                },
+                {
+                  "month": "2027-04",
+                  "afterTaxAsset": 6868056
+                },
+                {
+                  "month": "2027-05",
+                  "afterTaxAsset": 7241667
+                },
+                {
+                  "month": "2027-06",
+                  "afterTaxAsset": 7615278
+                },
+                {
+                  "month": "2027-07",
+                  "afterTaxAsset": 7988889
+                },
+                {
+                  "month": "2027-08",
+                  "afterTaxAsset": 8362500
+                },
+                {
+                  "month": "2027-09",
+                  "afterTaxAsset": 8736111
+                },
+                {
+                  "month": "2027-10",
+                  "afterTaxAsset": 9109722
+                },
+                {
+                  "month": "2027-11",
+                  "afterTaxAsset": 9483333
+                },
+                {
+                  "month": "2027-12",
+                  "afterTaxAsset": 9856944
+                },
+                {
+                  "month": "2028-01",
+                  "afterTaxAsset": 10230556
+                },
+                {
+                  "month": "2028-02",
+                  "afterTaxAsset": 10604167
+                },
+                {
+                  "month": "2028-03",
+                  "afterTaxAsset": 10977778
+                },
+                {
+                  "month": "2028-04",
+                  "afterTaxAsset": 11351389
+                },
+                {
+                  "month": "2028-05",
+                  "afterTaxAsset": 11725000
+                },
+                {
+                  "month": "2028-06",
+                  "afterTaxAsset": 12098611
+                },
+                {
+                  "month": "2028-07",
+                  "afterTaxAsset": 12472222
+                },
+                {
+                  "month": "2028-08",
+                  "afterTaxAsset": 12845833
+                },
+                {
+                  "month": "2028-09",
+                  "afterTaxAsset": 13219444
+                },
+                {
+                  "month": "2028-10",
+                  "afterTaxAsset": 13593056
+                },
+                {
+                  "month": "2028-11",
+                  "afterTaxAsset": 13966667
+                },
+                {
+                  "month": "2028-12",
+                  "afterTaxAsset": 14340278
+                },
+                {
+                  "month": "2029-01",
+                  "afterTaxAsset": 14713889
+                },
+                {
+                  "month": "2029-02",
+                  "afterTaxAsset": 15087500
+                },
+                {
+                  "month": "2029-03",
+                  "afterTaxAsset": 15461111
+                },
+                {
+                  "month": "2029-04",
+                  "afterTaxAsset": 15834722
+                },
+                {
+                  "month": "2029-05",
+                  "afterTaxAsset": 16208333
+                },
+                {
+                  "month": "2029-06",
+                  "afterTaxAsset": 16581944
+                },
+                {
+                  "month": "2029-07",
+                  "afterTaxAsset": 16955556
+                },
+                {
+                  "month": "2029-08",
+                  "afterTaxAsset": 17329167
+                },
+                {
+                  "month": "2029-09",
+                  "afterTaxAsset": 17702778
+                },
+                {
+                  "month": "2029-10",
+                  "afterTaxAsset": 18076389
+                },
+                {
+                  "month": "2029-11",
+                  "afterTaxAsset": 18450000
+                }
+              ]
+            },
+            {
+              "scenario": "AVG",
+              "afterTaxAsset": 17120000,
+              "principal": 15800000,
+              "afterTaxGain": 1320000,
+              "gapToGoal": -2880000,
+              "isAchieved": false,
+              "goalReachMonth": null,
+              "monthlyPoints": [
+                {
+                  "month": "2026-11",
+                  "afterTaxAsset": 5000000
+                },
+                {
+                  "month": "2026-12",
+                  "afterTaxAsset": 5336667
+                },
+                {
+                  "month": "2027-01",
+                  "afterTaxAsset": 5673333
+                },
+                {
+                  "month": "2027-02",
+                  "afterTaxAsset": 6010000
+                },
+                {
+                  "month": "2027-03",
+                  "afterTaxAsset": 6346667
+                },
+                {
+                  "month": "2027-04",
+                  "afterTaxAsset": 6683333
+                },
+                {
+                  "month": "2027-05",
+                  "afterTaxAsset": 7020000
+                },
+                {
+                  "month": "2027-06",
+                  "afterTaxAsset": 7356667
+                },
+                {
+                  "month": "2027-07",
+                  "afterTaxAsset": 7693333
+                },
+                {
+                  "month": "2027-08",
+                  "afterTaxAsset": 8030000
+                },
+                {
+                  "month": "2027-09",
+                  "afterTaxAsset": 8366667
+                },
+                {
+                  "month": "2027-10",
+                  "afterTaxAsset": 8703333
+                },
+                {
+                  "month": "2027-11",
+                  "afterTaxAsset": 9040000
+                },
+                {
+                  "month": "2027-12",
+                  "afterTaxAsset": 9376667
+                },
+                {
+                  "month": "2028-01",
+                  "afterTaxAsset": 9713333
+                },
+                {
+                  "month": "2028-02",
+                  "afterTaxAsset": 10050000
+                },
+                {
+                  "month": "2028-03",
+                  "afterTaxAsset": 10386667
+                },
+                {
+                  "month": "2028-04",
+                  "afterTaxAsset": 10723333
+                },
+                {
+                  "month": "2028-05",
+                  "afterTaxAsset": 11060000
+                },
+                {
+                  "month": "2028-06",
+                  "afterTaxAsset": 11396667
+                },
+                {
+                  "month": "2028-07",
+                  "afterTaxAsset": 11733333
+                },
+                {
+                  "month": "2028-08",
+                  "afterTaxAsset": 12070000
+                },
+                {
+                  "month": "2028-09",
+                  "afterTaxAsset": 12406667
+                },
+                {
+                  "month": "2028-10",
+                  "afterTaxAsset": 12743333
+                },
+                {
+                  "month": "2028-11",
+                  "afterTaxAsset": 13080000
+                },
+                {
+                  "month": "2028-12",
+                  "afterTaxAsset": 13416667
+                },
+                {
+                  "month": "2029-01",
+                  "afterTaxAsset": 13753333
+                },
+                {
+                  "month": "2029-02",
+                  "afterTaxAsset": 14090000
+                },
+                {
+                  "month": "2029-03",
+                  "afterTaxAsset": 14426667
+                },
+                {
+                  "month": "2029-04",
+                  "afterTaxAsset": 14763333
+                },
+                {
+                  "month": "2029-05",
+                  "afterTaxAsset": 15100000
+                },
+                {
+                  "month": "2029-06",
+                  "afterTaxAsset": 15436667
+                },
+                {
+                  "month": "2029-07",
+                  "afterTaxAsset": 15773333
+                },
+                {
+                  "month": "2029-08",
+                  "afterTaxAsset": 16110000
+                },
+                {
+                  "month": "2029-09",
+                  "afterTaxAsset": 16446667
+                },
+                {
+                  "month": "2029-10",
+                  "afterTaxAsset": 16783333
+                },
+                {
+                  "month": "2029-11",
+                  "afterTaxAsset": 17120000
+                }
+              ]
+            },
+            {
+              "scenario": "BAD",
+              "afterTaxAsset": 15980000,
+              "principal": 15800000,
+              "afterTaxGain": 180000,
+              "gapToGoal": -4020000,
+              "isAchieved": false,
+              "goalReachMonth": null,
+              "monthlyPoints": [
+                {
+                  "month": "2026-11",
+                  "afterTaxAsset": 5000000
+                },
+                {
+                  "month": "2026-12",
+                  "afterTaxAsset": 5305000
+                },
+                {
+                  "month": "2027-01",
+                  "afterTaxAsset": 5610000
+                },
+                {
+                  "month": "2027-02",
+                  "afterTaxAsset": 5915000
+                },
+                {
+                  "month": "2027-03",
+                  "afterTaxAsset": 6220000
+                },
+                {
+                  "month": "2027-04",
+                  "afterTaxAsset": 6525000
+                },
+                {
+                  "month": "2027-05",
+                  "afterTaxAsset": 6830000
+                },
+                {
+                  "month": "2027-06",
+                  "afterTaxAsset": 7135000
+                },
+                {
+                  "month": "2027-07",
+                  "afterTaxAsset": 7440000
+                },
+                {
+                  "month": "2027-08",
+                  "afterTaxAsset": 7745000
+                },
+                {
+                  "month": "2027-09",
+                  "afterTaxAsset": 8050000
+                },
+                {
+                  "month": "2027-10",
+                  "afterTaxAsset": 8355000
+                },
+                {
+                  "month": "2027-11",
+                  "afterTaxAsset": 8660000
+                },
+                {
+                  "month": "2027-12",
+                  "afterTaxAsset": 8965000
+                },
+                {
+                  "month": "2028-01",
+                  "afterTaxAsset": 9270000
+                },
+                {
+                  "month": "2028-02",
+                  "afterTaxAsset": 9575000
+                },
+                {
+                  "month": "2028-03",
+                  "afterTaxAsset": 9880000
+                },
+                {
+                  "month": "2028-04",
+                  "afterTaxAsset": 10185000
+                },
+                {
+                  "month": "2028-05",
+                  "afterTaxAsset": 10490000
+                },
+                {
+                  "month": "2028-06",
+                  "afterTaxAsset": 10795000
+                },
+                {
+                  "month": "2028-07",
+                  "afterTaxAsset": 11100000
+                },
+                {
+                  "month": "2028-08",
+                  "afterTaxAsset": 11405000
+                },
+                {
+                  "month": "2028-09",
+                  "afterTaxAsset": 11710000
+                },
+                {
+                  "month": "2028-10",
+                  "afterTaxAsset": 12015000
+                },
+                {
+                  "month": "2028-11",
+                  "afterTaxAsset": 12320000
+                },
+                {
+                  "month": "2028-12",
+                  "afterTaxAsset": 12625000
+                },
+                {
+                  "month": "2029-01",
+                  "afterTaxAsset": 12930000
+                },
+                {
+                  "month": "2029-02",
+                  "afterTaxAsset": 13235000
+                },
+                {
+                  "month": "2029-03",
+                  "afterTaxAsset": 13540000
+                },
+                {
+                  "month": "2029-04",
+                  "afterTaxAsset": 13845000
+                },
+                {
+                  "month": "2029-05",
+                  "afterTaxAsset": 14150000
+                },
+                {
+                  "month": "2029-06",
+                  "afterTaxAsset": 14455000
+                },
+                {
+                  "month": "2029-07",
+                  "afterTaxAsset": 14760000
+                },
+                {
+                  "month": "2029-08",
+                  "afterTaxAsset": 15065000
+                },
+                {
+                  "month": "2029-09",
+                  "afterTaxAsset": 15370000
+                },
+                {
+                  "month": "2029-10",
+                  "afterTaxAsset": 15675000
+                },
+                {
+                  "month": "2029-11",
+                  "afterTaxAsset": 15980000
+                }
+              ]
+            }
+          ],
+          "assumptions": {
+            "savingsRatePct": 3.12,
+            "isDefaultSavingsRate": true,
+            "savingsRateBaseMonth": "2026-10",
+            "savingsRatioPct": 50,
+            "taxRatePct": 15.4,
+            "scenarioMethod": "ROLLING_DISTRIBUTION",
+            "sp500BaseDate": "2026-10-31",
+            "excludedItems": [
+              "ETF_TOTAL_EXPENSE",
+              "EXCHANGE_RATE",
+              "ETF_DISTRIBUTION",
+              "HELD_ASSET_RETURN",
+              "SAVINGS_REDEPOSIT"
+            ]
+          }
+        },
+        "display": {
+          "goalAmount": "약 2,000만원",
+          "calcStartMonth": "2026년 11월",
+          "targetMonth": "2029년 11월",
+          "GOOD.afterTaxAsset": "약 1,845만원",
+          "GOOD.principal": "약 1,580만원",
+          "GOOD.afterTaxGain": "약 265만원",
+          "GOOD.gapToGoal": "-약 155만원 미달",
+          "AVG.afterTaxAsset": "약 1,712만원",
+          "AVG.principal": "약 1,580만원",
+          "AVG.afterTaxGain": "약 132만원",
+          "AVG.gapToGoal": "-약 288만원 미달",
+          "BAD.afterTaxAsset": "약 1,598만원",
+          "BAD.principal": "약 1,580만원",
+          "BAD.afterTaxGain": "약 18만원",
+          "BAD.gapToGoal": "-약 402만원 미달",
+          "conditions.heldAssets": "약 500만원",
+          "conditions.monthlySavingAmount": "약 30만원",
+          "conditions.targetPeriodMonths": "3년 0개월",
+          "conditions.savingsRatioPct": "적금 50 : ETF 50",
+          "conditions.savingsRateInputPct": "연 3.12%",
+          "assumptions.savingsRateBaseMonth": "2026년 10월",
+          "assumptions.sp500BaseDate": "2026년 10월",
+          "assumptions.taxRatePct": "15.4%",
+          "GOOD.gapBadge": "미달 · 목표 −155만 원",
+          "AVG.gapBadge": "미달 · 목표 −288만 원",
+          "BAD.gapBadge": "미달 · 목표 −402만 원"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "revision": 13,
+        "calcRunId": 542,
+        "baselineResultScenario": null,
+        "undoAvailable": true,
+        "plan": {
+          "goalType": "HOUSE",
+          "goalCustomName": null,
+          "goalAmount": 20000000,
+          "targetPeriodMonths": 36,
+          "heldAssets": 25000000,
+          "monthlySavingAmount": 300000,
+          "savingsRateInputPct": null,
+          "savingsRatioPct": null
+        },
+        "result": {
+          "status": "ALREADY_EXCEEDED",
+          "goalAmount": 20000000,
+          "calcStartMonth": "2026-11",
+          "targetMonth": "2029-11",
+          "scenarios": [],
+          "assumptions": {
+            "savingsRatePct": 3.12,
+            "isDefaultSavingsRate": true,
+            "savingsRateBaseMonth": "2026-10",
+            "savingsRatioPct": 50,
+            "taxRatePct": 15.4,
+            "scenarioMethod": "ROLLING_DISTRIBUTION",
+            "sp500BaseDate": "2026-10-31",
+            "excludedItems": [
+              "ETF_TOTAL_EXPENSE",
+              "EXCHANGE_RATE",
+              "ETF_DISTRIBUTION",
+              "HELD_ASSET_RETURN",
+              "SAVINGS_REDEPOSIT"
+            ]
+          }
+        },
+        "display": {
+          "goalAmount": "약 2,000만원",
+          "calcStartMonth": "2026년 11월",
+          "targetMonth": "2029년 11월",
+          "conditions.heldAssets": "약 2,500만원",
+          "conditions.monthlySavingAmount": "약 30만원",
+          "conditions.targetPeriodMonths": "3년 0개월",
+          "conditions.savingsRatioPct": "적금 50 : ETF 50",
+          "conditions.savingsRateInputPct": "연 3.12%",
+          "assumptions.savingsRateBaseMonth": "2026년 10월",
+          "assumptions.sp500BaseDate": "2026년 10월",
+          "assumptions.taxRatePct": "15.4%"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "revision": 14,
+        "calcRunId": 554,
+        "baselineResultScenario": "AVG",
+        "undoAvailable": false,
+        "plan": {
+          "goalType": "HOUSE",
+          "goalCustomName": null,
+          "goalAmount": 20000000,
+          "targetPeriodMonths": 36,
+          "heldAssets": 5000000,
+          "monthlySavingAmount": 300000,
+          "savingsRateInputPct": null,
+          "savingsRatioPct": null
+        },
+        "result": {
+          "status": "CALCULATED",
+          "goalAmount": 20000000,
+          "calcStartMonth": "2026-11",
+          "targetMonth": "2029-11",
+          "scenarios": [
+            {
+              "scenario": "GOOD",
+              "afterTaxAsset": 18450000,
+              "principal": 15800000,
+              "afterTaxGain": 2650000,
+              "gapToGoal": -1550000,
+              "isAchieved": false,
+              "goalReachMonth": null,
+              "monthlyPoints": [
+                {
+                  "month": "2026-11",
+                  "afterTaxAsset": 5000000
+                },
+                {
+                  "month": "2026-12",
+                  "afterTaxAsset": 5373611
+                },
+                {
+                  "month": "2027-01",
+                  "afterTaxAsset": 5747222
+                },
+                {
+                  "month": "2027-02",
+                  "afterTaxAsset": 6120833
+                },
+                {
+                  "month": "2027-03",
+                  "afterTaxAsset": 6494444
+                },
+                {
+                  "month": "2027-04",
+                  "afterTaxAsset": 6868056
+                },
+                {
+                  "month": "2027-05",
+                  "afterTaxAsset": 7241667
+                },
+                {
+                  "month": "2027-06",
+                  "afterTaxAsset": 7615278
+                },
+                {
+                  "month": "2027-07",
+                  "afterTaxAsset": 7988889
+                },
+                {
+                  "month": "2027-08",
+                  "afterTaxAsset": 8362500
+                },
+                {
+                  "month": "2027-09",
+                  "afterTaxAsset": 8736111
+                },
+                {
+                  "month": "2027-10",
+                  "afterTaxAsset": 9109722
+                },
+                {
+                  "month": "2027-11",
+                  "afterTaxAsset": 9483333
+                },
+                {
+                  "month": "2027-12",
+                  "afterTaxAsset": 9856944
+                },
+                {
+                  "month": "2028-01",
+                  "afterTaxAsset": 10230556
+                },
+                {
+                  "month": "2028-02",
+                  "afterTaxAsset": 10604167
+                },
+                {
+                  "month": "2028-03",
+                  "afterTaxAsset": 10977778
+                },
+                {
+                  "month": "2028-04",
+                  "afterTaxAsset": 11351389
+                },
+                {
+                  "month": "2028-05",
+                  "afterTaxAsset": 11725000
+                },
+                {
+                  "month": "2028-06",
+                  "afterTaxAsset": 12098611
+                },
+                {
+                  "month": "2028-07",
+                  "afterTaxAsset": 12472222
+                },
+                {
+                  "month": "2028-08",
+                  "afterTaxAsset": 12845833
+                },
+                {
+                  "month": "2028-09",
+                  "afterTaxAsset": 13219444
+                },
+                {
+                  "month": "2028-10",
+                  "afterTaxAsset": 13593056
+                },
+                {
+                  "month": "2028-11",
+                  "afterTaxAsset": 13966667
+                },
+                {
+                  "month": "2028-12",
+                  "afterTaxAsset": 14340278
+                },
+                {
+                  "month": "2029-01",
+                  "afterTaxAsset": 14713889
+                },
+                {
+                  "month": "2029-02",
+                  "afterTaxAsset": 15087500
+                },
+                {
+                  "month": "2029-03",
+                  "afterTaxAsset": 15461111
+                },
+                {
+                  "month": "2029-04",
+                  "afterTaxAsset": 15834722
+                },
+                {
+                  "month": "2029-05",
+                  "afterTaxAsset": 16208333
+                },
+                {
+                  "month": "2029-06",
+                  "afterTaxAsset": 16581944
+                },
+                {
+                  "month": "2029-07",
+                  "afterTaxAsset": 16955556
+                },
+                {
+                  "month": "2029-08",
+                  "afterTaxAsset": 17329167
+                },
+                {
+                  "month": "2029-09",
+                  "afterTaxAsset": 17702778
+                },
+                {
+                  "month": "2029-10",
+                  "afterTaxAsset": 18076389
+                },
+                {
+                  "month": "2029-11",
+                  "afterTaxAsset": 18450000
+                }
+              ]
+            },
+            {
+              "scenario": "AVG",
+              "afterTaxAsset": 17120000,
+              "principal": 15800000,
+              "afterTaxGain": 1320000,
+              "gapToGoal": -2880000,
+              "isAchieved": false,
+              "goalReachMonth": null,
+              "monthlyPoints": [
+                {
+                  "month": "2026-11",
+                  "afterTaxAsset": 5000000
+                },
+                {
+                  "month": "2026-12",
+                  "afterTaxAsset": 5336667
+                },
+                {
+                  "month": "2027-01",
+                  "afterTaxAsset": 5673333
+                },
+                {
+                  "month": "2027-02",
+                  "afterTaxAsset": 6010000
+                },
+                {
+                  "month": "2027-03",
+                  "afterTaxAsset": 6346667
+                },
+                {
+                  "month": "2027-04",
+                  "afterTaxAsset": 6683333
+                },
+                {
+                  "month": "2027-05",
+                  "afterTaxAsset": 7020000
+                },
+                {
+                  "month": "2027-06",
+                  "afterTaxAsset": 7356667
+                },
+                {
+                  "month": "2027-07",
+                  "afterTaxAsset": 7693333
+                },
+                {
+                  "month": "2027-08",
+                  "afterTaxAsset": 8030000
+                },
+                {
+                  "month": "2027-09",
+                  "afterTaxAsset": 8366667
+                },
+                {
+                  "month": "2027-10",
+                  "afterTaxAsset": 8703333
+                },
+                {
+                  "month": "2027-11",
+                  "afterTaxAsset": 9040000
+                },
+                {
+                  "month": "2027-12",
+                  "afterTaxAsset": 9376667
+                },
+                {
+                  "month": "2028-01",
+                  "afterTaxAsset": 9713333
+                },
+                {
+                  "month": "2028-02",
+                  "afterTaxAsset": 10050000
+                },
+                {
+                  "month": "2028-03",
+                  "afterTaxAsset": 10386667
+                },
+                {
+                  "month": "2028-04",
+                  "afterTaxAsset": 10723333
+                },
+                {
+                  "month": "2028-05",
+                  "afterTaxAsset": 11060000
+                },
+                {
+                  "month": "2028-06",
+                  "afterTaxAsset": 11396667
+                },
+                {
+                  "month": "2028-07",
+                  "afterTaxAsset": 11733333
+                },
+                {
+                  "month": "2028-08",
+                  "afterTaxAsset": 12070000
+                },
+                {
+                  "month": "2028-09",
+                  "afterTaxAsset": 12406667
+                },
+                {
+                  "month": "2028-10",
+                  "afterTaxAsset": 12743333
+                },
+                {
+                  "month": "2028-11",
+                  "afterTaxAsset": 13080000
+                },
+                {
+                  "month": "2028-12",
+                  "afterTaxAsset": 13416667
+                },
+                {
+                  "month": "2029-01",
+                  "afterTaxAsset": 13753333
+                },
+                {
+                  "month": "2029-02",
+                  "afterTaxAsset": 14090000
+                },
+                {
+                  "month": "2029-03",
+                  "afterTaxAsset": 14426667
+                },
+                {
+                  "month": "2029-04",
+                  "afterTaxAsset": 14763333
+                },
+                {
+                  "month": "2029-05",
+                  "afterTaxAsset": 15100000
+                },
+                {
+                  "month": "2029-06",
+                  "afterTaxAsset": 15436667
+                },
+                {
+                  "month": "2029-07",
+                  "afterTaxAsset": 15773333
+                },
+                {
+                  "month": "2029-08",
+                  "afterTaxAsset": 16110000
+                },
+                {
+                  "month": "2029-09",
+                  "afterTaxAsset": 16446667
+                },
+                {
+                  "month": "2029-10",
+                  "afterTaxAsset": 16783333
+                },
+                {
+                  "month": "2029-11",
+                  "afterTaxAsset": 17120000
+                }
+              ]
+            },
+            {
+              "scenario": "BAD",
+              "afterTaxAsset": 15980000,
+              "principal": 15800000,
+              "afterTaxGain": 180000,
+              "gapToGoal": -4020000,
+              "isAchieved": false,
+              "goalReachMonth": null,
+              "monthlyPoints": [
+                {
+                  "month": "2026-11",
+                  "afterTaxAsset": 5000000
+                },
+                {
+                  "month": "2026-12",
+                  "afterTaxAsset": 5305000
+                },
+                {
+                  "month": "2027-01",
+                  "afterTaxAsset": 5610000
+                },
+                {
+                  "month": "2027-02",
+                  "afterTaxAsset": 5915000
+                },
+                {
+                  "month": "2027-03",
+                  "afterTaxAsset": 6220000
+                },
+                {
+                  "month": "2027-04",
+                  "afterTaxAsset": 6525000
+                },
+                {
+                  "month": "2027-05",
+                  "afterTaxAsset": 6830000
+                },
+                {
+                  "month": "2027-06",
+                  "afterTaxAsset": 7135000
+                },
+                {
+                  "month": "2027-07",
+                  "afterTaxAsset": 7440000
+                },
+                {
+                  "month": "2027-08",
+                  "afterTaxAsset": 7745000
+                },
+                {
+                  "month": "2027-09",
+                  "afterTaxAsset": 8050000
+                },
+                {
+                  "month": "2027-10",
+                  "afterTaxAsset": 8355000
+                },
+                {
+                  "month": "2027-11",
+                  "afterTaxAsset": 8660000
+                },
+                {
+                  "month": "2027-12",
+                  "afterTaxAsset": 8965000
+                },
+                {
+                  "month": "2028-01",
+                  "afterTaxAsset": 9270000
+                },
+                {
+                  "month": "2028-02",
+                  "afterTaxAsset": 9575000
+                },
+                {
+                  "month": "2028-03",
+                  "afterTaxAsset": 9880000
+                },
+                {
+                  "month": "2028-04",
+                  "afterTaxAsset": 10185000
+                },
+                {
+                  "month": "2028-05",
+                  "afterTaxAsset": 10490000
+                },
+                {
+                  "month": "2028-06",
+                  "afterTaxAsset": 10795000
+                },
+                {
+                  "month": "2028-07",
+                  "afterTaxAsset": 11100000
+                },
+                {
+                  "month": "2028-08",
+                  "afterTaxAsset": 11405000
+                },
+                {
+                  "month": "2028-09",
+                  "afterTaxAsset": 11710000
+                },
+                {
+                  "month": "2028-10",
+                  "afterTaxAsset": 12015000
+                },
+                {
+                  "month": "2028-11",
+                  "afterTaxAsset": 12320000
+                },
+                {
+                  "month": "2028-12",
+                  "afterTaxAsset": 12625000
+                },
+                {
+                  "month": "2029-01",
+                  "afterTaxAsset": 12930000
+                },
+                {
+                  "month": "2029-02",
+                  "afterTaxAsset": 13235000
+                },
+                {
+                  "month": "2029-03",
+                  "afterTaxAsset": 13540000
+                },
+                {
+                  "month": "2029-04",
+                  "afterTaxAsset": 13845000
+                },
+                {
+                  "month": "2029-05",
+                  "afterTaxAsset": 14150000
+                },
+                {
+                  "month": "2029-06",
+                  "afterTaxAsset": 14455000
+                },
+                {
+                  "month": "2029-07",
+                  "afterTaxAsset": 14760000
+                },
+                {
+                  "month": "2029-08",
+                  "afterTaxAsset": 15065000
+                },
+                {
+                  "month": "2029-09",
+                  "afterTaxAsset": 15370000
+                },
+                {
+                  "month": "2029-10",
+                  "afterTaxAsset": 15675000
+                },
+                {
+                  "month": "2029-11",
+                  "afterTaxAsset": 15980000
+                }
+              ]
+            }
+          ],
+          "assumptions": {
+            "savingsRatePct": 3.12,
+            "isDefaultSavingsRate": true,
+            "savingsRateBaseMonth": "2026-10",
+            "savingsRatioPct": 50,
+            "taxRatePct": 15.4,
+            "scenarioMethod": "ROLLING_DISTRIBUTION",
+            "sp500BaseDate": "2026-10-31",
+            "excludedItems": [
+              "ETF_TOTAL_EXPENSE",
+              "EXCHANGE_RATE",
+              "ETF_DISTRIBUTION",
+              "HELD_ASSET_RETURN",
+              "SAVINGS_REDEPOSIT"
+            ]
+          }
+        },
+        "display": {
+          "goalAmount": "약 2,000만원",
+          "calcStartMonth": "2026년 11월",
+          "targetMonth": "2029년 11월",
+          "GOOD.afterTaxAsset": "약 1,845만원",
+          "GOOD.principal": "약 1,580만원",
+          "GOOD.afterTaxGain": "약 265만원",
+          "GOOD.gapToGoal": "-약 155만원 미달",
+          "AVG.afterTaxAsset": "약 1,712만원",
+          "AVG.principal": "약 1,580만원",
+          "AVG.afterTaxGain": "약 132만원",
+          "AVG.gapToGoal": "-약 288만원 미달",
+          "BAD.afterTaxAsset": "약 1,598만원",
+          "BAD.principal": "약 1,580만원",
+          "BAD.afterTaxGain": "약 18만원",
+          "BAD.gapToGoal": "-약 402만원 미달",
+          "conditions.heldAssets": "약 500만원",
+          "conditions.monthlySavingAmount": "약 30만원",
+          "conditions.targetPeriodMonths": "3년 0개월",
+          "conditions.savingsRatioPct": "적금 50 : ETF 50",
+          "conditions.savingsRateInputPct": "연 3.12%",
+          "assumptions.savingsRateBaseMonth": "2026년 10월",
+          "assumptions.sp500BaseDate": "2026년 10월",
+          "assumptions.taxRatePct": "15.4%",
+          "GOOD.gapBadge": "미달 · 목표 −155만 원",
+          "AVG.gapBadge": "미달 · 목표 −288만 원",
+          "BAD.gapBadge": "미달 · 목표 −402만 원"
+        }
+      }
+    }
+  ]
+}

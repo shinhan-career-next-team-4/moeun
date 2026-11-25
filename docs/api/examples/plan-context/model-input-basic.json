@@ -1,0 +1,40 @@
+{
+  "result": {
+    "status": "CALCULATED",
+    "scenarios": [
+      { "scenario": "GOOD", "isAchieved": false },
+      { "scenario": "AVG", "isAchieved": false },
+      { "scenario": "BAD", "isAchieved": false }
+    ],
+    "assumptions": {
+      "isDefaultSavingsRate": true
+    }
+  },
+  "display": {
+    "goalAmount": "약 2,000만원",
+    "calcStartMonth": "2026년 11월",
+    "targetMonth": "2029년 11월",
+    "GOOD.afterTaxAsset": "약 1,845만원",
+    "GOOD.principal": "약 1,580만원",
+    "GOOD.afterTaxGain": "약 265만원",
+    "GOOD.gapToGoal": "-약 155만원 미달",
+    "AVG.afterTaxAsset": "약 1,712만원",
+    "AVG.principal": "약 1,580만원",
+    "AVG.afterTaxGain": "약 132만원",
+    "AVG.gapToGoal": "-약 288만원 미달",
+    "BAD.afterTaxAsset": "약 1,598만원",
+    "BAD.principal": "약 1,580만원",
+    "BAD.afterTaxGain": "약 18만원",
+    "BAD.gapToGoal": "-약 402만원 미달",
+    "conditions.heldAssets": "약 500만원",
+    "conditions.monthlySavingAmount": "약 30만원",
+    "conditions.targetPeriodMonths": "3년 0개월",
+    "conditions.savingsRatioPct": "적금 50 : ETF 50",
+    "conditions.savingsRateInputPct": "연 3.12%",
+    "assumptions.savingsRateBaseMonth": "2026년 10월",
+    "assumptions.sp500BaseDate": "2026년 10월",
+    "assumptions.taxRatePct": "15.4%",
+    "assumptions.etfProductName": "S&P500 추종 ETF",
+    "assumptions.etfGainTaxRatePct": "15.4%"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "responses": [
+    {
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "messages": [
+          {
+            "id": 1030,
+            "role": "USER",
+            "messageType": "QUESTION",
+            "status": "COMPLETED",
+            "content": "오늘 날씨 어때요?",
+            "citations": [],
+            "createdAt": "2026-11-16T10:15:30+09:00"
+          },
+          {
+            "id": 1031,
+            "role": "ASSISTANT",
+            "messageType": "OUT_OF_SCOPE",
+            "status": "COMPLETED",
+            "content": "이 질문은 모은에서 다루지 않아요. 목표 달성 시뮬레이션과 관련된 질문을 해 주세요.",
+            "citations": [],
+            "createdAt": "2026-11-16T10:15:31+09:00"
+          }
+        ],
+        "hasPending": false,
+        "answerPending": false
+      }
+    }
+  ]
+}

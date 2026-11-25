@@ -1,0 +1,14 @@
+{
+  "type": "about:blank",
+  "title": "대화로 바꿀 수 없는 조건이에요",
+  "status": 422,
+  "detail": "goalType: NOT_CHANGEABLE",
+  "instance": "/internal/calc",
+  "code": "FIELD_NOT_CHANGEABLE",
+  "errors": [
+    {
+      "field": "goalType",
+      "reason": "NOT_CHANGEABLE"
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "calcRunId": 541,
+  "conditions": {
+    "goalAmount": 20000000,
+    "heldAssets": 5000000,
+    "monthlySavingAmount": 300000,
+    "targetPeriodMonths": 36,
+    "savingsRatioPct": 100,
+    "savingsRateInputPct": 3.12,
+    "etfProductCode": "SP500"
+  },
+  "result": {
+    "status": "CALCULATED",
+    "goalAmount": 20000000,
+    "calcStartMonth": "2026-11",
+    "targetMonth": "2029-11",
+    "baselineScenario": "AVG",
+    "scenarios": [
+      {
+        "scenario": "AVG",
+        "annualReturnPct": null,
+        "afterTaxAsset": 15954412,
+        "principal": 15800000,
+        "afterTaxGain": 154412,
+        "gapToGoal": -4045588,
+        "isAchieved": false,
+        "goalReachMonth": null
+      }
+    ],
+    "requiredMonthlySaving": null,
+    "assumptions": {
+      "savingsRatePct": 3.12,
+      "isDefaultSavingsRate": true,
+      "savingsRateBaseMonth": "2026-10",
+      "savingsRatioPct": 100,
+      "taxRatePct": 15.4,
+      "etfProductCode": null,
+      "etfProductName": null,
+      "etfGainTaxRatePct": null,
+      "scenarioMethod": null,
+      "sp500BaseDate": null,
+      "excludedItems": ["ETF_TOTAL_EXPENSE", "EXCHANGE_RATE", "ETF_DISTRIBUTION", "HELD_ASSET_RETURN", "SAVINGS_REDEPOSIT"]
+    },
+    "dataVersions": {
+      "savingsRateVersionId": 3,
+      "sp500VersionId": null,
+      "calcParamVersionId": 2,
+      "engineVersion": "1.0.0"
+    }
+  },
+  "display": {
+    "goalAmount": "약 2,000만원",
+    "calcStartMonth": "2026년 11월",
+    "targetMonth": "2029년 11월",
+    "AVG.afterTaxAsset": "약 1,595만원",
+    "AVG.principal": "약 1,580만원",
+    "AVG.afterTaxGain": "약 15만원",
+    "AVG.gapToGoal": "-약 405만원 미달",
+    "conditions.heldAssets": "약 500만원",
+    "conditions.monthlySavingAmount": "약 30만원",
+    "conditions.targetPeriodMonths": "3년 0개월",
+    "conditions.savingsRatioPct": "적금 100 : ETF 0",
+    "conditions.savingsRateInputPct": "연 3.12%",
+    "assumptions.savingsRateBaseMonth": "2026년 10월",
+    "assumptions.taxRatePct": "15.4%"
+  }
+}

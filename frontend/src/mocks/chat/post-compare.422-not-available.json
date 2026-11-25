@@ -1,0 +1,24 @@
+{
+  "responses": [
+    {
+      "status": 422,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "고를 수 없는 종목이에요",
+        "status": 422,
+        "detail": "etfProductCode: NOT_AVAILABLE",
+        "instance": "/api/compare",
+        "code": "VALIDATION_FAILED",
+        "errors": [
+          {
+            "field": "etfProductCode",
+            "reason": "NOT_AVAILABLE"
+          }
+        ]
+      }
+    }
+  ]
+}

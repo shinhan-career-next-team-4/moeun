@@ -1,0 +1,33 @@
+{
+  "id": "G3",
+  "kind": "plan",
+  "title": "보유 자산 = 목표 금액이면 계산하지 않고 초과 안내",
+  "requirements": [
+    "FR-RES-01",
+    "CF-03"
+  ],
+  "spec": "docs/calc-spec.md",
+  "input": {
+    "goalAmount": 20000000,
+    "targetPeriodMonths": 36,
+    "calcStartMonth": "2026-11",
+    "heldAssets": 20000000,
+    "monthlySavingAmount": 300000,
+    "savingsRatePct": "3.12",
+    "savingsRatioPct": 50,
+    "baselineScenario": "AVG"
+  },
+  "params": {
+    "taxRatePct": "15.4"
+  },
+  "handCalc": [
+    "보유 자산 20,000,000 ≥ 목표 20,000,000 → ALREADY_EXCEEDED (같으면 초과)",
+    "시나리오를 계산하지 않으므로 scenarios는 빈 목록이고 월별 점도 없다"
+  ],
+  "expected": {
+    "status": "ALREADY_EXCEEDED",
+    "targetMonth": "2029-11",
+    "scenarios": []
+  },
+  "note": "보유 자산이 19,999,999원이면 CALCULATED로 계산한다(경계 반대쪽은 엔진 테스트에서 확인)"
+}

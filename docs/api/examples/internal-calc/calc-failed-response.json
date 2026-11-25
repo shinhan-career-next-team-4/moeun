@@ -1,0 +1,8 @@
+{
+  "type": "about:blank",
+  "title": "계산하지 못했어요",
+  "status": 500,
+  "instance": "/internal/calc",
+  "code": "CALC_FAILED",
+  "errors": []
+}

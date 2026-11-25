@@ -1,0 +1,18 @@
+{
+  "responses": [
+    {
+      "status": 401,
+      "headers": {
+        "Content-Type": "application/problem+json",
+        "Set-Cookie": "moeun_at=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=Lax"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "로그인이 필요해요",
+        "status": 401,
+        "code": "UNAUTHENTICATED",
+        "errors": []
+      }
+    }
+  ]
+}

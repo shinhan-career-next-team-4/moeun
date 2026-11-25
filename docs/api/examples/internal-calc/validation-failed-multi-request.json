@@ -1,0 +1,7 @@
+{
+  "memberId": 7,
+  "conditionChanges": {
+    "savingsRateInputPct": 3.125,
+    "targetPeriodMonths": 400
+  }
+}
