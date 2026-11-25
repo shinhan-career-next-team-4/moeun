@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom'
-import { INPUT_PATH } from '../../app/routes'
+// import { Link } from "react-router-dom";
+// import { INPUT_PATH } from "../../app/routes";
 import { useEffect, useState, type ReactNode } from 'react'
 import { COPY } from '../../shared/copy/copy'
 import { GoalNameEditor } from './GoalNameEditor'
@@ -87,11 +87,9 @@ export function PlanConditionBar({
                             sparkling={sparkling}
                         />
                     )}
-                    <Link
-                        to={INPUT_PATH}
-                        className="rounded-lg px-3 py-1.5 font-semibold text-primary hover:bg-surface-muted">
-                        입력 수정
-                    </Link>
+                    {/* <Link to={INPUT_PATH} className="rounded-lg px-3 py-1.5 font-semibold text-primary hover:bg-surface-muted">
+            입력 수정
+          </Link> */}
                 </div>
             </div>
             {result.assumptions.isDefaultSavingsRate && (
