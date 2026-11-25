@@ -36,7 +36,7 @@ function Layout() {
           <Link
             to={INPUT_PATH}
             aria-label="모은"
-            className="text-2xl font-black leading-none tracking-tight text-text md:absolute md:left-1/4 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2">
+            className="text-2xl font-black leading-none tracking-tight text-text md:absolute md:left-[13.8%] md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2">
             모은
             {/* 로고의 점은 메인 컬러. 읽기 이름은 "모은" 그대로 */}
             <span aria-hidden="true" className="ml-px text-[1.2em] text-primary">
@@ -44,7 +44,7 @@ function Layout() {
             </span>
           </Link>
           {!isLogin && (
-            <div className="flex items-center gap-3 md:absolute md:left-3/4 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2">
+            <div className="flex items-center gap-3 md:absolute md:left-[87.5%] md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2">
               {displayName && <span className="text-sm text-text-muted">{displayName} 님</span>}
               <Button variant="ghost" className="h-9 px-3" onClick={handleLogout}>
                 로그아웃
