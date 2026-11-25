@@ -1,0 +1,12 @@
+# 루트 컨텍스트에서 backend 이미지에 필요한 것만 고른다(비밀값 .env, ETF 가격 data/, 빌드 산출물 제외)
+*
+!backend
+!copy/copy.ko.yml
+backend/.env
+backend/*.env
+backend/data
+backend/logs
+backend/build
+backend/.gradle
+backend/.idea
+backend/.claude

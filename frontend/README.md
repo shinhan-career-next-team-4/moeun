@@ -28,7 +28,7 @@ npm test         # vitest run (src/**/*.test.{ts,tsx})
 로그인 쿠키는 `HttpOnly; SameSite=Lax`다. 그래서 프론트와 Spring은 **같은 사이트**로 서빙한다. 브라우저는 절대 URL 없이 상대 경로 `/api/...`만 부른다.
 
 - 개발: Vite 개발 서버가 `/api`를 Spring(`http://localhost:8080`)으로 넘기는 **프록시**를 둔다(`vite.config.ts`의 `server.proxy["/api"]`). Spring 주소가 다르면 `VITE_API_PROXY_TARGET=http://호스트:포트 npm run dev`.
-- 운영: 같은 도메인 뒤에서 `/api`를 Spring으로 라우팅한다.
+- 운영: Vercel이 `vercel.json`의 rewrites로 `/api/*`를 백엔드 도메인에 넘긴다. 브라우저 입장에서는 같은 출처라 쿠키가 프론트 도메인에 붙는다(`../docs/deploy.md`).
 - 래퍼는 모든 요청에 `credentials: "include"`를 붙인다. 토큰·쿠키를 JS에서 읽거나 `localStorage`에 두지 않는다.
 
 ## 목 모드
