@@ -154,7 +154,7 @@ async def test_condition_never_changed_keeps_state():
     resp = await make_agent(claude, calc).run(question("기간은 원래대로", TWO))
     assert calc.calls == []
     assert resp.revert is None
-    assert resp.content == load_copy().get("chat.conditionNotChanged").replace("{condition}", "목표 기간")
+    assert resp.content == load_copy().get("chat.conditionNotChanged", condition="목표 기간")
 
 
 async def test_same_field_twice_last_returns_to_previous_value():
@@ -180,7 +180,8 @@ async def test_reverts_three_turns_ago_change_in_long_conversation():
         history.append({"role": "assistant", "content": f"답 {n}"})
     entries = [RATIO, MONTHLY, {"field": "targetPeriodMonths", "before": 36, "after": 48, "messageId": 14},
                {"field": "goalAmount", "before": 20000000, "after": 30000000, "messageId": 16}]
-    resp, calc, claude = await run("아까 바꾼 비중은 원래대로", entries, NAIVE_LAST, history=history)
+    # Spring은 대화 원문을 최근 10개만 보낸다(#418). 비중을 바꾼 턴은 기록에 없고 변경 목록에만 남아 있다
+    resp, calc, claude = await run("아까 바꾼 비중은 원래대로", entries, NAIVE_LAST, history=history[-10:])
     assert calc.calls[0]["changes"] == {
         "monthly_saving_amount": 1_500_000, "target_period_months": 48, "goal_amount": 30_000_000,
     }
@@ -194,7 +195,7 @@ def test_system_prompt_has_revert_examples():
         assert phrase in SYSTEM_PROMPT
 
 
-# ---- 평가 세트: 되돌리기 표현 20개 이상 × 변경 0/1/2개 ----
+# ---- 평가 세트: 되돌리기 표현 20개 이상, 변경 0/1/2개 ----
 
 STATES = {0: [], 1: [RATIO], 2: TWO}
 

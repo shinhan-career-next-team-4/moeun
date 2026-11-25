@@ -12,7 +12,7 @@ from app.llm.number_check import NumberMismatch, check_numbers
 from app.llm.plan import ETF_TAX_RATE_KEY, TAX_RATE_KEY, plan_etf_name, plan_without_etf
 from app.llm.prompts import GOAL_AMOUNT_COPY, NO_PLAN_COPY, OUT_OF_SCOPE_TAX_COPY, SYSTEM_PROMPT
 from app.llm.tools import FinalAnswer
-from app.schemas import ChatMode, ChatRequest, ChatResponse, MessageType
+from app.schemas import ChatMode, ChatRequest, ChatResponse, MessageType, RevertAction
 
 GENERIC_ETF_NAME = "S&P500 추종 ETF"
 # 본문에 써도 되는 ETF 표현(#155, CP-06 수정). 계획 종목 정합성 검사와 교정 지시의 대체 예가 이 상수를 읽는다
@@ -157,6 +157,8 @@ class Turn:
     product_filtered: bool = False   # 종목 필터 검색을 했다. 운용사 보충으로 다른 종목 chunk를 더하지 않는다(#183)
     validation_failed: bool = False   # 이번 요청에서 VALIDATION_FAILED를 받았다. 다시 계산하지 않는다
     fixed_copy_key: str | None = None   # 문구표 고정 문장으로 끝내는 거절을 받았다
+    fixed_copy_values: dict[str, str] = field(default_factory=dict)   # 고정 문장의 {자리} 값(#419)
+    revert: RevertAction | None = None   # 이번 요청에서 실행한 되돌리기(#419)
     goal_changed_note_params: tuple[str, str] | None = None
     compared_etf_names: tuple[str, ...] = ()   # 종목을 바꾼 비교의 두 쪽 종목 이름(계산 display, D-097)
     changed_already_exceeded: bool = False
@@ -370,4 +372,5 @@ def assemble(turn: Turn, final: FinalAnswer) -> ChatResponse:
         calc_run_id=calc_run_id,
         condition_changes=changes,
         citation_chunk_ids=citations,
+        revert=turn.revert,
     )
