@@ -111,6 +111,8 @@ function ApplyButton({ comparison, messageId, active }: { comparison: Comparison
       data-testid="chat-comparison-apply"
       disabled={!active}
       onClick={() => comparison.controller.apply(messageId)}
+      // 글자처럼 보이지 않게 버튼 모양을 입힌다(#392). 비활성(이미 적용했거나 지난 비교)이면 흐리게 보인다
+      className="mt-2 inline-flex h-9 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:bg-border disabled:text-text-muted"
     >
       {APPLY_LABEL}
     </button>
