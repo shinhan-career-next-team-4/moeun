@@ -186,6 +186,16 @@ export function ChatWindow({ deps: givenDeps = defaultDeps, headerAction, titleA
     // 비교 카드(F-4)는 답이 온 뒤에 따로 그려져 높이가 늘어난다. 맨 아래에 있던 사용자는 카드 아래(적용 버튼)까지 보이게 다시 내린다(#390)
   }, [chat.messages, comparison.snapshot, visible]);
 
+  // 대화창을 닫으면 대화 세션이 끝난 것으로 보고 쌓인 조건(변경 목록)을 비운다(#418, D-103).
+  // 처음부터 닫혀 있던 창은 부르지 않는다. 실패해도 대화창은 그대로 두고, 다음 질문 때 서버의 목록이 그대로 쓰인다
+  const shownRef = useRef(visible);
+  useEffect(() => {
+    if (shownRef.current && !visible) {
+      deps.api.request("DELETE", "/api/chat/condition-changes").catch(() => {});
+    }
+    shownRef.current = visible;
+  }, [visible, deps.api]);
+
   // 대기(PENDING)로 본 어시스턴트 메시지가 끝났을 때만 알린다. 새로고침으로 복원된 지난 답변은 대기를 거치지 않는다.
   useEffect(() => {
     const pending = pendingAssistantIdsRef.current;

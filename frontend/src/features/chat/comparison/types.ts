@@ -27,6 +27,8 @@ export interface Comparison {
   changedGoalName: string | null;
   /** 양쪽 조건 원값(conditions.current·changed). 바뀐 조건 행을 고를 때 크기·코드만 비교한다(#417). */
   conditions: Readonly<Record<ComparisonSideKey, Readonly<Record<string, unknown>>>>;
+  /** 대화 중 쌓여 지금 계산에 얹힌 조건(#418, D-103). changed 쪽 값이 그 조건이다. 없으면 빈 배열. */
+  accumulatedKeys: readonly string[];
 }
 
 export type ComparisonSideKey = "current" | "changed";
@@ -133,5 +135,11 @@ export function parseComparison(body: unknown): Comparison | null {
     conditionDirections,
     changedGoalName: changedKeys.includes(GOAL_NAME_KEY) ? changedGoalName : null,
     conditions: { current: { ...conditions.current }, changed: { ...conditions.changed } },
+    // 숫자 조건·목표 금액·종목만 화면에 보인다. 허용 밖 키나 display가 없는 키는 버린다
+    accumulatedKeys: Array.isArray(body.accumulatedKeys)
+      ? [GOAL_KEY, ...CONDITION_KEYS, ETF_KEY].filter(
+          (key) => (body.accumulatedKeys as unknown[]).includes(key) && shown(conditionDisplayKey("changed", key)),
+        )
+      : [],
   };
 }
