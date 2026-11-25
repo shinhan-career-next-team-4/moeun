@@ -1,6 +1,6 @@
 // import { Link } from "react-router-dom";
 // import { INPUT_PATH } from "../../app/routes";
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { COPY } from '../../shared/copy/copy'
 import { GoalNameEditor } from './GoalNameEditor'
 import type { ResultPlanView } from './types'
@@ -35,51 +35,32 @@ export function PlanConditionBar({
         const timer = window.setTimeout(() => setSparkling(false), SPARKLE_MS)
         return () => window.clearTimeout(timer)
     }, [sparkling])
-    // 항목마다 작은 라벨 위, 굵은 값 아래(디자인 #406). 값은 모두 서버 display 문자열 그대로다
-    const items: { label: string; value: ReactNode }[] = [
-        {
-            label: '목표명',
-            value: (
-                <GoalNameEditor
-                    key="goal-name"
-                    view={view}
-                    onFeedback={onFeedback}
-                />
-            ),
-        },
-        { label: '목표', value: display['goalAmount'] },
-        { label: '기간', value: display['conditions.targetPeriodMonths'] },
-        { label: '보유 자산', value: display['conditions.heldAssets'] },
-        {
-            label: '월 적립',
-            value: display['conditions.monthlySavingAmount'],
-        },
-        {
-            label: '적금 금리',
-            value: display['conditions.savingsRateInputPct'],
-        },
-        { label: '적금 : ETF', value: display['conditions.savingsRatioPct'] },
+    const items = [
+        <GoalNameEditor key="goal-name" view={view} onFeedback={onFeedback} />,
+        `목표 ${display['goalAmount']}`,
+        display['conditions.targetPeriodMonths'],
+        `보유 ${display['conditions.heldAssets']}`,
+        `월 ${display['conditions.monthlySavingAmount']}`,
+        `적금 금리 ${display['conditions.savingsRateInputPct']}`,
+        display['conditions.savingsRatioPct'],
     ]
 
     return (
         <section
             aria-label="내 계획 조건"
-            className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-surface px-6 py-4 text-text shadow-sm">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-                <span className="sr-only">내 계획 조건</span>
-                <dl className="grid min-w-0 flex-1 grid-cols-2 gap-y-4 sm:grid-cols-3 lg:flex lg:items-stretch">
-                    {items.map(({ label, value }) => (
-                        <div
-                            key={label}
-                            className="flex min-w-0 flex-col items-center justify-center gap-1 px-3 text-center lg:flex-1 lg:border-l lg:border-border lg:first:border-l-0">
-                            <dt className="text-xs text-text-muted">{label}</dt>
-                            <dd className="text-base font-bold leading-snug text-text wrap-anywhere xl:text-lg">
-                                {value}
-                            </dd>
-                        </div>
-                    ))}
-                </dl>
-                <div className="ml-auto flex shrink-0 items-center gap-1">
+            className="flex flex-col gap-1 text-sm text-text">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="font-bold text-primary-strong">
+                    내 계획 조건
+                </span>
+                {items.map((item, index) => (
+                    <span
+                        key={index}
+                        className="after:ml-3 after:text-border after:content-['·'] last:after:content-none">
+                        {item}
+                    </span>
+                ))}
+                <div className="ml-auto flex items-center gap-1">
                     {/* 되돌릴 직전 계획이 있을 때만 보인다(D-095) */}
                     {view.undoAvailable && (
                         <UndoPlanButton
@@ -93,7 +74,7 @@ export function PlanConditionBar({
                 </div>
             </div>
             {result.assumptions.isDefaultSavingsRate && (
-                <p className="text-center text-xs text-text-muted">
+                <p className="text-xs text-text-muted">
                     {COPY['result.defaultSavingsRate']}
                 </p>
             )}
