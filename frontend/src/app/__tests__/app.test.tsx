@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import App from "../App";
 import { forgetDisplayName, rememberDisplayName } from "../../features/auth";
@@ -64,7 +64,7 @@ describe("공통 레이아웃", () => {
       renderAt(INPUT_PATH);
 
       expect(screen.queryByRole("button", { name: "데모 초기화" })).toBeNull();
-      expect(screen.queryByText("계획과 대화가 모두 지워져요. 초기화할까요?")).toBeNull();
+      expect(screen.queryByRole("dialog")).toBeNull();
     });
 
     it("아이디를 한두 번 누르는 것으로는 초기화 확인이 뜨지 않는다", () => {
@@ -73,7 +73,7 @@ describe("공통 레이아웃", () => {
 
       clickIdTimes(2);
 
-      expect(screen.queryByText("계획과 대화가 모두 지워져요. 초기화할까요?")).toBeNull();
+      expect(screen.queryByRole("dialog")).toBeNull();
     });
 
     function stubFetch(resetResponse: Response) {
@@ -94,17 +94,18 @@ describe("공통 레이아웃", () => {
     }
 
     it("아이디를 세 번 누르면 바로 지우지 않고 확인을 먼저 묻는다", () => {
-      const calls = stubFetch(new Response("{}", { status: 200 }));
+      const calls = stubFetch(new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }));
       renderAt(INPUT_PATH);
 
       clickIdTimes(3);
 
-      expect(screen.getByText("계획과 대화가 모두 지워져요. 초기화할까요?")).toBeTruthy();
+      const dialog = screen.getByRole("dialog");
+      expect(dialog.textContent).toContain("계획과 대화가 모두 지워져요. 초기화할까요?");
       expect(calls).not.toContain("POST /api/auth/demo-reset");
     });
 
     it("확인하면 초기화 API를 부르고, 취소하면 부르지 않는다", async () => {
-      const calls = stubFetch(new Response("{}", { status: 200 }));
+      const calls = stubFetch(new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }));
       renderAt(INPUT_PATH);
 
       clickIdTimes(3);
@@ -112,8 +113,9 @@ describe("공통 레이아웃", () => {
       expect(calls).not.toContain("POST /api/auth/demo-reset");
 
       clickIdTimes(3);
-      fireEvent.click(screen.getByRole("button", { name: "초기화" }));
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "초기화" }));
       await waitFor(() => expect(calls).toContain("POST /api/auth/demo-reset"));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     });
 
     it("초기화에 실패하면 안내가 보인다", async () => {
@@ -126,9 +128,10 @@ describe("공통 레이아웃", () => {
       renderAt(INPUT_PATH);
 
       clickIdTimes(3);
-      fireEvent.click(screen.getByRole("button", { name: "초기화" }));
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "초기화" }));
 
-      expect(await screen.findByText("초기화하지 못했어요. 다시 시도해 주세요")).toBeTruthy();
+      const dialog = screen.getByRole("dialog");
+      expect((await within(dialog).findByRole("alert")).textContent).toBe("초기화하지 못했어요. 다시 시도해 주세요");
     });
   });
 });

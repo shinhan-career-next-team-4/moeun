@@ -8,6 +8,7 @@ import { ProjectionDemoPage } from "../features/projection";
 import { ResultPage } from "../features/result";
 import { COPY } from "../shared/copy/copy";
 import { Button } from "../shared/ui";
+import { DemoResetDialog } from "./DemoResetDialog";
 import { INPUT_PATH, LOGIN_PATH, PROJECTION_DEMO_PATH, RESULT_PATH } from "./routes";
 
 function Layout() {
@@ -16,6 +17,8 @@ function Layout() {
   const [logoutError, setLogoutError] = useState<string | null>(null);
   // 데모 초기화는 확인을 한 번 더 받는다. 계획과 대화가 모두 지워지고 되돌릴 수 없다
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
   const isLogin = location.pathname === LOGIN_PATH;
   const displayName = isLogin ? null : readDisplayName();
 
@@ -31,17 +34,28 @@ function Layout() {
     }
   }
 
+  function closeResetDialog() {
+    setConfirmingReset(false);
+    setResetError(null);
+  }
+
   async function handleDemoReset() {
-    setLogoutError(null);
+    if (resetting) return;
+    setResetting(true);
+    setResetError(null);
     try {
       await api.request("POST", "/api/auth/demo-reset");
-      setConfirmingReset(false);
+      closeResetDialog();
       planStore.clear();
       navigate(INPUT_PATH, { replace: true });
     } catch (caught) {
-      if (caught instanceof ApiError && caught.code === "UNAUTHENTICATED") return;
-      setConfirmingReset(false);
-      setLogoutError(COPY["demo.resetFailed"]);
+      if (caught instanceof ApiError && caught.code === "UNAUTHENTICATED") {
+        closeResetDialog();
+        return;
+      }
+      setResetError(COPY["demo.resetFailed"]);
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -71,17 +85,6 @@ function Layout() {
                   {displayName} 님
                 </span>
               )}
-              {confirmingReset && (
-                <span role="group" aria-label={COPY["demo.reset"]} className="flex items-center gap-2 text-sm">
-                  <span className="text-text-muted">{COPY["demo.resetConfirm"]}</span>
-                  <Button variant="secondary" className="h-9 px-3" onClick={handleDemoReset}>
-                    {COPY["demo.resetYes"]}
-                  </Button>
-                  <Button variant="ghost" className="h-9 px-3" onClick={() => setConfirmingReset(false)}>
-                    {COPY["demo.resetCancel"]}
-                  </Button>
-                </span>
-              )}
               <Button variant="ghost" className="h-9 px-3" onClick={handleLogout}>
                 로그아웃
               </Button>
@@ -89,6 +92,9 @@ function Layout() {
           )}
         </div>
       </header>
+      {confirmingReset && (
+        <DemoResetDialog resetting={resetting} error={resetError} onCancel={closeResetDialog} onConfirm={handleDemoReset} />
+      )}
       <main>
         {logoutError && (
           <p role="alert" className="mx-auto max-w-5xl px-6 pt-4 text-sm text-danger">
