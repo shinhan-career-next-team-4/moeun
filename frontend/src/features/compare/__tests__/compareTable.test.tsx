@@ -33,4 +33,21 @@ describe("비교표의 ETF 종목 줄 (#156, C12a-9-3)", () => {
     expect(row.textContent).toContain("약 1,689만원");
     expect(row.textContent).toContain("약 23만원 감소");
   });
+
+  it("달성 여부가 바뀐 변화 문구는 달성이면 초록, 미달이면 빨강으로 보인다", () => {
+    const withChange = (change: string): ComparisonView => ({
+      ...etfView,
+      diff: {
+        ...etfView.diff,
+        byScenario: etfView.diff.byScenario.map((item) => ({ ...item, achievementChange: change })),
+      },
+    }) as unknown as ComparisonView;
+
+    const { unmount } = render(<CompareTable view={withChange("MISS_TO_ACHIEVE")} />);
+    expect(rowOf("목표 대비").lastElementChild?.className).toContain("text-success");
+    unmount();
+
+    render(<CompareTable view={withChange("ACHIEVE_TO_MISS")} />);
+    expect(rowOf("목표 대비").lastElementChild?.className).toContain("text-danger");
+  });
 });

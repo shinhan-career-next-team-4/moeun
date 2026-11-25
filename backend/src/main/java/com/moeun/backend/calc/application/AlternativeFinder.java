@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.function.LongPredicate;
 
 import org.springframework.stereotype.Service;
@@ -42,6 +44,8 @@ class AlternativeFinder implements AlternativeQuery {
     private static final long MAX_MONTHLY_AMOUNT = 10_000_000L;
     private static final long MAX_PERIOD_MONTHS = 360L;
     private static final int RATIO_STEP = 10;
+    /** 탐색 판정에 쓰는 부트스트랩 경로 수. 최종 카드 값은 설정된 경로 수로 다시 확인한다(#441) */
+    private static final int SEARCH_PATH_COUNT = 2_000;
     /** 달성 불가 카드 display의 상한 금액 키(월 저축액). */
     static final String LIMIT_MONTHLY_KEY = "limit.monthlySavingAmount";
 
@@ -82,9 +86,16 @@ class AlternativeFinder implements AlternativeQuery {
             return AlternativeView.notNeeded();
         }
 
-        List<Alternative> alternatives = new ArrayList<>();
+        // 값을 찾는 탐색은 계산만 하는 순수 작업이라 카드마다 따로 돌린다. DB를 쓰는 비교 계산은 이 스레드에서 차례로 한다
+        List<CompletableFuture<OptionalLong>> searches = new ArrayList<>();
         for (AlternativeKey key : AlternativeKey.values()) {
-            alternatives.add(alternativeFor(key, plan, input, desiredTargetPeriodMonths, params, etf, defaultRate));
+            searches.add(CompletableFuture.supplyAsync(
+                    () -> searchFor(key, plan, input, desiredTargetPeriodMonths, params, etf, defaultRate)));
+        }
+        List<Alternative> alternatives = new ArrayList<>();
+        AlternativeKey[] keys = AlternativeKey.values();
+        for (int i = 0; i < keys.length; i++) {
+            alternatives.add(toAlternative(keys[i], joinSearch(searches.get(i)), plan, params, etf, defaultRate));
         }
         return new AlternativeView(true, alternatives);
     }
@@ -108,16 +119,39 @@ class AlternativeFinder implements AlternativeQuery {
     }
 
     /**
-     * 대안 카드 하나. 사용자가 기간을 직접 정해 보냈으면 그 값을 쓰고, 아니면 목표를 달성하는 값을 찾는다(#343).
-     * 허용 범위 안에서 찾지 못하면 '달성이 어려움' 카드다.
+     * 카드 하나의 값을 찾는다. 사용자가 기간을 직접 정해 보냈으면 그 값을 쓰고, 아니면 목표를 달성하는 값을 찾는다(#343).
+     * 경로 수를 줄인 빠른 판정으로 찾고, 그 값이 정확한 계산으로는 달성하지 못하면 정확한 판정으로 다시 찾는다.
      */
-    private Alternative alternativeFor(AlternativeKey key, PlanView plan, CalcInput input, Integer desiredMonths,
+    private OptionalLong searchFor(AlternativeKey key, PlanView plan, CalcInput input, Integer desiredMonths,
             CalcParams params, EtfSeries etf, SavingsAvgRateData defaultRate) {
         if (key == AlternativeKey.TARGET_PERIOD_MONTHS && desiredMonths != null) {
-            return compute(key, desiredMonths, plan, params, etf, defaultRate);
+            return OptionalLong.of(desiredMonths);
         }
-        LongPredicate achieves = value -> achieves(plan, onlyChanged(key, value), params, etf, defaultRate);
-        OptionalLong found = seek(key, input, achieves);
+        LongPredicate exact = value -> achieves(plan, onlyChanged(key, value), params, etf, defaultRate, null);
+        LongPredicate fast = value -> achieves(plan, onlyChanged(key, value), params, etf, defaultRate,
+                SEARCH_PATH_COUNT);
+        OptionalLong found = seek(key, input, fast);
+        if (found.isPresent() && !exact.test(found.getAsLong())) {
+            return seek(key, input, exact);
+        }
+        return found;
+    }
+
+    /** 탐색 스레드에서 난 예외는 원래 예외로 다시 던진다. */
+    private static OptionalLong joinSearch(CompletableFuture<OptionalLong> search) {
+        try {
+            return search.join();
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof RuntimeException cause) {
+                throw cause;
+            }
+            throw e;
+        }
+    }
+
+    /** 찾은 값으로 카드를 만든다. 못 찾았으면 '달성이 어려움' 카드다. */
+    private Alternative toAlternative(AlternativeKey key, OptionalLong found, PlanView plan, CalcParams params,
+            EtfSeries etf, SavingsAvgRateData defaultRate) {
         if (found.isEmpty()) {
             // 월 저축액은 못 찾은 상한 금액을 안내에 쓰도록 서식해서 싣는다(화면은 금액을 만들지 않는다)
             return key == AlternativeKey.MONTHLY_SAVING_AMOUNT
@@ -158,13 +192,15 @@ class AlternativeFinder implements AlternativeQuery {
 
     /** 바꾼 조건 하나로 계산했을 때 기준 시나리오가 목표를 달성하는지. */
     private boolean achieves(PlanView plan, ConditionOverride changes, CalcParams params, EtfSeries etf,
-            SavingsAvgRateData defaultRate) {
+            SavingsAvgRateData defaultRate, Integer searchPathCount) {
         if (!conditionValidator.validate(ChangePath.ALTERNATIVE, changes).isEmpty()) {
             return false;
         }
         ConditionResolver.ResolvedConditions changed = conditionResolver.resolveChanged(plan, changes, defaultRate,
                 params);
-        return isAchieved(calcEngine.calculate(changed, params, etf));
+        return isAchieved(searchPathCount == null
+                ? calcEngine.calculate(changed, params, etf)
+                : calcEngine.calculateForSearch(changed, params, etf, searchPathCount));
     }
 
     private Alternative compute(AlternativeKey key, long value, PlanView plan, CalcParams params, EtfSeries etf,

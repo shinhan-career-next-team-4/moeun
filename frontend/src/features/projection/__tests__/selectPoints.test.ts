@@ -19,6 +19,12 @@ describe("연별 데이터 toYearly (#298)", () => {
     expect(yearly[3]).toBe(monthly[35]); // 36개월째 점 그대로
   });
 
+  it("12개월로 나누어떨어지지 않는 기간은 마지막 점도 고른다(3년 4개월)", () => {
+    const forty = Array.from({ length: 40 }, (_, i) => point(i + 1));
+
+    expect(toYearly(forty).map((p) => p.month)).toEqual([1, 12, 24, 36, 40]);
+  });
+
   it("점이 하나뿐이면 그대로 돌려준다", () => {
     expect(toYearly([point(1)]).map((p) => p.month)).toEqual([1]);
   });
