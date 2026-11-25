@@ -58,7 +58,7 @@ export function UndoPlanButton({ onFeedback, sparkling = false }: UndoPlanButton
       onClick={() => void undo()}
       disabled={submitting}
       aria-busy={submitting || undefined}
-      className={`soft-pill px-4 py-2 text-sm font-semibold text-primary-strong transition-colors hover:bg-surface-subtle disabled:text-text-muted ${
+      className={`rounded-xl border border-border bg-surface-muted px-4 py-2 text-sm font-semibold text-primary-strong transition-colors hover:bg-primary-soft disabled:text-text-muted ${
         sparkling ? "undo-sparkle" : ""
       }`}
     >

@@ -1,5 +1,5 @@
-// import { Link } from "react-router-dom";
-// import { INPUT_PATH } from "../../app/routes";
+import { Link } from 'react-router-dom'
+import { INPUT_PATH } from '../../app/routes'
 import { useEffect, useState, type ReactNode } from 'react'
 import { COPY } from '../../shared/copy/copy'
 import { GoalNameEditor } from './GoalNameEditor'
@@ -64,7 +64,7 @@ export function PlanConditionBar({
     return (
         <section
             aria-label="내 계획 조건"
-            className="soft-card flex flex-col gap-3 px-6 py-4 text-text">
+            className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-surface px-6 py-4 text-text shadow-sm">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
                 <span className="sr-only">내 계획 조건</span>
                 <dl className="grid min-w-0 flex-1 grid-cols-2 gap-y-4 sm:grid-cols-3 lg:flex lg:items-stretch">
@@ -87,9 +87,11 @@ export function PlanConditionBar({
                             sparkling={sparkling}
                         />
                     )}
-                    {/* <Link to={INPUT_PATH} className="rounded-lg px-3 py-1.5 font-semibold text-primary hover:bg-surface-muted">
-            입력 수정
-          </Link> */}
+                    <Link
+                        to={INPUT_PATH}
+                        className="rounded-lg px-3 py-1.5 font-semibold text-primary hover:bg-surface-muted">
+                        입력 수정
+                    </Link>
                 </div>
             </div>
             {result.assumptions.isDefaultSavingsRate && (
