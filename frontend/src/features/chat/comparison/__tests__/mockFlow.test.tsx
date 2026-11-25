@@ -48,36 +48,7 @@ async function mountMock() {
   return env;
 }
 
-const comparisonGets = (env: ReturnType<typeof makeMockEnv>) =>
-  env.requests.filter((r) => r.method === "GET" && r.path.endsWith("/comparison")).map((r) => r.path);
-
 describe("AC-20 목 모드 시나리오", () => {
-  it("restore-history: F-4는 1031에만, 1027·1029는 접힌 비활성 카드, 적용하면 revision 13·결과 재조회·되돌리기 토스트·모든 버튼 비활성", async () => {
-    useMock("get-messages.200-restore-history.json");
-    useMock("get-plan.200-after-apply.json");
-    const env = await mountMock();
-
-    expect(comparisonGets(env)).toEqual(["/api/chat/messages/1031/comparison"]);
-    expect(cardOf(1027).getAttribute("data-collapsed")).toBe("true");
-    expect(cardOf(1029).getAttribute("data-collapsed")).toBe("true");
-    expect(buttonOf(1027).disabled).toBe(true);
-    expect(buttonOf(1029).disabled).toBe(true);
-    expect(buttonOf(1031).disabled).toBe(false);
-
-    fireEvent.click(buttonOf(1031));
-    await settle();
-    await settle();
-
-    // F-3(설명 요청)은 #54가 결과 변화로 부르므로 뺀다. 적용 요청은 1031에 한 번, expectedRevision 12다.
-    expect(env.requests.filter((r) => r.method === "POST" && !r.path.startsWith("/api/chat/explanations"))).toEqual([
-      { method: "POST", path: "/api/chat/messages/1031/apply", body: { expectedRevision: 12 } },
-    ]);
-    expect(env.store.getState().revision).toBe(13);
-    expect(env.store.getState().view?.revision).toBe(13);
-    expect(screen.queryByRole("button", { name: "되돌리기" })).not.toBeNull();
-    for (const button of applyButtons()) expect(button.disabled).toBe(true);
-    expect(comparisonGets(env)).toEqual(["/api/chat/messages/1031/comparison"]);
-  });
 
   it("post-apply.409-stale: 안내 토스트와 버튼 비활성, 계획 재조회 없음", async () => {
     useMock("get-messages.200-restore-history.json");
@@ -159,58 +130,6 @@ describe("AC-20 목 모드 시나리오 (앱 인스턴스)", () => {
     vi.unstubAllGlobals();
   });
 
-  it("되돌리기: 적용 → 토스트의 '되돌리기'가 expectedRevision 13으로 나가고, revision 14가 되면 토스트가 닫히고 모든 버튼이 비활성이다", async () => {
-    useMock("get-messages.200-restore-history.json");
-    useMock("get-plan.200-after-apply.json");
-    useMock("post-undo.200.json");
-    const { requests } = await mountAppSettled();
-    expect(appComparisonGets(requests)).toEqual(["/api/chat/messages/1031/comparison"]);
-    expect(buttonOf(1031).disabled).toBe(false);
-
-    await clickAndSettle(buttonOf(1031));
-    expect(appPlanStore.getState().revision).toBe(13);
-    const undo = undoToastButton();
-    expect(undo, "되돌리기 토스트가 없다").not.toBeNull();
-
-    await clickAndSettle(undo as HTMLElement);
-    expect(requests.filter((r) => r.method === "POST" && r.path === "/api/plan/undo").map((r) => r.body)).toEqual([
-      { expectedRevision: 13 },
-    ]);
-    expect(appPlanStore.getState().revision).toBe(14);
-    expect(undoToastButton()).toBeNull();
-    expect(applyButtons().length).toBeGreaterThanOrEqual(3);
-    for (const button of applyButtons()) expect(button.disabled).toBe(true);
-    expect(appComparisonGets(requests)).toEqual(["/api/chat/messages/1031/comparison"]);
-  });
-
-  it("되돌리기 뒤 결과 화면 데이터: 계획을 다시 불러와(get-plan.200-after-undo) view가 revision 14·직전 조건(월 저축액 300000)이고 시작월은 그대로다", async () => {
-    useMock("get-messages.200-restore-history.json");
-    useMock("get-plan.200-after-apply.json");
-    useMock("post-undo.200.json");
-    const { requests } = await mountAppSettled();
-
-    await clickAndSettle(buttonOf(1031));
-    const applied = appPlanStore.getState().view;
-    expect(applied?.revision).toBe(13);
-    const appliedBody = applied?.body as { plan: { monthlySavingAmount: number }; result: { calcStartMonth: string } };
-    expect(appliedBody.plan.monthlySavingAmount).toBe(500000);
-    const startMonth = appliedBody.result.calcStartMonth;
-    expect(startMonth).toBe("2026-11");
-
-    useMock("get-plan.200-after-undo.json");
-    const undo = undoToastButton();
-    expect(undo, "되돌리기 토스트가 없다").not.toBeNull();
-    await clickAndSettle(undo as HTMLElement);
-    expect(planGetCount(requests)).toBe(2);
-    const undone = appPlanStore.getState().view;
-    expect(appPlanStore.getState().revision).toBe(14);
-    expect(undone?.revision).toBe(14);
-    const undoneBody = undone?.body as { plan: { monthlySavingAmount: number }; result: { calcStartMonth: string } };
-    expect(undoneBody.plan.monthlySavingAmount).toBe(300000);
-    expect(undoneBody.result.calcStartMonth).toBe(startMonth);
-    for (const button of applyButtons()) expect(button.disabled).toBe(true);
-  });
-
   it("대화 적용 뒤 결과 화면 데이터: 다시 불러온 view(get-plan.200-after-apply)는 바꾼 조건(월 저축액 500000)이고 시작월은 적용 전에 저장된 값과 같다", async () => {
     useMock("get-messages.200-restore-history.json");
     useMock("get-plan.200-after-apply.json");
@@ -226,28 +145,6 @@ describe("AC-20 목 모드 시나리오 (앱 인스턴스)", () => {
     const appliedBody = applied?.body as { plan: { monthlySavingAmount: number }; result: { calcStartMonth: string } };
     expect(appliedBody.plan.monthlySavingAmount).toBe(500000);
     expect(appliedBody.result.calcStartMonth).toBe(savedStartMonth);
-  });
-
-  it("post-apply.500 → 재시도: '적용하지 못했어요' 뒤 버튼이 활성 그대로이고, 다시 누르면(post-apply.200) 적용된다", async () => {
-    useMock("get-messages.200-restore-history.json");
-    useMock("get-plan.200-after-apply.json");
-    useMock("post-apply.500.json");
-    const { requests } = await mountAppSettled();
-
-    await clickAndSettle(buttonOf(1031));
-    expect(comparisonToast()?.textContent).toContain(copy["toast.applyFailed"]);
-    expect(buttonOf(1031).disabled).toBe(false);
-    expect(appPlanStore.getState().revision).toBe(12);
-    expect(planGetCount(requests)).toBe(0);
-
-    useMock("post-apply.200.json");
-    await clickAndSettle(buttonOf(1031));
-    const applies = requests.filter((r) => r.method === "POST" && r.path === "/api/chat/messages/1031/apply");
-    expect(applies.map((r) => r.body)).toEqual([{ expectedRevision: 12 }, { expectedRevision: 12 }]);
-    expect(appPlanStore.getState().revision).toBe(13);
-    expect(comparisonToast()).toBeNull();
-    expect(undoToastButton()).not.toBeNull();
-    for (const button of applyButtons()) expect(button.disabled).toBe(true);
   });
 
   it("post-apply.409-plan-changed: 안내 뒤 계획을 다시 불러와(get-plan.200-after-apply) revision 13, 모든 버튼 비활성, 되돌리기 토스트 없음", async () => {

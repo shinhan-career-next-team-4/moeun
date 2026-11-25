@@ -24,9 +24,17 @@ import {
 import type { ComparisonState } from "./useComparison";
 import { COPY } from "../../../shared/copy/copy";
 
-const ROW = "flex flex-wrap gap-2";
-// 바뀐 조건은 굵게, 배경색으로 눈에 띄게 한다(조건 없는 class라 평소 화면에 바로 적용된다).
-const CHANGED_ROW = `${ROW} font-bold bg-primary-soft`;
+// 비교 카드(#394): 한 줄에 "이름 · 지금 값 → 바꾼 값 · 변화"를 보이고, 줄 사이를 옅은 선으로 나눈다.
+const ROW = "grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-x-2 gap-y-0.5 border-b border-border/60 px-1 py-1.5 last:border-b-0";
+// 바뀐 조건은 배경색과 굵은 글씨로 눈에 띄게 한다.
+const CHANGED_ROW = "grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-x-2 gap-y-0.5 rounded-lg bg-primary-soft px-2 py-1.5 font-semibold text-text";
+// 값들을 한 칸에 모아 좁은 패널에서도 줄이 자연스럽게 바뀌게 한다
+const VALUES = "flex flex-wrap items-baseline gap-x-2 gap-y-0.5";
+// 줄 앞의 이름 칸. 너비를 맞춰 값이 세로로 정렬된다.
+const LABEL_CELL = "text-xs text-text-muted";
+// 지금 값(흐리게) → 바꾼 값(진하게)
+const CURRENT_CELL = "text-text-muted";
+const CHANGED_CELL = "font-semibold text-text";
 // 목표 이름은 1~100자라 길면 칸 안에서 줄을 바꾼다(띄어쓰기 없는 이름도)
 const NAME_CELL = "min-w-0 wrap-anywhere";
 
@@ -65,14 +73,16 @@ function nameOnly(data: Comparison): boolean {
 function GoalNameRow({ current, changed }: { current: string | null; changed: string }) {
   return (
     <div data-testid="chat-comparison-condition" data-key={GOAL_NAME_KEY} data-changed="true" className={CHANGED_ROW}>
-      <span data-testid="chat-comparison-label">{GOAL_NAME_LABEL}</span>
-      <span data-testid="chat-comparison-current" className={NAME_CELL}>
-        {current ?? ""}
-      </span>
-      <span aria-hidden="true">→</span>
-      <span data-testid="chat-comparison-changed" className={NAME_CELL}>
-        {changed}
-      </span>
+      <span data-testid="chat-comparison-label" className={LABEL_CELL}>{GOAL_NAME_LABEL}</span>
+      <div className={VALUES}>
+        <span data-testid="chat-comparison-current" className={`${NAME_CELL} ${CURRENT_CELL}`}>
+          {current ?? ""}
+        </span>
+        <span aria-hidden="true">→</span>
+        <span data-testid="chat-comparison-changed" className={`${NAME_CELL} ${CHANGED_CELL}`}>
+          {changed}
+        </span>
+      </div>
     </div>
   );
 }
@@ -84,7 +94,7 @@ function GoalNameRow({ current, changed }: { current: string | null; changed: st
 function ResultChange({ testId, direction, text }: { testId: string; direction: Direction; text?: string }) {
   const tone = RESULT_TONE[direction];
   return (
-    <span data-testid={`${testId}-tone`} data-direction={direction} className={`font-semibold ${tone.className}`}>
+    <span data-testid={`${testId}-tone`} data-direction={direction} className={`inline-flex items-baseline gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold ${tone.className}`}>
       <span aria-hidden="true">{tone.mark} </span>
       {text !== undefined && <span data-testid={testId}>{text}</span>}
       <span className="sr-only">{tone.spoken}</span>
@@ -135,14 +145,14 @@ function ExceededSides({ data, exceeded }: { data: Comparison; exceeded: Compari
     .replace("{goalAmount}", display[`conditions.${exceeded}.${GOAL_KEY}`]);
   return (
     <>
-      <p data-testid={`chat-comparison-${exceeded}-exceeded`}>{message}</p>
+      <p data-testid={`chat-comparison-${exceeded}-exceeded`} className="rounded-lg bg-surface-muted px-2 py-1.5 text-xs leading-relaxed text-text">{message}</p>
       <div data-testid={`chat-comparison-${calculated}-calculated`} className={ROW}>
         <span>{COPY[calculated === "current" ? "compare.colCurrent" : "compare.colChanged"]}</span>
         <span>{COPY[`scenario.${baselineScenario}` as keyof typeof COPY] ?? baselineScenario}</span>
         <span>{display[`${calculated}.${baselineScenario}.afterTaxAsset`]}</span>
         <span>{display[`${calculated}.${baselineScenario}.gapToGoal`]}</span>
       </div>
-      {exceeded === "changed" && <p data-testid="chat-comparison-changed-exceeded-note">{COPY["chat.changedAlreadyExceeded"]}</p>}
+      {exceeded === "changed" && <p data-testid="chat-comparison-changed-exceeded-note" className="text-xs text-text-muted">{COPY["chat.changedAlreadyExceeded"]}</p>}
     </>
   );
 }
@@ -152,7 +162,7 @@ function Details({ data, currentGoalName }: { data: Comparison; currentGoalName:
   const goalChanged = data.changedKeys.has(GOAL_KEY);
   return (
     <>
-      <p data-testid="chat-comparison-title" className="font-semibold">
+      <p data-testid="chat-comparison-title" className="mb-1 text-sm font-bold text-text">
         {titleOf(data)}
       </p>
       {data.changedGoalName !== null && <GoalNameRow current={currentGoalName} changed={data.changedGoalName} />}
@@ -166,38 +176,42 @@ function Details({ data, currentGoalName }: { data: Comparison; currentGoalName:
             data-changed={changed ? "true" : "false"}
             className={changed ? CHANGED_ROW : ROW}
           >
-            <span data-testid="chat-comparison-label">{labelOf(key)}</span>
-            <span data-testid="chat-comparison-current">{data.display[conditionDisplayKey("current", key)]}</span>
-            <span aria-hidden="true">→</span>
-            <span data-testid="chat-comparison-changed">{data.display[conditionDisplayKey("changed", key)]}</span>
-            {changed && <ConditionChange direction={data.conditionDirections[key]} />}
+            <span data-testid="chat-comparison-label" className={LABEL_CELL}>{labelOf(key)}</span>
+            <div className={VALUES}>
+              <span data-testid="chat-comparison-current" className={CURRENT_CELL}>{data.display[conditionDisplayKey("current", key)]}</span>
+              <span aria-hidden="true">→</span>
+              <span data-testid="chat-comparison-changed" className={CHANGED_CELL}>{data.display[conditionDisplayKey("changed", key)]}</span>
+              {changed && <ConditionChange direction={data.conditionDirections[key]} />}
+            </div>
           </div>
         );
       })}
       {data.scenarios.map(({ scenario, achievementChange, assetDirection, gapDirection }) => (
         <div key={scenario} data-testid="chat-comparison-scenario" data-scenario={scenario} className={ROW}>
-          <span>{COPY[`scenario.${scenario}` as keyof typeof COPY] ?? scenario}</span>
-          <span data-testid="chat-comparison-current">{data.display[`current.${scenario}.afterTaxAsset`]}</span>
-          <span aria-hidden="true">→</span>
-          <span data-testid="chat-comparison-changed">{data.display[`changed.${scenario}.afterTaxAsset`]}</span>
-          <ResultChange
-            testId="chat-comparison-delta"
-            direction={assetDirection}
-            text={data.display[`diff.${scenario}.afterTaxAssetDelta`]}
-          />
-          <span data-testid="chat-comparison-gap">{data.display[`changed.${scenario}.gapToGoal`]}</span>
-          {/* 목표 대비 차이는 서버 값(#285). 키가 없으면 목표가 그대로일 때만 같은 값인 예상 자산 차이를 쓰고, 아니면 방향만 */}
-          <ResultChange
-            testId="chat-comparison-gap-delta"
-            direction={gapDirection}
-            text={data.display[`diff.${scenario}.gapToGoalDelta`] ?? (goalChanged ? undefined : data.display[`diff.${scenario}.afterTaxAssetDelta`])}
-          />
-          <span data-testid="chat-comparison-achievement">{ACHIEVEMENT_CHANGE_LABELS[achievementChange] ?? ""}</span>
+          <span className={`${LABEL_CELL} font-semibold text-text`}>{COPY[`scenario.${scenario}` as keyof typeof COPY] ?? scenario}</span>
+          <div className={VALUES}>
+            <span data-testid="chat-comparison-current" className={CURRENT_CELL}>{data.display[`current.${scenario}.afterTaxAsset`]}</span>
+            <span aria-hidden="true">→</span>
+            <span data-testid="chat-comparison-changed" className={CHANGED_CELL}>{data.display[`changed.${scenario}.afterTaxAsset`]}</span>
+            <ResultChange
+              testId="chat-comparison-delta"
+              direction={assetDirection}
+              text={data.display[`diff.${scenario}.afterTaxAssetDelta`]}
+            />
+            <span data-testid="chat-comparison-gap" className="basis-full text-xs text-text-muted">{data.display[`changed.${scenario}.gapToGoal`]}</span>
+            {/* 목표 대비 차이는 서버 값(#285). 키가 없으면 목표가 그대로일 때만 같은 값인 예상 자산 차이를 쓰고, 아니면 방향만 */}
+            <ResultChange
+              testId="chat-comparison-gap-delta"
+              direction={gapDirection}
+              text={data.display[`diff.${scenario}.gapToGoalDelta`] ?? (goalChanged ? undefined : data.display[`diff.${scenario}.afterTaxAssetDelta`])}
+            />
+            <span data-testid="chat-comparison-achievement" className="text-xs text-text-muted">{ACHIEVEMENT_CHANGE_LABELS[achievementChange] ?? ""}</span>
+          </div>
         </div>
       ))}
       {data.exceeded !== null && <ExceededSides data={data} exceeded={data.exceeded} />}
-      {note !== null && <p data-testid="chat-comparison-goal-note">{note}</p>}
-      {nameOnly(data) && <p data-testid="chat-comparison-goal-name-note">{COPY["chat.goalNameOnlyNote"]}</p>}
+      {note !== null && <p data-testid="chat-comparison-goal-note" className="mt-1 text-xs leading-relaxed text-text-muted">{note}</p>}
+      {nameOnly(data) && <p data-testid="chat-comparison-goal-name-note" className="mt-1 text-xs leading-relaxed text-text-muted">{COPY["chat.goalNameOnlyNote"]}</p>}
     </>
   );
 }
@@ -234,7 +248,7 @@ export function ComparisonResult({
     const latestKind = latestId === null ? undefined : snapshot.entries.get(latestId)?.kind;
     if (entry?.kind === "loading" && latestKind !== "ready") return null;
     return (
-      <div data-testid="chat-comparison" data-message-id={message.id} data-collapsed="true">
+      <div data-testid="chat-comparison" data-message-id={message.id} data-collapsed="true" className="flex items-center justify-between gap-2 rounded-xl border border-border bg-surface-muted px-3 py-2 text-xs text-text-muted">
         <p>{COLLAPSED_LABEL}</p>
         <ApplyButton comparison={comparison} messageId={message.id} active={false} />
       </div>
@@ -242,7 +256,7 @@ export function ComparisonResult({
   }
   if (entry?.kind !== "ready") return null;
   return (
-    <div data-testid="chat-comparison" data-message-id={message.id} data-collapsed="false">
+    <div data-testid="chat-comparison" data-message-id={message.id} data-collapsed="false" className="flex flex-col gap-1 rounded-xl border border-border bg-surface p-3 text-sm shadow-sm">
       <Details data={entry.data} currentGoalName={currentGoalName} />
       <ApplyButton comparison={comparison} messageId={message.id} active={isApplyActive(snapshot, latestId, message.id)} />
     </div>

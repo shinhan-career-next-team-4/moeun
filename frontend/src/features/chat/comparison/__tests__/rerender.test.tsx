@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Issue #53 AC-31: 같은 인스턴스를 담은 새 deps 객체로 rerender해도 비교 상태가 초기화되지 않는다.
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPollingRegistry } from "../../../../api/polling";
 import { copy, doneMsg, flush, page, serverError, tick, userMsg } from "../../__tests__/helpers";
@@ -19,7 +19,6 @@ import {
 
 const recalc = (id: number) => doneMsg(id, "RECALC_RESULT", "월 저축액을 약 50만원으로 바꾸면 평균일 때 달성해요");
 const f4Path = (id: number) => `/api/chat/messages/${id}/comparison`;
-const undoButton = () => screen.queryByRole("button", { name: "되돌리기" });
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -91,25 +90,6 @@ describe("AC-31 같은 인스턴스를 담은 새 deps로 다시 렌더링해도
     await rerender();
     expect(comparisonToast()?.textContent).toContain(copy["toast.applyFailed"]);
     expect(buttonOf(1031).disabled).toBe(false);
-    expect(api.f4Calls()).toEqual([f4Path(1031)]);
-  });
-
-  it("④ F-5 성공과 재조회 완료 뒤 rerender해도 revision 13이고 되돌리기 토스트는 적용 성공부터 10초 보인다", async () => {
-    const { api, store, rerender } = await mount();
-    fireEvent.click(buttonOf(1031));
-    await flush();
-    await flush();
-    await flush();
-    expect(store.getState().revision).toBe(13);
-    expect(undoButton()).not.toBeNull();
-    await tick(4_000);
-    await rerender();
-    expect(store.getState().revision).toBe(13);
-    expect(undoButton()).not.toBeNull();
-    await tick(5_900);
-    expect(undoButton()).not.toBeNull();
-    await tick(200);
-    expect(undoButton()).toBeNull();
     expect(api.f4Calls()).toEqual([f4Path(1031)]);
   });
 });

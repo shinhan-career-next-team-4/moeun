@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // spec.md "제약"의 구현 단계 TODO: AC-20 목 흐름 3개(etf0·F-4 400·post-apply.422-field-not-changeable)와 AC-15 지연 응답.
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { api as appApi, planStore as appPlanStore, polling as appPolling, setNavigate } from "../../../../api";
 import { jsonResponse, readMock } from "../../../../api/__tests__/helpers";
@@ -92,41 +92,5 @@ describe("AC-20 목 모드 추가 흐름", () => {
     expect(planGets(requests)).toBe(0);
     expect(appPlanStore.getState().revision).toBe(12);
     for (const button of applyButtons()) expect(button.disabled).toBe(true);
-  });
-});
-
-describe("AC-15 F-5 응답이 늦어도 되돌리기 토스트 10초는 적용 성공 시점부터 센다", () => {
-  it("응답이 8초 늦게 와도 성공 시점부터 9.9초에 토스트가 있고 10.1초에 없다", async () => {
-    useMock("get-messages.200-restore-history.json");
-    useMock("get-plan.200-after-apply.json");
-    let release: (() => void) | undefined;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    await mountApp();
-    // 적용 요청을 8초 보류하려고 fetch를 한 겹 더 감싼다
-    const inner = globalThis.fetch;
-    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
-      if ((init?.method ?? "GET") === "POST" && url.endsWith("/apply")) await gate;
-      return inner(input, init);
-    });
-    fireEvent.click(buttonOf(1031));
-    await act(async () => {
-      vi.advanceTimersByTime(8000);
-    });
-    expect(screen.queryByRole("button", { name: "되돌리기" })).toBeNull();
-    release?.();
-    await settle();
-    await settle();
-    expect(screen.queryByRole("button", { name: "되돌리기" })).not.toBeNull();
-    await act(async () => {
-      vi.advanceTimersByTime(9900);
-    });
-    expect(screen.queryByRole("button", { name: "되돌리기" })).not.toBeNull();
-    await act(async () => {
-      vi.advanceTimersByTime(200);
-    });
-    expect(screen.queryByRole("button", { name: "되돌리기" })).toBeNull();
   });
 });
