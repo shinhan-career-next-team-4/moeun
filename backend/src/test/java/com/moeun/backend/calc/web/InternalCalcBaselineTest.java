@@ -200,6 +200,15 @@ class InternalCalcBaselineTest {
     }
 
     @Test
+    @DisplayName("이번 변경과 비교 기준이 모두 범위를 벗어나면 이번 변경의 오류 뒤에 비교 기준의 오류를 담는다")
+    void ordersChangeErrorsBeforeBaselineErrors() throws Exception {
+        postCalc(changes("savingsRatioPct", 150), changes("monthlySavingAmount", -1))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.errors[0].field").value("monthlySavingAmount"))
+                .andExpect(jsonPath("$.errors[1].field").value("baselineConditionChanges.savingsRatioPct"));
+    }
+
+    @Test
     @DisplayName("비교 기준에 바꿀 수 없는 키가 있으면 422 FIELD_NOT_CHANGEABLE이다")
     void rejectsUnchangeableBaselineKey() throws Exception {
         postCalc(changes("heldAssets", 1_000_000), changes("monthlySavingAmount", 500_000))
