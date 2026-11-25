@@ -109,6 +109,16 @@ def test_accumulated_conditions_folds_list_with_later_change_winning():
     }
 
 
+def test_accumulated_conditions_drops_wrongly_typed_or_unknown_entries():
+    """정수 자리에 실수가 오거나 모르는 키면 그 항목만 버린다(대화 전체를 실패시키지 않는다)."""
+    req = question("기간은 4년으로", accumulatedChanges=[
+        RATIO_30,
+        {"field": "monthlySavingAmount", "before": 300000, "after": 1500000.0},
+        {"field": "heldAssets", "before": 1, "after": 2},
+    ])
+    assert accumulated_conditions(req.accumulated_changes).changed() == {"savings_ratio_pct": 30}
+
+
 def test_accumulated_conditions_of_empty_list_is_empty():
     assert accumulated_conditions([]).changed() == {}
 
@@ -143,6 +153,23 @@ async def test_model_reinjecting_accumulated_value_is_filtered_from_this_turn():
     )
     assert calc.calls[0]["changes"] == {"monthly_saving_amount": 1_500_000}
     assert calc.calls[0]["baseline_changes"] == ConditionChanges(savings_ratio_pct=30)
+
+
+async def test_accumulated_value_is_filtered_even_without_history():
+    """대화 원문이 잘려 history가 없어도, 누적 조건만으로 이번 인자에 다시 넣은 값을 거른다."""
+    claude = FakeClaude([
+        tool_resp({**NULLS, "monthly_saving_amount": 1_500_000, "savings_ratio_pct": 30}),
+        text_resp(),
+    ])
+    calc = FakeCalc()
+    await make_agent(claude, calc).run(
+        question("월 150만원으로 늘리면?", plan_context=PLAN_CONTEXT, accumulatedChanges=[RATIO_30])
+    )
+    assert calc.calls[0]["changes"] == {"monthly_saving_amount": 1_500_000}
+
+
+def test_system_prompt_explains_baseline_validation_errors():
+    assert "baselineConditionChanges." in SYSTEM_PROMPT
 
 
 async def test_without_accumulated_changes_calc_gets_no_baseline():

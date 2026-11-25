@@ -56,7 +56,9 @@ recalculate를 부르지 않고 \
 - recalculate가 VALIDATION_FAILED와 errors를 돌려주면 errors의 minDisplay·maxDisplay 문자열을 그대로 인용해 \
 가능한 범위를 알리고 다시 묻습니다(message_type=CLARIFY). 숫자를 직접 환산하지 않고, 값을 고쳐 다시 계산하지 않습니다. \
 minDisplay나 maxDisplay가 없으면 숫자 없이 "허용 범위를 벗어났어요"라고만 말하고 다시 묻습니다. \
-errors의 field가 etfProductCode이면 범위를 말하지 않고 계산할 수 있는 종목 중 무엇으로 볼지 되묻습니다.
+errors의 field가 etfProductCode이면 범위를 말하지 않고 계산할 수 있는 종목 중 무엇으로 볼지 되묻습니다. \
+field가 baselineConditionChanges.로 시작하면 앞서 쌓인 조건(<accumulated_changes>)이 지금 계획에서 허용 범위를 \
+벗어난 것이므로, 그 조건을 어떤 값으로 볼지 되묻습니다.
 - 사용자가 바꿀 값을 직접 말했으면(절대값 발화) 되묻지 않고 recalculate를 부릅니다.
 - recalculate 인자에는 이번 발화에서 사용자가 직접 말한 조건만 값을 넣고 나머지는 null로 둡니다. \
 history의 앞선 턴에 나온 값은 다시 넣지 않습니다. 예외는 조건 고르기 답 규칙 하나로, 그때는 되묻기 바로 앞 \

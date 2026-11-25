@@ -113,7 +113,7 @@ class ChatRequest(ApiModel):
     base_plan_version_id: int | None = None
     history: list[HistoryItem] = Field(default_factory=list, max_length=20)
     # QUESTION: 이 대화에서 앞서 바꾼 조건의 변경 목록(#418, D-103). 다음 계산의 비교 기준이 된다
-    accumulated_changes: list[ConditionChangeEntry] = Field(default_factory=list, max_length=100)
+    accumulated_changes: list[ConditionChangeEntry] = Field(default_factory=list)
 
 
 MessageType = Literal["ANSWER", "EXPLANATION", "RECALC_RESULT", "CLARIFY", "OUT_OF_SCOPE"]

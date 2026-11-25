@@ -1,8 +1,13 @@
+import logging
 import re
 from collections.abc import Sequence
 from typing import Any
 
+from pydantic import ValidationError
+
 from app.schemas import ConditionChangeEntry, ConditionChanges, HistoryItem
+
+log = logging.getLogger(__name__)
 
 # 이번 발화가 그 조건을 가리키는지 보는 느슨한 표현. 자연어를 해석하거나 계산하지 않고, 표현이 없을 때만 값을 뺀다.
 # "개월"의 월, "원래"의 원, "한 달"의 달처럼 다른 조건의 글자가 겹치지 않게 정규식으로 가린다(M-3)
@@ -199,15 +204,24 @@ def pointed_source(text: str, history: Sequence[HistoryItem]) -> str | None:
 
 
 def accumulated_conditions(entries: Sequence[ConditionChangeEntry]) -> ConditionChanges:
-    """변경 목록을 순서대로 접은 최종 조건(#418, D-103). 같은 조건은 뒤의 변경이 이긴다. 모르는 키는 버린다.
+    """변경 목록을 순서대로 접은 최종 조건(#418, D-103). 같은 조건은 뒤의 변경이 이긴다.
 
     값을 계산하지 않고 고르기만 한다. 이 값이 /internal/calc의 비교 기준(baselineConditionChanges)이다.
+    모르는 키나 타입이 맞지 않는 값(정수 자리의 1500000.0 등)은 그 항목만 버린다. 대화 전체를 실패시키지 않는다.
     """
     aliases = {field.alias or name: name for name, field in ConditionChanges.model_fields.items()}
     final: dict[str, Any] = {}
     for entry in entries:
-        if entry.field in aliases:
-            final[aliases[entry.field]] = entry.after
+        name = aliases.get(entry.field)
+        if name is None:
+            log.warning("accumulated change with unknown field dropped: %s", entry.field)
+            continue
+        try:
+            ConditionChanges.model_validate({name: entry.after})
+        except ValidationError:
+            log.warning("accumulated change with wrong type dropped: %s", entry.field)
+            continue
+        final[name] = entry.after
     return ConditionChanges.model_validate(final)
 
 
