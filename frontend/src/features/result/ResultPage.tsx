@@ -53,6 +53,8 @@ export function ResultPage() {
   // 대안 카드(#258, A-1). 받은 시점의 revision이 지금과 같을 때만 적용할 수 있다
   const [alternatives, setAlternatives] = useState<{
     revision: number;
+    /** 이 응답을 받은 시점의 계산 결과 번호. 지금 계산 결과와 다르면 옛 응답이다 */
+    calcRunId: number | null;
     hasAlternatives: boolean;
     values: AlternativeValuesByKey;
     /** 적용이 422로 거절됐다. 다시 받을 때까지 대안 적용을 막는다 */
@@ -193,16 +195,23 @@ export function ResultPage() {
   // 대안은 계획이 바뀔 때마다(적용·되돌리기·입력 수정) 다시 받는다. 기한 카드에 적은 기간도 함께 보낸다(A-1-3)
   // revision이 바뀐 순간의 응답은 옛 계산 기준일 수 있어, 새 계산 결과(calcRunId)가 들어올 때도 다시 받는다
   const calcRunId = view?.calcRunId ?? null;
+  const viewRevision = view?.revision ?? null;
+  // 지금 계획·계산 결과 기준으로 받은 응답인지. 아니면 새 응답이 올 때까지 빈 카드를 먼저 보여 준다
+  const alternativesFresh =
+    alternatives !== null && alternatives.revision === revision && alternatives.calcRunId === calcRunId;
   useEffect(() => {
-    if (revision === null) return;
+    // 적용·되돌리기는 revision이 먼저 바뀌고 계획 화면이 뒤따른다. 따라잡기 전에 보내면 요청이 두 번 나가므로 기다린다
+    if (revision === null || viewRevision !== revision) return;
     let active = true;
     const fetchedAt = revision;
+    const fetchedCalcRunId = calcRunId;
     requestAlternatives({ request: (method, path, body) => api.request(method, path, body) }).then((result) => {
       if (!active) return;
       if (result.ok) {
         setAlternativesFailed(false);
         setAlternatives({
           revision: fetchedAt,
+          calcRunId: fetchedCalcRunId,
           hasAlternatives: result.response.hasAlternatives,
           values: toAlternativeValues(result.response),
           blocked: false,
@@ -219,7 +228,7 @@ export function ResultPage() {
     return () => {
       active = false;
     };
-  }, [revision, calcRunId]);
+  }, [revision, calcRunId, viewRevision]);
 
   useEffect(() => {
     if (planStore.getState().view === null) {
@@ -336,14 +345,14 @@ export function ResultPage() {
                   </section>
                 )}
                 {/* 대안 영역(#67). 기준 시나리오가 미달일 때만 보인다(FR-ALT-01) */}
-                {!((baseline?.isAchieved ?? false) || alternatives?.hasAlternatives === false) && (
+                {!((baseline?.isAchieved ?? false) || (alternativesFresh && alternatives?.hasAlternatives === false)) && (
                   <section aria-label="대안 제안" className="rounded-xl border border-border bg-surface p-6 shadow-sm">
                     <AlternativeSection
                       isAchieved={false}
-                      values={alternatives?.values}
+                      values={alternativesFresh ? alternatives?.values : undefined}
                       onCompare={prefillComparison}
                       onApply={openAlternativeConfirm}
-                      applyEnabled={alternatives !== null && !alternatives.blocked && alternatives.revision === revision}
+                      applyEnabled={alternatives !== null && !alternatives.blocked && alternativesFresh}
                       loadFailed={alternativesFailed}
                     />
                   </section>

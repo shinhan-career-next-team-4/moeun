@@ -17,9 +17,13 @@ interface Row {
   current?: string;
   changed?: string;
   change?: string;
+  /** 변화 문구의 색. 달성으로 바뀌면 good, 미달로 바뀌면 bad. 서버가 준 achievementChange 값만 본다 */
+  tone?: "good" | "bad";
 }
 
 const DASH = "—";
+
+const TONE_CLASS = { good: "font-medium text-success", bad: "font-medium text-danger", none: "text-text-muted" } as const;
 
 function conditionRows(view: ComparisonView, copy: CopyMap): Row[] {
   return [...view.changedKeys].sort().map((key) => ({
@@ -38,6 +42,12 @@ function resultRows(view: ComparisonView): Row[] {
     const change = achievement(scenario);
     return change ? COPY[`achievementChange.${change}`] : undefined;
   };
+  const achievementTone = (scenario: string): Row["tone"] => {
+    const change = achievement(scenario);
+    if (change === "MISS_TO_ACHIEVE") return "good";
+    if (change === "ACHIEVE_TO_MISS") return "bad";
+    return undefined;
+  };
 
   return [
     {
@@ -51,12 +61,14 @@ function resultRows(view: ComparisonView): Row[] {
       current: view.display[`current.${baseline}.gapToGoal`],
       changed: view.display[`changed.${baseline}.gapToGoal`],
       change: achievementText(baseline),
+      tone: achievementTone(baseline),
     },
     {
       label: COPY["compare.rowBad"],
       current: view.display["current.BAD.afterTaxAsset"],
       changed: view.display["changed.BAD.afterTaxAsset"],
       change: achievementText("BAD"),
+      tone: achievementTone("BAD"),
     },
     {
       label: COPY["compare.rowPrincipal"],
@@ -105,7 +117,7 @@ export function CompareTable({ view }: { view: ComparisonView }) {
             </th>
             <td className="py-2 text-right text-text">{row.current ?? DASH}</td>
             <td className="py-2 text-right font-medium text-text">{row.changed ?? DASH}</td>
-            <td className="py-2 text-right text-text-muted">{row.change ?? DASH}</td>
+            <td className={`py-2 text-right ${TONE_CLASS[row.tone ?? "none"]}`}>{row.change ?? DASH}</td>
           </tr>
         ))}
       </tbody>
