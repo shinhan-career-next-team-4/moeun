@@ -48,6 +48,7 @@
 |---|---|---|---|
 | `memberId` | integer | 예 | 계산할 회원. 그 회원의 **현재 계획**이 기준(C2-8) |
 | `conditionChanges` | object | 예 | 바꿀 조건만 담는다. 키가 없거나 값이 `null`이면 "바꾸지 않음" |
+| `basePlanVersionId` | integer | 아니오 | **[#396]** 비교의 기준으로 삼을 계획 버전. ai-server가 질문을 접수한 순간의 계획 버전을 실어 보내, 답을 기다리는 사이 계획이 바뀌어도(ETF 버튼의 즉시 적용 등) 질문한 때의 계획과 비교한다. 키가 없거나 `null`이면 지금 계획 기준이고, 내 버전이 아니면 지금 계획으로 대신한다. 정수가 아니면 400 |
 | `baselineScenario` | string | **아니오(무시)** | 지금 `CalcClient`가 보내므로 받기는 하지만 **Spring은 값을 보지 않는다.** `String`으로 받고 검사하지 않으며, 모르는 값이 와도 거절하지 않는다. 기준 시나리오는 `plan.baseline_scenario`에서 읽는다. 다음 계약 버전에서 뺀다 |
 
 - `baselineScenario`를 계획에서 읽는 이유: 원천이 한 곳이고 같은 `plan` 행이라 비용이 없다. 해커톤에서는 항상 AVG(FR-RES-09 Should)라 ai-server 동작은 바뀌지 않는다. ai-server는 지금 코드를 고치지 않아도 된다.

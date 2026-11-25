@@ -529,3 +529,16 @@ async def test_calc_request_carries_member_baseline_and_internal_key(http, sprin
     payload = json.loads(request.content)
     assert (payload["memberId"], payload["baselineScenario"]) == (1, "AVG")
     assert payload["conditionChanges"] == {"monthlySavingAmount": 500_000}
+
+
+async def test_recalculate_sends_base_plan_version_id_only_when_given(http, spring):
+    """#396: 질문을 접수한 때의 계획 버전은 있을 때만 본문에 싣는다(없으면 Spring이 지금 계획 기준)."""
+    route = spring.mock(return_value=httpx.Response(200, json=example("success-response.json")))
+    client = CalcClient(http, "k")
+
+    await client.recalculate(7, Scenario.AVG, ConditionChanges(monthly_saving_amount=1))
+    await client.recalculate(7, Scenario.AVG, ConditionChanges(monthly_saving_amount=1), base_plan_version_id=42)
+
+    first, second = (json.loads(call.request.content) for call in route.calls)
+    assert "basePlanVersionId" not in first
+    assert second["basePlanVersionId"] == 42

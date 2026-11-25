@@ -31,6 +31,7 @@ class InternalCalcController {
 
     private static final String MEMBER_ID = "memberId";
     private static final String CONDITION_CHANGES = "conditionChanges";
+    private static final String BASE_PLAN_VERSION_ID = "basePlanVersionId";
 
     private final ConditionValidator conditionValidator;
     private final CompareConditionsUseCase compareConditionsUseCase;
@@ -50,6 +51,12 @@ class InternalCalcController {
             throw new MalformedInternalCalcRequestException();
         }
         long memberId = body.get(MEMBER_ID).longValue();
+        // 질문을 접수한 때의 계획 버전(#396). 없거나 null이면 지금 계획 기준이고, 있으면 정수여야 한다
+        JsonNode baseNode = body.get(BASE_PLAN_VERSION_ID);
+        if (baseNode != null && !baseNode.isNull() && !isLong(baseNode)) {
+            throw new MalformedInternalCalcRequestException();
+        }
+        Long basePlanVersionId = baseNode == null || baseNode.isNull() ? null : baseNode.longValue();
         // 2. 값이 null인 키는 "바꾸지 않음"이라 먼저 지운다
         Map<String, JsonNode> changes = ConditionChanges.withoutNulls(body.get(CONDITION_CHANGES));
         // 3. 허용 밖 키가 하나라도 있으면 일부만 계산하지 않고 전체를 거절한다(사용자가 말한 것과 다른 비교를 막음)
@@ -71,7 +78,7 @@ class InternalCalcController {
         //    목표 이름(#345)은 계산에 쓰지 않는다. 이름만 바꿔도 F-5가 기준 계획 버전을 찾게 계산하고 기록한다
         ConditionChanges.Conversion conversion = validate(changes);
         CompareConditionsUseCase.ComparisonResult result = compareConditionsUseCase.compare(memberId,
-                conversion.override(), conversion.etfProductCode());
+                conversion.override(), conversion.etfProductCode(), basePlanVersionId);
         return InternalCalcResponse.from(result);
     }
 

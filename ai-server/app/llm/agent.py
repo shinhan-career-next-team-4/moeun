@@ -402,7 +402,10 @@ class ChatAgent:
             raise CalcError(_NO_CHANGE_ERROR)
         if said and not check_amount_units(said, changes):
             raise CalcError("목표 금액의 단위(원·만원·억원)가 발화와 맞지 않습니다. 정확한 금액을 다시 물으세요.")
-        result = await self._calc.recalculate(turn.req.member_id, turn.req.baseline_scenario, changes)
+        # 질문을 접수한 때의 계획 버전이 있으면 그 기준으로 비교한다(#396). 없으면 지금까지처럼 지금 계획 기준이다
+        base_id = turn.req.base_plan_version_id
+        base_kwargs = {} if base_id is None else {"base_plan_version_id": base_id}
+        result = await self._calc.recalculate(turn.req.member_id, turn.req.baseline_scenario, changes, **base_kwargs)
         turn.calculated.append(changes.changed())
         if changes.etf_product_code is not None and _changed_product(result) is None:
             # 계획 종목을 몰라 넘긴 키를 Spring이 계획과 같은 종목으로 봤다(C2-2). 남기면 비교 카드에 값 없는 종목 줄이
