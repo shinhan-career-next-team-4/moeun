@@ -4,7 +4,7 @@
 브라우저 ── https://<프론트>.vercel.app ── Vercel(frontend/, 정적 파일)
                      │ /api/* (vercel.json rewrites)
                      ▼
-            https://api.example.com ── EC2 t3.small (ap-northeast-2, Docker Compose, 프로젝트 이름 moeun)
+            https://moeun-api.duckdns.org ── EC2 t3.small (ap-northeast-2, Docker Compose, 프로젝트 이름 moeun)
                                          ├─ nginx      :80 → 443, :443 /api/**·/actuator/health만 공개
                                          ├─ backend    :8080 (내부망)
                                          └─ ai-server  :8000 (내부망, Spring만 부른다)
@@ -24,7 +24,7 @@
 
 | 값 | 어디에 | 지금 |
 |---|---|---|
-| 백엔드 도메인 | `deploy/nginx/default.conf`(server_name 2곳, 인증서 경로 2곳), `frontend/vercel.json`(destination) | `api.example.com` |
+| 백엔드 도메인 | `deploy/nginx/default.conf`(server_name 2곳, 인증서 경로 2곳), `frontend/vercel.json`(destination) | `moeun-api.duckdns.org`(확정, #406) |
 | Vercel 프로덕션 주소 | Parameter Store `/moeun/prod/backend/CORS_ALLOWED_ORIGINS` | 없음 |
 | 배포 역할 ARN | GitHub Variables `AWS_DEPLOY_ROLE_ARN` | 없음 |
 | EC2 인스턴스 ID | GitHub Variables `EC2_INSTANCE_ID` | 없음 |
@@ -212,13 +212,13 @@ ln -sf /opt/certbot/bin/certbot /usr/bin/certbot
 
 # 첫 발급. DNS A 레코드가 이 EC2를 가리키고, 80 포트가 열려 있어야 한다
 certbot certonly --standalone \
-  -d api.example.com \
+  -d moeun-api.duckdns.org \
   -m <인증서 알림 메일> --agree-tos --no-eff-email --non-interactive \
   --pre-hook "docker stop moeun-nginx-1 || true" \
   --post-hook "docker start moeun-nginx-1 || true"
 ```
 
-hook은 `/etc/letsencrypt/renewal/api.example.com.conf`에 저장되어 갱신 때도 그대로 쓰인다. 자동 갱신은 systemd 타이머로 둔다(하루 두 번 확인, 만료 30일 전부터 실제 갱신).
+hook은 `/etc/letsencrypt/renewal/moeun-api.duckdns.org.conf`에 저장되어 갱신 때도 그대로 쓰인다. 자동 갱신은 systemd 타이머로 둔다(하루 두 번 확인, 만료 30일 전부터 실제 갱신).
 
 ```bash
 cat > /etc/systemd/system/certbot-renew.service <<'EOF'
@@ -280,7 +280,7 @@ docker exec moeun-ai-server-1 bash /repo/scripts/ingest/ingest.sh
 
 - New Project → 이 저장소. **Root Directory: `frontend`**, Framework Preset: Vite. Production Branch: `main`.
 - 환경 변수는 두지 않는다. 특히 `VITE_API_MODE=mock`을 두지 않는다.
-- `frontend/vercel.json`이 `/api/*`를 `https://api.example.com/api/*`로 넘기고, 나머지 경로는 `index.html`로 보낸다(BrowserRouter).
+- `frontend/vercel.json`이 `/api/*`를 `https://moeun-api.duckdns.org/api/*`로 넘기고, 나머지 경로는 `index.html`로 보낸다(BrowserRouter).
 - **frontend/가 바뀌지 않으면 빌드를 건너뛴다**: Settings → Git → Ignored Build Step → Custom에 아래 명령을 넣는다. Root Directory가 `frontend`라서 명령은 `frontend/`에서 돈다. 종료 코드 0이면 건너뛰고 1이면 빌드한다.
 
   ```bash
@@ -296,7 +296,7 @@ docker exec moeun-ai-server-1 bash /repo/scripts/ingest/ingest.sh
 3. GitHub Variables(`AWS_DEPLOY_ROLE_ARN`, `EC2_INSTANCE_ID`)를 넣는다. 다음 단계의 머지가 배포 워크플로를 바로 돌리므로 먼저 넣는다.
 4. 도메인을 바꾼 커밋(`deploy/nginx/default.conf`, `frontend/vercel.json`)을 main까지 머지한다. 배포가 자동으로 돈다(안 돌면 Actions에서 `deploy`를 수동 실행).
 5. RAG를 적재한다(8). Vercel을 연결한다(9).
-6. 확인: `curl https://api.example.com/actuator/health` → `{"status":"UP"}`. 프론트에서 로그인 → 계획 → 대화.
+6. 확인: `curl https://moeun-api.duckdns.org/actuator/health` → `{"status":"UP"}`. 프론트에서 로그인 → 계획 → 대화.
 
 ## 운영
 
