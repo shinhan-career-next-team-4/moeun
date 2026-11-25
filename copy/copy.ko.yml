@@ -245,6 +245,8 @@ comparison:
   # 시나리오 증가 줄 "▲ 약 N만원 증가 · 목표보다 +M만원"의 목표 대비 앞말(#417)
   aboveGoal: "목표보다"
   toGoal: "목표까지"
+  # 대화 중 쌓인 조건(#418, D-103). conditions는 "라벨 값"을 쉼표로 이은 것이다
+  accumulated: "{conditions} 적용 중"
 
 # 로그인·입력·계획·되돌리기·결과 화면(C12a-7-1, J-13)
 common:

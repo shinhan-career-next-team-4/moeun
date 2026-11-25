@@ -1,0 +1,240 @@
+{
+  "responses": [
+    {
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "messageId": 1040,
+        "applicable": true,
+        "changedKeys": [
+          "monthlySavingAmount"
+        ],
+        "conditions": {
+          "current": {
+            "monthlySavingAmount": 1500000,
+            "savingsRatioPct": 30,
+            "savingsRateInputPct": 3.12,
+            "targetPeriodMonths": 36
+          },
+          "changed": {
+            "monthlySavingAmount": 2000000,
+            "savingsRatioPct": 30,
+            "savingsRateInputPct": 3.12,
+            "targetPeriodMonths": 36
+          }
+        },
+        "current": {
+          "status": "CALCULATED",
+          "goalAmount": 20000000,
+          "calcStartMonth": "2026-11",
+          "targetMonth": "2029-11",
+          "baselineScenario": "AVG",
+          "scenarios": [
+            {
+              "scenario": "GOOD",
+              "annualReturnPct": 14.2,
+              "afterTaxAsset": 66000000,
+              "principal": 59000000,
+              "afterTaxGain": 7000000,
+              "gapToGoal": 46000000,
+              "isAchieved": true,
+              "goalReachMonth": null
+            },
+            {
+              "scenario": "AVG",
+              "annualReturnPct": 9.8,
+              "afterTaxAsset": 63500000,
+              "principal": 59000000,
+              "afterTaxGain": 4500000,
+              "gapToGoal": 43500000,
+              "isAchieved": true,
+              "goalReachMonth": null
+            },
+            {
+              "scenario": "BAD",
+              "annualReturnPct": 1.1,
+              "afterTaxAsset": 59600000,
+              "principal": 59000000,
+              "afterTaxGain": 600000,
+              "gapToGoal": 39600000,
+              "isAchieved": true,
+              "goalReachMonth": null
+            }
+          ],
+          "requiredMonthlySaving": null,
+          "assumptions": {
+            "savingsRatePct": 3.12,
+            "isDefaultSavingsRate": true,
+            "savingsRateBaseMonth": "2026-10",
+            "savingsRatioPct": 30,
+            "taxRatePct": 15.4,
+            "etfProductCode": "SP500",
+            "etfProductName": "S&P500 추종 ETF",
+            "etfGainTaxRatePct": 15.4,
+            "scenarioMethod": "ROLLING_DISTRIBUTION",
+            "sp500BaseDate": "2026-10-31",
+            "excludedItems": [
+              "ETF_TOTAL_EXPENSE",
+              "EXCHANGE_RATE",
+              "ETF_DISTRIBUTION",
+              "HELD_ASSET_RETURN",
+              "SAVINGS_REDEPOSIT"
+            ]
+          },
+          "dataVersions": {
+            "savingsRateVersionId": 3,
+            "sp500VersionId": 5,
+            "calcParamVersionId": 2,
+            "engineVersion": "1.0.0"
+          }
+        },
+        "changed": {
+          "status": "CALCULATED",
+          "goalAmount": 20000000,
+          "calcStartMonth": "2026-11",
+          "targetMonth": "2029-11",
+          "baselineScenario": "AVG",
+          "scenarios": [
+            {
+              "scenario": "GOOD",
+              "annualReturnPct": 14.2,
+              "afterTaxAsset": 86100000,
+              "principal": 77000000,
+              "afterTaxGain": 9100000,
+              "gapToGoal": 66100000,
+              "isAchieved": true,
+              "goalReachMonth": null
+            },
+            {
+              "scenario": "AVG",
+              "annualReturnPct": 9.8,
+              "afterTaxAsset": 82800000,
+              "principal": 77000000,
+              "afterTaxGain": 5800000,
+              "gapToGoal": 62800000,
+              "isAchieved": true,
+              "goalReachMonth": null
+            },
+            {
+              "scenario": "BAD",
+              "annualReturnPct": 1.1,
+              "afterTaxAsset": 77700000,
+              "principal": 77000000,
+              "afterTaxGain": 700000,
+              "gapToGoal": 57700000,
+              "isAchieved": true,
+              "goalReachMonth": null
+            }
+          ],
+          "requiredMonthlySaving": null,
+          "assumptions": {
+            "savingsRatePct": 3.12,
+            "isDefaultSavingsRate": true,
+            "savingsRateBaseMonth": "2026-10",
+            "savingsRatioPct": 30,
+            "taxRatePct": 15.4,
+            "etfProductCode": "SP500",
+            "etfProductName": "S&P500 추종 ETF",
+            "etfGainTaxRatePct": 15.4,
+            "scenarioMethod": "ROLLING_DISTRIBUTION",
+            "sp500BaseDate": "2026-10-31",
+            "excludedItems": [
+              "ETF_TOTAL_EXPENSE",
+              "EXCHANGE_RATE",
+              "ETF_DISTRIBUTION",
+              "HELD_ASSET_RETURN",
+              "SAVINGS_REDEPOSIT"
+            ]
+          },
+          "dataVersions": {
+            "savingsRateVersionId": 3,
+            "sp500VersionId": 5,
+            "calcParamVersionId": 2,
+            "engineVersion": "1.0.0"
+          }
+        },
+        "diff": {
+          "baselineScenario": "AVG",
+          "byScenario": [
+            {
+              "scenario": "GOOD",
+              "afterTaxAssetDelta": 20100000,
+              "principalDelta": 18000000,
+              "afterTaxGainDelta": 2100000,
+              "achievementChange": "STAYS_ACHIEVED"
+            },
+            {
+              "scenario": "AVG",
+              "afterTaxAssetDelta": 19300000,
+              "principalDelta": 18000000,
+              "afterTaxGainDelta": 1300000,
+              "achievementChange": "STAYS_ACHIEVED"
+            },
+            {
+              "scenario": "BAD",
+              "afterTaxAssetDelta": 18100000,
+              "principalDelta": 18000000,
+              "afterTaxGainDelta": 100000,
+              "achievementChange": "STAYS_ACHIEVED"
+            }
+          ]
+        },
+        "display": {
+          "goalAmount": "약 2,000만원",
+          "current.targetMonth": "2029년 11월",
+          "changed.targetMonth": "2029년 11월",
+          "current.GOOD.afterTaxAsset": "약 6,600만원",
+          "current.GOOD.principal": "약 5,900만원",
+          "current.GOOD.afterTaxGain": "약 700만원",
+          "current.GOOD.gapToGoal": "+약 4,600만원 달성",
+          "current.AVG.afterTaxAsset": "약 6,350만원",
+          "current.AVG.principal": "약 5,900만원",
+          "current.AVG.afterTaxGain": "약 450만원",
+          "current.AVG.gapToGoal": "+약 4,350만원 달성",
+          "current.BAD.afterTaxAsset": "약 5,960만원",
+          "current.BAD.principal": "약 5,900만원",
+          "current.BAD.afterTaxGain": "약 60만원",
+          "current.BAD.gapToGoal": "+약 3,960만원 달성",
+          "changed.GOOD.afterTaxAsset": "약 8,610만원",
+          "changed.GOOD.principal": "약 7,700만원",
+          "changed.GOOD.afterTaxGain": "약 910만원",
+          "changed.GOOD.gapToGoal": "+약 6,610만원 달성",
+          "changed.AVG.afterTaxAsset": "약 8,280만원",
+          "changed.AVG.principal": "약 7,700만원",
+          "changed.AVG.afterTaxGain": "약 580만원",
+          "changed.AVG.gapToGoal": "+약 6,280만원 달성",
+          "changed.BAD.afterTaxAsset": "약 7,770만원",
+          "changed.BAD.principal": "약 7,700만원",
+          "changed.BAD.afterTaxGain": "약 70만원",
+          "changed.BAD.gapToGoal": "+약 5,770만원 달성",
+          "diff.GOOD.afterTaxAssetDelta": "약 2,010만원 증가",
+          "diff.GOOD.principalDelta": "약 1,800만원 증가",
+          "diff.GOOD.afterTaxGainDelta": "약 210만원 증가",
+          "diff.GOOD.gapToGoalDelta": "약 2,010만원 증가",
+          "diff.AVG.afterTaxAssetDelta": "약 1,930만원 증가",
+          "diff.AVG.principalDelta": "약 1,800만원 증가",
+          "diff.AVG.afterTaxGainDelta": "약 130만원 증가",
+          "diff.AVG.gapToGoalDelta": "약 1,930만원 증가",
+          "diff.BAD.afterTaxAssetDelta": "약 1,810만원 증가",
+          "diff.BAD.principalDelta": "약 1,800만원 증가",
+          "diff.BAD.afterTaxGainDelta": "약 10만원 증가",
+          "diff.BAD.gapToGoalDelta": "약 1,810만원 증가",
+          "conditions.current.monthlySavingAmount": "약 150만원",
+          "conditions.current.targetPeriodMonths": "3년 0개월",
+          "conditions.current.savingsRatioPct": "적금 30 : ETF 70",
+          "conditions.current.savingsRateInputPct": "연 3.12%",
+          "conditions.changed.monthlySavingAmount": "약 200만원",
+          "conditions.changed.targetPeriodMonths": "3년 0개월",
+          "conditions.changed.savingsRatioPct": "적금 30 : ETF 70",
+          "conditions.changed.savingsRateInputPct": "연 3.12%"
+        },
+        "accumulatedKeys": [
+          "savingsRatioPct",
+          "monthlySavingAmount"
+        ]
+      }
+    }
+  ]
+}
