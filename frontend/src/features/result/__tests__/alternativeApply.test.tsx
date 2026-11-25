@@ -33,7 +33,11 @@ function problem(status: number, code: string): Response {
 }
 
 function stubServer(
-  options: { alternatives?: (body: { targetPeriodMonths?: number }) => unknown; apply?: () => Response } = {},
+  options: {
+    alternatives?: (body: { targetPeriodMonths?: number }) => unknown;
+    apply?: () => Response;
+    plan?: (read: number) => unknown;
+  } = {},
 ) {
   const calls: Call[] = [];
   let planReads = 0;
@@ -46,6 +50,7 @@ function stubServer(
       calls.push({ method, path: url.pathname, body });
       if (method === "GET" && url.pathname === "/api/plan") {
         planReads += 1;
+        if (options.plan) return jsonResponse(200, options.plan(planReads));
         return jsonResponse(200, (planReads === 1 ? planMock : afterApplyMock).responses[0].body);
       }
       if (method === "POST" && url.pathname === "/api/alternatives") {
@@ -152,6 +157,29 @@ describe("결과 화면 대안 카드 (#258, A-1, D-096)", () => {
     await waitFor(() => expect(server.alternativeCalls().length).toBe(before + 1));
     await waitFor(() => expect(apply().disabled).toBe(false));
   });
+  it("적용 직후 계산이 끝나기 전에 받은 '대안 없음'은, 새 계산 결과가 오면 다시 받아 카드를 보여 준다", async () => {
+    // 달성 상태 → 미달 목표로 적용: revision이 바뀐 순간의 응답은 옛 결과 기준(없음)이고, 새 계산 결과는 그 뒤에 온다
+    let calls = 0;
+    const server = stubServer({
+      alternatives: () => (++calls <= 2 ? noneMock : firstMock).responses[0].body,
+      // 새 목표도 미달이라 계산 결과만 새것(calcRunId)이 된다
+      plan: (read) => {
+        const body = planMock.responses[0].body;
+        return read === 1 ? body : { ...body, revision: 13, calcRunId: 553 };
+      },
+    });
+    renderResult();
+    await waitFor(() => expect(server.alternativeCalls().length).toBe(1));
+    expect(screen.queryByRole("region", { name: "대안" })).toBeNull();
+
+    await act(async () => {
+      planStore.acceptRevision(13);
+      await planStore.loadPlan({ fresh: true });
+    });
+
+    expect(await card("월 저축액을 바꾸면")).toBeTruthy();
+  });
+
   it("대안 API가 실패하면 불러오지 못했다고 안내하고 적용 버튼을 끈다(A-1-2)", async () => {
     stubServer({ alternatives: () => problem(500, "INTERNAL_ERROR") });
     renderResult();
