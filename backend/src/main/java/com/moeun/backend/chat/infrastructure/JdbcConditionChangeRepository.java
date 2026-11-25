@@ -20,11 +20,12 @@ class JdbcConditionChangeRepository implements ConditionChangeRepository {
 
     @Override
     public List<ConditionChange> findAll(long memberId, long planVersionId) {
-        return jdbc.sql("SELECT field, before_value::text AS before_value, after_value::text AS after_value "
-                        + "FROM chat_condition_change WHERE member_id = ? AND plan_version_id = ? ORDER BY id")
+        return jdbc.sql("SELECT field, before_value::text AS before_value, after_value::text AS after_value, "
+                        + "message_id FROM chat_condition_change WHERE member_id = ? AND plan_version_id = ? "
+                        + "ORDER BY id")
                 .params(memberId, planVersionId)
                 .query((rs, row) -> new ConditionChange(rs.getString("field"), rs.getString("before_value"),
-                        rs.getString("after_value")))
+                        rs.getString("after_value"), rs.getLong("message_id")))
                 .list();
     }
 
@@ -42,5 +43,17 @@ class JdbcConditionChangeRepository implements ConditionChangeRepository {
     @Override
     public int deleteAllOf(long memberId) {
         return jdbc.sql("DELETE FROM chat_condition_change WHERE member_id = ?").param(memberId).update();
+    }
+
+    @Override
+    public int deleteOfMessage(long memberId, long messageId) {
+        return jdbc.sql("DELETE FROM chat_condition_change WHERE member_id = ? AND message_id = ?")
+                .params(memberId, messageId).update();
+    }
+
+    @Override
+    public int deleteField(long memberId, long planVersionId, String field) {
+        return jdbc.sql("DELETE FROM chat_condition_change WHERE member_id = ? AND plan_version_id = ? AND field = ?")
+                .params(memberId, planVersionId, field).update();
     }
 }

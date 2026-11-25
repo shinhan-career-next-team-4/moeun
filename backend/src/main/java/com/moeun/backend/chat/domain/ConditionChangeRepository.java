@@ -14,6 +14,12 @@ public interface ConditionChangeRepository {
     /** 한 RECALC_RESULT가 계산한 변경을 순서대로 덧붙인다. */
     void append(long memberId, long messageId, long planVersionId, List<ConditionChange> changes);
 
-    /** 그 회원의 목록을 모두 지운다(적용·대화 세션 종료). */
+    /** 그 회원의 목록을 모두 지운다(적용·대화 세션 종료·"다 원래대로"). */
     int deleteAllOf(long memberId);
+
+    /** 한 메시지가 남긴 변경을 지운다("원래대로"·"아까 거 취소", #419). */
+    int deleteOfMessage(long memberId, long messageId);
+
+    /** 그 계획 버전에서 한 조건의 변경을 모두 지운다("비중은 원래대로", #419). 그 조건은 계획 값으로 돌아간다. */
+    int deleteField(long memberId, long planVersionId, String field);
 }
