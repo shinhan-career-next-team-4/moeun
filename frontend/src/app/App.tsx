@@ -2,14 +2,14 @@ import { useState } from "react";
 import { Link, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { api, planStore } from "../api";
 import { ApiError } from "../api/errors";
-import { forgetDisplayName, LoginPage, readDisplayName } from "../features/auth";
+import { forgetDisplayName, LoginPage, readDisplayName, SignupPage } from "../features/auth";
 import { PlanInputPage } from "../features/input";
 import { ProjectionDemoPage } from "../features/projection";
 import { ResultPage } from "../features/result";
 import { COPY } from "../shared/copy/copy";
 import { Button } from "../shared/ui";
 import { DemoResetDialog } from "./DemoResetDialog";
-import { INPUT_PATH, LOGIN_PATH, PROJECTION_DEMO_PATH, RESULT_PATH } from "./routes";
+import { INPUT_PATH, LOGIN_PATH, PROJECTION_DEMO_PATH, RESULT_PATH, SIGNUP_PATH } from "./routes";
 
 function Layout() {
   const location = useLocation();
@@ -19,8 +19,9 @@ function Layout() {
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
-  const isLogin = location.pathname === LOGIN_PATH;
-  const displayName = isLogin ? null : readDisplayName();
+  // 로그인·회원가입 화면은 아직 로그인 전이라 이름·로그아웃을 보이지 않는다.
+  const isAuthPage = location.pathname === LOGIN_PATH || location.pathname === SIGNUP_PATH;
+  const displayName = isAuthPage ? null : readDisplayName();
 
   async function handleLogout() {
     setLogoutError(null);
@@ -73,7 +74,7 @@ function Layout() {
               .
             </span>
           </Link>
-          {!isLogin && (
+          {!isAuthPage && (
             <div className="flex items-center gap-3 md:absolute md:left-[87.5%] md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2">
               {displayName && (
                 // 숨은 동작: 아이디를 세 번 연달아 누르면 데모 초기화 확인이 뜬다(브라우저의 연속 클릭 수 detail 사용)
@@ -113,6 +114,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route path={INPUT_PATH} element={<PlanInputPage />} />
         <Route path={LOGIN_PATH} element={<LoginPage />} />
+        <Route path={SIGNUP_PATH} element={<SignupPage />} />
         <Route path={RESULT_PATH} element={<ResultPage />} />
         {/* 예상 자산 그래프 데모(#298): mock 데이터라 개발 환경에서만 연다 */}
         {import.meta.env.DEV && <Route path={PROJECTION_DEMO_PATH} element={<ProjectionDemoPage />} />}

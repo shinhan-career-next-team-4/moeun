@@ -48,6 +48,24 @@ class AuthDocsTest {
     }
 
     @Test
+    void signup() throws Exception {
+        mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"loginId\":\"saver01\",\"password\":\"pass-1234\"}"))
+                .andExpect(status().isOk())
+                .andDo(document("auth-signup",
+                        resource(ResourceSnippetParameters.builder()
+                                .tag("Auth")
+                                .summary("회원가입")
+                                .description("계정을 만들고 로그인과 같은 moeun_at(HttpOnly) 쿠키를 발급한다. 본문은 {}. "
+                                        + "이미 있는 아이디는 409 DUPLICATE_LOGIN_ID, 형식 위반은 422 VALIDATION_FAILED"
+                                        + "(INVALID_FORMAT·REQUIRED).")
+                                .requestFields(
+                                        fieldWithPath("loginId").description("아이디. 영문·숫자 4~20자"),
+                                        fieldWithPath("password").description("비밀번호. 8~64자"))
+                                .build())));
+    }
+
+    @Test
     void logout() throws Exception {
         mockMvc.perform(post("/api/auth/logout").cookie(loginCookie()))
                 .andExpect(status().isOk())

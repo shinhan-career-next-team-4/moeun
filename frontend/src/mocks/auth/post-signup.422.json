@@ -1,0 +1,24 @@
+{
+  "responses": [
+    {
+      "status": 422,
+      "headers": {
+        "Content-Type": "application/problem+json"
+      },
+      "body": {
+        "type": "about:blank",
+        "title": "입력 형식이 맞지 않아요",
+        "status": 422,
+        "detail": "loginId: INVALID_FORMAT",
+        "instance": "/api/auth/signup",
+        "code": "VALIDATION_FAILED",
+        "errors": [
+          {
+            "field": "loginId",
+            "reason": "INVALID_FORMAT"
+          }
+        ]
+      }
+    }
+  ]
+}

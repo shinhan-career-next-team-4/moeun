@@ -260,6 +260,18 @@ auth:
   invalidCredentials: "아이디 또는 비밀번호가 맞지 않아요"
   loginFailed: "로그인하지 못했어요. 잠시 후 다시 시도해 주세요"
   logoutFailed: "로그아웃하지 못했어요. 다시 시도해 주세요"
+  # 회원가입 화면(FR-AUTH-04, D-107, #460). 규칙은 P-7 422 INVALID_FORMAT 기준과 같다
+  signupDescription: "아이디와 비밀번호만 정하면 바로 시작할 수 있어요."
+  loginIdRule: "영문·숫자 4~20자"
+  passwordRule: "8~64자"
+  loginIdInvalidFormat: "아이디는 영문·숫자 4~20자로 입력해 주세요"
+  passwordInvalidFormat: "비밀번호는 8~64자로 입력해 주세요"
+  passwordMismatch: "비밀번호가 일치하지 않아요"
+  # 409 DUPLICATE_LOGIN_ID. 문장은 Issue #460 수용 기준 그대로다
+  duplicateLoginId: "이미 사용 중인 아이디입니다"
+  signupFailed: "회원가입하지 못했어요. 잠시 후 다시 시도해 주세요"
+  toSignupPrompt: "아직 계정이 없나요?"
+  toLoginPrompt: "이미 계정이 있나요?"
 # 데모 계정 초기화(#데모). 계획과 대화를 모두 지우고 입력 화면부터 다시 시작한다
 demo:
   reset: "데모 초기화"

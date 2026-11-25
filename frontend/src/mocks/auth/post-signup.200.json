@@ -1,0 +1,12 @@
+{
+  "responses": [
+    {
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json",
+        "Set-Cookie": "moeun_at=eyJhbGciOiJIUzI1NiJ9.mock-payload.mock-signature; Max-Age=1800; Path=/; Secure; HttpOnly; SameSite=Lax"
+      },
+      "body": {}
+    }
+  ]
+}
