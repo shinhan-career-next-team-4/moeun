@@ -9,7 +9,14 @@ from app.schemas import ConditionChanges, DocType, MessageType, RetrievedChunk, 
 
 
 class Calculator(Protocol):
-    async def recalculate(self, member_id: int, baseline: Scenario, changes: ConditionChanges) -> dict[str, Any]: ...
+    async def recalculate(
+        self,
+        member_id: int,
+        baseline: Scenario,
+        changes: ConditionChanges,
+        *,
+        base_plan_version_id: int | None = None,
+    ) -> dict[str, Any]: ...
 
 
 class DocumentSearch(Protocol):

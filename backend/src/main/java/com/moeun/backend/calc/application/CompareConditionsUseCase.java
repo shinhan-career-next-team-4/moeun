@@ -70,7 +70,20 @@ public class CompareConditionsUseCase {
      */
     @Transactional
     public ComparisonResult compare(long memberId, ConditionOverride changes, String changedEtfProductCode) {
-        PlanView plan = planSaveService.findCurrent(memberId).orElseThrow(CalcRejectedException::noPlan);
+        return compare(memberId, changes, changedEtfProductCode, null);
+    }
+
+    /**
+     * @param basePlanVersionId 비교의 기준으로 삼을 계획 버전(#396). 질문을 접수한 때의 버전이라 그 뒤에 계획이 바뀌었어도
+     *     그때의 계획과 비교한다. null이거나 내 버전이 아니면 지금 계획이다
+     */
+    @Transactional
+    public ComparisonResult compare(long memberId, ConditionOverride changes, String changedEtfProductCode,
+            Long basePlanVersionId) {
+        PlanView plan = basePlanVersionId == null
+                ? planSaveService.findCurrent(memberId).orElseThrow(CalcRejectedException::noPlan)
+                : planSaveService.findVersion(memberId, basePlanVersionId)
+                        .or(() -> planSaveService.findCurrent(memberId)).orElseThrow(CalcRejectedException::noPlan);
         CalcParams params = referenceDataService.findActiveCalcParams()
                 .orElseThrow(() -> new IllegalStateException("active calc params are not loaded"));
         // 계획의 ETF 종목(#150)

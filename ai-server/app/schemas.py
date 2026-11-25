@@ -99,6 +99,9 @@ class ChatRequest(ApiModel):
     baseline_scenario: Scenario
     calc_run_id: int | None = None               # EXPLAIN일 때 설명할 계산
     plan_context: PlanContext | None = None      # 현재 조건과 계산 결과 요약. 모델에는 display 문자열만 넘긴다
+    # QUESTION: 질문을 접수한 순간의 계획 버전(#396). 재계산이 이 버전 기준이라
+    # 답을 기다리는 사이 계획이 바뀌어도 어긋나지 않는다
+    base_plan_version_id: int | None = None
     history: list[HistoryItem] = Field(default_factory=list, max_length=20)
 
 

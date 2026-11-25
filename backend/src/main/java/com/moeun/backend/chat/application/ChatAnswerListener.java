@@ -147,12 +147,12 @@ public class ChatAnswerListener {
         ChatMessage message = found.get();
         if (message.isExplanation()) {
             return Optional.of(new Snapshot(message, null,
-                    messages.findCompletedBefore(message.memberId(), message.id(), HISTORY_LIMIT)));
+                    messages.findCompletedBefore(message.memberId(), message.id(), HISTORY_LIMIT), null));
         }
         QuestionMessage question = messages.findLatestQuestionBefore(message.memberId(), message.id()).orElse(null);
         List<HistoryMessage> history = question == null ? List.of()
                 : messages.findCompletedBefore(message.memberId(), question.id(), HISTORY_LIMIT);
-        return Optional.of(new Snapshot(message, question, history));
+        return Optional.of(new Snapshot(message, question, history, event.basePlanVersionId()));
     }
 
     private AiChatRequest buildRequest(Snapshot snapshot) {
@@ -170,7 +170,8 @@ public class ChatAnswerListener {
         Optional<PlanContextSnapshot> plan = planContexts.findForCurrentPlan(message.memberId());
         Scenario baseline = plan.map(PlanContextSnapshot::baselineScenario).orElse(Scenario.AVG);
         return new AiChatRequest(message.memberId(), message.id(), "QUESTION", snapshot.question().content(),
-                baseline.name(), null, plan.map(PlanContextSnapshot::body).orElse(null), snapshot.history());
+                baseline.name(), null, plan.map(PlanContextSnapshot::body).orElse(null), snapshot.history(),
+                snapshot.basePlanVersionId());
     }
 
     private AiChatRequest buildExplainRequest(Snapshot snapshot) {
@@ -180,7 +181,7 @@ public class ChatAnswerListener {
         PlanContextSnapshot plan = planContexts.findForCalcRun(message.memberId(), calcRunId, baseline)
                 .orElseThrow(() -> new IllegalStateException("설명할 계산 기록을 찾지 못함"));
         return new AiChatRequest(message.memberId(), message.id(), "EXPLAIN", null, baseline.name(), calcRunId,
-                plan.body(), snapshot.history());
+                plan.body(), snapshot.history(), null);
     }
 
     /** 갱신과 citation 저장은 한 트랜잭션이다. 0행이면(그 사이 삭제·정리됨) 답을 버리고 citation도 넣지 않는다. */
@@ -225,6 +226,7 @@ public class ChatAnswerListener {
     }
 
     /** 호출 전에 읽어 둔 값. 설명(EXPLAIN)이면 question이 없다. */
-    private record Snapshot(ChatMessage message, QuestionMessage question, List<HistoryMessage> history) {
+    private record Snapshot(ChatMessage message, QuestionMessage question, List<HistoryMessage> history,
+            Long basePlanVersionId) {
     }
 }

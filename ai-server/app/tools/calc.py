@@ -47,16 +47,27 @@ class CalcClient:
         self._http = http
         self._key = internal_api_key
 
-    async def recalculate(self, member_id: int, baseline: Scenario, changes: ConditionChanges) -> dict[str, Any]:
+    async def recalculate(
+        self,
+        member_id: int,
+        baseline: Scenario,
+        changes: ConditionChanges,
+        *,
+        base_plan_version_id: int | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "memberId": member_id,
+            "baselineScenario": baseline.value,
+            "conditionChanges": changes.model_dump(by_alias=True, exclude_none=True),
+        }
+        if base_plan_version_id is not None:
+            # 질문을 접수한 때의 계획 버전(#396). 키가 없으면 Spring은 지금 계획 기준으로 비교한다
+            body["basePlanVersionId"] = base_plan_version_id
         try:
             resp = await self._http.post(
                 "/internal/calc",
                 headers={"X-Internal-Api-Key": self._key},
-                json={
-                    "memberId": member_id,
-                    "baselineScenario": baseline.value,
-                    "conditionChanges": changes.model_dump(by_alias=True, exclude_none=True),
-                },
+                json=body,
             )
         except httpx.TransportError as e:   # 연결 실패·타임아웃
             raise CalcFailed(ErrorCode.CALC_UNAVAILABLE, type(e).__name__) from e

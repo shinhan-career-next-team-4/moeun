@@ -270,6 +270,36 @@ class InternalCalcApiTest {
     }
 
     @Test
+    @DisplayName("basePlanVersionId를 주면 그 뒤에 계획이 바뀌었어도 그 버전을 기준으로 비교한다(#396)")
+    void comparesAgainstGivenBasePlanVersion() throws Exception {
+        savePlan(5_000_000L);
+        long oldVersionId = planSaveService.findCurrent(memberId).orElseThrow().currentVersionId();
+        // 질문을 접수한 뒤 계획이 바뀐다(ETF 버튼의 즉시 적용처럼): 월 저축액 30만 → 80만원
+        planSaveService.save(memberId, valid().goalAmount(20_000_000L).targetPeriodMonths(36).heldAssets(5_000_000L)
+                .monthlySavingAmount(800_000L).build(), planSaveService.findCurrent(memberId).orElseThrow().revision());
+        awaitEventsCompleted();
+
+        Map<String, Object> body = request(changes("goalAmount", 30_000_000));
+        body.put("basePlanVersionId", oldVersionId);
+        JsonNode response = readBody(postCalc(body).andExpect(status().isOk()));
+
+        assertThat(response.get("conditions").get("current").get("monthlySavingAmount").asLong()).isEqualTo(300_000L);
+        // 키가 없으면 지금 계획 기준이다
+        JsonNode now = readBody(postCalc(request(changes("goalAmount", 30_000_000))).andExpect(status().isOk()));
+        assertThat(now.get("conditions").get("current").get("monthlySavingAmount").asLong()).isEqualTo(800_000L);
+    }
+
+    @Test
+    @DisplayName("basePlanVersionId가 정수가 아니면 400이다")
+    void rejectsNonIntegerBasePlanVersionId() throws Exception {
+        savePlan(5_000_000L);
+        Map<String, Object> body = request(changes("goalAmount", 30_000_000));
+        body.put("basePlanVersionId", "abc");
+
+        postCalc(body).andExpect(status().isBadRequest());
+    }
+
+    @Test
     @DisplayName("목표 금액을 바꾼 비교는 시나리오마다 diff.<S>.gapToGoalDelta를 목표 대비 차이의 방향 단어로 내려준다(#285)")
     void formatsGapToGoalDeltaWhenGoalAmountChanges() throws Exception {
         savePlan(5_000_000L);
