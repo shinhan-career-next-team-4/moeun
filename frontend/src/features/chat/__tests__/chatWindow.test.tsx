@@ -213,28 +213,21 @@ describe("AC-13 메시지 그리기 규칙 (C12b-3)", () => {
 });
 
 describe("AC-10 입력창 글자 수", () => {
-  it("maxLength가 2000이고, trim한 길이(UTF-16)가 1~2000일 때만 보낼 수 있다", async () => {
+  it("maxLength가 2000이고, 단추는 늘 눌러 볼 수 있다. 빈 질문·너무 긴 질문은 보내지 않고 이유를 알려 준다(#423)", async () => {
     await mount({ get: [page([], false)] });
     expect(input().getAttribute("maxlength")).toBe("2000");
+    expect(sendButton().disabled).toBe(false);
 
     type("");
-    expect(sendButton().disabled).toBe(true);
+    fireEvent.click(sendButton());
+    expect(screen.getByTestId("chat-input-error").textContent).toContain("궁금한 점을 입력해 주세요");
     type("   \n\t  ");
-    expect(sendButton().disabled).toBe(true);
-    type("가");
-    expect(sendButton().disabled).toBe(false);
-    type("가".repeat(2000));
-    expect(sendButton().disabled).toBe(false);
-    type("가".repeat(2001));
-    expect(sendButton().disabled).toBe(true);
-    // 앞뒤 공백은 길이에 세지 않는다
-    type(`  ${"가".repeat(2000)}  `);
-    expect(sendButton().disabled).toBe(false);
-    // UTF-16 코드 단위: 😀는 2칸
-    type("😀".repeat(1000));
-    expect(sendButton().disabled).toBe(false);
+    fireEvent.click(sendButton());
+    expect(screen.getByTestId("chat-input-error").textContent).toContain("궁금한 점을 입력해 주세요");
+    // UTF-16 코드 단위: 😀는 2칸. 2000자를 넘으면 보내지 않는다
     type("😀".repeat(1001));
-    expect(sendButton().disabled).toBe(true);
+    fireEvent.click(sendButton());
+    expect(screen.getByTestId("chat-input-error").textContent).toContain("2,000자 이하");
   });
 
   it("서버에는 trim한 문자열을 보낸다", async () => {

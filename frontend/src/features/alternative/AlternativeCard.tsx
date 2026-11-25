@@ -66,12 +66,8 @@ export function AlternativeCard({
           <Row label={COPY["alt.rowChange"]} value={values.change} />
           <Row label={COPY["alt.rowAvgAsset"]} value={values.avgAfterTaxAsset} tone={values.achieved ? "good" : "normal"} />
           <Row label={COPY["alt.rowGapToGoal"]} value={values.gapToGoal} tone={values.achieved ? "good" : "normal"} />
-          <Row
-            label={COPY["alt.rowBad"]}
-            value={values.badAfterTaxAsset}
-            tone="warn"
-            suffix={values.volatilityWarning ? COPY["alt.volatilityWarning"] : undefined}
-          />
+          {/* '나빴던 때' 줄은 뺐다(#423). 변동 경고(W-10)는 서버가 알려 준 카드에만 한 줄로 남긴다 */}
+          {values.volatilityWarning && <p className="pt-1 text-right text-xs font-medium text-danger">{COPY["alt.volatilityWarning"]}</p>}
         </dl>
       ) : unreachable ? (
         <p className="text-sm leading-relaxed text-danger">{unreachableMessage(alternativeKey, values?.unreachableLimit)}</p>

@@ -155,6 +155,11 @@ export function CompareSection({
   }
 
   function compare() {
+    // 단추는 늘 눌러 볼 수 있다. 고른 조건이 없으면 비교하지 않고 이유를 알려 준다(#423)
+    if (picked.length === 0) {
+      setInputError(COPY["compare.pickFirst"]);
+      return;
+    }
     const result = currentChanges;
     if ("error" in result) {
       setInputError(result.error);
@@ -238,7 +243,7 @@ export function CompareSection({
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={compare} loading={loading} disabled={picked.length === 0}>
+        <Button onClick={compare} loading={loading}>
           {COPY["compare.submit"]}
         </Button>
         <Button variant="secondary" onClick={reset}>

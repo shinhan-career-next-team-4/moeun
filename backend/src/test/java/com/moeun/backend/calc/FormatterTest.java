@@ -32,9 +32,21 @@ class FormatterTest {
     }
 
     @Test
-    @DisplayName("1억 원 이상도 단위를 바꾸지 않고 약 12,345만원이다(D-065)")
-    void keepsTenThousandUnitAboveHundredMillion() {
-        assertThat(formatter.formatAmount(123_450_000L)).isEqualTo("약 12,345만원");
+    @DisplayName("1억 원 이상은 '약 1억 2,345만원', 딱 1억이면 '약 1억원'이다(D-065를 사용자가 바꿈, #423)")
+    void writesHundredMillionUnitAboveHundredMillion() {
+        assertThat(formatter.formatAmount(123_450_000L)).isEqualTo("약 1억 2,345만원");
+        assertThat(formatter.formatAmount(100_000_000L)).isEqualTo("약 1억원");
+        assertThat(formatter.formatAmount(135_690_000L)).isEqualTo("약 1억 3,569만원");
+        assertThat(formatter.formatAmount(-123_450_000L)).isEqualTo("-약 1억 2,345만원");
+        assertThat(formatter.formatAmount(99_990_000L)).isEqualTo("약 9,999만원");
+    }
+
+    @Test
+    @DisplayName("정확한 금액과 결과 화면 배지도 1억 이상은 억 단위로 쓴다")
+    void writesHundredMillionUnitInExactAndBadge() {
+        assertThat(formatter.formatExactAmount(10_000_000_000L)).isEqualTo("100억원");
+        assertThat(formatter.formatExactAmount(135_690_000L)).isEqualTo("1억 3,569만원");
+        assertThat(formatter.formatGapBadge(135_690_000L, true)).contains("+1억 3,569만 원");
     }
 
     @ParameterizedTest(name = "{0}원 → {1}")

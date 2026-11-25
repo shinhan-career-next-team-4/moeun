@@ -41,7 +41,7 @@ describe("202 뒤 폴링이 3회 실패한 경우", () => {
     await tick(3000);
     expect(screen.getAllByTestId("chat-polling-failed")).toHaveLength(1);
     expect(screen.getAllByTestId("chat-pending")).toHaveLength(1);
-    expect(sendButton().disabled).toBe(true); // 글이 비어 있어서
+    expect(sendButton().disabled).toBe(false); // 단추는 늘 눌러 볼 수 있다(빈 글이면 보내지 않고 안내, #423)
 
     type("다시 질문");
     expect(sendButton().disabled).toBe(false);
